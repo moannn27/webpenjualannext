@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Next Solution E-Commerce
 
-## Getting Started
+Next Solution adalah platform e-commerce minimalis yang dibangun menggunakan **Next.js 15 App Router** dan **Supabase** (PostgreSQL). Proyek ini dilengkapi dengan fitur keranjang belanja real-time, autentikasi, serta checkout dengan transaksi database ACID untuk memastikan keamanan data inventaris.
 
-First, run the development server:
+## 🚀 Panduan Setup Lokal (Wajib Dibaca)
 
+Aplikasi ini sangat bergantung pada backend **Supabase Lokal** untuk manajemen database, autentikasi, dan Server Actions. 
+
+Ikuti panduan berikut agar aplikasi bisa berjalan tanpa error (terutama error `Your project's URL and Key are required to create a Supabase client!`).
+
+### 1. Menjalankan Docker & Supabase Lokal
+1. Pastikan **Docker Desktop** sudah terinstall dan dalam keadaan **berjalan** (Indikator berwarna hijau / Engine Running).
+2. Buka terminal di folder proyek ini (`c:\WEBPENJUALAN`) dan jalankan perintah:
+   ```bash
+   npx supabase start
+   ```
+   *(Proses ini mungkin memakan waktu agak lama pada percobaan pertama karena akan mengunduh image Docker Supabase).*
+
+3. Setelah Supabase menyala, terminal akan menampilkan **API URL** dan **anon key**. Jangan tutup terminal ini.
+
+### 2. Mengisi `.env.local`
+Untuk menghubungkan Next.js dengan Supabase lokal:
+1. Buat file bernama `.env.local` di folder *root* proyek ini.
+2. Salin dan tempel **API URL** dan **anon key** yang Anda dapatkan di Langkah 1 ke dalam file tersebut seperti contoh berikut:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhb... (salin dari terminal Anda)
+   ```
+
+### 3. Migrasi Database (Wajib)
+Supabase lokal masih dalam keadaan kosong. Masukkan skema tabel, fungsi checkout RPC (Transaksi ACID), dan data bohongan (*seed data*) ke dalam database dengan perintah:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx supabase db push
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. Jalankan Aplikasi
+Sekarang aplikasi Anda siap dijalankan!
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Buka [http://localhost:3000](http://localhost:3000) di browser Anda.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🛠️ Tech Stack
+- **Framework:** Next.js 15 (App Router, Server Components, Server Actions)
+- **Database & Auth:** Supabase (PostgreSQL, Row Level Security, RPC Transactions)
+- **Styling:** Tailwind CSS v4, Shadcn UI
+- **Validasi:** Zod
+- **Ikon:** Lucide React
