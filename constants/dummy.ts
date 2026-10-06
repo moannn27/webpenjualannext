@@ -47,7 +47,7 @@ export const CATEGORIES = [
   {
     id: "accessories",
     name: "Accessories",
-    image: "https://images.unsplash.com/photo-1572569432755-940aa0062cb6?q=80&w=500&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1527814050087-3793815479db?q=80&w=500&auto=format&fit=crop",
     href: "/category/accessories"
   },
   {

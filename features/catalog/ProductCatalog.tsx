@@ -201,7 +201,7 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
               {products.map((product) => (
                 <div key={product.id} className="flex gap-6 p-4 bg-card rounded-2xl border items-center">
                   <div className="w-32 h-32 relative shrink-0 bg-muted rounded-xl overflow-hidden">
-                    <Image src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"} alt={product.name} fill className="object-cover" />
+                    <Image src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"} alt={product.name} fill sizes="128px" className="object-cover" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold mb-2">{product.name}</h3>

@@ -8,10 +8,10 @@ Aplikasi bisa memakai Supabase cloud; Docker tidak diperlukan. Buat project di [
 
 ### 1. Hubungkan aplikasi
 
-Salin `.env.example` menjadi `.env.local`, lalu isi dengan URL dan publishable/anon key dari Dashboard:
+Salin `.env.example` menjadi `.env.local`, lalu isi dengan URL dan publishable key dari Dashboard. Legacy `anon` key juga didukung dengan nama variabel `NEXT_PUBLIC_SUPABASE_ANON_KEY`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 

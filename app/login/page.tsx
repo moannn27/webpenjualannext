@@ -14,6 +14,9 @@ export default function LoginPage() {
   const handleLogin = async (formData: FormData) => {
     setError("");
     setLoading(true);
+
+    const requestedRedirect = new URLSearchParams(window.location.search).get("redirect");
+    if (requestedRedirect) formData.set("redirect", requestedRedirect);
     
     try {
       const result = await login(formData);

@@ -51,6 +51,7 @@ export function ProductCard({ product }: ProductCardProps) {
           src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
           alt={product.name}
           fill
+          sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
           className="object-contain mix-blend-multiply p-4 transition-transform duration-500 group-hover:scale-110"
         />
       </Link>
