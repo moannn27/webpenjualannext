@@ -14,7 +14,7 @@ export function FaqSection() {
           Frequently Asked Questions
         </h2>
         <p className="text-lg text-muted-foreground">
-          Have a question? We're here to help.
+          Have a question? We&apos;re here to help.
         </p>
       </div>
 

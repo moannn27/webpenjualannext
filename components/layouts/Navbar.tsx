@@ -23,7 +23,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { getCartAction } from "@/actions/cart";
 
 const components: { title: string; href: string; description: string }[] = [
   {
@@ -50,10 +49,8 @@ const components: { title: string; href: string; description: string }[] = [
 
 export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
   const [isScrolled, setIsScrolled] = React.useState(false);
-  const [isMounted, setIsMounted] = React.useState(false);
 
   React.useEffect(() => {
-    setIsMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
     };
@@ -165,7 +162,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
               </Button>
               <Button variant="ghost" size="icon" className="relative rounded-full text-foreground hover:bg-muted" render={<Link href="/cart" />}>
                 <ShoppingCart className="h-5 w-5" />
-                {isMounted && cartCount > 0 && (
+                {cartCount > 0 && (
                   <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                     {cartCount}
                   </span>
@@ -181,12 +178,12 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
 
 const ListItem = React.forwardRef<
   React.ElementRef<"a">,
-  React.ComponentPropsWithoutRef<"a">
+  React.ComponentPropsWithoutRef<"a"> & { title: string; href: string }
 >(({ className, title, children, href, ...props }, ref) => {
   return (
     <li>
       <NavigationMenuLink
-        render={href ? <Link href={href} ref={ref} {...props as any} /> : <a ref={ref} {...props} />}
+        render={<Link href={href} ref={ref} {...props} />}
         className={cn(
           "block select-none space-y-1 rounded-xl p-3 leading-none no-underline outline-none transition-colors hover:bg-muted/50 hover:text-accent-foreground focus:bg-muted focus:text-accent-foreground",
           className

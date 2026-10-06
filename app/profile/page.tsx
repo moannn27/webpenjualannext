@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, Package, Heart, Settings, LogOut } from "lucide-react";
+import { Package, Heart, Settings, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ProfilePage() {

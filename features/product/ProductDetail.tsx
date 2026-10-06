@@ -9,8 +9,22 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { addToCartAction } from "@/actions/cart";
 
+interface ProductDetailData {
+  id: string;
+  name: string;
+  image?: string | null;
+  brands?: { name: string } | null;
+  brand?: string;
+  rating?: number;
+  reviews?: number;
+  discount_price?: number | null;
+  price: number;
+  stock: number;
+  description?: string | null;
+}
+
 interface ProductDetailProps {
-  product: any;
+  product: ProductDetailData;
 }
 
 export function ProductDetail({ product }: ProductDetailProps) {
@@ -27,11 +41,11 @@ export function ProductDetail({ product }: ProductDetailProps) {
     try {
       await addToCartAction(product.id, quantity);
       router.push("/cart");
-    } catch (error: any) {
-      if (error.message === "Unauthorized") {
+    } catch (error) {
+      if (error instanceof Error && error.message === "Unauthorized") {
         router.push("/login");
       } else {
-        alert("Failed to add to cart: " + error.message);
+        alert("Failed to add to cart: " + (error instanceof Error ? error.message : "Unknown error"));
       }
     } finally {
       setLoading(false);

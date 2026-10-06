@@ -35,7 +35,7 @@ export async function resendVerificationAction(formData: FormData) {
     type: 'signup',
     email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/profile`,
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/profile`,
     },
   })
 

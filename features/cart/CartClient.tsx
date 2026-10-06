@@ -7,9 +7,10 @@ import { Trash2, Plus, Minus, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateCartQuantityAction, removeFromCartAction } from "@/actions/cart";
+import { type CartData, type CartItem } from "@/types/cart";
 
-export function CartClient({ initialCart }: { initialCart: any }) {
-  const [cartItems, setCartItems] = useState(initialCart?.cart_items || []);
+export function CartClient({ initialCart }: { initialCart: CartData | null }) {
+  const [cartItems, setCartItems] = useState<CartItem[]>(initialCart?.cart_items ?? []);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const updateQuantity = async (itemId: string, productId: string, currentQ: number, delta: number) => {
@@ -19,9 +20,9 @@ export function CartClient({ initialCart }: { initialCart: any }) {
     setLoadingId(itemId);
     try {
       await updateCartQuantityAction(itemId, productId, newQ);
-      setCartItems((prev: any[]) => prev.map(item => item.id === itemId ? { ...item, quantity: newQ } : item));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update quantity");
+      setCartItems((prev) => prev.map(item => item.id === itemId ? { ...item, quantity: newQ } : item));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update quantity");
     } finally {
       setLoadingId(null);
     }
@@ -31,15 +32,15 @@ export function CartClient({ initialCart }: { initialCart: any }) {
     setLoadingId(itemId);
     try {
       await removeFromCartAction(itemId);
-      setCartItems((prev: any[]) => prev.filter(item => item.id !== itemId));
-    } catch (err) {
+      setCartItems((prev) => prev.filter(item => item.id !== itemId));
+    } catch {
       alert("Failed to remove item");
     } finally {
       setLoadingId(null);
     }
   };
 
-  const subtotal = cartItems.reduce((acc: number, item: any) => {
+  const subtotal = cartItems.reduce((acc, item) => {
     const price = item.products.discount_price || item.products.price;
     return acc + price * item.quantity;
   }, 0);
@@ -53,7 +54,7 @@ export function CartClient({ initialCart }: { initialCart: any }) {
       {cartItems.length === 0 ? (
         <div className="text-center py-24 bg-card rounded-[32px] border">
           <h2 className="text-2xl font-bold mb-4">Your cart is empty</h2>
-          <p className="text-muted-foreground mb-8">Looks like you haven't added anything yet.</p>
+          <p className="text-muted-foreground mb-8">Looks like you haven&apos;t added anything yet.</p>
           <Button render={<Link href="/products" />} size="lg" className="rounded-full">
             Continue Shopping
           </Button>
@@ -61,7 +62,7 @@ export function CartClient({ initialCart }: { initialCart: any }) {
       ) : (
         <div className="flex flex-col lg:flex-row gap-12 lg:gap-8">
           <div className="flex-1 space-y-6">
-            {cartItems.map((item: any) => {
+            {cartItems.map((item) => {
               const product = item.products;
               const price = product.discount_price || product.price;
               const isUpdating = loadingId === item.id;

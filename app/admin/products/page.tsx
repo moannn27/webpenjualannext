@@ -6,7 +6,7 @@ export default function AdminProductsPage() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Products</h2>
         <p className="text-muted-foreground mt-1">
-          Manage your store's inventory, pricing, and availability.
+          Manage your store&apos;s inventory, pricing, and availability.
         </p>
       </div>
       

@@ -20,7 +20,7 @@ export default function LoginPage() {
       if (result?.error) {
         setError(result.error);
       }
-    } catch (err: any) {
+    } catch {
       setError("An unexpected error occurred.");
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-8 pt-6 border-t text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/register" className="text-primary font-medium hover:underline">
             Create account
           </Link>

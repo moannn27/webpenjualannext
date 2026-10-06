@@ -27,7 +27,7 @@ export default function RegisterPage() {
       if (result?.error) {
         setError(result.error);
       }
-    } catch (err: any) {
+    } catch {
       setError("An unexpected error occurred.");
     } finally {
       setLoading(false);

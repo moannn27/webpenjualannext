@@ -2,20 +2,11 @@
 
 import { CheckoutService } from '@/services/checkout.service'
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { z } from 'zod'
+import { checkoutSchema } from '@/validators/checkout.validator'
 
 const checkoutService = new CheckoutService()
-
-const addressSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
-  email: z.string().email("Invalid email address"),
-  address: z.string().min(5, "Address must be at least 5 characters").max(255),
-  city: z.string().min(2, "City is required").max(100),
-  postalCode: z.string().min(3, "Postal code is required").max(20),
-  shipping: z.enum(['standard', 'express']).default('standard')
-})
 
 export async function proceedToCheckoutAction(formData: FormData) {
   const supabase = await createClient()
@@ -23,41 +14,21 @@ export async function proceedToCheckoutAction(formData: FormData) {
   if (!user) throw new Error("Unauthorized")
 
   // Validate form data
-  const rawData = {
-    firstName: formData.get('firstName'),
-    lastName: formData.get('lastName'),
-    email: formData.get('email'),
-    address: formData.get('address'),
+  const validated = checkoutSchema.safeParse({
+    recipientName: formData.get('recipientName'),
+    phone: formData.get('phone'),
+    streetAddress: formData.get('streetAddress'),
     city: formData.get('city'),
+    province: formData.get('province'),
     postalCode: formData.get('postalCode'),
-    shipping: formData.get('shipping') || 'standard'
-  }
-  
-  const validated = addressSchema.safeParse(rawData)
+    shippingMethod: formData.get('shippingMethod'),
+    paymentMethod: formData.get('paymentMethod'),
+  })
   if (!validated.success) {
-    throw new Error(validated.error.errors.map(e => e.message).join(", "))
-  }
-  const data = validated.data
-  
-  // Create an address record
-  const { data: address, error } = await supabase.from('addresses').insert({
-    user_id: user.id,
-    label: 'Home',
-    recipient_name: `${data.firstName} ${data.lastName}`,
-    phone: '000000000', // Mock for now
-    street_address: data.address,
-    city: data.city,
-    province: 'Province', // Mock for now
-    postal_code: data.postalCode,
-    is_primary: true
-  }).select('id').single()
-
-  if (error || !address) {
-    throw new Error("Failed to create address: " + error?.message)
+    throw new Error(validated.error.issues.map((issue) => issue.message).join(", "))
   }
 
-  const order = await checkoutService.checkout(user.id, address.id, data.shipping)
-  
-  // Redirect to success
+  const order = await checkoutService.checkout(user.id, validated.data)
+  revalidatePath('/', 'layout')
   redirect(`/checkout/success?order_id=${order.id}`)
 }

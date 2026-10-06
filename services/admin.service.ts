@@ -1,5 +1,4 @@
 import { BaseRepository } from '@/repositories/base'
-import { createClient } from '@/lib/supabase/server'
 
 export class AdminService extends BaseRepository {
   async getDashboardStats() {

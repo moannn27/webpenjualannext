@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { BRANDS, CATEGORIES } from "@/constants/dummy";
 import { ProductCard } from "@/components/shared/ProductCard";
+import { useAddToCart } from "@/features/cart/useAddToCart";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -21,13 +23,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { type Product } from "@/store/useProductStore";
 
 interface ProductCatalogProps {
-  initialProducts?: any[];
+  initialProducts?: Product[];
 }
 
 export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
-  const [products, setProducts] = useState(initialProducts);
+  const { addToCart, loadingProductId } = useAddToCart();
+  const products = initialProducts;
   
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [priceRange, setPriceRange] = useState([0, 5000]);
@@ -48,7 +52,7 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
     );
   };
 
-  const FilterSidebar = () => (
+  const filterSidebar = (
     <div className="space-y-8">
       {/* Price Filter */}
       <div>
@@ -58,7 +62,9 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
           max={5000}
           step={50}
           value={priceRange}
-          onValueChange={setPriceRange}
+          onValueChange={(value) => {
+            if (Array.isArray(value)) setPriceRange([...value]);
+          }}
           className="mb-4"
         />
         <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -119,7 +125,7 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
         
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 shrink-0">
-          <FilterSidebar />
+          {filterSidebar}
         </aside>
 
         {/* Main Content */}
@@ -138,7 +144,7 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
                     <SheetTitle>Filters</SheetTitle>
                   </SheetHeader>
                   <div className="py-6">
-                    <FilterSidebar />
+                    {filterSidebar}
                   </div>
                 </SheetContent>
               </Sheet>
@@ -195,14 +201,14 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
               {products.map((product) => (
                 <div key={product.id} className="flex gap-6 p-4 bg-card rounded-2xl border items-center">
                   <div className="w-32 h-32 relative shrink-0 bg-muted rounded-xl overflow-hidden">
-                    <img src={product.image} alt={product.name} className="object-cover w-full h-full" />
+                    <Image src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"} alt={product.name} fill className="object-cover" />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
                     <p className="text-muted-foreground mb-4">{product.brand || product.category}</p>
                     <div className="text-2xl font-bold">${product.price.toLocaleString()}</div>
                   </div>
-                  <Button className="shrink-0 z-10" onClick={() => addToCart(product)}>Add to Cart</Button>
+                  <Button className="shrink-0 z-10" disabled={loadingProductId === product.id} onClick={() => addToCart(product.id)}>Add to Cart</Button>
                 </div>
               ))}
               {products.length === 0 && (

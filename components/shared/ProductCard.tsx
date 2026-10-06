@@ -1,39 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Star, ShoppingCart, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type Product } from "@/store/useProductStore";
-import { addToCartAction } from "@/actions/cart";
+import { useAddToCart } from "@/features/cart/useAddToCart";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent navigating if wrapped in a link
-    e.stopPropagation();
-    setLoading(true);
-    try {
-      await addToCartAction(product.id, 1);
-      // Optional: show a toast success
-    } catch (error: any) {
-      if (error.message === "Unauthorized") {
-        router.push("/login");
-      } else {
-        alert("Failed to add to cart");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { addToCart, loadingProductId } = useAddToCart();
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -102,7 +81,7 @@ export function ProductCard({ product }: ProductCardProps) {
               </span>
             )}
           </div>
-          <Button size="icon" disabled={loading} className="rounded-full h-10 w-10 z-10" onClick={handleAddToCart}>
+          <Button size="icon" disabled={loadingProductId === product.id} className="rounded-full h-10 w-10 z-10" onClick={() => addToCart(product.id)}>
             <ShoppingCart className="h-4 w-4" />
             <span className="sr-only">Add to cart</span>
           </Button>

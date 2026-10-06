@@ -11,7 +11,7 @@ export class OrderService {
     return await this.repo.getOrderById(orderId)
   }
   
-  async createOrder(userId: string, orderData: any, items: any[]) {
+  async createOrder(userId: string, orderData: Record<string, unknown>, items: Record<string, unknown>[]) {
     return await this.repo.create({ ...orderData, user_id: userId }, items)
   }
 }

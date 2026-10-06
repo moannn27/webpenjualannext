@@ -11,7 +11,7 @@ export function CategorySection() {
             Shop by Category
           </h2>
           <p className="text-muted-foreground text-lg">
-            Find exactly what you're looking for.
+            Find exactly what you&apos;re looking for.
           </p>
         </div>
         <Link href="/category" className="text-primary font-medium hover:underline flex items-center gap-1">

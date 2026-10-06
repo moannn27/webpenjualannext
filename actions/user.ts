@@ -23,5 +23,5 @@ export async function updateProfileAction(formData: FormData) {
   const phone = formData.get('phone') as string
   
   await userService.updateProfile(user.id, { full_name: fullName, phone })
-  revalidatePath('/dashboard/profile')
+  revalidatePath('/profile')
 }

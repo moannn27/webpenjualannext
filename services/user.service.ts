@@ -7,7 +7,7 @@ export class UserService {
     return await this.repo.getProfile(userId)
   }
 
-  async updateProfile(userId: string, data: any) {
+  async updateProfile(userId: string, data: Record<string, unknown>) {
     await this.repo.updateProfile(userId, data)
   }
 }

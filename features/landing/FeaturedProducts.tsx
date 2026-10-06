@@ -2,11 +2,12 @@ import Link from "next/link";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { type Product } from "@/store/useProductStore";
 
 interface FeaturedProductsProps {
   title: string;
   type: "bestseller" | "new";
-  initialData?: any[];
+  initialData?: Product[];
 }
 
 export function FeaturedProducts({ title, type, initialData = [] }: FeaturedProductsProps) {

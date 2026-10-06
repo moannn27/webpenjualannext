@@ -12,7 +12,7 @@ export class UserRepository extends BaseRepository {
     return data
   }
 
-  async updateProfile(userId: string, data: any) {
+  async updateProfile(userId: string, data: Record<string, unknown>) {
     const supabase = await this.getClient()
     const { error } = await supabase
       .from('users')

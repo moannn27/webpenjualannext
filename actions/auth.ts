@@ -22,7 +22,13 @@ export async function login(formData: FormData) {
     return { error: error.message }
   }
 
-  const redirectPath = formData.get('redirect') as string || '/dashboard/profile'
+  const requestedRedirect = formData.get('redirect')
+  const redirectUrl = typeof requestedRedirect === 'string'
+    ? new URL(requestedRedirect, 'http://localhost')
+    : null
+  const redirectPath = redirectUrl?.origin === 'http://localhost'
+    ? `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`
+    : '/profile'
   redirect(redirectPath)
 }
 
@@ -54,7 +60,7 @@ export async function register(formData: FormData) {
   redirect('/login?message=Check your email to verify your account')
 }
 
-export async function loginWithGoogle(redirectPath: string = '/dashboard/profile') {
+export async function loginWithGoogle(redirectPath: string = '/profile') {
   const supabase = await createClient()
   
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -73,7 +79,7 @@ export async function loginWithGoogle(redirectPath: string = '/dashboard/profile
   }
 }
 
-export async function loginWithGithub(redirectPath: string = '/dashboard/profile') {
+export async function loginWithGithub(redirectPath: string = '/profile') {
   const supabase = await createClient()
   
   const { data, error } = await supabase.auth.signInWithOAuth({

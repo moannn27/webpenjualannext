@@ -1,10 +1,10 @@
 # Next Solution Store - Backend Architecture
 
 ## Overview
-This Next.js 15 App Router project uses **Supabase** and **PostgreSQL** to form a highly scalable, production-ready backend that perfectly maps to the frontend requirements.
+This Next.js 16 App Router project uses **Supabase** and **PostgreSQL** to form a highly scalable, production-ready backend that perfectly maps to the frontend requirements.
 
 ## Stack
-- Next.js 15 (App Router & Server Actions)
+- Next.js 16 (App Router & Server Actions)
 - Supabase (PostgreSQL, Auth, Storage)
 - Vitest (Unit Testing)
 

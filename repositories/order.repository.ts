@@ -1,7 +1,7 @@
 import { BaseRepository } from './base'
 
 export class OrderRepository extends BaseRepository {
-  async create(orderData: any, items: any[]) {
+  async create(orderData: Record<string, unknown>, items: Record<string, unknown>[]) {
     const supabase = await this.getClient()
     
     const { data: order, error: orderError } = await supabase
@@ -12,7 +12,7 @@ export class OrderRepository extends BaseRepository {
 
     if (orderError) throw orderError
 
-    const itemsData = items.map((item: any) => ({
+    const itemsData = items.map((item) => ({
       ...item,
       order_id: order.id
     }))

@@ -1,13 +1,14 @@
-"use client";
-
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
-export default function CheckoutSuccessPage() {
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get("order_id");
+export default async function CheckoutSuccessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ order_id?: string | string[] }>;
+}) {
+  const { order_id: queryOrderId } = await searchParams;
+  const orderId = typeof queryOrderId === "string" ? queryOrderId : undefined;
 
   return (
     <div className="container mx-auto px-4 py-24 flex flex-col items-center text-center max-w-xl">
@@ -16,7 +17,7 @@ export default function CheckoutSuccessPage() {
       </div>
       <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground">Order Successful!</h1>
       <p className="text-lg text-muted-foreground mb-8">
-        Thank you for your purchase. We've received your order and will begin processing it right away.
+        Thank you for your purchase. We&apos;ve received your order and will begin processing it right away.
         {orderId && (
           <>
             <br />

@@ -10,7 +10,7 @@ export function Testimonials() {
           What Our Customers Say
         </h2>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Don't just take our word for it. Hear from the people who love our products.
+          Don&apos;t just take our word for it. Hear from the people who love our products.
         </p>
       </div>
 
@@ -26,7 +26,7 @@ export function Testimonials() {
               ))}
             </div>
             <p className="text-lg text-foreground mb-8 flex-1 italic font-light">
-              "{testimonial.content}"
+              &ldquo;{testimonial.content}&rdquo;
             </p>
             <div className="flex items-center gap-4 mt-auto">
               <div className="relative h-12 w-12 rounded-full overflow-hidden">

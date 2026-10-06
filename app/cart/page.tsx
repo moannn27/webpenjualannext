@@ -1,6 +1,5 @@
 import { CartClient } from "@/features/cart/CartClient";
 import { getCartAction } from "@/actions/cart";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -8,8 +7,8 @@ export default async function CartPage() {
   let cart = null;
   try {
     cart = await getCartAction();
-  } catch (error: any) {
-    if (error.message === "Unauthorized") {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
       return (
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24 text-center">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-12">

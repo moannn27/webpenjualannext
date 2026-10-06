@@ -17,7 +17,7 @@ export default function AdminOverview() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         <p className="text-muted-foreground mt-1">
-          Welcome back. Here's an overview of your store today.
+          Welcome back. Here&apos;s an overview of your store today.
         </p>
       </div>
 

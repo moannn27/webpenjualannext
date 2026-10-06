@@ -25,7 +25,7 @@ export function PromoBanner() {
             <span className="text-white/80">Save up to 30%.</span>
           </h2>
           <p className="text-lg md:text-xl text-primary-foreground/90 mb-10 max-w-xl font-light">
-            Discover incredible deals on premium electronics, from high-performance laptops to immersive audio gear. Don't miss out.
+            Discover incredible deals on premium electronics, from high-performance laptops to immersive audio gear. Don&apos;t miss out.
           </p>
           <Button render={<Link href="/promo" />} size="lg" className="rounded-full px-8 bg-white text-primary hover:bg-white/90">
             Shop the Sale

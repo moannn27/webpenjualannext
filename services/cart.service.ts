@@ -1,5 +1,6 @@
 import { CartRepository } from '@/repositories/cart.repository'
 import { ProductRepository } from '@/repositories/product.repository'
+import { type CartItem } from '@/types/cart'
 
 export class CartService {
   private repo = new CartRepository()
@@ -18,7 +19,7 @@ export class CartService {
     if (!cart) throw new Error("Cart not found")
     
     // Check if adding this exceeds stock for existing item
-    const existingItem = cart.cart_items.find((item: any) => item.product_id === productId)
+    const existingItem = cart.cart_items.find((item: CartItem) => item.product_id === productId)
     if (existingItem && (existingItem.quantity + quantity > product.stock)) {
       throw new Error("Cannot add more of this item, stock limit reached")
     }

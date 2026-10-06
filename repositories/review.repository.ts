@@ -12,7 +12,7 @@ export class ReviewRepository extends BaseRepository {
     return data
   }
 
-  async create(reviewData: any) {
+  async create(reviewData: Record<string, unknown>) {
     const supabase = await this.getClient()
     const { error } = await supabase.from('reviews').insert(reviewData)
     if (error) throw error

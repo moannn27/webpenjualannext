@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google";
 import { Navbar } from "@/components/layouts/Navbar";
 import { Footer } from "@/components/layouts/Footer";
 import { getCartAction } from "@/actions/cart";
+import { type CartItem } from "@/types/cart";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -24,9 +25,9 @@ export default async function RootLayout({
   try {
     const cart = await getCartAction();
     if (cart && cart.cart_items) {
-      cartCount = cart.cart_items.reduce((acc: number, item: any) => acc + item.quantity, 0);
+      cartCount = cart.cart_items.reduce((acc: number, item: CartItem) => acc + item.quantity, 0);
     }
-  } catch (error) {
+  } catch {
     // User is likely unauthenticated
   }
 
