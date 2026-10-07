@@ -20,5 +20,5 @@ export async function submitReviewAction(formData: FormData) {
   const comment = formData.get('comment') as string
 
   await reviewService.createReview(user.id, productId, rating, comment)
-  revalidatePath(`/products/${productId}`)
+  revalidatePath(`/product/${productId}`)
 }

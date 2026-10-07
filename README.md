@@ -1,5 +1,7 @@
 # Next Solution E-Commerce
 
+Panduan setup Supabase, pembuatan super admin, pengelolaan toko, dan penggunaan AI chat ada di [docs/PANDUAN_PENGGUNAAN.md](docs/PANDUAN_PENGGUNAAN.md).
+
 Next Solution adalah platform e-commerce minimalis yang dibangun menggunakan **Next.js 16 App Router** dan **Supabase** (PostgreSQL). Proyek ini dilengkapi dengan fitur keranjang belanja real-time, autentikasi, serta checkout dengan transaksi database ACID untuk memastikan keamanan data inventaris.
 
 ## Setup Supabase Hosted (Tanpa Docker)

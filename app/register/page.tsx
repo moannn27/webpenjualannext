@@ -5,10 +5,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { register } from "@/actions/auth";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleRegister = async (formData: FormData) => {
     setError("");
@@ -51,11 +54,17 @@ export default function RegisterPage() {
           <div>
             <Input name="email" type="email" placeholder="Email Address" required className="bg-muted/30 h-12 rounded-xl" />
           </div>
-          <div>
-            <Input name="password" type="password" placeholder="Password" required className="bg-muted/30 h-12 rounded-xl" />
+          <div className="relative">
+            <Input name="password" type={showPassword ? "text" : "password"} placeholder="Password" required minLength={6} className="bg-muted/30 h-12 rounded-xl pr-12" />
+            <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+              {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
           </div>
-          <div>
-            <Input name="confirmPassword" type="password" placeholder="Confirm Password" required className="bg-muted/30 h-12 rounded-xl" />
+          <div className="relative">
+            <Input name="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Confirm Password" required minLength={6} className="bg-muted/30 h-12 rounded-xl pr-12" />
+            <button type="button" onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"} aria-pressed={showConfirmPassword} className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+              {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
           </div>
           
           <label className="flex items-start gap-2 cursor-pointer text-sm">

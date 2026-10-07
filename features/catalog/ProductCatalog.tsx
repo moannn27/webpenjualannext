@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { BRANDS, CATEGORIES } from "@/constants/dummy";
 import { ProductCard } from "@/components/shared/ProductCard";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { Slider } from "@/components/ui/slider";
@@ -27,18 +26,39 @@ import { type Product } from "@/store/useProductStore";
 
 interface ProductCatalogProps {
   initialProducts?: Product[];
+  initialSort?: string;
 }
 
-export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
+export function ProductCatalog({ initialProducts = [], initialSort = "newest" }: ProductCatalogProps) {
   const { addToCart, loadingProductId } = useAddToCart();
   const products = initialProducts;
+  const brands = [...new Set(products.map((product) => product.brand).filter(Boolean))] as string[];
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))] as string[];
+  const maximumPrice = Math.max(5000, ...products.map((product) => product.price));
   
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [priceRange, setPriceRange] = useState([0, 5000]);
+  const [priceRange, setPriceRange] = useState([0, maximumPrice]);
 
   // Dummy state for active filters
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [sort, setSort] = useState(initialSort);
+  const [page, setPage] = useState(1);
+
+  const filteredProducts = products.filter((product) =>
+    product.price >= priceRange[0] && product.price <= priceRange[1] &&
+    (!selectedBrands.length || selectedBrands.includes(product.brand ?? "")) &&
+    (!selectedCategories.length || selectedCategories.includes(product.category))
+  );
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (sort === "price-low") return a.price - b.price;
+    if (sort === "price-high") return b.price - a.price;
+    if (sort === "popular") return Number(b.isBestSeller) - Number(a.isBestSeller) || (b.reviews ?? 0) - (a.reviews ?? 0);
+    return 0;
+  });
+  const pageSize = 12;
+  const pageCount = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const visibleProducts = sortedProducts.slice((page - 1) * pageSize, page * pageSize);
 
   const toggleBrand = (brandId: string) => {
     setSelectedBrands(prev =>
@@ -56,11 +76,11 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
     <div className="space-y-8">
       {/* Price Filter */}
       <div>
-        <h4 className="font-semibold mb-4 text-foreground">Price Range</h4>
+        <h4 className="font-semibold mb-4 text-foreground">Kisaran harga</h4>
         <Slider
-          defaultValue={[0, 5000]}
-          max={5000}
-          step={50}
+          defaultValue={[0, maximumPrice]}
+          max={maximumPrice}
+          step={Math.max(1, Math.round(maximumPrice / 100))}
           value={priceRange}
           onValueChange={(value) => {
             if (Array.isArray(value)) setPriceRange([...value]);
@@ -68,27 +88,27 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
           className="mb-4"
         />
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>${priceRange[0]}</span>
-          <span>${priceRange[1]}</span>
+          <span>Rp {priceRange[0].toLocaleString("id-ID")}</span>
+          <span>Rp {priceRange[1].toLocaleString("id-ID")}</span>
         </div>
       </div>
 
       {/* Brands Filter */}
       <div>
-        <h4 className="font-semibold mb-4 text-foreground">Brands</h4>
+        <h4 className="font-semibold mb-4 text-foreground">Brand</h4>
         <div className="space-y-3">
-          {BRANDS.map((brand) => (
-            <div key={brand.id} className="flex items-center space-x-2">
+          {brands.map((brand) => (
+            <div key={brand} className="flex items-center space-x-2">
               <Checkbox
-                id={`brand-${brand.id}`}
-                checked={selectedBrands.includes(brand.id)}
-                onCheckedChange={() => toggleBrand(brand.id)}
+                id={`brand-${brand}`}
+                checked={selectedBrands.includes(brand)}
+                onCheckedChange={() => { toggleBrand(brand); setPage(1); }}
               />
               <label
-                htmlFor={`brand-${brand.id}`}
+                htmlFor={`brand-${brand}`}
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                {brand.name}
+                {brand}
               </label>
             </div>
           ))}
@@ -97,20 +117,20 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
 
       {/* Category Filter */}
       <div>
-        <h4 className="font-semibold mb-4 text-foreground">Categories</h4>
+        <h4 className="font-semibold mb-4 text-foreground">Kategori</h4>
         <div className="space-y-3">
-          {CATEGORIES.map((category) => (
-            <div key={category.id} className="flex items-center space-x-2">
+          {categories.map((category) => (
+            <div key={category} className="flex items-center space-x-2">
               <Checkbox
-                id={`cat-${category.id}`}
-                checked={selectedCategories.includes(category.id)}
-                onCheckedChange={() => toggleCategory(category.id)}
+                id={`cat-${category}`}
+                checked={selectedCategories.includes(category)}
+                onCheckedChange={() => { toggleCategory(category); setPage(1); }}
               />
               <label
-                htmlFor={`cat-${category.id}`}
+                htmlFor={`cat-${category}`}
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                {category.name}
+                {category}
               </label>
             </div>
           ))}
@@ -137,47 +157,53 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
               <Sheet>
                 <SheetTrigger render={<Button variant="outline" size="sm" className="lg:hidden" />}>
                   <Filter className="h-4 w-4 mr-2" />
-                  Filters
+                  Filter
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[300px] overflow-y-auto">
                   <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
+                    <SheetTitle>Filter produk</SheetTitle>
                   </SheetHeader>
                   <div className="py-6">
                     {filterSidebar}
                   </div>
                 </SheetContent>
               </Sheet>
-              <span className="text-sm text-muted-foreground">Showing {products.length} results</span>
+              <span className="text-sm text-muted-foreground">Menampilkan {visibleProducts.length} dari {filteredProducts.length} produk</span>
             </div>
 
-            <div className="flex items-center gap-4 self-end sm:self-auto">
-              <Select defaultValue="newest">
-                <SelectTrigger className="w-[140px] h-9">
-                  <SelectValue placeholder="Sort by" />
+            <div className="flex w-full items-center justify-end gap-3 sm:w-auto sm:gap-4">
+              <Select value={sort} onValueChange={(value) => { if (value) { setSort(value); setPage(1); } }}>
+              <SelectTrigger className="h-10 w-full min-w-0 sm:w-44">
+                  <SelectValue placeholder="Urutkan" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest</SelectItem>
-                  <SelectItem value="popular">Popular</SelectItem>
-                  <SelectItem value="price-low">Price: Low to High</SelectItem>
-                  <SelectItem value="price-high">Price: High to Low</SelectItem>
+                <SelectContent className="min-w-[220px] rounded-xl p-1.5">
+                  <SelectItem value="newest">Terbaru</SelectItem>
+                  <SelectItem value="popular">Terpopuler</SelectItem>
+                  <SelectItem value="price-low">Harga: terendah</SelectItem>
+                  <SelectItem value="price-high">Harga: tertinggi</SelectItem>
                 </SelectContent>
               </Select>
 
-              <div className="flex items-center border rounded-md">
+              <div role="group" aria-label="Tampilan produk" className="flex shrink-0 items-center gap-1 rounded-xl border border-border bg-muted/60 p-1">
                 <button
+                  type="button"
                   onClick={() => setViewMode("grid")}
-                  className={`p-1.5 ${viewMode === "grid" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                  title="Grid View"
+                  aria-label="Tampilan grid"
+                  aria-pressed={viewMode === "grid"}
+                  className={`grid size-9 place-items-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewMode === "grid" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"}`}
+                  title="Tampilan grid"
                 >
-                  <LayoutGrid className="h-5 w-5" />
+                  <LayoutGrid className="size-[18px]" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setViewMode("list")}
-                  className={`p-1.5 ${viewMode === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                  title="List View"
+                  aria-label="Tampilan daftar"
+                  aria-pressed={viewMode === "list"}
+                  className={`grid size-9 place-items-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewMode === "list" ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"}`}
+                  title="Tampilan daftar"
                 >
-                  <ListIcon className="h-5 w-5" />
+                  <ListIcon className="size-[18px]" />
                 </button>
               </div>
             </div>
@@ -186,19 +212,19 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
           {/* Product Grid/List */}
           {viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {products.map((product) => (
+              {visibleProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
-              {products.length === 0 && (
+              {visibleProducts.length === 0 && (
                 <div className="col-span-full text-center py-12 text-muted-foreground">
-                  No products found. Add some from the admin panel!
+                  Produk tidak ditemukan. Coba kata kunci lain atau hapus filter yang aktif.
                 </div>
               )}
             </div>
           ) : (
             <div className="flex flex-col gap-4">
               {/* Simple List View implementation */}
-              {products.map((product) => (
+              {visibleProducts.map((product) => (
                 <div key={product.id} className="flex gap-6 p-4 bg-card rounded-2xl border items-center">
                   <div className="w-32 h-32 relative shrink-0 bg-muted rounded-xl overflow-hidden">
                     <Image src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"} alt={product.name} fill sizes="128px" className="object-cover" />
@@ -206,14 +232,14 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
                     <p className="text-muted-foreground mb-4">{product.brand || product.category}</p>
-                    <div className="text-2xl font-bold">${product.price.toLocaleString()}</div>
+                    <div className="text-2xl font-bold">Rp {product.price.toLocaleString("id-ID")}</div>
                   </div>
                   <Button className="shrink-0 z-10" disabled={loadingProductId === product.id} onClick={() => addToCart(product.id)}>Add to Cart</Button>
                 </div>
               ))}
-              {products.length === 0 && (
+              {visibleProducts.length === 0 && (
                 <div className="col-span-full text-center py-12 text-muted-foreground">
-                  No products found. Add some from the admin panel!
+                  Produk tidak ditemukan. Coba kata kunci lain atau hapus filter yang aktif.
                 </div>
               )}
             </div>
@@ -221,11 +247,11 @@ export function ProductCatalog({ initialProducts = [] }: ProductCatalogProps) {
 
           {/* Pagination */}
           <div className="mt-12 flex justify-center gap-2">
-            <Button variant="outline" disabled>Previous</Button>
-            <Button variant="default">1</Button>
-            <Button variant="outline">2</Button>
-            <Button variant="outline">3</Button>
-            <Button variant="outline">Next</Button>
+            <Button variant="outline" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Sebelumnya</Button>
+            {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
+              <Button key={pageNumber} variant={pageNumber === page ? "default" : "outline"} onClick={() => setPage(pageNumber)}>{pageNumber}</Button>
+            ))}
+            <Button variant="outline" disabled={page === pageCount} onClick={() => setPage((current) => current + 1)}>Berikutnya</Button>
           </div>
         </div>
       </div>

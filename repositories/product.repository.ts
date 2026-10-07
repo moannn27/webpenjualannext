@@ -32,7 +32,7 @@ export class ProductRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('products')
-      .select('*')
+      .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
       .eq('id', id)
       .single()
     if (error) throw error
@@ -44,9 +44,13 @@ export class ProductRepository extends BaseRepository {
     const { data, error } = await supabase
       .from('products')
       .select('*, product_images(*), categories(*), brands(*)')
-      .ilike('name', `%${queryStr}%`)
       .eq('status', 'published')
     if (error) throw error
-    return data
+    const normalize = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('id-ID')
+    const terms = normalize(queryStr).trim().split(/\s+/).filter(Boolean)
+    return (data ?? []).filter((product) => {
+      const searchable = normalize([product.name, product.sku, product.description, product.brands?.name, product.categories?.name].join(' '))
+      return terms.every((term) => searchable.includes(term))
+    })
   }
 }

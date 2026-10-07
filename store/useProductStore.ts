@@ -16,6 +16,7 @@ export interface Product {
   originalPrice?: number | null;
   rating?: number;
   reviews?: number;
+  isBestSeller?: boolean;
   badges?: string[];
 }
 

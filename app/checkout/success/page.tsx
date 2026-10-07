@@ -15,13 +15,13 @@ export default async function CheckoutSuccessPage({
       <div className="h-24 w-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8">
         <CheckCircle2 className="h-12 w-12" />
       </div>
-      <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground">Order Successful!</h1>
+      <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground">Pesanan berhasil dibuat</h1>
       <p className="text-lg text-muted-foreground mb-8">
-        Thank you for your purchase. We&apos;ve received your order and will begin processing it right away.
+        Pesananmu sudah tercatat dan menunggu pembayaran. Hubungi admin untuk konfirmasi detail transfer manual.
         {orderId && (
           <>
             <br />
-            Your order reference is <span className="font-semibold text-foreground">#{orderId.substring(0, 8).toUpperCase()}</span>.
+            Nomor referensi pesanan: <span className="font-semibold text-foreground">#{orderId.substring(0, 8).toUpperCase()}</span>.
           </>
         )}
       </p>

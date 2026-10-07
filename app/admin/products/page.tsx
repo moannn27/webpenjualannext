@@ -1,6 +1,14 @@
 import { ProductTable } from "@/features/admin/ProductTable";
+import { getAdminProductsAction } from "@/actions/admin";
+import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
 
-export default function AdminProductsPage() {
+export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
+  const { search = "" } = await searchParams;
+  const [products, categories, brands] = await Promise.all([
+    getAdminProductsAction(),
+    getCategoriesAction(),
+    getBrandsAction(),
+  ]);
   return (
     <div className="space-y-6">
       <div>
@@ -10,7 +18,7 @@ export default function AdminProductsPage() {
         </p>
       </div>
       
-      <ProductTable />
+      <ProductTable initialProducts={products} categories={categories ?? []} brands={brands ?? []} initialSearch={search} />
     </div>
   );
 }

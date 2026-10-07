@@ -2,24 +2,24 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { FAQS } from "@/constants/dummy";
+type FAQ = { id: string; question: string; answer: string };
 
-export function FaqSection() {
+export function FaqSection({ faqs = [], title = "Frequently Asked Questions", subtitle = "Have a question? We're here to help." }: { faqs?: FAQ[]; title?: string; subtitle?: string }) {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
       <div className="text-center mb-12">
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">
-          Frequently Asked Questions
+          {title}
         </h2>
         <p className="text-lg text-muted-foreground">
-          Have a question? We&apos;re here to help.
+          {subtitle}
         </p>
       </div>
 
       <div className="space-y-4">
-        {FAQS.map((faq, index) => (
+        {faqs.map((faq, index) => (
           <div
             key={index}
             className={`border border-border rounded-[24px] overflow-hidden transition-all duration-300 ${
@@ -51,6 +51,7 @@ export function FaqSection() {
           </div>
         ))}
       </div>
+      {!faqs.length && <p className="text-center text-sm text-muted-foreground">FAQ belum tersedia.</p>}
     </section>
   );
 }

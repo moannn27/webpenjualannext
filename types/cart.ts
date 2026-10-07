@@ -4,6 +4,8 @@ export interface CartProduct {
   price: number;
   discount_price?: number | null;
   image?: string | null;
+  stock?: number;
+  product_images?: { url: string; is_primary?: boolean }[];
   brands?: { name: string } | null;
 }
 

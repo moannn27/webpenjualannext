@@ -15,6 +15,7 @@ export async function getCartAction() {
 }
 
 export async function addToCartAction(productId: string, quantity: number) {
+  if (!productId || !Number.isInteger(quantity) || quantity < 1) throw new Error("Jumlah produk tidak valid")
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
@@ -24,6 +25,7 @@ export async function addToCartAction(productId: string, quantity: number) {
 }
 
 export async function updateCartQuantityAction(itemId: string, productId: string, quantity: number) {
+  if (!itemId || !productId || !Number.isInteger(quantity) || quantity < 1) throw new Error("Jumlah produk tidak valid")
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")

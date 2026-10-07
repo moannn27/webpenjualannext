@@ -1,6 +1,6 @@
 import { Truck, ShieldCheck, Headphones, CreditCard } from "lucide-react";
 
-export function WhyChooseUs() {
+export function WhyChooseUs({ title = "Why Choose Next Solution?", subtitle = "We provide more than just premium products. We deliver a premium shopping experience from start to finish." }: { title?: string; subtitle?: string }) {
   const reasons = [
     {
       icon: <Truck className="h-8 w-8 text-primary" />,
@@ -28,10 +28,10 @@ export function WhyChooseUs() {
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
       <div className="text-center mb-16">
         <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">
-          Why Choose Next Solution?
+          {title}
         </h2>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          We provide more than just premium products. We deliver a premium shopping experience from start to finish.
+          {subtitle}
         </p>
       </div>
 

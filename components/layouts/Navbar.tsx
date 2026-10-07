@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Heart, User, Menu } from "lucide-react";
+import { Search, ShoppingCart, Heart, User, Menu, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { getStoreSearchHref } from "@/lib/search-intent";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -49,6 +52,19 @@ const components: { title: string; href: string; description: string }[] = [
 
 export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
   const [isScrolled, setIsScrolled] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
+  const [accountOpen, setAccountOpen] = React.useState(false);
+  const accountRef = React.useRef<HTMLDivElement>(null);
+  const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+
+  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = search.trim();
+    router.push(getStoreSearchHref(query));
+    setMobileSearchOpen(false);
+  };
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -56,6 +72,22 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const resetAccountTimer = React.useCallback(() => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setAccountOpen(false), 10_000);
+  }, []);
+  React.useEffect(() => {
+    if (accountOpen) resetAccountTimer();
+    return () => { if (closeTimer.current) clearTimeout(closeTimer.current); };
+  }, [accountOpen, resetAccountTimer]);
+  React.useEffect(() => {
+    const outside = (event: PointerEvent) => { if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setAccountOpen(false); };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, []);
 
   return (
@@ -143,28 +175,50 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
           </div>
 
           {/* Search, Actions */}
-          <div className="flex items-center justify-end gap-2 flex-1 lg:flex-none lg:w-96">
-            <div className="relative hidden sm:flex w-full max-w-sm items-center">
+          <div className="relative flex min-w-0 flex-1 items-center justify-end gap-3 lg:flex-none lg:w-auto">
+            <form onSubmit={submitSearch} className="relative hidden w-full max-w-sm items-center sm:flex lg:w-72 xl:w-80">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search products..."
                 className="w-full bg-muted/50 border-none pl-9 rounded-full focus-visible:ring-1 focus-visible:ring-primary/50 transition-all duration-200"
               />
-            </div>
+            </form>
+
+            <Button variant="ghost" size="icon" className="rounded-full sm:hidden" aria-label="Cari produk" aria-expanded={mobileSearchOpen} onClick={() => setMobileSearchOpen((open) => !open)}>
+              <Search className="size-5" />
+            </Button>
+            {mobileSearchOpen && <form onSubmit={submitSearch} className="absolute left-0 right-0 top-14 z-50 flex items-center rounded-full bg-background p-2 shadow-lg sm:hidden">
+              <Input autoFocus type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari produk..." aria-label="Cari produk" className="border-none bg-muted/50" />
+              <Button type="submit" size="sm" className="ml-2 rounded-full">Cari</Button>
+            </form>}
             
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="rounded-full hidden sm:flex">
-                <Heart className="h-5 w-5 text-foreground/80 hover:text-foreground transition-colors" />
+            <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/80 bg-card/80 p-1 shadow-sm backdrop-blur-sm sm:gap-1">
+              <ThemeToggle className="size-9 rounded-full transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" />
+              <Button variant="ghost" size="icon" className="group hidden size-9 rounded-full transition-all duration-200 hover:bg-muted active:scale-95 sm:flex sm:size-10" aria-label="Wishlist" render={<Link href="/wishlist" />}>
+                <Heart className="size-5 text-foreground/80 transition-colors group-hover:text-destructive" />
               </Button>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5 text-foreground/80 hover:text-foreground transition-colors" />
-              </Button>
-              <Button variant="ghost" size="icon" className="relative rounded-full text-foreground hover:bg-muted" render={<Link href="/cart" />}>
-                <ShoppingCart className="h-5 w-5" />
+              <div ref={accountRef} className="relative">
+                <Button type="button" variant="ghost" size="icon" className={`size-9 rounded-full transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10 ${accountOpen ? "bg-muted text-primary" : ""}`} aria-label="Menu akun" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>
+                  <User className="size-5 text-foreground/80 transition-colors" />
+                </Button>
+                {accountOpen && <div onPointerMove={resetAccountTimer} onFocus={resetAccountTimer} onClick={resetAccountTimer} className="absolute right-0 top-12 z-[70] w-56 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-xl">
+                  <div className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium"><span>Akun & tampilan</span><ChevronDown className="size-4 rotate-180 text-muted-foreground" /></div>
+                  <Link href="/profile" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Profil akun</Link>
+                  <Link href="/wishlist" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Wishlist</Link>
+                  <Link href="/cart" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Keranjang</Link>
+                  <div className="my-1 border-t" />
+                  <div className="flex items-center justify-between px-3 py-1 text-sm"><span>Mode tema</span><ThemeToggle /></div>
+                  <p className="px-3 pb-1 text-[11px] text-muted-foreground">Menu tertutup otomatis saat tidak digunakan.</p>
+                </div>}
+              </div>
+              <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={cartCount ? `Keranjang, ${cartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>
+                <ShoppingCart className="size-5 text-foreground/80" />
                 {cartCount > 0 && (
-                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                    {cartCount}
+                  <span className="absolute -right-0.5 -top-0.5 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
+                    {cartCount > 99 ? "99+" : cartCount}
                   </span>
                 )}
               </Button>

@@ -6,6 +6,9 @@ import { Star, ShoppingCart, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toggleWishlistAction } from "@/actions/wishlist";
 
 interface ProductCardProps {
   product: Product;
@@ -13,12 +16,24 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const { addToCart, loadingProductId } = useAddToCart();
+  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+
+  const toggleWishlist = async () => {
+    try {
+      const result = await toggleWishlistAction(product.id);
+      setSaved(result.action === "added");
+    } catch (error) {
+      if (error instanceof Error && error.message === "Unauthorized") router.push("/login");
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "IDR",
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(price);
   };
 
@@ -40,19 +55,19 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
 
       {/* Wishlist Button */}
-      <button className="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
-        <Heart className="h-5 w-5" />
-        <span className="sr-only">Add to wishlist</span>
+      <button onClick={toggleWishlist} aria-pressed={saved} className="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+        <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />
+        <span className="sr-only">{saved ? "Remove from wishlist" : "Add to wishlist"}</span>
       </button>
 
       {/* Image */}
-      <Link href={`/product/${product.id}`} className="relative aspect-square mb-6 overflow-hidden rounded-[16px] bg-muted/30 flex items-center justify-center">
+      <Link href={`/product/${product.id}`} className="relative aspect-square mb-6 overflow-hidden rounded-[16px] bg-white flex items-center justify-center">
         <Image
           src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
           alt={product.name}
           fill
           sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className="object-contain mix-blend-multiply p-4 transition-transform duration-500 group-hover:scale-110"
+          className="object-contain p-4 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
         />
       </Link>
 

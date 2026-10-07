@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
-import { Navbar } from "@/components/layouts/Navbar";
-import { Footer } from "@/components/layouts/Footer";
+import { StorefrontChrome } from "@/components/layouts/StorefrontChrome";
 import { getCartAction } from "@/actions/cart";
+import { getStorefrontSettingsAction } from "@/actions/content";
+import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { type CartItem } from "@/types/cart";
 import "./globals.css";
 
@@ -22,6 +23,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let cartCount = 0;
+  let rawSettings: unknown = null;
   try {
     const cart = await getCartAction();
     if (cart && cart.cart_items) {
@@ -30,15 +32,13 @@ export default async function RootLayout({
   } catch {
     // User is likely unauthenticated
   }
+  try { rawSettings = await getStorefrontSettingsAction(); } catch { /* Store settings migration may not be applied yet. */ }
+  const settings = normalizeStorefrontSettings(rawSettings);
 
   return (
     <html lang="en" className={`${outfit.variable} antialiased`} suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground font-sans flex flex-col">
-        <Navbar cartCount={cartCount} />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Footer />
+        <StorefrontChrome cartCount={cartCount} settings={settings}>{children}</StorefrontChrome>
       </body>
     </html>
   );

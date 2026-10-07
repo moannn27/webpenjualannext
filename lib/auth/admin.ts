@@ -4,7 +4,7 @@ export async function getAdminAccess() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return { user: null, isAdmin: false };
+  if (!user) return { user: null, isAdmin: false, role: null as string | null };
 
   const { data: profile, error } = await supabase
     .from("users")
@@ -15,5 +15,6 @@ export async function getAdminAccess() {
   return {
     user,
     isAdmin: !error && (profile?.role === "admin" || profile?.role === "super_admin"),
+    role: error ? null : profile?.role ?? null,
   };
 }

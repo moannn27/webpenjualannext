@@ -1,14 +1,15 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { forgotPasswordSchema } from '@/validators/auth.validator'
 
 export async function forgotPasswordAction(formData: FormData) {
-  const email = formData.get('email') as string
-  if (!email) throw new Error("Email is required")
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get('email') })
+  if (!parsed.success) throw new Error("Masukkan alamat email yang valid.")
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/reset-password`,
   })
 
   if (error) throw new Error(error.message)
@@ -17,7 +18,7 @@ export async function forgotPasswordAction(formData: FormData) {
 
 export async function resetPasswordAction(formData: FormData) {
   const password = formData.get('password') as string
-  if (!password) throw new Error("Password is required")
+  if (!password || password.length < 6) throw new Error("Kata sandi harus memiliki minimal 6 karakter.")
 
   const supabase = await createClient()
   const { error } = await supabase.auth.updateUser({ password })
@@ -27,15 +28,16 @@ export async function resetPasswordAction(formData: FormData) {
 }
 
 export async function resendVerificationAction(formData: FormData) {
-  const email = formData.get('email') as string
-  if (!email) throw new Error("Email is required")
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get('email') })
+  if (!parsed.success) throw new Error("Masukkan alamat email yang valid.")
 
   const supabase = await createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const { error } = await supabase.auth.resend({
     type: 'signup',
-    email,
+    email: parsed.data.email,
     options: {
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/profile`,
+      emailRedirectTo: `${siteUrl.replace(/\/$/, '')}/auth/callback?next=/profile`,
     },
   })
 

@@ -6,7 +6,7 @@ export const HERO_SLIDES = [
     description: "Mind-blowing. Head-turning. Experience the ultimate performance with the all-new M3 chip architecture.",
     image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=2000&auto=format&fit=crop",
     cta: "Buy Now",
-    href: "/product/macbook-pro-m3-max"
+    href: "/products?search=MacBook%20Pro"
   },
   {
     id: 2,
@@ -15,7 +15,7 @@ export const HERO_SLIDES = [
     description: "Welcome to the era of Mobile AI. With Galaxy S24 Ultra in your hands, you can unleash whole new levels of creativity.",
     image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=2000&auto=format&fit=crop",
     cta: "Pre-order",
-    href: "/product/galaxy-s24-ultra"
+    href: "/products?search=Galaxy%20S24%20Ultra"
   }
 ];
 

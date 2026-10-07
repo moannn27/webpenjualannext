@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { 
@@ -8,23 +9,37 @@ import {
   Package, 
   ShoppingCart, 
   Users, 
-  Settings,
-  LogOut
+  Images,
+  Tags,
+  LogOut,
+  Menu,
+  X,
+  Store,
 } from "lucide-react";
 
 const sidebarLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Products", href: "/admin/products", icon: Package },
+  { name: "Categories", href: "/admin/categories", icon: Tags },
   { name: "Orders", href: "/admin/orders", icon: ShoppingCart },
   { name: "Customers", href: "/admin/customers", icon: Users },
-  { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const links = [...sidebarLinks, ...(isSuperAdmin ? [{ name: "Landing page", href: "/admin/content", icon: Images }, { name: "Brands", href: "/admin/brands", icon: Store }] : [])];
+  const renderLinks = () => links.map((link) => {
+    const isActive = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
+    const Icon = link.icon;
+    return <Link key={link.name} href={link.href} onClick={() => setMobileOpen(false)} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all", isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground")}><Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />{link.name}</Link>;
+  });
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r flex flex-col">
+    <>
+    <button type="button" onClick={() => setMobileOpen((open) => !open)} aria-label={mobileOpen ? "Tutup menu" : "Buka menu admin"} aria-expanded={mobileOpen} className="fixed left-3 top-3 z-[60] grid size-10 place-items-center rounded-lg border bg-card shadow-sm lg:hidden">{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
+    {mobileOpen && <button aria-label="Tutup menu admin" onClick={() => setMobileOpen(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />}
+    <aside className={cn("fixed inset-y-0 left-0 z-50 w-64 bg-card border-r flex flex-col transition-transform duration-200", mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0")}>
       <div className="h-16 flex items-center px-6 border-b">
         <Link href="/admin" className="flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -40,26 +55,7 @@ export function AdminSidebar() {
         <div className="mb-4 px-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Main Menu</p>
         </div>
-        {sidebarLinks.map((link) => {
-          const isActive = pathname === link.href;
-          const Icon = link.icon;
-          
-          return (
-            <Link
-              key={link.name}
-              href={link.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Icon className={cn("h-4 w-4", isActive ? "text-primary" : "text-muted-foreground")} />
-              {link.name}
-            </Link>
-          );
-        })}
+        {renderLinks()}
       </div>
 
       <div className="p-4 border-t">
@@ -72,5 +68,6 @@ export function AdminSidebar() {
         </Link>
       </div>
     </aside>
+    </>
   );
 }

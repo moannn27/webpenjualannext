@@ -8,33 +8,38 @@ import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HERO_SLIDES } from "@/constants/dummy";
 
-export function HeroSection() {
+type LandingBanner = { id: string; title: string; subtitle: string | null; headline: string; description: string; button_label: string; image_url: string; target_url: string | null };
+
+export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
+  const slides = banners.length ? banners.map((banner) => ({ image: banner.image_url, title: banner.headline, subtitle: banner.subtitle || banner.title, description: banner.description, cta: banner.button_label, href: banner.target_url || "/products" })) : HERO_SLIDES;
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
 
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
+  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+  const slide = slides[currentSlide % slides.length];
 
   return (
-    <section className="relative h-[80vh] min-h-[600px] w-full bg-muted overflow-hidden flex items-center justify-center">
-      <AnimatePresence mode="wait">
+    <section className="container mx-auto w-full px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">
+      <div className="group/hero relative mx-auto flex h-[min(74vh,760px)] min-h-[480px] w-full items-center justify-center overflow-hidden rounded-[28px] bg-muted shadow-sm sm:rounded-[36px] lg:min-h-[560px]">
+      <AnimatePresence mode="sync">
         <motion.div
           key={currentSlide}
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.75, ease: "easeInOut" }}
           className="absolute inset-0"
         >
           <Image
-            src={HERO_SLIDES[currentSlide].image}
-            alt={HERO_SLIDES[currentSlide].title}
+            src={slide.image}
+            alt={slide.title}
             fill
             className="object-cover"
             priority
@@ -50,21 +55,21 @@ export function HeroSection() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.65, delay: 0.12, ease: "easeOut" }}
             className="max-w-3xl flex flex-col items-center"
           >
             <span className="text-sm md:text-base font-semibold uppercase tracking-widest text-white/80 mb-4">
-              {HERO_SLIDES[currentSlide].subtitle}
+              {slide.subtitle}
             </span>
             <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
-              {HERO_SLIDES[currentSlide].title}
+              {slide.title}
             </h1>
             <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl font-light">
-              {HERO_SLIDES[currentSlide].description}
+              {slide.description}
             </p>
             <div className="flex gap-4">
-              <Button render={<Link href={HERO_SLIDES[currentSlide].href} />} size="lg" className="rounded-full px-8 text-base bg-white text-black hover:bg-white/90">
-                {HERO_SLIDES[currentSlide].cta}
+              <Button render={<Link href={slide.href} />} size="lg" className="rounded-full px-8 text-base bg-white text-black hover:bg-white/90">
+                {slide.cta}
               </Button>
             </div>
           </motion.div>
@@ -72,7 +77,7 @@ export function HeroSection() {
       </div>
 
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-        {HERO_SLIDES.map((_, index) => (
+        {slides.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentSlide(index)}
@@ -86,18 +91,19 @@ export function HeroSection() {
 
       <button
         onClick={prevSlide}
-        className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/20 text-white backdrop-blur-sm hover:bg-black/40 transition-colors hidden md:block"
+        className="absolute left-3 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-black/60 md:opacity-0 md:group-hover/hero:opacity-100 md:focus-visible:opacity-100 md:-translate-x-2 md:group-hover/hero:translate-x-0"
         aria-label="Previous slide"
       >
         <ChevronLeft className="h-6 w-6" />
       </button>
       <button
         onClick={nextSlide}
-        className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/20 text-white backdrop-blur-sm hover:bg-black/40 transition-colors hidden md:block"
+        className="absolute right-3 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-black/60 md:opacity-0 md:group-hover/hero:opacity-100 md:focus-visible:opacity-100 md:translate-x-2 md:group-hover/hero:translate-x-0"
         aria-label="Next slide"
       >
         <ChevronRight className="h-6 w-6" />
       </button>
+      </div>
     </section>
   );
 }
