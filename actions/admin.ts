@@ -3,6 +3,7 @@
 import { AdminService } from '@/services/admin.service'
 import { getAdminAccess } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
 
@@ -41,8 +42,19 @@ export async function getAdminProductsAction() {
   await requireAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase.from('products')
-    .select('*, categories(name), brands(name), product_images(*)')
+    .select('*, categories(name), brands(name), product_images(*), product_specifications(*)')
     .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+export async function getAdminProductOptionsAction() {
+  await requireAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('products')
+    .select('id, name, status, categories(name), brands(name)')
+    .eq('status', 'published')
+    .order('name')
   if (error) throw new Error(error.message)
   return data ?? []
 }
@@ -51,10 +63,21 @@ export async function getAdminOrdersAction() {
   await requireAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase.from('orders')
-    .select('id, order_number, status, grand_total, created_at, users(full_name, phone), payments(id, status, payment_method)')
+    .select('id, order_number, status, total_amount, shipping_amount, grand_total, created_at, courier, shipping_address, users(full_name, phone), order_items(id, product_name, price, quantity, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+export async function getAdminOrderNotificationsAction() {
+  await requireAdmin()
+  const supabase = await createClient()
+  const [{ count, error: countError }, { data: latest, error: latestError }] = await Promise.all([
+    supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('orders').select('id, order_number').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ])
+  if (countError || latestError) throw new Error(countError?.message ?? latestError?.message)
+  return { count: count ?? 0, latestId: latest?.id ?? null, latestOrderNumber: latest?.order_number ?? null }
 }
 
 export async function updateAdminOrderStatusAction(formData: FormData) {
@@ -62,11 +85,16 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   const id = String(formData.get('id') ?? '').trim()
   const status = String(formData.get('status') ?? '')
   if (!id || !['pending', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) throw new Error('Status pesanan tidak valid.')
+  const manualOverride = formData.get('manual_override') === 'on'
+  if (manualOverride) await requireSuperAdmin()
+  else await requireAdmin()
   const supabase = await createClient()
-  const { data: current, error: readError } = await supabase.from('orders').select('status, payments(status)').eq('id', id).single()
+  const { data: current, error: readError } = await supabase.from('orders').select('status, courier, payments(status)').eq('id', id).single()
   if (readError || !current) throw new Error('Pesanan tidak ditemukan.')
-  const allowed: Record<string, string[]> = { pending: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
-  if (current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
+  const allowed: Record<string, string[]> = current.courier === 'pickup'
+    ? { pending: ['cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
+    : { pending: ['cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
+  if (!manualOverride && current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
   const paymentRows = Array.isArray(current.payments) ? current.payments : []
   if (['processing', 'shipped', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
   const { error } = await supabase.from('orders').update({ status }).eq('id', id)
@@ -74,6 +102,33 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   revalidatePath('/admin/orders')
   revalidatePath('/admin/reports')
   revalidatePath('/admin')
+  revalidatePath('/profile')
+}
+
+export async function updateAdminOrderDetailsAction(formData: FormData) {
+  await requireSuperAdmin()
+  const id = String(formData.get('order_id') ?? '').trim()
+  const recipientName = String(formData.get('recipient_name') ?? '').trim()
+  const phone = String(formData.get('phone') ?? '').trim()
+  if (!id || recipientName.length < 2 || !/^[0-9+()\s-]{8,24}$/.test(phone)) throw new Error('Nama penerima dan nomor telepon harus diisi dengan benar.')
+  const supabase = await createClient()
+  const { data: order, error: readError } = await supabase.from('orders').select('courier, shipping_address').eq('id', id).single()
+  if (readError || !order) throw new Error('Pesanan tidak ditemukan.')
+  const current = order.shipping_address && typeof order.shipping_address === 'object' ? order.shipping_address as Record<string, unknown> : {}
+  const updatedAddress: Record<string, unknown> = { ...current, recipient_name: recipientName, phone }
+  if (order.courier === 'pickup') {
+    updatedAddress.pickup_location = String(formData.get('pickup_location') ?? '').trim() || 'Toko Next Solution'
+  } else {
+    const streetAddress = String(formData.get('street_address') ?? '').trim()
+    const city = String(formData.get('city') ?? '').trim()
+    const province = String(formData.get('province') ?? '').trim()
+    const postalCode = String(formData.get('postal_code') ?? '').trim()
+    if (streetAddress.length < 5 || city.length < 2 || province.length < 2 || postalCode.length < 3) throw new Error('Alamat pengiriman belum lengkap.')
+    Object.assign(updatedAddress, { street_address: streetAddress, city, province, postal_code: postalCode })
+  }
+  const { error } = await supabase.from('orders').update({ shipping_address: updatedAddress }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/orders')
   revalidatePath('/profile')
 }
 
@@ -86,14 +141,19 @@ export async function updateAdminPaymentStatusAction(formData: FormData) {
   const { data: order, error: orderError } = await supabase.from('orders').select('status').eq('id', orderId).single()
   if (orderError || !order) throw new Error('Pesanan tidak ditemukan.')
   const previousStatus = nextStatus === 'refunded' ? 'success' : 'pending'
-  if (nextStatus === 'refunded' ? order.status !== 'cancelled' : !['pending', 'processing'].includes(order.status)) throw new Error('Status pesanan belum sesuai untuk perubahan pembayaran ini.')
+  if (nextStatus === 'refunded' ? order.status !== 'cancelled' : order.status !== 'pending') throw new Error('Pembayaran hanya dapat dikonfirmasi untuk pesanan yang menunggu pembayaran.')
   const { data: payment, error: paymentReadError } = await supabase.from('payments').select('id, status').eq('order_id', orderId).eq('status', previousStatus).limit(1).maybeSingle()
   if (paymentReadError || !payment) throw new Error(`Pembayaran ${previousStatus} tidak ditemukan atau sudah diproses.`)
   const { error } = await supabase.from('payments').update({ status: nextStatus }).eq('id', payment.id).eq('status', previousStatus)
   if (error) throw new Error(error.message)
+  if (nextStatus === 'success') {
+    const { error: orderUpdateError } = await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId).eq('status', 'pending')
+    if (orderUpdateError) throw new Error(`Pembayaran terkonfirmasi, tetapi status pesanan gagal diperbarui: ${orderUpdateError.message}`)
+  }
   revalidatePath('/admin/orders')
   revalidatePath('/admin/reports')
   revalidatePath('/admin')
+  revalidatePath('/profile')
 }
 
 export async function getAdminCustomersAction() {
@@ -106,14 +166,60 @@ export async function getAdminCustomersAction() {
   return data ?? []
 }
 
+export async function createAdminManagedAccountAction(input: { fullName: string; email: string; phone: string; role: string }) {
+  await requireSuperAdmin()
+  const fullName = input.fullName.trim()
+  const email = input.email.trim().toLowerCase()
+  const phone = input.phone.trim()
+  const role = input.role
+  if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !['customer', 'admin', 'super_admin'].includes(role)) {
+    return { error: 'Periksa nama, email, dan role yang dipilih.' }
+  }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
+  const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } })
+  if (error || !data.user) return { error: error?.message ?? 'Undangan akun gagal dibuat.' }
+  const { error: profileError } = await adminClient.from('users').update({ full_name: fullName, phone: phone || null, role }).eq('id', data.user.id)
+  if (profileError) return { error: `Akun terbuat, tetapi profil gagal diperbarui: ${profileError.message}` }
+  revalidatePath('/admin/customers')
+  return { success: true }
+}
+
+export async function updateAdminManagedAccountRoleAction(formData: FormData) {
+  try {
+    const { user } = await requireSuperAdmin()
+    const id = String(formData.get('id') ?? '')
+    const role = String(formData.get('role') ?? '')
+    if (!id || !['customer', 'admin', 'super_admin'].includes(role)) return { error: 'Role akun tidak valid.' }
+    if (id === user.id && role !== 'super_admin') return { error: 'Role akun yang sedang digunakan tidak dapat diturunkan dari halaman ini.' }
+    const supabase = await createClient()
+    if (role !== 'super_admin') {
+      const { count, error: countError } = await supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'super_admin')
+      if (countError) return { error: countError.message }
+      const { data: target, error: targetError } = await supabase.from('users').select('role').eq('id', id).maybeSingle()
+      if (targetError) return { error: targetError.message }
+      if (target?.role === 'super_admin' && (count ?? 0) <= 1) return { error: 'Tidak bisa menurunkan satu-satunya super admin.' }
+    }
+    const { error } = await supabase.from('users').update({ role }).eq('id', id)
+    if (error) return { error: error.message }
+    revalidatePath('/admin/customers')
+    return { success: true }
+  } catch (cause) {
+    return { error: cause instanceof Error ? cause.message : 'Role gagal diperbarui.' }
+  }
+}
+
 export async function saveAdminProductAction(formData: FormData) {
   await requireAdmin()
   const name = String(formData.get('name') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
   const sku = String(formData.get('sku') ?? '').trim()
   const price = Number(formData.get('price'))
+  const discountEnabled = formData.get('discount_enabled') === 'on'
   const discountRaw = String(formData.get('discount_price') ?? '').trim()
-  const discountPrice = discountRaw ? Number(discountRaw) : null
+  const discountPrice = discountEnabled && discountRaw ? Number(discountRaw) : null
   const stock = Number(formData.get('stock'))
   const categoryId = String(formData.get('category_id') ?? '')
   const brandId = String(formData.get('brand_id') ?? '')
@@ -130,8 +236,17 @@ export async function saveAdminProductAction(formData: FormData) {
       imageUrls = [...new Set(parsed.map((url: string) => url.trim()).filter(Boolean))].slice(0, 8)
     } catch { throw new Error('Daftar foto produk tidak valid. Gunakan tautan HTTPS atau upload gambar.') }
   }
+  let specifications: { key: string; value: string }[] = []
+  const specificationsRaw = formData.get('specifications')
+  if (typeof specificationsRaw === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(specificationsRaw)
+      if (!Array.isArray(parsed) || parsed.some((item) => !item || typeof item.key !== 'string' || typeof item.value !== 'string')) throw new Error()
+      specifications = parsed.map((item) => ({ key: item.key.trim(), value: item.value.trim() })).filter((item) => item.key && item.value).slice(0, 50)
+    } catch { throw new Error('Daftar spesifikasi tidak valid.') }
+  }
   const id = String(formData.get('id') ?? '').trim()
-  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountPrice !== null && (!Number.isFinite(discountPrice) || discountPrice < 0 || discountPrice > price)) || !['draft', 'published', 'archived'].includes(status)) {
+  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice < 0 || discountPrice >= price)) || !['draft', 'published', 'archived'].includes(status)) {
     throw new Error('Periksa nama, deskripsi, kategori, brand, harga, stok, dan status produk.')
   }
   const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -167,6 +282,14 @@ export async function saveAdminProductAction(formData: FormData) {
     if (removedIds.length) {
       const { error } = await supabase.from('product_images').delete().in('id', removedIds)
       if (error) throw new Error(error.message)
+    }
+  }
+  if (typeof specificationsRaw === 'string') {
+    const { error: deleteSpecificationsError } = await supabase.from('product_specifications').delete().eq('product_id', productId)
+    if (deleteSpecificationsError) throw new Error(deleteSpecificationsError.message)
+    if (specifications.length) {
+      const { error: insertSpecificationsError } = await supabase.from('product_specifications').insert(specifications.map((specification, display_order) => ({ product_id: productId, ...specification, display_order })))
+      if (insertSpecificationsError) throw new Error(insertSpecificationsError.message)
     }
   }
   revalidatePath('/admin/products')

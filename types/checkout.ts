@@ -1,4 +1,4 @@
-export const SHIPPING_METHOD_CODES = ["standard", "express"] as const;
+export const SHIPPING_METHOD_CODES = ["standard", "express", "pickup"] as const;
 export const PAYMENT_METHOD = "manual_transfer" as const;
 
 export type ShippingMethodCode = (typeof SHIPPING_METHOD_CODES)[number];

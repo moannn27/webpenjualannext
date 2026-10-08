@@ -14,6 +14,7 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
   const [categories, setCategories] = useState(initialCategories);
   const [editing, setEditing] = useState<Category | null | false>(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [imageScale, setImageScale] = useState(100);
   const [error, setError] = useState("");
   const [busy, startTransition] = useTransition();
   const refresh = async () => setCategories(await getAdminCategoriesAction());
@@ -39,20 +40,20 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
   };
 
   return <div className="space-y-4">
-    <div className="flex justify-end"><Button onClick={() => { setEditing(null); setImageUrl(""); setError(""); }}><Plus className="mr-2 size-4" />Tambah kategori</Button></div>
+    <div className="flex justify-end"><Button onClick={() => { setEditing(null); setImageUrl(""); setImageScale(100); setError(""); }}><Plus className="mr-2 size-4" />Tambah kategori</Button></div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category) => <article key={category.id} className="overflow-hidden rounded-xl border bg-card">
       <div className="relative h-44 bg-muted">{category.image_url && <Image src={category.image_url} alt={category.name} fill unoptimized className="object-cover" sizes="(min-width: 1024px) 33vw, 50vw" />}</div>
       <div className="flex items-start justify-between gap-3 p-4"><div><h3 className="font-semibold">{category.name}</h3><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{category.description || "Belum ada deskripsi."}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon-sm" aria-label={`Edit ${category.name}`} onClick={() => { setEditing(category); setImageUrl(category.image_url || ""); setError(""); }}><Edit className="size-4" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Hapus ${category.name}`} disabled={busy} onClick={() => remove(category)}><Trash className="size-4 text-destructive" /></Button></div></div>
     </article>)}{!categories.length && <p className="rounded-xl border border-dashed p-8 text-sm text-muted-foreground">Belum ada kategori.</p>}</div>
-    {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center bg-black/50 p-4"><section role="dialog" aria-modal="true" aria-labelledby="category-title" className="w-full max-w-lg rounded-2xl bg-card p-6 shadow-xl">
+    {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/50 p-4"><section role="dialog" aria-modal="true" aria-labelledby="category-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-5 shadow-xl sm:p-6">
       <h3 id="category-title" className="mb-5 text-xl font-bold">{editing ? "Edit kategori" : "Tambah kategori"}</h3>
       <form action={save} className="space-y-4">{editing && <input type="hidden" name="id" value={editing.id} />}
         <label className="block space-y-1 text-sm">Nama<Input name="name" required minLength={2} defaultValue={editing?.name || ""} /></label>
         <label className="block space-y-1 text-sm">Deskripsi<textarea name="description" defaultValue={editing?.description || ""} className="min-h-20 w-full rounded-lg border border-input bg-background p-2" /></label>
         <label className="block space-y-1 text-sm">URL gambar<Input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} type="url" placeholder="https://..." /></label>
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary"><ImagePlus className="size-4" />Upload gambar<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} /></label>
-        {imageUrl && <div className="relative h-40 overflow-hidden rounded-xl border bg-muted"><Image src={imageUrl} alt="Pratinjau gambar kategori" fill unoptimized sizes="(min-width: 512px) 448px, 100vw" className="object-cover" /></div>}
+        {imageUrl && <><div className="grid h-44 w-full place-items-center overflow-hidden rounded-xl border bg-muted"><Image src={imageUrl} alt="Pratinjau gambar kategori" width={640} height={360} unoptimized sizes="(min-width: 512px) 448px, 100vw" className="max-h-full max-w-full object-contain" style={{ transform: `scale(${imageScale / 100})` }} /></div><label className="block space-y-1 text-xs">Ukuran gambar <span className="font-medium">{imageScale}%</span><input aria-label="Ukuran gambar" className="w-full accent-primary" type="range" min="40" max="140" step="5" value={imageScale} onChange={(event) => setImageScale(Number(event.target.value))} /></label></>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setEditing(false)}>Batal</Button><Button type="submit" disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
       </form>

@@ -10,8 +10,33 @@ import { Input } from "@/components/ui/input";
 
 type Tab = "orders" | "wishlist" | "settings";
 type Profile = { full_name?: string | null; phone?: string | null; email?: string | null; home_address?: string | null; role?: string | null } | null;
-type Order = { id: string; order_number?: string | null; created_at: string; status: string; grand_total?: number | null };
+type Order = {
+  id: string; order_number?: string | null; created_at: string; status: string; total_amount?: number | null;
+  shipping_amount?: number | null; grand_total?: number | null; courier?: string | null;
+  shipping_address?: Record<string, unknown> | null;
+  order_items?: { id: string; product_name: string; price: number; quantity: number }[];
+  payments?: { id: string; amount: number; payment_method: string | null; status: string }[];
+};
 type WishlistEntry = { id: string; product_id: string; products?: { id: string; name: string; price: number; discount_price?: number | null } | null };
+
+const orderStatusLabels: Record<string, string> = {
+  pending: "Menunggu pembayaran",
+  processing: "Pembayaran dikonfirmasi · sedang disiapkan",
+  shipped: "Dalam pengiriman",
+  ready_for_pickup: "Siap diambil di toko",
+  delivered: "Selesai",
+  cancelled: "Dibatalkan",
+};
+const paymentStatusLabels: Record<string, string> = { pending: "Menunggu konfirmasi", success: "Terkonfirmasi", failed: "Gagal", refunded: "Dikembalikan", expired: "Kedaluwarsa" };
+
+function OrderProgress({ order }: { order: Order }) {
+  if (order.status === "cancelled") return <p className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">Pesanan dibatalkan.</p>;
+  const steps = order.courier === "pickup"
+    ? [["pending", "Menunggu pembayaran"], ["processing", "Dikonfirmasi · disiapkan"], ["ready_for_pickup", "Siap diambil"], ["delivered", "Selesai"]]
+    : [["pending", "Menunggu pembayaran"], ["processing", "Dikonfirmasi · disiapkan"], ["shipped", "Dikirim"], ["delivered", "Selesai"]];
+  const current = steps.findIndex(([status]) => status === order.status);
+  return <ol aria-label={`Progres pesanan: ${orderStatusLabels[order.status] ?? order.status}`} className="mt-4 grid gap-2 sm:grid-cols-2">{steps.map(([status, label], index) => <li key={status} className={`rounded-lg border px-3 py-2 text-xs ${current >= index ? "border-primary/30 bg-primary/5 text-foreground" : "border-border text-muted-foreground"}`}><span className={`mr-2 inline-grid size-5 place-items-center rounded-full ${current >= index ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{index + 1}</span>{label}</li>)}</ol>;
+}
 
 export function ProfileDashboard({ profile, orders, wishlist }: {
   profile: Profile;
@@ -64,9 +89,11 @@ export function ProfileDashboard({ profile, orders, wishlist }: {
         {activeTab === "orders" && <>
           <h1 className="mb-6 text-2xl font-bold">Riwayat pesanan</h1>
           {!orders.length ? <p className="py-12 text-center text-muted-foreground">Kamu belum memiliki pesanan.</p> : <div className="space-y-4">
-            {orders.map((order) => <article key={order.id} className="flex flex-col justify-between gap-3 rounded-2xl border border-border p-5 sm:flex-row sm:items-center">
+            {orders.map((order) => <article key={order.id} className="rounded-2xl border border-border p-5">
               <div><p className="font-semibold">{order.order_number ?? `Pesanan ${order.id.slice(0, 8)}`}</p><p className="text-sm text-muted-foreground">{new Date(order.created_at).toLocaleDateString("id-ID")} · {order.status}</p></div>
-              <div className="font-semibold">Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</div>
+              <div className="mt-3 font-semibold">Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</div>
+              <OrderProgress order={order} />
+              <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Lihat barang, pembayaran, dan detail pesanan</summary><div className="mt-4 space-y-4 text-sm"><div><h3 className="font-semibold">Barang dipesan</h3><ul className="mt-2 space-y-2">{(order.order_items ?? []).map((item) => <li key={item.id} className="flex justify-between gap-3"><span>{item.product_name} × {item.quantity}</span><span className="shrink-0">Rp {Number(item.price * item.quantity).toLocaleString("id-ID")}</span></li>)}</ul>{!order.order_items?.length && <p className="mt-1 text-muted-foreground">Rincian barang tidak tersedia.</p>}</div><div><h3 className="font-semibold">Pembayaran</h3><p className="mt-1">Metode: {order.payments?.[0]?.payment_method === "manual_transfer" ? "Transfer manual" : order.payments?.[0]?.payment_method || "Belum tercatat"}</p><p>Status: {paymentStatusLabels[order.payments?.[0]?.status ?? ""] ?? order.payments?.[0]?.status ?? "Belum tercatat"}</p></div><div><h3 className="font-semibold">Status pesanan</h3><p className="mt-1">{orderStatusLabels[order.status] ?? order.status}</p></div><div><h3 className="font-semibold">Penerimaan</h3>{order.courier === "pickup" ? <p className="mt-1">Ambil di toko. Tunggu admin mengonfirmasi lokasi dan waktu pengambilan.</p> : <p className="mt-1">{String(order.shipping_address?.recipient_name ?? "")} · {String(order.shipping_address?.phone ?? "")}<br />{String(order.shipping_address?.street_address ?? "")}<br />{[order.shipping_address?.city, order.shipping_address?.province, order.shipping_address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>Rp {Number(order.total_amount ?? 0).toLocaleString("id-ID")}</span></div><div className="flex justify-between"><span>{order.courier === "pickup" ? "Pengambilan" : "Ongkir"}</span><span>{order.courier === "pickup" ? "Gratis" : `Rp ${Number(order.shipping_amount ?? 0).toLocaleString("id-ID")}`}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</span></div></div></details>
             </article>)}
           </div>}
         </>}

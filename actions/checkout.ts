@@ -15,12 +15,12 @@ export async function proceedToCheckoutAction(formData: FormData) {
 
   // Validate form data
   const validated = checkoutSchema.safeParse({
-    recipientName: formData.get('recipientName'),
-    phone: formData.get('phone'),
-    streetAddress: formData.get('streetAddress'),
-    city: formData.get('city'),
-    province: formData.get('province'),
-    postalCode: formData.get('postalCode'),
+    recipientName: formData.get('recipientName') ?? '',
+    phone: formData.get('phone') ?? '',
+    streetAddress: formData.get('streetAddress') ?? '',
+    city: formData.get('city') ?? '',
+    province: formData.get('province') ?? '',
+    postalCode: formData.get('postalCode') ?? '',
     shippingMethod: formData.get('shippingMethod'),
     paymentMethod: formData.get('paymentMethod'),
   })

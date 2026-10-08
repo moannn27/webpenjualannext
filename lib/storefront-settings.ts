@@ -16,7 +16,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     testimonials: { visible: true, title: "Kata Pelanggan", subtitle: "Pengalaman pelanggan Next Solution." },
     faq: { visible: true, title: "Pertanyaan Umum", subtitle: "Butuh bantuan? Kami siap membantu." },
   },
-  store: { description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.", address: "", email: "", phone: "", whatsapp: "", copyright: "Hak cipta dilindungi.", branches: [] },
+  store: { description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.", address: "", email: "", phone: "", whatsapp: "6281234567890", copyright: "Hak cipta dilindungi.", branches: [] },
   admin: { catalogPageSize: 24 },
 };
 
@@ -29,5 +29,5 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
   }));
   const settings = value as Partial<StorefrontSettings>;
   const catalogPageSize = [24, 48, 100, 200].includes(settings.admin?.catalogPageSize ?? 24) ? settings.admin?.catalogPageSize ?? 24 : 24;
-  return { sections, store: { ...DEFAULT_STOREFRONT_SETTINGS.store, ...(input.store ?? {}), branches: Array.isArray(input.store?.branches) ? input.store.branches : [] }, admin: { catalogPageSize } };
+  return { sections, store: { ...DEFAULT_STOREFRONT_SETTINGS.store, ...(input.store ?? {}), whatsapp: input.store?.whatsapp?.trim() || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp, branches: Array.isArray(input.store?.branches) ? input.store.branches : [] }, admin: { catalogPageSize } };
 }

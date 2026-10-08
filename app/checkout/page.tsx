@@ -28,7 +28,7 @@ export default async function CheckoutPage() {
 
   if (shippingError) throw shippingError;
 
-  const shippingMethods: ShippingMethod[] = (shippingRows ?? []).map((method) => ({
+  const shippingMethods: ShippingMethod[] = (shippingRows ?? []).filter((method) => method.code !== "pickup").map((method) => ({
     code: method.code as ShippingMethodCode,
     name: method.name,
     delivery_estimate: method.delivery_estimate,
