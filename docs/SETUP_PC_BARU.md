@@ -30,6 +30,27 @@ npm ci
 
 `npm ci` memasang versi dependency persis dari `package-lock.json`. Saat mengambil perubahan berikutnya dari GitHub, jalankan `git pull` di branch `main`, lalu `npm ci` jika dependency berubah.
 
+## Supabase: project, kredensial, dan layanan yang dipakai
+
+Aplikasi ini menggunakan **Supabase hosted** sebagai backend utama: PostgreSQL menyimpan produk, kategori, brand, pengguna, pesanan, pembayaran, dan konten toko; Supabase Auth menangani login; Supabase Storage menyimpan foto. Browser dan server Next.js mengakses project melalui konfigurasi environment. Data tidak disimpan di komputer yang menjalankan Next.js.
+
+Di Supabase Dashboard, pilih project toko yang benar. Pada **Project Settings → API** ambil:
+
+- **Project URL** untuk `NEXT_PUBLIC_SUPABASE_URL`.
+- **Publishable key** untuk `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (atau legacy `anon` key dengan variabel `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+- **Project ref** dari URL/project settings untuk perintah `supabase link`.
+
+Jangan menggunakan URL/key dari project lain, misalnya project uji coba, karena aplikasi akan membaca database dan file dari project tersebut. Publishable/anon key memang dipakai aplikasi web dan dilindungi oleh kebijakan Row Level Security (RLS). **Jangan pernah** memasukkan `service_role` key ke browser, variabel `NEXT_PUBLIC_*`, `.env.example`, atau Git.
+
+Project hosted yang sama boleh dipakai dari beberapa komputer. Setiap komputer punya `.env.local` sendiri dengan URL/key yang sama; perubahan kode tidak membuat salinan database dan tidak menghapus data Supabase.
+
+### Authentication dan Storage
+
+- Di **Authentication → Providers**, pastikan Email aktif. Pendaftaran/login memakai Supabase Auth.
+- Di **Authentication → URL Configuration**, alamat lokal biasanya `http://localhost:3000` dengan callback `/auth/callback`. Untuk domain publik, tambahkan domain dan callback produksi di pengaturan yang sama.
+- Migration `20261005000200_storage_setup.sql` menyiapkan bucket `products`, `brands`, `banners`, `avatars`, `reviews`, dan `documents`. Bucket gambar katalog/brand/banner dapat dibaca publik; operasi upload diatur oleh policy admin.
+- Upload produk/brand/banner memakai file WebP hasil kompresi di browser. Simpan file foto di bucket yang sesuai; jangan mengandalkan file lokal komputer kantor.
+
 ## Atur environment lokal
 
 Buat `.env.local` dari contoh:
@@ -49,7 +70,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Gunakan publishable key (atau legacy anon key dengan nama `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Jangan pernah menaruh `service_role` key di variabel `NEXT_PUBLIC_*` atau Git. `.env.local` diabaikan oleh Git; tiap komputer mengatur file ini sendiri. `OPENAI_API_KEY` hanya diperlukan untuk jawaban AI, fitur rekomendasi dasar tetap berjalan tanpa API key.
 
-## Supabase dan database
+## Supabase CLI dan database
 
 Untuk sekadar menjalankan aplikasi pada PC baru, gunakan URL/key project hosted yang sama. Data produk, pelanggan, pesanan, dan gambar akan tetap berasal dari project itu. Login ke Supabase CLI hanya diperlukan jika perlu menerapkan migration:
 
@@ -67,7 +88,9 @@ npm run db:push
 
 Jalankan `db:push` hanya setelah memastikan target project dan riwayat migration cocok. Jangan jalankan `supabase db reset`, `supabase start`, atau perintah Docker pada alur kerja ini. Jangan jalankan `supabase/seed.sql` pada toko yang sudah berisi data. Seed hanya untuk project baru yang kosong, setelah ditinjau.
 
-Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai migration terbaru. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
+Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai migration terbaru. Tambahan order, dashboard/laporan, dan validasi pembayaran berada pada migration `20261010000000` sampai `20261015000000`. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
+
+Jika hanya meng-clone untuk menjalankan aplikasi pada database kantor yang sudah siap, migration tidak perlu dijalankan ulang. Jika ada migration baru, pastikan remote sudah terhubung ke project ref yang benar, bandingkan daftar migration lokal dan remote, lalu terapkan hanya migration yang belum diterapkan. `npm run db:push` mengubah database hosted; periksa perubahan dan backup database sebelum menerapkannya pada toko aktif. Jika riwayat lokal/remote tidak cocok, hentikan dulu dan selesaikan rekonsiliasi migration—jangan mengatasi ketidakcocokan dengan reset.
 
 ## Jalankan, cek, dan build
 
