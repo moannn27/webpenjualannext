@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
         <Input name="email" type="email" placeholder="Alamat email" required />
         {message && <p role="status" className="text-sm text-green-700">{message}</p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button className="w-full" disabled={loading}>{loading ? "Mengirim..." : "Kirim tautan reset"}</Button>
+        <Button type="submit" className="w-full" disabled={loading}>{loading ? "Mengirim..." : "Kirim tautan reset"}</Button>
       </form>
       <Link href="/login" className="mt-6 block text-center text-sm text-primary hover:underline">Kembali ke login</Link>
     </div>

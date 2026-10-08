@@ -6,7 +6,7 @@ import { type Product } from "@/store/useProductStore";
 
 interface FeaturedProductsProps {
   title: string;
-  type: "bestseller" | "new";
+  type: "bestseller" | "new" | "promo";
   initialData?: Product[];
   subtitle?: string;
 }
@@ -32,8 +32,8 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
             {subtitle ?? (type === "bestseller" ? "Most loved by our customers." : "Discover the latest innovations.")}
           </p>
         </div>
-        <Button variant="outline" className="self-start rounded-full md:self-auto" render={<Link href={`/products?sort=${type}`} />}>
-          View All <ArrowRight className="ml-2 h-4 w-4" />
+        <Button variant="outline" className="self-start rounded-full md:self-auto" render={<Link href={type === "promo" ? "/promo" : `/products?sort=${type}`} />}>
+          Lihat semua <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
 

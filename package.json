@@ -8,11 +8,6 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "db:start": "npx supabase start",
-    "db:stop": "npx supabase stop",
-    "db:reset": "npx supabase db reset",
-    "db:status": "npx supabase status",
-    "db:test": "npx supabase test db",
     "db:push": "npx supabase db push"
   },
   "dependencies": {

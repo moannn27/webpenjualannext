@@ -8,7 +8,7 @@ import { type CartItem } from "@/types/cart";
 import "./globals.css";
 
 const outfit = Outfit({
-  variable: "--font-sans",
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -36,7 +36,7 @@ export default async function RootLayout({
   const settings = normalizeStorefrontSettings(rawSettings);
 
   return (
-    <html lang="en" className={`${outfit.variable} antialiased`} suppressHydrationWarning>
+    <html lang="id" className={`${outfit.variable} antialiased`} suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground font-sans flex flex-col">
         <StorefrontChrome cartCount={cartCount} settings={settings}>{children}</StorefrontChrome>
       </body>

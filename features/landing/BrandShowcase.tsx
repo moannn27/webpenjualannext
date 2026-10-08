@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export function BrandShowcase({ brands = [], title = "Trusted by Top Brands" }: { brands?: { id: string; name: string; logo_url?: string | null }[]; title?: string }) {
   return (
@@ -15,7 +16,7 @@ export function BrandShowcase({ brands = [], title = "Trusted by Top Brands" }: 
               href={`/products?brand=${brand.id}`}
               className="group flex min-h-20 min-w-40 items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card px-5 py-4 text-foreground/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-md"
             >
-              <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5" aria-hidden="true">{brand.logo_url ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={brand.logo_url} alt="" loading="lazy" className="size-full object-contain" /> : <span className="text-sm font-bold text-primary">{brand.name.slice(0, 1).toUpperCase()}</span>}</span>
+              <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5" aria-hidden="true">{brand.logo_url ? <Image src={brand.logo_url} alt="" fill sizes="40px" unoptimized className="object-contain" /> : <span className="text-sm font-bold text-primary">{brand.name.slice(0, 1).toUpperCase()}</span>}</span>
               <span className="text-base font-semibold tracking-tight text-foreground sm:text-lg">{brand.name}</span>
             </Link>
           ))}

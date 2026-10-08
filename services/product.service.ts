@@ -7,6 +7,13 @@ export class ProductService {
     return await this.repo.findAll(options)
   }
 
+  async getProductsPage(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string }) {
+    return await this.repo.findPage(options)
+  }
+
+  async getProductsByIds(ids: string[]) { return await this.repo.findByIds(ids) }
+  async getPromoProducts(limit = 8) { return await this.repo.findPromos(limit) }
+
   async getProductBySlug(slug: string) {
     return await this.repo.findBySlug(slug)
   }
@@ -20,14 +27,14 @@ export class ProductService {
   }
 
   async getFeaturedProducts() {
-    return await this.repo.findAll({ isFeatured: true })
+    return await this.repo.findAll({ isFeatured: true, limit: 8 })
   }
 
   async getBestSeller() {
-    return await this.repo.findAll({ isBestSeller: true })
+    return await this.repo.findAll({ isBestSeller: true, limit: 8 })
   }
 
   async getNewArrival() {
-    return await this.repo.findAll({ isNewArrival: true })
+    return await this.repo.findAll({ isNewArrival: true, limit: 8 })
   }
 }

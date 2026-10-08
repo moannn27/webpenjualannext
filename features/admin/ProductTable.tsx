@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Plus, Edit, Trash } from "lucide-react";
+import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import { deleteAdminProductAction, getAdminProductsAction, saveAdminProductAction } from "@/actions/admin";
 
 type AdminProduct = {
   id: string; name: string; description: string; sku: string | null; price: number; discount_price: number | null;
-  stock: number; status: string; is_best_seller?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
+  stock: number; status: string; is_best_seller?: boolean; is_new_arrival?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
   product_images?: { url: string; is_primary: boolean }[];
 };
 type Option = { id: string; name: string };
@@ -47,8 +48,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       <Button className="w-full sm:w-auto" onClick={() => { setError(""); setEditing(null); }}><Plus className="mr-2 size-4" />Tambah produk</Button>
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <div className="rounded-md border bg-card">
-      <Table><TableHeader><TableRow><TableHead>Produk</TableHead><TableHead>SKU</TableHead><TableHead>Kategori</TableHead><TableHead>Stok</TableHead><TableHead>Harga</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+    <div className="overflow-x-auto rounded-xl border bg-card">
+      <Table className="min-w-[760px]"><TableHeader><TableRow><TableHead>Produk</TableHead><TableHead>SKU</TableHead><TableHead>Kategori</TableHead><TableHead>Stok</TableHead><TableHead>Harga</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
         <TableBody>{visible.map((product) => <TableRow key={product.id}>
           <TableCell className="font-medium">{product.name}</TableCell><TableCell>{product.sku || "—"}</TableCell><TableCell>{product.categories?.name || "—"}</TableCell><TableCell>{product.stock}</TableCell><TableCell>Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}</TableCell>
           <TableCell><Badge variant={product.status === "published" ? "default" : "secondary"}>{product.status}</Badge></TableCell>
@@ -69,12 +70,13 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <label className="space-y-1 text-sm">Stok<Input name="stock" type="number" min="0" step="1" required defaultValue={editing?.stock ?? 0} /></label>
           <label className="space-y-1 text-sm">Status<select name="status" defaultValue={editing?.status ?? "published"} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="published">Terbit</option><option value="draft">Draft</option><option value="archived">Arsip</option></select></label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_best_seller" defaultChecked={editing?.is_best_seller ?? false} />Tampilkan sebagai best seller</label>
+          <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_new_arrival" defaultChecked={editing?.is_new_arrival ?? false} />Tampilkan sebagai produk terbaru</label>
           <label className="space-y-1 text-sm">Kategori<select name="category_id" required defaultValue={categories.find((option) => option.name === editing?.categories?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih kategori</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <label className="space-y-1 text-sm">Brand<select name="brand_id" required defaultValue={brands.find((option) => option.name === editing?.brands?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <label className="space-y-1 text-sm sm:col-span-2">Deskripsi<textarea name="description" required minLength={3} defaultValue={editing?.description ?? ""} className="min-h-24 w-full rounded-lg border border-input bg-background p-2" /></label>
-          <label className="space-y-1 text-sm sm:col-span-2">URL gambar utama<Input name="image_url" type="url" defaultValue={editing?.product_images?.find((image) => image.is_primary)?.url ?? editing?.product_images?.[0]?.url ?? ""} /></label>
+          <ProductImagePicker key={editing?.id ?? "new-product"} initialImages={editing?.product_images ?? []} />
           {error && <p role="alert" className="text-sm text-destructive sm:col-span-2">{error}</p>}
-          <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(false)}>Batal</Button><Button disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
+          <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(false)}>Batal</Button><Button type="submit" disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
         </form>
       </section>
     </div>}

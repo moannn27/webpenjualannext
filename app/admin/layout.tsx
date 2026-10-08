@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAdminAccess } from "@/lib/auth/admin";
-import { AdminSidebar } from "@/components/layouts/AdminSidebar";
+import { AdminShell } from "@/components/layouts/AdminShell";
 import { AdminHeader } from "@/components/layouts/AdminHeader";
 
 export const metadata: Metadata = {
@@ -18,15 +18,5 @@ export default async function AdminLayout({
   if (!user) redirect("/login?redirect=/admin");
   if (!isAdmin) redirect("/");
 
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <AdminSidebar isSuperAdmin={role === "super_admin"} />
-      <div className="pl-0 lg:pl-64 flex flex-col min-h-screen">
-        <AdminHeader adminName={user.user_metadata?.full_name || user.email || "Admin"} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <AdminShell isSuperAdmin={role === "super_admin"}><AdminHeader adminName={user.user_metadata?.full_name || user.email || "Admin"} /><main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main></AdminShell>;
 }

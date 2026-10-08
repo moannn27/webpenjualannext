@@ -41,7 +41,7 @@ export default function ResetPasswordPage() {
         <Input name="confirmPassword" type="password" placeholder="Ulangi kata sandi" minLength={6} required />
         {message && <p role="status" className="text-sm text-green-700">{message} <Link className="underline" href="/login">Login</Link></p>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button className="w-full" disabled={loading || Boolean(message)}>{loading ? "Menyimpan..." : "Simpan kata sandi"}</Button>
+        <Button type="submit" className="w-full" disabled={loading || Boolean(message)}>{loading ? "Menyimpan..." : "Simpan kata sandi"}</Button>
       </form>
     </div>
   </div>;

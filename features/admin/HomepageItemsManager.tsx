@@ -48,7 +48,7 @@ export function HomepageItemsManager({ initialFaqs, initialTestimonials }: { ini
         <label className="space-y-1 text-sm">Urutan tampil<Input name="display_order" type="number" min="0" defaultValue={editingFaq?.display_order ?? editingTestimonial?.display_order ?? 0} /></label>
         <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_active" defaultChecked={editingFaq?.is_active ?? editingTestimonial?.is_active ?? true} />Tampilkan di halaman depan</label>
         {error && <p role="alert" className="text-sm text-destructive sm:col-span-2">{error}</p>}
-        <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(null)}>Batal</Button><Button disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
+        <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(null)}>Batal</Button><Button type="submit" disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
       </form>
     </section></div>}
   </div>;

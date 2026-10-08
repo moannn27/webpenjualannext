@@ -275,7 +275,7 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
                 <label className="block text-sm">Rating<select name="rating" defaultValue="5" className="mt-1 block h-10 w-full rounded-lg border border-input bg-background px-3"><option value="5">5 - Sangat bagus</option><option value="4">4 - Bagus</option><option value="3">3 - Cukup</option><option value="2">2 - Kurang</option><option value="1">1 - Buruk</option></select></label>
                 <Input name="comment" placeholder="Ceritakan pengalamanmu" required minLength={3} />
                 {reviewError && <p role="alert" className="text-sm text-destructive">{reviewError}</p>}
-                <Button disabled={reviewLoading}>{reviewLoading ? "Mengirim..." : "Kirim ulasan"}</Button>
+                <Button type="submit" disabled={reviewLoading}>{reviewLoading ? "Mengirim..." : "Kirim ulasan"}</Button>
               </form>
             </div>
           )}

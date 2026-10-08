@@ -8,6 +8,13 @@ export async function getProductsAction(options?: { categoryId?: string, brandId
   return await productService.getProducts(options)
 }
 
+export async function getProductsPageAction(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string }) {
+  return await productService.getProductsPage(options)
+}
+
+export async function getProductsByIdsAction(ids: string[]) { return await productService.getProductsByIds(ids) }
+export async function getPromoProductsAction(limit = 8) { return await productService.getPromoProducts(limit) }
+
 export async function getProductBySlugAction(slug: string) {
   return await productService.getProductBySlug(slug)
 }

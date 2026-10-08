@@ -1,7 +1,8 @@
-export type StoreSectionSetting = { visible: boolean; title: string; subtitle: string };
+export type StoreSectionSetting = { visible: boolean; title: string; subtitle: string; productIds?: string[] };
 export type StorefrontSettings = {
   sections: Record<string, StoreSectionSetting>;
   store: { description: string; address: string; email: string; phone: string; whatsapp: string; copyright: string; branches: { id: string; name: string; address: string; maps_url: string }[] };
+  admin: { catalogPageSize: number };
 };
 
 export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     faq: { visible: true, title: "Pertanyaan Umum", subtitle: "Butuh bantuan? Kami siap membantu." },
   },
   store: { description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.", address: "", email: "", phone: "", whatsapp: "", copyright: "Hak cipta dilindungi.", branches: [] },
+  admin: { catalogPageSize: 24 },
 };
 
 export function normalizeStorefrontSettings(value: unknown): StorefrontSettings {
@@ -25,5 +27,7 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
     const current = input.sections?.[key];
     return [key, { ...fallback, ...(current ?? {}) }];
   }));
-  return { sections, store: { ...DEFAULT_STOREFRONT_SETTINGS.store, ...(input.store ?? {}), branches: Array.isArray(input.store?.branches) ? input.store.branches : [] } };
+  const settings = value as Partial<StorefrontSettings>;
+  const catalogPageSize = [24, 48, 100, 200].includes(settings.admin?.catalogPageSize ?? 24) ? settings.admin?.catalogPageSize ?? 24 : 24;
+  return { sections, store: { ...DEFAULT_STOREFRONT_SETTINGS.store, ...(input.store ?? {}), branches: Array.isArray(input.store?.branches) ? input.store.branches : [] }, admin: { catalogPageSize } };
 }

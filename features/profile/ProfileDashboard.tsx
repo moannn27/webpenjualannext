@@ -88,7 +88,7 @@ export function ProfileDashboard({ profile, orders, wishlist }: {
             <label className="block space-y-2 text-sm font-medium">Alamat rumah<textarea name="home_address" autoComplete="street-address" defaultValue={profile?.home_address ?? ""} maxLength={500} placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota, kode pos" className="min-h-28 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
             {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
             {saved && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
-            <Button disabled={busy}>{busy ? "Menyimpan..." : "Simpan perubahan"}</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Menyimpan..." : "Simpan perubahan"}</Button>
           </form>
         </>}
       </section>

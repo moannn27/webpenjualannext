@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveStorefrontSettingsAction } from "@/actions/admin";
+import { getAdminProductsAction, saveStorefrontSettingsAction } from "@/actions/admin";
 import { DEFAULT_STOREFRONT_SETTINGS, normalizeStorefrontSettings, type StorefrontSettings } from "@/lib/storefront-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,16 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, startTransition] = useTransition();
+  const [products, setProducts] = useState<{id: string; name: string; status: string}[]>([]);
   const router = useRouter();
-  const updateSection = (key: string, field: "visible" | "title" | "subtitle", value: string | boolean) => setSettings((current) => ({ ...current, sections: { ...current.sections, [key]: { ...current.sections[key], [field]: value } } }));
+  useEffect(() => {
+    getAdminProductsAction()
+      .then((rows) => setProducts(rows.filter((product) => product.status === "published").map((product) => ({ id: product.id, name: product.name, status: product.status }))))
+      .catch(() => setProducts([]));
+  }, []);
+  const updateSection = (key: string, field: "visible" | "title" | "subtitle" | "productIds", value: string | boolean | string[]) => setSettings((current) => ({ ...current, sections: { ...current.sections, [key]: { ...current.sections[key], [field]: value } } }));
   const updateStore = (field: Exclude<keyof StorefrontSettings["store"], "branches">, value: string) => setSettings((current) => ({ ...current, store: { ...current.store, [field]: value } }));
+  const updateCatalogPageSize = (value: number) => setSettings((current) => ({ ...current, admin: { ...current.admin, catalogPageSize: value } }));
   const updateBranch = (id: string, field: "name" | "address" | "maps_url", value: string) => setSettings((current) => ({ ...current, store: { ...current.store, branches: current.store.branches.map((branch) => branch.id === id ? { ...branch, [field]: value } : branch) } }));
   const addBranch = () => setSettings((current) => ({ ...current, store: { ...current.store, branches: [...current.store.branches, { id: crypto.randomUUID(), name: "", address: "", maps_url: "" }] } }));
   const removeBranch = (id: string) => setSettings((current) => ({ ...current, store: { ...current.store, branches: current.store.branches.filter((branch) => branch.id !== id) } }));
@@ -33,6 +40,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{names[key] ?? key}</h3><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.visible} onChange={(event) => updateSection(key, "visible", event.target.checked)} />Tampilkan</label></div>
       <label className="block space-y-1 text-sm">Judul<Input value={section.title} onChange={(event) => updateSection(key, "title", event.target.value)} maxLength={100} /></label>
       <label className="block space-y-1 text-sm">Deskripsi singkat<Input value={section.subtitle} onChange={(event) => updateSection(key, "subtitle", event.target.value)} maxLength={180} /></label>
+      {["bestsellers", "newArrivals", "promo"].includes(key) && <fieldset className="space-y-2 border-t pt-3"><legend className="text-sm font-medium">Produk yang ditampilkan</legend><p className="text-xs text-muted-foreground">Pilih maksimal 8 produk. Kosongkan untuk memakai pilihan otomatis.</p><div className="max-h-40 space-y-2 overflow-y-auto">{products.map((product) => { const selected = section.productIds ?? []; return <label key={product.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selected.includes(product.id)} onChange={(event) => updateSection(key, "productIds", event.target.checked ? [...selected, product.id].slice(0, 8) : selected.filter((id) => id !== product.id))} />{product.name}</label>; })}{!products.length && <p className="text-xs text-muted-foreground">Belum ada produk terbit yang dapat dipilih.</p>}</div></fieldset>}
     </article>)}</div>
     <div className="space-y-4 border-t pt-5"><div><h2 className="text-xl font-semibold">Informasi toko dan footer</h2><p className="mt-1 text-sm text-muted-foreground">Alamat dan kontak ini akan tampil di bagian bawah website.</p></div>
       <label className="block space-y-1 text-sm">Deskripsi toko<textarea value={settings.store.description} onChange={(event) => updateStore("description", event.target.value)} maxLength={300} className="min-h-20 w-full rounded-lg border border-input bg-background p-3" /></label>
@@ -43,6 +51,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         {!settings.store.branches.length && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Belum ada cabang yang ditampilkan.</p>}
       </div>
     </div>
+    <div className="space-y-2 border-t pt-5"><div><h2 className="text-xl font-semibold">Pengaturan katalog admin</h2><p className="text-sm text-muted-foreground">Hanya super admin yang bisa mengubah banyaknya produk per halaman katalog.</p></div><label className="block max-w-sm space-y-1 text-sm">Produk per halaman<select value={settings.admin.catalogPageSize} onChange={(event) => updateCatalogPageSize(Number(event.target.value))} className="h-10 w-full rounded-lg border border-input bg-background px-3"><option value={24}>24 produk</option><option value={48}>48 produk</option><option value={100}>100 produk</option><option value={200}>200 produk</option></select></label></div>
     {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}{notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     <div className="flex flex-wrap gap-3"><Button onClick={save} disabled={busy}>{busy ? "Menyimpan..." : "Simpan pengaturan halaman depan"}</Button><Button type="button" variant="outline" onClick={() => setSettings(DEFAULT_STOREFRONT_SETTINGS)}>Kembalikan default</Button></div>
   </section>;

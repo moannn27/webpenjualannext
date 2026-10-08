@@ -4,6 +4,7 @@ import { AdminService } from '@/services/admin.service'
 import { getAdminAccess } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { EcommerceReport } from '@/lib/admin-reports'
 
 const adminService = new AdminService()
 
@@ -13,6 +14,15 @@ export async function getDashboardStatsAction() {
   if (!isAdmin) throw new Error("Forbidden")
   
   return await adminService.getDashboardStats()
+}
+
+export async function getAdminEcommerceReportAction(days: number): Promise<EcommerceReport> {
+  await requireAdmin()
+  if (![7, 30, 90, 365].includes(days)) throw new Error('Periode laporan tidak valid.')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_admin_ecommerce_report', { p_days: days })
+  if (error) throw new Error('Laporan belum tersedia. Pastikan migrasi analitik ecommerce sudah diterapkan.')
+  return data as EcommerceReport
 }
 
 async function requireAdmin() {
@@ -41,10 +51,49 @@ export async function getAdminOrdersAction() {
   await requireAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase.from('orders')
-    .select('id, order_number, status, grand_total, created_at, users(full_name, phone)')
+    .select('id, order_number, status, grand_total, created_at, users(full_name, phone), payments(id, status, payment_method)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+export async function updateAdminOrderStatusAction(formData: FormData) {
+  await requireAdmin()
+  const id = String(formData.get('id') ?? '').trim()
+  const status = String(formData.get('status') ?? '')
+  if (!id || !['pending', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) throw new Error('Status pesanan tidak valid.')
+  const supabase = await createClient()
+  const { data: current, error: readError } = await supabase.from('orders').select('status, payments(status)').eq('id', id).single()
+  if (readError || !current) throw new Error('Pesanan tidak ditemukan.')
+  const allowed: Record<string, string[]> = { pending: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
+  if (current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
+  const paymentRows = Array.isArray(current.payments) ? current.payments : []
+  if (['processing', 'shipped', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
+  const { error } = await supabase.from('orders').update({ status }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin/reports')
+  revalidatePath('/admin')
+  revalidatePath('/profile')
+}
+
+export async function updateAdminPaymentStatusAction(formData: FormData) {
+  await requireAdmin()
+  const orderId = String(formData.get('order_id') ?? '').trim()
+  const nextStatus = String(formData.get('payment_status') ?? '')
+  if (!orderId || !['success', 'failed', 'refunded'].includes(nextStatus)) throw new Error('Status pembayaran tidak valid.')
+  const supabase = await createClient()
+  const { data: order, error: orderError } = await supabase.from('orders').select('status').eq('id', orderId).single()
+  if (orderError || !order) throw new Error('Pesanan tidak ditemukan.')
+  const previousStatus = nextStatus === 'refunded' ? 'success' : 'pending'
+  if (nextStatus === 'refunded' ? order.status !== 'cancelled' : !['pending', 'processing'].includes(order.status)) throw new Error('Status pesanan belum sesuai untuk perubahan pembayaran ini.')
+  const { data: payment, error: paymentReadError } = await supabase.from('payments').select('id, status').eq('order_id', orderId).eq('status', previousStatus).limit(1).maybeSingle()
+  if (paymentReadError || !payment) throw new Error(`Pembayaran ${previousStatus} tidak ditemukan atau sudah diproses.`)
+  const { error } = await supabase.from('payments').update({ status: nextStatus }).eq('id', payment.id).eq('status', previousStatus)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin/reports')
+  revalidatePath('/admin')
 }
 
 export async function getAdminCustomersAction() {
@@ -70,14 +119,24 @@ export async function saveAdminProductAction(formData: FormData) {
   const brandId = String(formData.get('brand_id') ?? '')
   const status = String(formData.get('status') ?? 'published')
   const isBestSeller = formData.get('is_best_seller') === 'on'
+  const isNewArrival = formData.get('is_new_arrival') === 'on'
   const imageUrl = String(formData.get('image_url') ?? '').trim()
+  let imageUrls: string[] | null = null
+  const imageUrlsRaw = formData.get('image_urls')
+  if (typeof imageUrlsRaw === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(imageUrlsRaw)
+      if (!Array.isArray(parsed) || parsed.some((url) => typeof url !== 'string' || !/^https:\/\//i.test(url))) throw new Error()
+      imageUrls = [...new Set(parsed.map((url: string) => url.trim()).filter(Boolean))].slice(0, 8)
+    } catch { throw new Error('Daftar foto produk tidak valid. Gunakan tautan HTTPS atau upload gambar.') }
+  }
   const id = String(formData.get('id') ?? '').trim()
   if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountPrice !== null && (!Number.isFinite(discountPrice) || discountPrice < 0 || discountPrice > price)) || !['draft', 'published', 'archived'].includes(status)) {
     throw new Error('Periksa nama, deskripsi, kategori, brand, harga, stok, dan status produk.')
   }
   const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const supabase = await createClient()
-  const payload = { name, slug: id ? undefined : `${slug}-${crypto.randomUUID().slice(0, 8)}`, description, sku: sku || null, price, discount_price: discountPrice, stock, category_id: categoryId, brand_id: brandId, status, is_best_seller: isBestSeller }
+  const payload = { name, slug: id ? undefined : `${slug}-${crypto.randomUUID().slice(0, 8)}`, description, sku: sku || null, price, discount_price: discountPrice, stock, category_id: categoryId, brand_id: brandId, status, is_best_seller: isBestSeller, is_new_arrival: isNewArrival }
   let productId = id
   if (id) {
     const { error } = await supabase.from('products').update({ ...payload, slug: undefined }).eq('id', id)
@@ -87,13 +146,26 @@ export async function saveAdminProductAction(formData: FormData) {
     if (error) throw new Error(error.message)
     productId = data.id
   }
-  if (imageUrl) {
-    const { data: existing } = await supabase.from('product_images').select('id').eq('product_id', productId).limit(1)
-    if (existing?.length) {
-      const { error } = await supabase.from('product_images').update({ url: imageUrl, is_primary: true }).eq('id', existing[0].id)
-      if (error) throw new Error(error.message)
-    } else {
-      const { error } = await supabase.from('product_images').insert({ product_id: productId, url: imageUrl, is_primary: true })
+  if (imageUrls !== null || imageUrl) {
+    const urls = imageUrls ?? [imageUrl]
+    const { data: existingImages, error: readImagesError } = await supabase.from('product_images').select('id, url').eq('product_id', productId)
+    if (readImagesError) throw new Error(readImagesError.message)
+    const retainedIds: string[] = []
+    for (const [display_order, url] of urls.entries()) {
+      const existing = existingImages?.find((image) => image.url === url && !retainedIds.includes(image.id))
+      if (existing) {
+        const { error } = await supabase.from('product_images').update({ is_primary: display_order === 0, display_order }).eq('id', existing.id)
+        if (error) throw new Error(error.message)
+        retainedIds.push(existing.id)
+      } else {
+        const { data, error } = await supabase.from('product_images').insert({ product_id: productId, url, is_primary: display_order === 0, display_order }).select('id').single()
+        if (error) throw new Error(error.message)
+        retainedIds.push(data.id)
+      }
+    }
+    const removedIds = existingImages?.filter((image) => !retainedIds.includes(image.id)).map((image) => image.id) ?? []
+    if (removedIds.length) {
+      const { error } = await supabase.from('product_images').delete().in('id', removedIds)
       if (error) throw new Error(error.message)
     }
   }
@@ -201,6 +273,8 @@ export async function getLandingContentAction() {
 export async function saveStorefrontSettingsAction(settings: unknown) {
   await requireSuperAdmin()
   if (!settings || typeof settings !== 'object' || JSON.stringify(settings).length > 30000) throw new Error('Pengaturan toko tidak valid.')
+  const catalogPageSize = (settings as { admin?: { catalogPageSize?: unknown } }).admin?.catalogPageSize
+  if (catalogPageSize !== undefined && ![24, 48, 100, 200].includes(Number(catalogPageSize))) throw new Error('Jumlah produk per halaman harus 24, 48, 100, atau 200.')
   const store = (settings as { store?: { branches?: unknown; email?: unknown } }).store
   if (typeof store?.email === 'string' && store.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(store.email)) throw new Error('Email toko tidak valid.')
   if (Array.isArray(store?.branches)) {
@@ -219,6 +293,7 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
   if (error) throw new Error(error.message)
   revalidatePath('/')
+  revalidatePath('/promo')
   revalidatePath('/admin/content')
   return { success: true }
 }
@@ -316,8 +391,8 @@ export async function uploadAdminImageAction(formData: FormData) {
   await requireAdmin()
   const file = formData.get('file')
   const bucket = String(formData.get('bucket') ?? '')
-  if (!(file instanceof File) || !['products', 'banners'].includes(bucket)) throw new Error('File gambar tidak valid.')
-  if (!['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error('Gunakan gambar JPG, PNG, WebP, atau AVIF maksimal 5 MB.')
+  if (!(file instanceof File) || !['products', 'brands', 'banners'].includes(bucket)) throw new Error('File gambar tidak valid.')
+  if (file.type !== 'image/webp' || file.size > 800 * 1024) throw new Error('Gambar harus WebP hasil kompresi dengan ukuran maksimal 800 KB.')
   const extension = file.type.split('/')[1].replace('jpeg', 'jpg')
   const path = `${crypto.randomUUID()}.${extension}`
   const supabase = await createClient()

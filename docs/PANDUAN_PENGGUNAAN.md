@@ -1,63 +1,27 @@
-# Panduan aktivasi dan penggunaan Next Solution
+# Panduan penggunaan Next Solution Store
 
-Panduan ini mencatat langkah setup dan penggunaan supaya bisa diikuti lagi setelah project dipindahkan atau di-clone.
+Panduan ini menjelaskan setup Supabase dan penggunaan storefront/panel admin. Untuk instalasi di komputer baru, ikuti [Setup di PC baru](SETUP_PC_BARU.md).
 
-## 1. Persiapan project
+## Setup Supabase
 
-Persyaratan: Node.js yang mendukung Next.js 16, npm, akun Supabase, dan akses ke repository GitHub.
+1. Buat atau pilih project Supabase hosted dan siapkan URL serta publishable key.
+2. Isi `.env.local` berdasarkan `.env.example`; gunakan `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, dan `NEXT_PUBLIC_SITE_URL`.
+3. Jika database belum terhubung ke repo, jalankan `npx supabase login`, lalu `npx supabase link --project-ref PROJECT-REF`.
+4. Periksa `npx supabase migration list` sebelum menerapkan perubahan. Jalankan `npm run db:push` hanya jika project yang terhubung benar dan migration lokal memang belum diterapkan.
+5. Jalankan `npm run dev`, lalu buka <http://localhost:3000>.
 
-```powershell
-npm install
-Copy-Item .env.example .env.local
-```
+> Jangan gunakan Docker, `supabase start`, atau `supabase db reset` pada alur kerja ini. `db:push` mengubah database hosted. Jangan jalankan seed pada database yang sudah berisi produk/pesanan.
 
-Isi `.env.local` dengan kredensial project Supabase dari **Project Settings → API**:
+### Supabase Auth
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://PROJECT-REF.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=SUPABASE-PUBLISHABLE-KEY
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-```
+- Aktifkan Email pada Authentication → Providers.
+- Untuk pengembangan lokal, redirect callback menggunakan `http://localhost:3000/auth/callback`.
+- Untuk publikasi, tambahkan domain produksi dan URL callback pada Authentication → URL Configuration. Gunakan SMTP sendiri untuk email produksi.
+- Jangan pernah menaruh `service_role` key pada variabel `NEXT_PUBLIC_*` atau Git.
 
-Gunakan publishable key atau legacy anon key. Jangan masukkan `service_role` key ke browser, variabel `NEXT_PUBLIC_*`, atau Git. File `.env.local` memang diabaikan oleh Git; `.env.example` hanya berisi nama variabel dan placeholder.
+### Akun super admin
 
-## 2. Hubungkan dan siapkan database Supabase
-
-Login CLI satu kali, lalu hubungkan repository ke project yang benar:
-
-```powershell
-npx supabase login
-npx supabase link --project-ref PROJECT-REF
-```
-
-Sebelum menerapkan perubahan, cocokkan riwayat database:
-
-```powershell
-npx supabase migration list
-```
-
-Jika migrasi lokal dan remote cocok, terapkan migrasi yang belum ada di remote:
-
-```powershell
-npm run db:push
-```
-
-Migrasi membuat/menyiapkan tabel, kebijakan akses, bucket gambar, konten landing page, dan setting toko. Jangan pakai `db reset` pada project hosted karena perintah itu mereset database lokal.
-
-Untuk project Supabase yang benar-benar baru dan masih kosong, data katalog contoh dapat dimasukkan satu kali dari **SQL Editor** dengan isi `supabase/seed.sql`. Jangan jalankan seed pada database yang sudah memiliki katalog tanpa memeriksa isinya terlebih dahulu.
-
-### Auth dan email
-
-- Pastikan **Authentication → Providers → Email** aktif.
-- Untuk testing lokal, konfirmasi email boleh dimatikan sementara. Untuk website publik, gunakan SMTP sendiri dan biarkan konfirmasi email aktif.
-- Tambahkan URL produksi ke **Authentication → URL Configuration** dan redirect URL callback sesuai domain website.
-- Email SMTP bawaan Supabase memiliki batas kirim. Jika email verifikasi tidak datang atau kena rate limit, atur SMTP pada project Supabase.
-
-## 3. Buat akun super admin
-
-1. Daftar melalui `/register` memakai email yang bisa diakses, lalu pastikan akun sudah muncul di **Authentication → Users**.
-2. Buka **SQL Editor** pada project Supabase yang sama.
-3. Jalankan query ini setelah mengganti email dengan email akun sendiri:
+Daftarkan akun sendiri lewat `/register`, lalu jalankan query ini dari SQL Editor Supabase. Ganti alamat email dengan email akun yang sudah terdaftar:
 
 ```sql
 INSERT INTO public.users (id, full_name, role)
@@ -68,75 +32,54 @@ ON CONFLICT (id)
 DO UPDATE SET role = 'super_admin'::user_role;
 ```
 
-4. Pastikan baris di **Table Editor → users** menunjukkan `role = super_admin`.
-5. Keluar dari website dan masuk lagi. Super admin akan diarahkan ke `/admin` setelah login.
+Keluar dan masuk lagi setelah role diubah. `admin` mengelola katalog dan pesanan. `super_admin` juga mengelola brand, konten landing page, dan ukuran halaman katalog.
 
-Role `admin` dapat mengelola katalog dan pesanan. Role `super_admin` juga mendapat akses ke pengaturan brand dan seluruh konten/tampilan halaman depan. Jangan membuat halaman publik untuk mengganti role.
+## Operasional panel admin
 
-## 4. Jalankan website
+### Dashboard dan laporan
 
-```powershell
-npm run dev
-```
+- Dashboard menampilkan ringkasan katalog, pelanggan, pesanan, omzet pesanan selesai, pesanan terbaru, stok menipis, dan grafik.
+- Laporan memiliki filter 7, 30, 90, atau 365 hari serta ringkasan, grafik harian, produk terlaris/terendah, dan pelanggan dengan belanja tertinggi.
+- Unduh laporan ringkas atau transaksi dalam CSV, laporan Word-compatible `.doc`, atau gunakan Cetak / Simpan PDF dari dialog print browser.
+- Omzet adalah total `grand_total` dari order yang selesai; angka ini bukan laba bersih atau rekonsiliasi bank.
 
-Buka `http://localhost:3000`. Kalau baru mengubah environment variable, hentikan server dengan `Ctrl+C`, lalu jalankan kembali.
+### Produk, foto, kategori, dan brand
 
-## 5. Penggunaan panel admin
+- Produk memiliki SKU, harga normal/promo, stok, status draft/terbit/arsip, kategori, brand, deskripsi, penanda terlaris/terbaru, dan galeri hingga 8 foto.
+- Foto yang diunggah dikompres di browser menjadi WebP maksimal 800 KB dan sisi terpanjang maksimal 1440 px. Foto pertama di galeri menjadi foto utama.
+- File sumber upload maksimal 15 MB. Storage memakai bucket publik `products`, `brands`, dan `banners`; upload dibatasi ke admin melalui policy Supabase.
+- Katalog storefront memakai pencarian, filter kategori/brand/promo, sorting, dan pagination. Super admin dapat memilih 24, 48, 100, atau 200 produk per halaman; angka ini tidak membatasi jumlah total produk.
+- Kategori dan brand yang masih dipakai produk tidak dapat dihapus sampai relasinya tidak digunakan.
 
-Masuk dengan akun yang role-nya sudah diatur. Menu admin berada di sisi kiri; di layar kecil buka lewat tombol menu.
+### Pesanan dan stok
 
-### Produk dan kategori
+- Checkout memeriksa dan mengurangi stok melalui transaksi database.
+- Nomor order dibuat aman terhadap checkout bersamaan, memakai tanggal Jakarta dan format `ORD-YYYYMMDD-NN` (urutan harian mulai `01`).
+- Pembayaran perlu dikonfirmasi sukses sebelum order diproses, dikirim, atau ditandai selesai.
+- Alur status: menunggu → diproses → dikirim → selesai. Order juga dapat dibatalkan sebelum selesai. Order batal terminal; buat order baru jika perlu.
+- Pembatalan mengembalikan stok satu kali.
 
-- **Admin → Products:** tambah/edit produk, harga normal, harga diskon, stok, status terbit, gambar, brand, kategori, dan tanda **Tampilkan sebagai best seller**.
-- **Admin → Categories:** atur nama, deskripsi, dan gambar kategori.
-- Produk yang dicari pelanggan harus berstatus **Terbit**. Rekomendasi chat hanya menampilkan produk berstok lebih dari nol.
-- **Admin → Orders:** lihat pesanan. Hapus kategori/brand yang masih dipakai produk akan ditolak database.
+### Konten storefront (super admin)
 
-### Brand dan homepage (super admin)
+- **Landing page:** atur visibilitas, judul, dan deskripsi section homepage.
+- **Hero dan banner promo:** unggah gambar, ubah headline, tombol, tautan, urutan, dan status tayang.
+- **FAQ dan testimoni:** CRUD, urutan, dan visibilitas.
+- **Brand:** atur logo/nama, ditampilkan di bagian brand toko.
+- **Informasi toko:** atur deskripsi, kontak, footer, dan cabang beserta link Google Maps.
+- Perubahan section hanya terlihat jika konten/section terkait aktif. Jika banner belum tersedia, halaman dapat memakai konten fallback.
 
-- **Admin → Brands:** atur nama brand serta logo. Upload PNG/JPG/WebP/AVIF atau masukkan URL HTTPS. Logo muncul di blok Brand Pilihan.
-- **Admin → Landing page → Hero dan banner:** tambah slide utama dan banner promo, unggah gambar, ubah teks/tombol, urutan, dan status tayang.
-- **Bagian halaman depan:** ubah judul/deskripsi dan tampil-sembunyi tiap section.
-- **FAQ** dan **Testimoni pelanggan:** tambah, edit, hapus, atur urutan, dan tampil-sembunyi.
-- **Informasi toko dan footer:** isi deskripsi, kontak, alamat umum, dan hak cipta.
-- **Cabang toko:** tambah nama cabang, alamat lengkap, dan link HTTPS Google Maps. Link Maps tampil pada footer.
-- Best seller dipilih dari checkbox di form produk, tidak dari urutan judul section.
+## Akun pelanggan dan fitur tambahan
 
-Perubahan tampilan memerlukan row konten aktif. Jika carousel/banner belum ada, halaman depan menggunakan slide bawaan sampai konten pertama ditambahkan.
+- Pelanggan dapat mengelola profil, alamat, keranjang, wishlist, dan ulasan produk.
+- Tema terang/gelap disimpan di browser. Menu navigasi admin dapat diciutkan dan dibuka kembali; pada layar kecil gunakan tombol menu.
+- Chat rekomendasi tetap menyediakan penyaringan katalog tanpa API key. Untuk jawaban AI, isi `OPENAI_API_KEY` dan opsional `OPENAI_MODEL` di `.env.local`, lalu restart server. Jangan beri prefix `NEXT_PUBLIC_` pada key tersebut.
 
-### Profil, tema, dan pencarian
-
-- **Profil → Pengaturan:** simpan nama, email, nomor HP, dan alamat rumah. Perubahan email perlu dikonfirmasi melalui email sesuai konfigurasi Supabase.
-- Tombol bulan/matahari di navbar mengganti mode gelap/terang dan pilihan disimpan di browser.
-- Menu akun di kanan navbar menutup sendiri setelah 10 detik tanpa aktivitas.
-- Pencarian mencocokkan nama produk, brand, kategori, SKU, dan deskripsi. Kata `FAQ`, `kategori`, `brand/merek`, dan `promo/diskon` membawa ke bagian yang sesuai.
-
-### Chat rekomendasi AI (opsional)
-
-Chat tetap dapat menyaring katalog ready-stock tanpa API key, menggunakan jawaban cadangan. Untuk jawaban yang ditulis AI, isi di `.env.local`:
-
-```env
-OPENAI_API_KEY=YOUR_SERVER_SIDE_API_KEY
-OPENAI_MODEL=gpt-4.1-mini
-```
-
-Restart server setelah mengubah `.env.local`. Jangan beri prefix `NEXT_PUBLIC_` pada API key dan jangan pernah commit nilainya. Penggunaan AI memerlukan akses/billing API dari penyedia model.
-
-## 6. Build dan publikasi
-
-Sebelum publikasi, siapkan environment variable pada hosting (Supabase URL/key, site URL, dan opsional API key AI), tambahkan URL domain pada Supabase Auth, kemudian jalankan:
+## Periksa aplikasi sebelum dibagikan
 
 ```powershell
+npm test
+npm run lint
 npm run build
 ```
 
-Untuk update GitHub dari branch `main`:
-
-```powershell
-git status
-git add .
-git commit -m "feat: add store admin and homepage management"
-git push origin main
-```
-
-Pastikan `.env.local` dan kredensial rahasia tidak terlihat pada `git status` sebagai file yang akan ditambahkan.
+Jika laporan menampilkan pemberitahuan migration, periksa status lokal/remote dan terapkan migration yang sesuai. Jangan menyelesaikan masalah dengan reset database yang berisi data.

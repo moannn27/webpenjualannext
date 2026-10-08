@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, ChevronDown, LogOut, Store, UserRound } from "lucide-react";
+import { Search, ShoppingBag, ChevronDown, LogOut, Store, UserRound } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -35,7 +35,7 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
     return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
   }, []);
   return (
-    <header className="h-16 bg-card border-b flex items-center justify-between gap-3 pl-14 pr-3 sm:px-6 sticky top-0 z-30">
+    <header data-admin-header className="h-16 bg-card border-b flex items-center justify-between gap-3 pl-14 pr-3 sm:px-6 sticky top-0 z-30">
       <div className="flex-1 max-w-md">
         <form className="relative" onSubmit={submitSearch}>
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -43,16 +43,15 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search products, orders, or customers..."
+            placeholder="Cari produk..."
             className="w-full bg-muted/50 border-none pl-9 rounded-full focus-visible:ring-1 focus-visible:ring-primary/50"
           />
         </form>
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label="Lihat pesanan" render={<Link href="/admin/orders" />} className="rounded-full relative text-muted-foreground hover:text-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5 rounded-full bg-destructive border-2 border-card"></span>
+        <Button variant="ghost" size="icon" aria-label="Lihat pesanan" title="Lihat pesanan" render={<Link href="/admin/orders" />} className="rounded-full relative text-muted-foreground hover:text-foreground">
+          <ShoppingBag className="h-5 w-5" />
         </Button>
         <div className="h-8 w-px bg-border mx-2"></div>
         <div ref={menuRef} className="relative">
