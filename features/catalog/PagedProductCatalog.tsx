@@ -21,13 +21,16 @@ export function PagedProductCatalog({ products, total, page, pageSize, categorie
 }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   return <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-  <form action={basePath} className="mb-8 grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-6">
-      <input name="search" defaultValue={filters.search} placeholder="Cari nama, SKU, deskripsi..." className="h-10 rounded-lg border bg-background px-3 text-sm lg:col-span-2" />
-      <select name="category" defaultValue={filters.category ?? ""} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="">Semua kategori</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-      <select name="brand" defaultValue={filters.brand ?? ""} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="">Semua brand</option>{brands.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-      <select name="sort" defaultValue={filters.sort ?? "newest"} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="newest">Terbaru</option><option value="popular">Terpopuler</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="promo" value="1" defaultChecked={filters.promo === "1"} />Promo saja</label>
-      <button className="h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground lg:col-span-6">Terapkan filter</button>
+  <form action={basePath} className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4 font-sans text-sm">
+      <input name="search" defaultValue={filters.search} placeholder="Cari nama, SKU, deskripsi..." className="h-10 flex-1 min-w-[200px] rounded-lg border bg-background px-3" />
+      <select name="category" defaultValue={filters.category ?? ""} className="h-10 rounded-lg border bg-background px-3"><option value="">Semua kategori</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+      <select name="brand" defaultValue={filters.brand ?? ""} className="h-10 rounded-lg border bg-background px-3"><option value="">Semua brand</option>{brands.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+      <select name="sort" defaultValue={filters.sort ?? "newest"} className="h-10 rounded-lg border bg-background px-3"><option value="newest">Terbaru</option><option value="popular">Terpopuler</option><option value="price-low">Harga terendah</option><option value="price-high">Harga tertinggi</option></select>
+      <label className="relative flex h-10 cursor-pointer items-center justify-center overflow-hidden rounded-lg border font-medium transition-colors">
+        <input type="checkbox" name="promo" value="1" defaultChecked={filters.promo === "1"} className="peer sr-only" />
+        <span className="flex h-full w-full items-center justify-center bg-background px-4 transition-colors hover:bg-accent peer-checked:bg-primary peer-checked:text-primary-foreground">Promo saja</span>
+      </label>
+      <button className="h-10 rounded-lg bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90">Terapkan filter</button>
     </form>
     <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground"><span>Menampilkan {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} dari {total.toLocaleString("id-ID")} produk</span><span>{pageSize} produk per halaman · diatur super admin</span></div>
     {products.length ? <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="rounded-2xl border border-dashed py-16 text-center text-muted-foreground">Produk tidak ditemukan. Ubah filter atau kata kunci.</div>}

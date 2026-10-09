@@ -84,7 +84,7 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   await requireAdmin()
   const id = String(formData.get('id') ?? '').trim()
   const status = String(formData.get('status') ?? '')
-  if (!id || !['pending', 'processing', 'shipped', 'delivered', 'cancelled'].includes(status)) throw new Error('Status pesanan tidak valid.')
+  if (!id || !['pending', 'processing', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'].includes(status)) throw new Error('Status pesanan tidak valid.')
   const manualOverride = formData.get('manual_override') === 'on'
   if (manualOverride) await requireSuperAdmin()
   else await requireAdmin()
@@ -92,11 +92,11 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   const { data: current, error: readError } = await supabase.from('orders').select('status, courier, payments(status)').eq('id', id).single()
   if (readError || !current) throw new Error('Pesanan tidak ditemukan.')
   const allowed: Record<string, string[]> = current.courier === 'pickup'
-    ? { pending: ['cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
+    ? { pending: ['cancelled'], processing: ['ready_for_pickup', 'cancelled'], ready_for_pickup: ['delivered'], delivered: [], cancelled: [] }
     : { pending: ['cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
   if (!manualOverride && current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
   const paymentRows = Array.isArray(current.payments) ? current.payments : []
-  if (['processing', 'shipped', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
+  if (['processing', 'shipped', 'ready_for_pickup', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
   const { error } = await supabase.from('orders').update({ status }).eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/admin/orders')
@@ -521,5 +521,63 @@ export async function uploadAdminImageAction(formData: FormData) {
   const supabase = await createClient()
   const { error } = await supabase.storage.from(bucket).upload(path, new Uint8Array(await file.arrayBuffer()), { contentType: file.type, cacheControl: '3600', upsert: false })
   if (error) throw new Error(error.message)
-  return { url: supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl }
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  let publicUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+  if (!publicUrl.startsWith('http')) {
+    publicUrl = `${baseUrl.replace(/\/$/, '')}/storage/${publicUrl.replace(/^\//, '')}`
+  }
+  return { url: publicUrl }
+}
+
+export async function cleanupUnusedStorageAction() {
+  await requireSuperAdmin()
+  const supabase = await createClient()
+
+  // 1. Ambil semua file dari bucket products & banners
+  const { data: productFiles, error: err1 } = await supabase.storage.from('products').list()
+  const { data: bannerFiles, error: err2 } = await supabase.storage.from('banners').list()
+  
+  if (err1) throw new Error(err1.message)
+  if (err2) throw new Error(err2.message)
+
+  // 2. Ambil semua referensi gambar dari database
+  const [categories, brands, banners, productImages] = await Promise.all([
+    supabase.from('categories').select('image_url').not('image_url', 'is', null),
+    supabase.from('brands').select('logo_url').not('logo_url', 'is', null),
+    supabase.from('banners').select('image_url').not('image_url', 'is', null),
+    supabase.from('product_images').select('url').not('url', 'is', null),
+  ])
+
+  const usedUrls = new Set([
+    ...(categories.data?.map(c => c.image_url) || []),
+    ...(brands.data?.map(b => b.logo_url) || []),
+    ...(banners.data?.map(b => b.image_url) || []),
+    ...(productImages.data?.map(p => p.url) || []),
+  ].filter(Boolean))
+
+  let deletedCount = 0
+
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const getAbsoluteUrl = (bucket: string, path: string) => {
+    let url = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+    if (!url.startsWith('http')) {
+      url = `${baseUrl.replace(/\/$/, '')}/storage/${url.replace(/^\//, '')}`
+    }
+    return url
+  }
+
+  // 3. Bandingkan dan hapus file yang tidak terpakai
+  const toDeleteProducts = productFiles?.filter(f => f.name !== '.emptyFolderPlaceholder' && !usedUrls.has(getAbsoluteUrl('products', f.name))).map(f => f.name) || []
+  if (toDeleteProducts.length > 0) {
+    await supabase.storage.from('products').remove(toDeleteProducts)
+    deletedCount += toDeleteProducts.length
+  }
+
+  const toDeleteBanners = bannerFiles?.filter(f => f.name !== '.emptyFolderPlaceholder' && !usedUrls.has(getAbsoluteUrl('banners', f.name))).map(f => f.name) || []
+  if (toDeleteBanners.length > 0) {
+    await supabase.storage.from('banners').remove(toDeleteBanners)
+    deletedCount += toDeleteBanners.length
+  }
+
+  return { success: true, deletedCount }
 }

@@ -36,7 +36,7 @@ export default async function CheckoutSuccessPage({
         {orderId && (
           <>
             <br />
-            Nomor referensi pesanan: <span className="font-semibold text-foreground">#{orderId.substring(0, 8).toUpperCase()}</span>.
+            Nomor referensi pesanan: <span className="font-semibold text-foreground">{order?.order_number || `#${orderId.substring(0, 8).toUpperCase()}`}</span>.
           </>
         )}
       </p>

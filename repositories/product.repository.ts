@@ -8,7 +8,13 @@ export class ProductRepository extends BaseRepository {
     if (options.brandId) query = query.eq('brand_id', options.brandId)
     if (options.promoOnly) query = query.not('discount_price', 'is', null)
     const term = (options.search ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s-]/gu, '').trim().slice(0, 80)
-    if (term) query = query.or(`name.ilike.%${term}%,sku.ilike.%${term}%,description.ilike.%${term}%`)
+    if (term) {
+      const { data: brandData } = await supabase.from('brands').select('id').ilike('name', `%${term}%`)
+      const brandIds = brandData?.map((b) => b.id).join(',')
+      let orQuery = `name.ilike.%${term}%,sku.ilike.%${term}%,description.ilike.%${term}%`
+      if (brandIds) orQuery += `,brand_id.in.(${brandIds})`
+      query = query.or(orQuery)
+    }
     if (options.sort === 'price-low') query = query.order('price', { ascending: true })
     else if (options.sort === 'price-high') query = query.order('price', { ascending: false })
     else if (options.sort === 'popular') query = query.order('is_best_seller', { ascending: false }).order('created_at', { ascending: false })

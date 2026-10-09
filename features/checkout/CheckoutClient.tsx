@@ -62,6 +62,7 @@ export function CheckoutClient({
     try {
       await proceedToCheckoutAction(new FormData(event.currentTarget));
     } catch (error) {
+      if (error && typeof error === 'object' && 'message' in error && (error as any).message === 'NEXT_REDIRECT') throw error;
       setErrorMessage(
         error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi."
       );

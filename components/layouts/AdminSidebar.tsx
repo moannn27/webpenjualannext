@@ -29,6 +29,9 @@ export function AdminSidebar({ isSuperAdmin = false, collapsed = false, onToggle
   const latestOrderId = useRef<string | null>(null);
   const hasLoadedOrders = useRef(false);
   useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
     let active = true;
     const pollOrders = async () => {
       try {
@@ -37,6 +40,10 @@ export function AdminSidebar({ isSuperAdmin = false, collapsed = false, onToggle
         if (hasLoadedOrders.current && result.latestId && result.latestId !== latestOrderId.current) {
           setNewOrderNotice(`Pesanan baru masuk${result.latestOrderNumber ? `: ${result.latestOrderNumber}` : ""}`);
           if ("Notification" in window && Notification.permission === "granted") new Notification("Pesanan baru", { body: result.latestOrderNumber ?? "Ada pesanan baru yang menunggu konfirmasi." });
+          try {
+            const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+            void audio.play();
+          } catch (e) { /* ignore */ }
           window.setTimeout(() => setNewOrderNotice(""), 8000);
         }
         latestOrderId.current = result.latestId;

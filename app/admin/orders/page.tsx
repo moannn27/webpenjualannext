@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { updateAdminOrderStatusAction, updateAdminPaymentStatusAction } from "@/actions/admin";
+import { getAdminAccess } from "@/lib/auth/admin";
+import Image from "next/image";
 
 const statusLabels: Record<string, string> = {
   pending: "Menunggu pembayaran",
@@ -24,7 +26,10 @@ const statusChoices: Record<string, { value: string; label: string }[]> = {
 const money = (value: number) => `Rp ${Number(value ?? 0).toLocaleString("id-ID")}`;
 
 export default async function AdminOrdersPage() {
+  const { role } = await getAdminAccess();
+  const isSuperAdmin = role === "super_admin";
   const orders = await getAdminOrdersAction();
+
   return <section className="space-y-6"><div><h1 className="text-3xl font-bold">Pesanan</h1><p className="mt-1 text-muted-foreground">Periksa pembayaran lalu perbarui proses kirim atau pickup sampai selesai.</p></div>
     <p className="text-sm text-muted-foreground">Saat pembayaran ditandai terkonfirmasi, pesanan otomatis masuk ke tahap disiapkan. Setelah itu pilih tahap yang sesuai dengan jenis penerimaan.</p>
     <div className="overflow-x-auto rounded-xl border bg-card"><Table className="min-w-[1050px]"><TableHeader><TableRow><TableHead>Nomor / pelanggan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pembayaran</TableHead><TableHead>Status proses</TableHead><TableHead>Total</TableHead><TableHead>Rincian &amp; tindakan</TableHead></TableRow></TableHeader><TableBody>
@@ -39,10 +44,34 @@ export default async function AdminOrdersPage() {
           <TableCell><div className="space-y-1"><Badge variant={payment?.status === "success" ? "default" : payment?.status === "failed" ? "destructive" : "secondary"}>{paymentLabels[payment?.status ?? ""] ?? payment?.status ?? "Belum tercatat"}</Badge><p className="text-xs text-muted-foreground">{payment?.payment_method === "manual_transfer" ? "Transfer manual" : payment?.payment_method || "—"}</p></div></TableCell>
           <TableCell><Badge variant={order.status === "delivered" ? "default" : order.status === "cancelled" ? "destructive" : "secondary"}>{statusLabels[order.status] ?? order.status}</Badge><p className="mt-1 text-xs text-muted-foreground">{isPickup ? "Ambil di toko" : "Diantar"}</p></TableCell>
           <TableCell className="font-semibold">{money(order.grand_total)}</TableCell>
-          <TableCell><details className="min-w-64"><summary className="cursor-pointer text-sm font-medium">Lihat rincian</summary><div className="mt-3 space-y-3 rounded-lg border bg-background p-3 text-sm"><div><p className="font-semibold">Barang dipesan</p><ul className="mt-1 space-y-1">{(order.order_items ?? []).map((item) => <li key={item.id} className="flex justify-between gap-3"><span>{item.product_name} × {item.quantity}</span><span>{money(item.price * item.quantity)}</span></li>)}</ul></div><div><p className="font-semibold">{isPickup ? "Pickup" : "Alamat penerima"}</p>{isPickup ? <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.pickup_location ?? "Ambil di toko")}</p> : <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.street_address ?? "")}<br />{[address?.city, address?.province, address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>{money(order.total_amount)}</span></div><div className="flex justify-between"><span>{isPickup ? "Pickup" : "Ongkir"}</span><span>{isPickup ? "Gratis" : money(order.shipping_amount)}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.grand_total)}</span></div>
+          <TableCell><details className="min-w-64"><summary className="cursor-pointer text-sm font-medium">Lihat rincian</summary><div className="mt-3 space-y-3 rounded-lg border bg-background p-3 text-sm"><div><p className="font-semibold">Barang dipesan</p><ul className="mt-2 space-y-3">{(order.order_items ?? []).map((item) => {
+            const product = Array.isArray(item.products) ? item.products[0] : item.products;
+            const images = Array.isArray(product?.product_images) ? product?.product_images : [];
+            const image = images.find((img: any) => img.is_primary)?.url || images[0]?.url;
+            return <li key={item.id} className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                {image ? <img src={image} alt="" className="size-10 shrink-0 rounded-md object-cover border" /> : <div className="size-10 shrink-0 rounded-md border bg-muted" />}
+                <span className="line-clamp-2">{item.product_name} × {item.quantity}</span>
+              </div>
+              <span className="shrink-0">{money(item.price * item.quantity)}</span>
+            </li>
+          })}</ul></div><div><p className="font-semibold">{isPickup ? "Pickup" : "Alamat penerima"}</p>{isPickup ? <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.pickup_location ?? "Ambil di toko")}</p> : <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.street_address ?? "")}<br />{[address?.city, address?.province, address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>{money(order.total_amount)}</span></div><div className="flex justify-between"><span>{isPickup ? "Pickup" : "Ongkir"}</span><span>{isPickup ? "Gratis" : money(order.shipping_amount)}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.grand_total)}</span></div>
             {payment?.status === "pending" && order.status === "pending" && <form action={updateAdminPaymentStatusAction} className="flex flex-wrap gap-2 border-t pt-3"><input type="hidden" name="order_id" value={order.id} /><Button type="submit" name="payment_status" value="success" size="sm">Transfer sudah dicek</Button><Button type="submit" name="payment_status" value="failed" variant="outline" size="sm">Tandai gagal</Button></form>}
             {payment?.status === "success" && order.status === "cancelled" && <form action={updateAdminPaymentStatusAction} className="border-t pt-3"><input type="hidden" name="order_id" value={order.id} /><Button type="submit" name="payment_status" value="refunded" variant="outline" size="sm">Tandai refund</Button></form>}
             {!!choices.length && <form action={updateAdminOrderStatusAction} className="flex gap-2 border-t pt-3"><input type="hidden" name="id" value={order.id} /><select name="status" aria-label={`Proses ${order.order_number}`} defaultValue={choices[0].value} className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs">{choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select><Button type="submit" size="sm">Perbarui</Button></form>}
+            {isSuperAdmin && (
+              <form action={updateAdminOrderStatusAction} className="mt-2 flex flex-col gap-2 border-t border-dashed pt-3">
+                <p className="text-xs font-semibold text-primary">👑 Khusus Super Admin: Edit Status</p>
+                <div className="flex items-center gap-2">
+                  <input type="hidden" name="id" value={order.id} />
+                  <input type="hidden" name="manual_override" value="on" />
+                  <select name="status" defaultValue={order.status} className="h-8 min-w-0 flex-1 rounded-lg border-primary/20 bg-primary/5 px-2 text-xs text-primary font-medium focus:outline-none focus:ring-1 focus:ring-primary">
+                    {Object.entries(statusLabels).map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                  </select>
+                  <Button type="submit" variant="default" size="sm" className="h-8 shadow-none bg-primary/90 hover:bg-primary">Edit</Button>
+                </div>
+              </form>
+            )}
           </div></details></TableCell>
         </TableRow>;
       })}
