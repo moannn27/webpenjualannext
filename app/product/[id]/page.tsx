@@ -4,6 +4,21 @@ import { getProductByIdAction, getBestSellerAction } from "@/actions/product";
 import { getProductReviewsAction } from "@/actions/review";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { notFound } from "next/navigation";
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const product = await getProductByIdAction(id).catch(() => null);
+  if (!product) return { title: "Produk Tidak Ditemukan | Next Solution" };
+  const imageUrl = product.product_images?.[0]?.url;
+  return {
+    title: `${product.name} | Next Solution`,
+    description: String(product.description ?? "").slice(0, 160),
+    openGraph: {
+      title: product.name,
+      description: String(product.description ?? "").slice(0, 160),
+      images: imageUrl ? [{ url: imageUrl }] : [],
+    },
+  };
+}
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

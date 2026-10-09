@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getAdminProductOptionsAction, saveStorefrontSettingsAction } from "@/actions/admin";
 import { DEFAULT_STOREFRONT_SETTINGS, normalizeStorefrontSettings, type StorefrontSettings } from "@/lib/storefront-settings";
+import { type BankTransferInfo } from "@/lib/storefront-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,6 +29,11 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const updateBranch = (id: string, field: "name" | "address" | "maps_url", value: string) => setSettings((current) => ({ ...current, store: { ...current.store, branches: current.store.branches.map((branch) => branch.id === id ? { ...branch, [field]: value } : branch) } }));
   const addBranch = () => setSettings((current) => ({ ...current, store: { ...current.store, branches: [...current.store.branches, { id: crypto.randomUUID(), name: "", address: "", maps_url: "" }] } }));
   const removeBranch = (id: string) => setSettings((current) => ({ ...current, store: { ...current.store, branches: current.store.branches.filter((branch) => branch.id !== id) } }));
+  const updatePickupInfo = (field: keyof StorefrontSettings['pickup_info'], value: string) => setSettings((current) => ({ ...current, pickup_info: { ...current.pickup_info, [field]: value } }));
+  const updateBankTransfer = (index: number, field: keyof BankTransferInfo, value: string) => setSettings((current) => { const arr = [...current.bank_transfer]; arr[index] = { ...arr[index], [field]: value }; return { ...current, bank_transfer: arr }; });
+  const addBankAccount = () => setSettings((current) => ({ ...current, bank_transfer: [...current.bank_transfer, { bank_name: '', account_number: '', account_holder: '' }] }));
+  const removeBankAccount = (index: number) => setSettings((current) => ({ ...current, bank_transfer: current.bank_transfer.filter((_, i) => i !== index) }));
+
   const save = () => {
     setError(""); setNotice("");
     startTransition(async () => {
@@ -52,7 +58,37 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         {!settings.store.branches.length && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Belum ada cabang yang ditampilkan.</p>}
       </div>
     </div>
+    <div className="space-y-4 border-t pt-5">
+      <div>
+        <h2 className="text-xl font-semibold">Lokasi ambil di toko</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Info ini tampil di halaman checkout saat pelanggan memilih ambil di toko.</p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm">Nama toko<Input value={settings.pickup_info.store_name} onChange={(e) => updatePickupInfo('store_name', e.target.value)} placeholder="Next Solution" maxLength={80} /></label>
+        <label className="space-y-1 text-sm">Link Google Maps<Input type="url" value={settings.pickup_info.maps_url} onChange={(e) => updatePickupInfo('maps_url', e.target.value)} placeholder="https://maps.google.com/..." /></label>
+        <label className="space-y-1 text-sm sm:col-span-2">Alamat toko<textarea value={settings.pickup_info.store_address} onChange={(e) => updatePickupInfo('store_address', e.target.value)} maxLength={300} placeholder="Alamat lengkap lokasi pengambilan" className="min-h-20 w-full rounded-lg border border-input bg-background p-3 text-sm" /></label>
+      </div>
+    </div>
+    <div className="space-y-4 border-t pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">Rekening transfer</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Rekening ini tampil di halaman checkout saat pelanggan akan transfer.</p>
+        </div>
+        <Button type="button" variant="outline" onClick={addBankAccount}>Tambah rekening</Button>
+      </div>
+      {settings.bank_transfer.map((account, index) => (
+        <article key={index} className="grid gap-3 rounded-xl border bg-background p-4 sm:grid-cols-3">
+          <div className="flex items-center justify-between gap-2 sm:col-span-3"><h4 className="font-medium">Rekening {index + 1}</h4><Button type="button" variant="ghost" size="sm" onClick={() => removeBankAccount(index)}>Hapus</Button></div>
+          <label className="space-y-1 text-sm">Nama bank<Input value={account.bank_name} onChange={(e) => updateBankTransfer(index, 'bank_name', e.target.value)} placeholder="BCA" /></label>
+          <label className="space-y-1 text-sm">Nomor rekening<Input value={account.account_number} onChange={(e) => updateBankTransfer(index, 'account_number', e.target.value)} placeholder="1234567890" /></label>
+          <label className="space-y-1 text-sm">Atas nama<Input value={account.account_holder} onChange={(e) => updateBankTransfer(index, 'account_holder', e.target.value)} placeholder="Next Solution" /></label>
+        </article>
+      ))}
+      {!settings.bank_transfer.length && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Belum ada rekening yang ditambahkan.</p>}
+    </div>
     <div className="space-y-2 border-t pt-5"><div><h2 className="text-xl font-semibold">Pengaturan katalog admin</h2><p className="text-sm text-muted-foreground">Hanya super admin yang bisa mengubah banyaknya produk per halaman katalog.</p></div><label className="block max-w-sm space-y-1 text-sm">Produk per halaman<select value={settings.admin.catalogPageSize} onChange={(event) => updateCatalogPageSize(Number(event.target.value))} className="h-10 w-full rounded-lg border border-input bg-background px-3"><option value={24}>24 produk</option><option value={48}>48 produk</option><option value={100}>100 produk</option><option value={200}>200 produk</option></select></label></div>
+
     {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}{notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     <div className="flex flex-wrap gap-3"><Button onClick={save} disabled={busy}>{busy ? "Menyimpan..." : "Simpan pengaturan halaman depan"}</Button><Button type="button" variant="outline" onClick={() => setSettings(DEFAULT_STOREFRONT_SETTINGS)}>Kembalikan default</Button></div>
   </section>;

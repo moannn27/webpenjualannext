@@ -118,7 +118,7 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
       {/* Breadcrumb & Back */}
       <div className="mb-8 flex items-center gap-4 text-sm text-muted-foreground">
         <Link href="/products" className="hover:text-primary transition-colors flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> Back to Catalog
+          <ArrowLeft className="h-4 w-4" /> Kembali ke Katalog
         </Link>
         <span>/</span>
         <span className="text-foreground">{product.name}</span>
@@ -184,12 +184,12 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
           </div>
 
           <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-            {product.description || "Experience the ultimate performance with the all-new architecture. Designed for those who demand the best in computing power, stunning visuals, and all-day battery life."}
+            {product.description || "Rasakan performa optimal dengan arsitektur terkini. Dirancang untuk memenuhi kebutuhan komputasi harian, grafis tajam, dan daya tahan maksimal."}
           </p>
 
           <div className="space-y-6 mb-10">
             <div className="flex items-center gap-4">
-              <div className="font-semibold w-24">Quantity</div>
+              <div className="font-semibold w-24">Jumlah</div>
               <div className="flex items-center border border-border rounded-full p-1 bg-card">
                 <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={decrement}>
                   <Minus className="h-4 w-4" />
@@ -200,28 +200,28 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
                 </Button>
               </div>
               <span className="text-sm text-muted-foreground ml-4">
-                {product.stock > 0 ? `${product.stock} pieces available` : "Out of stock"}
+                {product.stock > 0 ? `${product.stock} unit tersedia` : "Stok habis"}
               </span>
             </div>
           </div>
 
           <Button disabled={loading || product.stock <= 0} onClick={handleAddToCart} size="lg" className="rounded-full w-full h-14 text-lg mb-8">
-            {loading ? "Adding..." : `Add to Cart - ${formatPrice(productPrice * quantity)}`}
+            {loading ? "Menambahkan..." : `Tambah ke Keranjang — ${formatPrice(productPrice * quantity)}`}
           </Button>
 
           <div className="grid grid-cols-2 gap-4 border-t pt-8">
             <div className="flex items-start gap-3">
               <Truck className="h-6 w-6 text-primary shrink-0" />
               <div>
-                <h4 className="font-medium text-foreground">Free Delivery</h4>
-                <p className="text-sm text-muted-foreground mt-1">Enter your postal code for Delivery Availability</p>
+                <h4 className="font-medium text-foreground">Pengiriman Cepat</h4>
+                <p className="text-sm text-muted-foreground mt-1">Bisa diantar kurir atau ambil langsung di toko</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
               <div>
-                <h4 className="font-medium text-foreground">Return Delivery</h4>
-                <p className="text-sm text-muted-foreground mt-1">Free 30 Days Delivery Returns. Details</p>
+                <h4 className="font-medium text-foreground">Jaminan Produk</h4>
+                <p className="text-sm text-muted-foreground mt-1">Produk original dengan garansi resmi dan layanan terpercaya</p>
               </div>
             </div>
           </div>
@@ -238,7 +238,7 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
               activeTab === "specs" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            Specifications
+            Spesifikasi
           </button>
           <button
             onClick={() => setActiveTab("reviews")}
@@ -247,7 +247,7 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
               activeTab === "reviews" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-          Reviews ({reviewCount})
+            Ulasan ({reviewCount})
           </button>
         </div>
 

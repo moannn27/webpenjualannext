@@ -6,6 +6,9 @@ import { updateAdminOrderStatusAction, updateAdminPaymentStatusAction } from "@/
 import { getAdminAccess } from "@/lib/auth/admin";
 import Image from "next/image";
 
+import Link from "next/link";
+import { Search, MessageCircle } from "lucide-react";
+
 const statusLabels: Record<string, string> = {
   pending: "Menunggu pembayaran",
   processing: "Pembayaran dikonfirmasi · disiapkan",
@@ -25,21 +28,140 @@ const statusChoices: Record<string, { value: string; label: string }[]> = {
 };
 const money = (value: number) => `Rp ${Number(value ?? 0).toLocaleString("id-ID")}`;
 
-export default async function AdminOrdersPage() {
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; search?: string }>;
+}) {
   const { role } = await getAdminAccess();
   const isSuperAdmin = role === "super_admin";
+  const { status: filterStatus = "", search: filterSearch = "" } = (await searchParams) ?? {};
   const orders = await getAdminOrdersAction();
 
-  return <section className="space-y-6"><div><h1 className="text-3xl font-bold">Pesanan</h1><p className="mt-1 text-muted-foreground">Periksa pembayaran lalu perbarui proses kirim atau pickup sampai selesai.</p></div>
-    <p className="text-sm text-muted-foreground">Saat pembayaran ditandai terkonfirmasi, pesanan otomatis masuk ke tahap disiapkan. Setelah itu pilih tahap yang sesuai dengan jenis penerimaan.</p>
-    <div className="overflow-x-auto rounded-xl border bg-card"><Table className="min-w-[1050px]"><TableHeader><TableRow><TableHead>Nomor / pelanggan</TableHead><TableHead>Tanggal</TableHead><TableHead>Pembayaran</TableHead><TableHead>Status proses</TableHead><TableHead>Total</TableHead><TableHead>Rincian &amp; tindakan</TableHead></TableRow></TableHeader><TableBody>
-      {orders.map((order) => {
+  const counts = {
+    pending: orders.filter((o) => o.status === "pending").length,
+    processing: orders.filter((o) => o.status === "processing").length,
+    ready_for_pickup: orders.filter((o) => o.status === "ready_for_pickup").length,
+    shipped: orders.filter((o) => o.status === "shipped").length,
+    delivered: orders.filter((o) => o.status === "delivered").length,
+    cancelled: orders.filter((o) => o.status === "cancelled").length,
+  };
+
+  const tabs = [
+    { value: "", label: "Semua", count: orders.length },
+    { value: "pending", label: "Menunggu Bayar", count: counts.pending },
+    { value: "processing", label: "Disiapkan", count: counts.processing },
+    { value: "ready_for_pickup", label: "Siap Pickup", count: counts.ready_for_pickup },
+    { value: "shipped", label: "Dikirim", count: counts.shipped },
+    { value: "delivered", label: "Selesai", count: counts.delivered },
+    { value: "cancelled", label: "Dibatalkan", count: counts.cancelled },
+  ];
+
+  const filteredOrders = orders.filter((order) => {
+    if (filterStatus && order.status !== filterStatus) return false;
+    if (filterSearch) {
+      const term = filterSearch.toLowerCase();
+      const orderNum = order.order_number?.toLowerCase() ?? "";
+      const customer = (order.users?.[0]?.full_name ?? "").toLowerCase();
+      const phone = (order.users?.[0]?.phone ?? "").toLowerCase();
+      if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term)) return false;
+    }
+    return true;
+  });
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Pesanan</h1>
+        <p className="mt-1 text-muted-foreground">Periksa pembayaran lalu perbarui proses kirim atau pickup sampai selesai.</p>
+      </div>
+
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          {tabs.map((tab) => {
+            const isActive = filterStatus === tab.value;
+            const href = tab.value
+              ? `/admin/orders?status=${tab.value}${filterSearch ? `&search=${encodeURIComponent(filterSearch)}` : ""}`
+              : `/admin/orders${filterSearch ? `?search=${encodeURIComponent(filterSearch)}` : ""}`;
+            return (
+              <Link
+                key={tab.value}
+                href={href}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-semibold ${
+                    isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-background text-foreground/80 border border-border/50"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+
+        <form method="GET" action="/admin/orders" className="flex items-center gap-2">
+          {filterStatus && <input type="hidden" name="status" value={filterStatus} />}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+            <input
+              type="search"
+              name="search"
+              defaultValue={filterSearch}
+              placeholder="Cari order / nama / HP..."
+              className="h-9 w-48 rounded-lg border bg-background pl-8 pr-3 text-xs focus:w-64 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            />
+          </div>
+          {(filterStatus || filterSearch) && (
+            <Link href="/admin/orders" className="text-xs text-muted-foreground hover:text-foreground underline">
+              Reset
+            </Link>
+          )}
+        </form>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border bg-card">
+        <Table className="min-w-[1050px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nomor / pelanggan</TableHead>
+              <TableHead>Tanggal</TableHead>
+              <TableHead>Pembayaran</TableHead>
+              <TableHead>Status proses</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Rincian &amp; tindakan</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredOrders.map((order) => {
         const payment = order.payments?.[0];
         const isPickup = order.courier === "pickup";
         const choices = (statusChoices[order.status] ?? []).filter((option) => isPickup ? option.value !== "shipped" : option.value !== "ready_for_pickup");
         const address = order.shipping_address as Record<string, unknown> | null;
-        return <TableRow key={order.id}>
-          <TableCell><p className="font-medium">{order.order_number}</p><p className="mt-1 text-xs text-muted-foreground">{order.users?.[0]?.full_name || "Pelanggan"}</p><p className="text-xs text-muted-foreground">{order.users?.[0]?.phone || ""}</p></TableCell>
+        return (
+          <TableRow key={order.id}>
+            <TableCell>
+            <p className="font-medium">{order.order_number}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{order.users?.[0]?.full_name || "Pelanggan"}</p>
+            <p className="text-xs text-muted-foreground">{order.users?.[0]?.phone || ""}</p>
+            {order.users?.[0]?.phone && (
+              <a
+                href={`https://wa.me/${order.users[0].phone.replace(/\D/g, '').replace(/^0/, '62')}?text=Halo%20${encodeURIComponent(order.users[0].full_name || 'Pelanggan')}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+              >
+                <MessageCircle className="size-3" /> Chat WA
+              </a>
+            )}
+          </TableCell>
           <TableCell><time dateTime={order.created_at}>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" }).format(new Date(order.created_at))}</time></TableCell>
           <TableCell><div className="space-y-1"><Badge variant={payment?.status === "success" ? "default" : payment?.status === "failed" ? "destructive" : "secondary"}>{paymentLabels[payment?.status ?? ""] ?? payment?.status ?? "Belum tercatat"}</Badge><p className="text-xs text-muted-foreground">{payment?.payment_method === "manual_transfer" ? "Transfer manual" : payment?.payment_method || "—"}</p></div></TableCell>
           <TableCell><Badge variant={order.status === "delivered" ? "default" : order.status === "cancelled" ? "destructive" : "secondary"}>{statusLabels[order.status] ?? order.status}</Badge><p className="mt-1 text-xs text-muted-foreground">{isPickup ? "Ambil di toko" : "Diantar"}</p></TableCell>
@@ -73,9 +195,17 @@ export default async function AdminOrdersPage() {
               </form>
             )}
           </div></details></TableCell>
-        </TableRow>;
+        </TableRow>
+      );
       })}
-      {!orders.length && <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Belum ada pesanan.</TableCell></TableRow>}
+      {!filteredOrders.length && (
+        <TableRow>
+          <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+            {orders.length ? "Tidak ada pesanan yang cocok dengan filter atau pencarian." : "Belum ada pesanan."}
+          </TableCell>
+        </TableRow>
+      )}
     </TableBody></Table></div>
-  </section>;
+  </section>
+  );
 }

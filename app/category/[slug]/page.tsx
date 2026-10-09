@@ -6,6 +6,16 @@ import { PagedProductCatalog } from "@/features/catalog/PagedProductCatalog";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import type { Product } from "@/store/useProductStore";
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const categories = await getCategoriesAction().catch(() => []);
+  const category = categories?.find((item) => item.slug === slug);
+  if (!category) return { title: "Kategori Tidak Ditemukan | Next Solution" };
+  return {
+    title: `${category.name} | Next Solution`,
+    description: `Temukan koleksi produk ${category.name} terbaik dengan penawaran menarik di Next Solution.`,
+  };
+}
 
 export default async function CategoryPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ page?: string; search?: string; brand?: string; sort?: string }> }) {
   const [{ slug }, filters] = await Promise.all([params, searchParams]);
