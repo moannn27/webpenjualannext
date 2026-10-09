@@ -3,6 +3,7 @@ import { getCartAction } from "@/actions/cart";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { type CheckoutAddress, type ShippingMethod, type ShippingMethodCode } from "@/types/checkout";
+import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 
 export default async function CheckoutPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function CheckoutPage() {
   const cart = await getCartAction();
   if (!cart?.cart_items?.length) redirect("/cart");
 
-  const [{ data: shippingRows, error: shippingError }, { data: savedAddress }] = await Promise.all([
+  const [{ data: shippingRows, error: shippingError }, { data: savedAddress }, { data: sfRow }] = await Promise.all([
     supabase
       .from("shipping_methods")
       .select("code, name, delivery_estimate, price")
@@ -24,10 +25,12 @@ export default async function CheckoutPage() {
       .eq("user_id", user.id)
       .eq("is_primary", true)
       .maybeSingle(),
+    supabase.from("storefront_settings").select("settings").eq("id", "main").maybeSingle(),
   ]);
 
   if (shippingError) throw shippingError;
 
+  const sfSettings = normalizeStorefrontSettings(sfRow?.settings ?? {});
   const shippingMethods: ShippingMethod[] = (shippingRows ?? []).filter((method) => method.code !== "pickup").map((method) => ({
     code: method.code as ShippingMethodCode,
     name: method.name,
@@ -41,6 +44,8 @@ export default async function CheckoutPage() {
       initialCart={cart}
       shippingMethods={shippingMethods}
       initialAddress={initialAddress}
+      pickupInfo={sfSettings.pickup_info}
+      bankTransfer={sfSettings.bank_transfer}
     />
   );
 }

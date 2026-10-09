@@ -20,6 +20,8 @@ import { proceedToCheckoutAction } from "@/actions/checkout";
 import { type CartData } from "@/types/cart";
 import { PAYMENT_METHOD, type CheckoutAddress, type ShippingMethod, type ShippingMethodCode } from "@/types/checkout";
 
+import { type BankTransferInfo } from "@/lib/storefront-settings";
+
 const getItemPrice = (item: CartData["cart_items"][number]) =>
   item.products.discount_price ?? item.products.price;
 
@@ -34,12 +36,16 @@ interface CheckoutClientProps {
   initialCart: CartData;
   shippingMethods: ShippingMethod[];
   initialAddress: CheckoutAddress | null;
+  pickupInfo: { store_name: string; store_address: string; maps_url: string };
+  bankTransfer: BankTransferInfo[];
 }
 
 export function CheckoutClient({
   initialCart,
   shippingMethods,
   initialAddress,
+  pickupInfo,
+  bankTransfer,
 }: CheckoutClientProps) {
   const [shippingCode, setShippingCode] = useState<ShippingMethodCode | "">(
     shippingMethods[0]?.code ?? ""
@@ -172,7 +178,7 @@ export function CheckoutClient({
               </div>
             </div>
 
-            {fulfillmentMode === "pickup" ? <div className="flex items-start gap-3 border border-border bg-muted/30 p-4"><Store className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="font-medium">Ambil di toko</p><p className="mt-1 text-sm text-muted-foreground">Lokasi dan waktu pengambilan akan dikonfirmasi admin lewat WhatsApp setelah kamu mengirim bukti pembayaran.</p></div></div> : shippingMethods.length > 0 ? (
+            {fulfillmentMode === "pickup" ? <div className="flex items-start gap-3 border border-border bg-muted/30 p-4"><Store className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="font-medium">{pickupInfo.store_name}</p>{pickupInfo.store_address && <p className="mt-1 text-sm text-muted-foreground">{pickupInfo.store_address}</p>}{pickupInfo.maps_url && <a href={pickupInfo.maps_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2">Lihat di Google Maps</a>}<p className="mt-2 text-sm text-muted-foreground">Lokasi dan waktu pengambilan akan dikonfirmasi admin lewat WhatsApp setelah kamu mengirim bukti pembayaran.</p></div></div> : shippingMethods.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 {shippingMethods.map((method) => {
                   const isSelected = shippingCode === method.code;
@@ -224,9 +230,22 @@ export function CheckoutClient({
             {fulfillmentMode === "pickup" && <input type="hidden" name="shippingMethod" value="pickup" />}
             <div className="flex items-start gap-3 border border-border bg-muted/30 p-4">
               <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium">Transfer manual</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {bankTransfer.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {bankTransfer.map((b, i) => (
+                      <li key={i} className="rounded-lg border bg-background px-3 py-2 text-sm">
+                        <p className="font-semibold">{b.bank_name}</p>
+                        <p className="mt-0.5 font-mono text-base tracking-widest">{b.account_number}</p>
+                        <p className="text-xs text-muted-foreground">a.n. {b.account_holder}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">Rekening bank belum diatur. Hubungi admin untuk info transfer.</p>
+                )}
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Setelah transfer, tekan tombol konfirmasi WhatsApp di halaman berikutnya dan kirim bukti pembayaran agar admin memproses pesananmu.
                 </p>
               </div>

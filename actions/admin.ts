@@ -412,12 +412,24 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
       }
     }
   }
+  const bankTransfer = (settings as { bank_transfer?: unknown }).bank_transfer
+  if (bankTransfer !== undefined && !Array.isArray(bankTransfer)) throw new Error('Data rekening bank tidak valid.')
+  if (Array.isArray(bankTransfer)) {
+    for (const b of bankTransfer) {
+      if (!b || typeof b !== 'object') throw new Error('Data rekening tidak valid.')
+      const item = b as { bank_name?: unknown; account_number?: unknown; account_holder?: unknown }
+      if (typeof item.bank_name !== 'string' || !item.bank_name.trim()) throw new Error('Nama bank harus diisi.')
+      if (typeof item.account_number !== 'string' || !item.account_number.trim()) throw new Error('Nomor rekening harus diisi.')
+      if (typeof item.account_holder !== 'string' || !item.account_holder.trim()) throw new Error('Nama pemilik rekening harus diisi.')
+    }
+  }
   const supabase = await createClient()
   const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
   if (error) throw new Error(error.message)
   revalidatePath('/')
   revalidatePath('/promo')
   revalidatePath('/admin/content')
+  revalidatePath('/checkout')
   return { success: true }
 }
 
