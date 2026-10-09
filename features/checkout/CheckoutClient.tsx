@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -23,7 +23,7 @@ import { PAYMENT_METHOD, type CheckoutAddress, type ShippingMethod, type Shippin
 import { type BankTransferInfo } from "@/lib/storefront-settings";
 
 const getItemPrice = (item: CartData["cart_items"][number]) =>
-  item.products.discount_price ?? item.products.price;
+  item.product_variants?.discount_price ?? item.product_variants?.price ?? item.products.discount_price ?? item.products.price;
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -50,15 +50,44 @@ export function CheckoutClient({
   const [shippingCode, setShippingCode] = useState<ShippingMethodCode | "">(
     shippingMethods[0]?.code ?? ""
   );
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">("delivery");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const selectedShipping = fulfillmentMode === "delivery" ? shippingMethods.find((method) => method.code === shippingCode) : null;
+  const fulfillmentStepLabel = fulfillmentMode === "pickup" ? "Pengambilan" : "Pengiriman";
   const subtotal = initialCart.cart_items.reduce((total, item) => {
     return total + getItemPrice(item) * item.quantity;
   }, 0);
   const shippingPrice = fulfillmentMode === "pickup" ? 0 : selectedShipping?.price ?? 0;
+
+  const goToStep = (step: 1 | 2 | 3) => {
+    if (step > currentStep) return;
+    setCurrentStep(step);
+    setErrorMessage("");
+  };
+
+  const continueCheckout = () => {
+    setErrorMessage("");
+    const form = document.getElementById("checkout-form") as HTMLFormElement | null;
+    if (!form) return;
+
+    const requiredFields = currentStep === 1
+      ? ["recipientName", "phone", ...(fulfillmentMode === "delivery" ? ["postalCode", "streetAddress", "city", "province"] : [])]
+      : [];
+    for (const name of requiredFields) {
+      const field = form.elements.namedItem(name);
+      if (field instanceof HTMLInputElement && !field.reportValidity()) return;
+    }
+    if (currentStep === 2 && fulfillmentMode === "delivery" && !selectedShipping) {
+      setErrorMessage("Pilih jasa pengiriman terlebih dahulu.");
+      return;
+    }
+
+    setCurrentStep((currentStep + 1) as 2 | 3);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -68,7 +97,7 @@ export function CheckoutClient({
     try {
       await proceedToCheckoutAction(new FormData(event.currentTarget));
     } catch (error) {
-      if (error && typeof error === 'object' && 'message' in error && (error as any).message === 'NEXT_REDIRECT') throw error;
+      if (error instanceof Error && error.message === 'NEXT_REDIRECT') throw error;
       setErrorMessage(
         error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi."
       );
@@ -87,26 +116,27 @@ export function CheckoutClient({
       </Link>
 
       <div className="mb-9 border-b border-border pb-6">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
-          <span className="inline-flex items-center gap-2 font-semibold text-foreground">
-            <span className="grid size-7 place-items-center rounded-full bg-primary text-xs text-primary-foreground">1</span>
-            Alamat
-          </span>
-          <span className="hidden h-px w-8 bg-border sm:block" />
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span className="grid size-7 place-items-center rounded-full border border-border text-xs">2</span>
-            Pengiriman
-          </span>
-          <span className="hidden h-px w-8 bg-border sm:block" />
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <span className="grid size-7 place-items-center rounded-full border border-border text-xs">3</span>
-            Pembayaran
-          </span>
-        </div>
-        <h1 className="mt-6 text-3xl font-bold tracking-tight text-foreground">Checkout</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Pastikan alamat dan ringkasan pesananmu sudah benar.
-        </p>
+        <nav aria-label="Tahapan checkout" className="mb-6">
+          <ol className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-2 sm:gap-4">
+            {(["Alamat", fulfillmentStepLabel, "Pembayaran"] as const).map((label, index) => {
+              const step = (index + 1) as 1 | 2 | 3;
+              const complete = currentStep > step;
+              const active = currentStep === step;
+              return <Fragment key={label}>
+                <li>
+                  <button type="button" aria-current={active ? "step" : undefined} disabled={step > currentStep} onClick={() => goToStep(step)} className={`inline-flex items-center gap-2 rounded-full text-xs transition-colors sm:text-sm ${active ? "font-semibold text-foreground" : complete ? "font-medium text-primary" : "text-muted-foreground"} disabled:cursor-default`}>
+                    <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-xs transition-all duration-300 ${active ? "scale-110 border-primary bg-primary text-primary-foreground ring-4 ring-primary/10" : complete ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"}`}>{complete ? "✓" : step}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                </li>
+                {step < 3 && <li aria-hidden="true" className="h-0.5 overflow-hidden rounded-full bg-border"><span className={`block h-full bg-primary transition-all duration-500 ${currentStep > step ? "w-full" : "w-0"}`} /></li>}
+              </Fragment>;
+            })}
+          </ol>
+          <p className="mt-3 text-xs text-muted-foreground sm:hidden">Langkah {currentStep} dari 3 · {(["Alamat", fulfillmentStepLabel, "Pembayaran"] as const)[currentStep - 1]}</p>
+        </nav>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Checkout</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{currentStep === 1 ? "Isi data penerima dan pilih cara menerima pesanan." : currentStep === 2 ? "Tentukan pengiriman atau lokasi pengambilan." : "Periksa metode pembayaran sebelum membuat pesanan."}</p>
       </div>
 
       <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-14">
@@ -117,7 +147,7 @@ export function CheckoutClient({
             </div>
           )}
 
-          <section aria-labelledby="fulfillment-heading">
+          <section hidden={currentStep !== 1} aria-labelledby="fulfillment-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="mb-5 flex items-center gap-3">
               <MapPin className="size-5 text-primary" />
               <div>
@@ -135,7 +165,7 @@ export function CheckoutClient({
               <label className={`flex cursor-pointer items-start gap-3 border p-4 transition-colors ${fulfillmentMode === "pickup" ? "border-primary bg-primary/5" : "border-border hover:border-foreground/30"}`}>
                 <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "pickup"} onChange={() => setFulfillmentMode("pickup")} />
                 <Store className="mt-0.5 size-4 text-primary" />
-                <span><span className="block font-medium">Ambil di toko</span><span className="mt-1 block text-xs text-muted-foreground">Gratis. Admin akan mengonfirmasi waktu dan lokasi pengambilan.</span></span>
+                <span><span className="block font-medium">Ambil di toko</span><span className="mt-1 block text-xs text-muted-foreground">{pickupInfo.store_address.trim() ? "Gratis. Lokasi tampil setelah dipilih; admin akan mengonfirmasi waktu pengambilan." : "Gratis. Alamat toko belum diatur admin; hubungi admin sebelum membuat pesanan pickup."}</span></span>
               </label>
             </div>
 
@@ -169,16 +199,16 @@ export function CheckoutClient({
             </div>
           </section>
 
-          <section aria-labelledby="shipping-heading" className="border-t border-border pt-8">
+          <section hidden={currentStep !== 2} aria-labelledby="shipping-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="mb-5 flex items-center gap-3">
-              <Truck className="size-5 text-primary" />
+              {fulfillmentMode === "pickup" ? <Store className="size-5 text-primary" /> : <Truck className="size-5 text-primary" />}
               <div>
                 <h2 id="shipping-heading" className="text-lg font-semibold">{fulfillmentMode === "pickup" ? "Pengambilan di toko" : "Pilih pengiriman"}</h2>
                 <p className="text-sm text-muted-foreground">{fulfillmentMode === "pickup" ? "Tidak ada biaya pengiriman. Tunggu konfirmasi admin sebelum datang." : "Ongkir diambil dari tarif yang tersedia."}</p>
               </div>
             </div>
 
-            {fulfillmentMode === "pickup" ? <div className="flex items-start gap-3 border border-border bg-muted/30 p-4"><Store className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="font-medium">{pickupInfo.store_name}</p>{pickupInfo.store_address && <p className="mt-1 text-sm text-muted-foreground">{pickupInfo.store_address}</p>}{pickupInfo.maps_url && <a href={pickupInfo.maps_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2">Lihat di Google Maps</a>}<p className="mt-2 text-sm text-muted-foreground">Lokasi dan waktu pengambilan akan dikonfirmasi admin lewat WhatsApp setelah kamu mengirim bukti pembayaran.</p></div></div> : shippingMethods.length > 0 ? (
+            {fulfillmentMode === "pickup" ? <div className="flex items-start gap-3 border border-border bg-muted/30 p-4"><Store className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="font-medium">{pickupInfo.store_name}</p>{pickupInfo.store_address ? <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{pickupInfo.store_address}</p> : <p className="mt-1 text-sm text-amber-700">Alamat pickup belum diatur. Hubungi admin untuk memastikan lokasi sebelum membuat pesanan.</p>}{pickupInfo.maps_url && <a href={pickupInfo.maps_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-2">Lihat di Google Maps</a>}<p className="mt-2 text-sm text-muted-foreground">Admin akan menghubungi kamu saat pesanan siap dan mengonfirmasi waktu pengambilan.</p></div></div> : shippingMethods.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2">
                 {shippingMethods.map((method) => {
                   const isSelected = shippingCode === method.code;
@@ -218,7 +248,7 @@ export function CheckoutClient({
             )}
           </section>
 
-          <section aria-labelledby="payment-heading" className="border-t border-border pt-8">
+          <section hidden={currentStep !== 3} aria-labelledby="payment-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="mb-5 flex items-center gap-3">
               <Banknote className="size-5 text-primary" />
               <div>
@@ -265,6 +295,7 @@ export function CheckoutClient({
                     <PackageCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0">
                       <p className="line-clamp-2 font-medium">{item.products.name}</p>
+                      {(item.product_variants?.color || item.product_variants?.ram || item.product_variants?.storage) && <p className="mt-1 text-xs text-muted-foreground">{[item.product_variants.color, item.product_variants.ram, item.product_variants.storage].filter(Boolean).join(" · ")}</p>}
                       <p className="mt-1 text-xs text-muted-foreground">
                         {item.quantity} x {formatCurrency(price)}
                       </p>
@@ -299,14 +330,16 @@ export function CheckoutClient({
           </div>
 
           <Button
-            type="submit"
-            form="checkout-form"
-            disabled={loading || (fulfillmentMode === "delivery" && !selectedShipping)}
+            type={currentStep === 3 ? "submit" : "button"}
+            form={currentStep === 3 ? "checkout-form" : undefined}
+            onClick={currentStep === 3 ? undefined : continueCheckout}
+            disabled={loading || (currentStep === 2 && fulfillmentMode === "delivery" && !selectedShipping) || (currentStep === 2 && !shippingMethods.length && fulfillmentMode === "delivery")}
             className="mt-6 h-12 w-full"
           >
             {loading ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
-            {loading ? "Menyimpan pesanan..." : "Buat pesanan"}
+            {loading ? "Menyimpan pesanan..." : currentStep === 1 ? `Lanjut ke ${fulfillmentStepLabel.toLocaleLowerCase("id-ID")}` : currentStep === 2 ? "Lanjut ke pembayaran" : "Buat pesanan"}
           </Button>
+          {currentStep > 1 && <Button type="button" variant="outline" onClick={() => goToStep((currentStep - 1) as 1 | 2)} disabled={loading} className="mt-2 w-full">Kembali</Button>}
           <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
             Total final dihitung ulang dan disimpan oleh database.
           </p>

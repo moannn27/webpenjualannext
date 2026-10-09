@@ -123,6 +123,13 @@
   * {
     @apply border-border outline-ring/50;
   }
+  button,
+  input,
+  select,
+  textarea,
+  option {
+    font: inherit;
+  }
   body {
     @apply bg-background text-foreground;
     transition: background-color 180ms ease, color 180ms ease;

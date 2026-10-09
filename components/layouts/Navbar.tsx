@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { getStoreSearchHref } from "@/lib/search-intent";
+import { CART_UPDATED_EVENT } from "@/lib/cart-events";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -51,6 +52,8 @@ const components: { title: string; href: string; description: string }[] = [
 ];
 
 export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
+  const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
+  const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
   const [isScrolled, setIsScrolled] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
@@ -72,6 +75,20 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  if (cartCount !== previousCartCount) {
+    setPreviousCartCount(cartCount);
+    setDisplayCartCount(cartCount);
+  }
+
+  React.useEffect(() => {
+    const onCartUpdated = (event: Event) => {
+      const nextCount = (event as CustomEvent<number>).detail;
+      if (Number.isInteger(nextCount) && nextCount >= 0) setDisplayCartCount(nextCount);
+    };
+    window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
+    return () => window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
   }, []);
 
   const resetAccountTimer = React.useCallback(() => {
@@ -214,11 +231,11 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                   <p className="px-3 pb-1 text-[11px] text-muted-foreground">Menu tertutup otomatis saat tidak digunakan.</p>
                 </div>}
               </div>
-              <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={cartCount ? `Keranjang, ${cartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>
+              <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={displayCartCount ? `Keranjang, ${displayCartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>
                 <ShoppingCart className="size-5 text-foreground/80" />
-                {cartCount > 0 && (
+                {displayCartCount > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
-                    {cartCount > 99 ? "99+" : cartCount}
+                    {displayCartCount > 99 ? "99+" : displayCartCount}
                   </span>
                 )}
               </Button>

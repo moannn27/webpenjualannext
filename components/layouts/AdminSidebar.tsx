@@ -43,7 +43,7 @@ export function AdminSidebar({ isSuperAdmin = false, collapsed = false, onToggle
           try {
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
             void audio.play();
-          } catch (e) { /* ignore */ }
+          } catch { /* ignore */ }
           window.setTimeout(() => setNewOrderNotice(""), 8000);
         }
         latestOrderId.current = result.latestId;

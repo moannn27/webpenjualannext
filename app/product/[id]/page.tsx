@@ -2,6 +2,7 @@ import { ProductDetail } from "@/features/product/ProductDetail";
 import { FeaturedProducts } from "@/features/landing/FeaturedProducts";
 import { getProductByIdAction, getBestSellerAction } from "@/actions/product";
 import { getProductReviewsAction } from "@/actions/review";
+import { getProductCartQuantitiesAction } from "@/actions/cart";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { notFound } from "next/navigation";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -22,10 +23,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, bestSellers, reviews] = await Promise.all([
+  const [product, bestSellers, reviews, cartQuantities] = await Promise.all([
     getProductByIdAction(id),
     getBestSellerAction().catch(() => []),
     getProductReviewsAction(id).catch(() => []),
+    getProductCartQuantitiesAction(id).catch(() => []),
   ]);
 
   if (!product) {
@@ -34,7 +36,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   
   return (
     <div className="pt-8 pb-24">
-      <ProductDetail product={product} reviews={reviews ?? []} />
+      <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} />
       <div className="mt-24">
       <FeaturedProducts title="Related Products" type="bestseller" initialData={(bestSellers || []).filter((item) => item.id !== product.id).map((item) => toStorefrontProduct(item as StoreProduct))} />
       </div>

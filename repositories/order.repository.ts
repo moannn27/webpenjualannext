@@ -30,7 +30,7 @@ export class OrderRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('orders')
-      .select('id, order_number, status, total_amount, shipping_amount, discount_amount, grand_total, courier, shipping_address, created_at, updated_at, order_items(id, product_name, price, quantity, products(product_images(url, is_primary))), payments(id, amount, payment_method, status)')
+      .select('id, order_number, status, total_amount, shipping_amount, discount_amount, grand_total, courier, shipping_address, created_at, updated_at, order_items(id, product_name, price, quantity, variant_details, products(product_images(url, is_primary), product_specifications(key, value, display_order))), payments(id, amount, payment_method, status)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
     if (error) throw error

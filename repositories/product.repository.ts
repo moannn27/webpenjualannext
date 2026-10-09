@@ -62,7 +62,7 @@ export class ProductRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('products')
-      .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+      .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
       .eq('slug', slug)
       .eq('status', 'published')
       .single()
@@ -74,7 +74,18 @@ export class ProductRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('products')
-      .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+      .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  }
+
+  async findStockById(id: string) {
+    const supabase = await this.getClient()
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, stock, status, product_variants(id, stock)')
       .eq('id', id)
       .single()
     if (error) throw error

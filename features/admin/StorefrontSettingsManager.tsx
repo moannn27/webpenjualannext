@@ -61,8 +61,9 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     <div className="space-y-4 border-t pt-5">
       <div>
         <h2 className="text-xl font-semibold">Lokasi ambil di toko</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Info ini tampil di halaman checkout saat pelanggan memilih ambil di toko.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Alamat dan link Maps tampil di checkout dan tersimpan pada pesanan pickup baru. Perubahan tidak mengubah detail pesanan yang sudah dibuat.</p>
       </div>
+      {!settings.pickup_info.store_address.trim() && !settings.store.address.trim() && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Alamat pickup belum diatur. Isi alamat toko di bawah lalu klik Simpan pengaturan. Jika pesanan lama dikoreksi menjadi pickup sebelum alamat diatur, admin perlu mengonfirmasi lokasinya langsung ke pelanggan melalui WhatsApp.</p>}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm">Nama toko<Input value={settings.pickup_info.store_name} onChange={(e) => updatePickupInfo('store_name', e.target.value)} placeholder="Next Solution" maxLength={80} /></label>
         <label className="space-y-1 text-sm">Link Google Maps<Input type="url" value={settings.pickup_info.maps_url} onChange={(e) => updatePickupInfo('maps_url', e.target.value)} placeholder="https://maps.google.com/..." /></label>

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-require('dotenv').config({ path: '.env.local' });
+import { loadEnvConfig } from '@next/env';
+
+loadEnvConfig(process.cwd());
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: false },
   global: { fetch: fetch }

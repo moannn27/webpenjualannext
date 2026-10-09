@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Heart, LogOut, Package, Settings, Shield } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { updateProfileAction } from "@/actions/user";
@@ -10,14 +11,23 @@ import { Input } from "@/components/ui/input";
 
 type Tab = "orders" | "wishlist" | "settings";
 type Profile = { full_name?: string | null; phone?: string | null; email?: string | null; home_address?: string | null; role?: string | null } | null;
+type OrderedProduct = {
+  product_images?: { url: string; is_primary: boolean }[];
+  product_specifications?: { key: string; value: string; display_order?: number | null }[];
+} | null;
 type Order = {
   id: string; order_number?: string | null; created_at: string; status: string; total_amount?: number | null;
   shipping_amount?: number | null; grand_total?: number | null; courier?: string | null;
   shipping_address?: Record<string, unknown> | null;
-  order_items?: { id: string; product_name: string; price: number; quantity: number }[];
+  order_items?: { id: string; product_name: string; price: number; quantity: number; variant_details?: { sku?: string; color?: string; ram?: string; storage?: string } | null; products?: OrderedProduct | OrderedProduct[] }[];
   payments?: { id: string; amount: number; payment_method: string | null; status: string }[];
 };
-type WishlistEntry = { id: string; product_id: string; products?: { id: string; name: string; price: number; discount_price?: number | null } | null };
+type WishlistEntry = { id: string; product_id: string; products?: {
+  id: string; name: string; price: number; discount_price?: number | null;
+  image?: string | null;
+  product_images?: { url: string; is_primary?: boolean }[];
+  product_specifications?: { key: string; value: string; display_order?: number | null }[];
+} | null };
 
 const orderStatusLabels: Record<string, string> = {
   pending: "Menunggu pembayaran",
@@ -93,15 +103,43 @@ export function ProfileDashboard({ profile, orders, wishlist }: {
               <div><p className="font-semibold">{order.order_number ?? `Pesanan ${order.id.slice(0, 8)}`}</p><p className="text-sm text-muted-foreground">{new Date(order.created_at).toLocaleDateString("id-ID")} · {order.status}</p></div>
               <div className="mt-3 font-semibold">Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</div>
               <OrderProgress order={order} />
-              <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Lihat barang, pembayaran, dan detail pesanan</summary><div className="mt-4 space-y-4 text-sm"><div><h3 className="font-semibold">Barang dipesan</h3><ul className="mt-2 space-y-2">{(order.order_items ?? []).map((item) => <li key={item.id} className="flex justify-between gap-3"><span>{item.product_name} × {item.quantity}</span><span className="shrink-0">Rp {Number(item.price * item.quantity).toLocaleString("id-ID")}</span></li>)}</ul>{!order.order_items?.length && <p className="mt-1 text-muted-foreground">Rincian barang tidak tersedia.</p>}</div><div><h3 className="font-semibold">Pembayaran</h3><p className="mt-1">Metode: {order.payments?.[0]?.payment_method === "manual_transfer" ? "Transfer manual" : order.payments?.[0]?.payment_method || "Belum tercatat"}</p><p>Status: {paymentStatusLabels[order.payments?.[0]?.status ?? ""] ?? order.payments?.[0]?.status ?? "Belum tercatat"}</p></div><div><h3 className="font-semibold">Status pesanan</h3><p className="mt-1">{orderStatusLabels[order.status] ?? order.status}</p></div><div><h3 className="font-semibold">Penerimaan</h3>{order.courier === "pickup" ? <p className="mt-1">Ambil di toko. Tunggu admin mengonfirmasi lokasi dan waktu pengambilan.</p> : <p className="mt-1">{String(order.shipping_address?.recipient_name ?? "")} · {String(order.shipping_address?.phone ?? "")}<br />{String(order.shipping_address?.street_address ?? "")}<br />{[order.shipping_address?.city, order.shipping_address?.province, order.shipping_address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>Rp {Number(order.total_amount ?? 0).toLocaleString("id-ID")}</span></div><div className="flex justify-between"><span>{order.courier === "pickup" ? "Pengambilan" : "Ongkir"}</span><span>{order.courier === "pickup" ? "Gratis" : `Rp ${Number(order.shipping_amount ?? 0).toLocaleString("id-ID")}`}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</span></div></div></details>
+              <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Lihat barang, pembayaran, dan detail pesanan</summary><div className="mt-4 space-y-4 text-sm"><div><h3 className="font-semibold">Barang dipesan</h3><ul className="mt-2 space-y-3">{(order.order_items ?? []).map((item) => {
+                const product = Array.isArray(item.products) ? item.products[0] : item.products;
+                const images = [...(product?.product_images ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+                const specifications = [...(product?.product_specifications ?? [])].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+                const variantLabel = [item.variant_details?.color, item.variant_details?.ram, item.variant_details?.storage].filter(Boolean).join(" · ");
+                return <li key={item.id} className="rounded-xl border border-border p-3"><div className="flex items-center gap-3"><div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted">{images[0]?.url ? <Image src={images[0].url} alt={item.product_name} fill sizes="64px" className="object-cover" /> : <div className="grid size-full place-items-center text-[10px] text-muted-foreground">Foto tidak tersedia</div>}</div><div className="min-w-0 flex-1"><p className="font-medium">{item.product_name}</p>{variantLabel && <p className="mt-1 text-xs text-muted-foreground">{variantLabel}</p>}<p className="mt-1 text-xs text-muted-foreground">Jumlah {item.quantity} · Rp {Number(item.price).toLocaleString("id-ID")} / barang</p></div><span className="shrink-0 font-medium">Rp {Number(item.price * item.quantity).toLocaleString("id-ID")}</span></div>{specifications.length > 0 && <dl className="mt-3 grid gap-x-4 gap-y-2 border-t border-border pt-3 sm:grid-cols-2">{specifications.map((specification, index) => <div key={`${specification.key}-${index}`} className="min-w-0"><dt className="text-xs text-muted-foreground">{specification.key}</dt><dd className="break-words text-sm">{specification.value}</dd></div>)}</dl>}</li>;
+              })}</ul>{!order.order_items?.length && <p className="mt-1 text-muted-foreground">Rincian barang tidak tersedia.</p>}</div><div><h3 className="font-semibold">Pembayaran</h3><p className="mt-1">Metode: {order.payments?.[0]?.payment_method === "manual_transfer" ? "Transfer manual" : order.payments?.[0]?.payment_method || "Belum tercatat"}</p><p>Status: {paymentStatusLabels[order.payments?.[0]?.status ?? ""] ?? order.payments?.[0]?.status ?? "Belum tercatat"}</p></div><div><h3 className="font-semibold">Status pesanan</h3><p className="mt-1">{orderStatusLabels[order.status] ?? order.status}</p></div><div><h3 className="font-semibold">Penerimaan</h3>{order.courier === "pickup" ? <><p className="mt-1">{String(order.shipping_address?.pickup_location ?? "Ambil di toko")}</p>{order.shipping_address?.pickup_address && <p className="mt-1 whitespace-pre-line">{String(order.shipping_address.pickup_address)}</p>}{order.shipping_address?.pickup_maps_url && <a className="text-primary underline" href={String(order.shipping_address.pickup_maps_url)} target="_blank" rel="noopener noreferrer">Lihat lokasi di Google Maps</a>}{order.shipping_address?.fulfillment_change_note && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{String(order.shipping_address.fulfillment_change_note)}</p>}</> : <p className="mt-1">{String(order.shipping_address?.recipient_name ?? "")} · {String(order.shipping_address?.phone ?? "")}<br />{String(order.shipping_address?.street_address ?? "")}<br />{[order.shipping_address?.city, order.shipping_address?.province, order.shipping_address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>Rp {Number(order.total_amount ?? 0).toLocaleString("id-ID")}</span></div><div className="flex justify-between"><span>{order.courier === "pickup" ? "Pengambilan" : "Ongkir"}</span><span>{order.courier === "pickup" && Number(order.shipping_amount ?? 0) === 0 ? "Gratis" : `Rp ${Number(order.shipping_amount ?? 0).toLocaleString("id-ID")}`}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}</span></div></div></details>
             </article>)}
           </div>}
         </>}
 
         {activeTab === "wishlist" && <>
-          <h1 className="mb-6 text-2xl font-bold">Wishlist</h1>
+          <h1 className="mb-2 text-2xl font-bold">Wishlist</h1>
+          <p className="mb-6 text-sm text-muted-foreground">Produk yang kamu simpan.</p>
           {!wishlist.length ? <p className="py-12 text-center text-muted-foreground">Wishlist kamu masih kosong.</p> : <div className="grid gap-4 sm:grid-cols-2">
-            {wishlist.map((entry) => <Link key={entry.id} href={`/product/${entry.products?.id ?? entry.product_id}`} className="rounded-2xl border border-border p-5 hover:border-primary/50"><p className="font-semibold">{entry.products?.name ?? "Produk"}</p><p className="mt-2 text-sm text-muted-foreground">Rp {Number(entry.products?.discount_price ?? entry.products?.price ?? 0).toLocaleString("id-ID")}</p></Link>)}
+            {wishlist.map((entry) => {
+              const product = entry.products;
+              const images = [...(product?.product_images ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
+              const imageUrl = product?.image || images[0]?.url;
+              const specifications = [...(product?.product_specifications ?? [])]
+                .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                .slice(0, 3);
+              const extraSpecs = Math.max(0, (product?.product_specifications?.length ?? 0) - specifications.length);
+              return <Link key={entry.id} href={`/product/${product?.id ?? entry.product_id}`} className="group grid min-w-0 grid-cols-[80px_minmax(0,1fr)] items-start gap-4 rounded-2xl border border-border bg-background p-4 transition-colors hover:border-primary/50 sm:grid-cols-[96px_minmax(0,1fr)] sm:p-5">
+                <span className="relative grid size-20 place-items-center overflow-hidden rounded-xl bg-muted sm:size-24">
+                  {imageUrl ? <Image src={imageUrl} alt={product?.name ?? "Produk wishlist"} fill sizes="(max-width: 640px) 80px, 96px" className="object-contain p-2 mix-blend-multiply" /> : <Package className="size-8 text-muted-foreground" aria-hidden="true" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="line-clamp-2 font-semibold transition-colors group-hover:text-primary">{product?.name ?? "Produk"}</span>
+                  <span className="mt-1 block font-semibold text-primary">Rp {Number(product?.discount_price ?? product?.price ?? 0).toLocaleString("id-ID")}</span>
+                  {specifications.length > 0 && <span className="mt-2 flex flex-wrap gap-1.5">
+                    {specifications.map((specification, index) => <span key={`${specification.key}-${index}`} className="max-w-full truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">{specification.key}:</span> {specification.value}</span>)}
+                    {extraSpecs > 0 && <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">+{extraSpecs} spek</span>}
+                  </span>}
+                </span>
+              </Link>;
+            })}
           </div>}
         </>}
 

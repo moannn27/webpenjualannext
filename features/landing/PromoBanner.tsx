@@ -7,17 +7,12 @@ type LandingPromo = { title: string; headline: string; description: string; butt
 export function PromoBanner({ banner, sectionTitle, sectionSubtitle }: { banner?: LandingPromo; sectionTitle?: string; sectionSubtitle?: string }) {
   const title = banner?.headline || "Temukan promo pilihan";
   const description = banner?.description || sectionSubtitle || "Lihat penawaran dan produk pilihan dari Next Solution.";
-  const image = banner?.image_url || "https://images.unsplash.com/photo-1603192070110-336338b248a0?q=80&w=2000&auto=format&fit=crop";
+  const image = banner?.image_url;
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
       <div className="relative flex min-h-[320px] items-center overflow-hidden rounded-[26px] bg-primary text-primary-foreground sm:min-h-[360px] sm:rounded-[32px] lg:min-h-[400px]">
-        <div className="absolute inset-0 w-full h-full">
-          <Image
-            src={image}
-            alt={banner?.title || "Promo"}
-            fill
-            className="object-cover opacity-20 mix-blend-overlay"
-          />
+        <div className="absolute inset-0 h-full w-full">
+          {image && <Image src={image} alt={banner?.title || "Promo"} fill sizes="100vw" className="object-cover opacity-20 mix-blend-overlay" />}
           <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/80 to-transparent" />
         </div>
         

@@ -28,6 +28,15 @@ export async function proceedToCheckoutAction(formData: FormData) {
     throw new Error(validated.error.issues.map((issue) => issue.message).join(", "))
   }
 
+  if (validated.data.shippingMethod === 'pickup') {
+    const { data: storefront, error } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
+    if (error) throw new Error('Informasi lokasi pickup belum bisa diperiksa. Coba lagi.')
+    const settings = storefront?.settings as { pickup_info?: { store_address?: unknown } } | null
+    if (typeof settings?.pickup_info?.store_address !== 'string' || !settings.pickup_info.store_address.trim()) {
+      throw new Error('Lokasi pickup belum diatur. Silakan pilih pengiriman atau hubungi admin.')
+    }
+  }
+
   const order = await checkoutService.checkout(user.id, validated.data)
   revalidatePath('/', 'layout')
   redirect(`/checkout/success?order_id=${order.id}`)

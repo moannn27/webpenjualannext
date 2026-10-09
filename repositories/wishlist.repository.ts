@@ -5,7 +5,7 @@ export class WishlistRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('wishlist')
-      .select('*, products(*, product_images(*))')
+      .select('*, products(*, product_images(*), product_specifications(*))')
       .eq('user_id', userId)
     if (error) throw error
     return data

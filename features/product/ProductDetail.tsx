@@ -11,6 +11,7 @@ import { addToCartAction } from "@/actions/cart";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { submitReviewAction } from "@/actions/review";
 import { Input } from "@/components/ui/input";
+import { emitCartUpdated } from "@/lib/cart-events";
 
 interface ProductDetailData {
   id: string;
@@ -26,6 +27,7 @@ interface ProductDetailData {
   description?: string | null;
   product_images?: { id: string; url: string; alt_text?: string | null; is_primary?: boolean }[];
   product_specifications?: { id: string; key: string; value: string; display_order?: number }[];
+  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }[];
 }
 
 interface ProductReview {
@@ -39,13 +41,25 @@ interface ProductReview {
 interface ProductDetailProps {
   product: ProductDetailData;
   reviews?: ProductReview[];
+  initialCartQuantities?: { variant_id: string | null; quantity: number }[];
 }
 
-export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
+export function ProductDetail({ product, reviews = [], initialCartQuantities = [] }: ProductDetailProps) {
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
+  const variants = product.product_variants ?? [];
+  const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? "");
+  const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
+  const availableStock = selectedVariant?.stock ?? product.stock;
+  const [cartQuantityByVariant, setCartQuantityByVariant] = useState<Record<string, number>>(() => Object.fromEntries(initialCartQuantities.map((item) => [item.variant_id ?? "product", item.quantity])));
+  const selectedCartQuantity = cartQuantityByVariant[selectedVariant?.id ?? "product"] ?? 0;
+  const remainingStock = Math.max(0, availableStock - selectedCartQuantity);
+  const productPrice = selectedVariant?.discount_price ?? selectedVariant?.price ?? product.discount_price ?? product.price;
+  const regularPrice = selectedVariant?.price ?? product.price;
   const [activeTab, setActiveTab] = useState<"specs" | "reviews">("specs");
   const [loading, setLoading] = useState(false);
+  const [cartCountAfterAdd, setCartCountAfterAdd] = useState<number | null>(null);
+  const [cartError, setCartError] = useState("");
   const images = product.product_images?.length ? product.product_images : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
   const [activeImage, setActiveImage] = useState(images[0]?.url ?? "");
   const [saved, setSaved] = useState(false);
@@ -55,19 +69,24 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
   const reviewCount = reviews.length;
   const averageRating = reviewCount ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1) : "—";
 
-  const increment = () => setQuantity(prev => Math.min(product.stock, prev + 1));
-  const decrement = () => setQuantity(prev => (prev > 1 ? prev - 1 : 1));
+  const increment = () => { setCartCountAfterAdd(null); setQuantity(prev => remainingStock > 0 ? Math.min(remainingStock, prev + 1) : prev); };
+  const decrement = () => { setCartCountAfterAdd(null); setQuantity(prev => (prev > 1 ? prev - 1 : 1)); };
 
   const handleAddToCart = async () => {
     setLoading(true);
+    setCartCountAfterAdd(null);
+    setCartError("");
+    setFeedback("");
     try {
-      await addToCartAction(product.id, quantity);
-      router.push("/cart");
+      const result = await addToCartAction(product.id, quantity, selectedVariant?.id ?? null);
+      setCartCountAfterAdd(result.cartCount);
+      setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity }));
+      emitCartUpdated(result.cartCount);
     } catch (error) {
       if (error instanceof Error && error.message === "Unauthorized") {
         router.push(`/login?redirect=/product/${product.id}`);
       } else {
-        setFeedback(error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.");
+        setCartError(error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.");
       }
     } finally {
       setLoading(false);
@@ -110,8 +129,20 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
     } finally { setReviewLoading(false); }
   };
 
-  const productPrice = product.discount_price ?? product.price;
   const formatPrice = (price: number) => `Rp ${Number(price).toLocaleString("id-ID")}`;
+  const variantOptions = (key: "color" | "ram" | "storage") => [...new Set(variants.map((variant) => variant[key]).filter(Boolean))];
+  const chooseVariant = (key: "color" | "ram" | "storage", value: string) => {
+    const current = selectedVariant;
+    const otherKeys = (["color", "ram", "storage"] as const).filter((option) => option !== key);
+    const exactMatch = variants.find((variant) => variant[key] === value && otherKeys.every((option) => variant[option] === current?.[option]));
+    const next = exactMatch ?? variants.find((variant) => variant[key] === value);
+    if (next) { setSelectedVariantId(next.id); setQuantity(1); setCartCountAfterAdd(null); setCartError(""); }
+  };
+  const variantFields = [
+    { key: "color", label: "Warna" },
+    { key: "ram", label: "RAM" },
+    { key: "storage", label: "Storage" },
+  ] as const;
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -176,9 +207,9 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
 
           <div className="text-4xl font-bold text-foreground mb-8">
             {formatPrice(productPrice)}
-            {product.discount_price && (
+            {productPrice < regularPrice && (
               <span className="ml-4 text-2xl text-muted-foreground line-through font-normal">
-                {formatPrice(product.price)}
+                {formatPrice(regularPrice)}
               </span>
             )}
           </div>
@@ -188,6 +219,18 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
           </p>
 
           <div className="space-y-6 mb-10">
+            {variants.length > 0 && <div className="grid gap-4 sm:grid-cols-3">
+              {variantFields.map(({ key, label }) => {
+                const options = variantOptions(key);
+                if (!options.length) return null;
+                return <label key={key} className="space-y-1.5 text-sm font-medium">{label}
+                  <select value={selectedVariant?.[key] ?? ""} onChange={(event) => chooseVariant(key, event.target.value)} className="h-11 w-full rounded-lg border border-input bg-background px-3 font-normal">
+                    {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </label>;
+              })}
+              {selectedVariant?.sku && <p className="text-xs text-muted-foreground sm:col-span-3">SKU varian: {selectedVariant.sku}</p>}
+            </div>}
             <div className="flex items-center gap-4">
               <div className="font-semibold w-24">Jumlah</div>
               <div className="flex items-center border border-border rounded-full p-1 bg-card">
@@ -195,19 +238,23 @@ export function ProductDetail({ product, reviews = [] }: ProductDetailProps) {
                   <Minus className="h-4 w-4" />
                 </Button>
                 <span className="w-12 text-center font-medium">{quantity}</span>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={increment}>
+                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8" onClick={increment} disabled={remainingStock <= 0 || quantity >= remainingStock} aria-label="Tambah jumlah">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
               <span className="text-sm text-muted-foreground ml-4">
-                {product.stock > 0 ? `${product.stock} unit tersedia` : "Stok habis"}
+                {availableStock > 0 ? (selectedCartQuantity ? `Stok ${availableStock} · ${selectedCartQuantity} di keranjang · ${remainingStock} bisa ditambah` : `${availableStock} unit tersedia` ) : "Varian ini sedang habis"}
               </span>
             </div>
           </div>
 
-          <Button disabled={loading || product.stock <= 0} onClick={handleAddToCart} size="lg" className="rounded-full w-full h-14 text-lg mb-8">
-            {loading ? "Menambahkan..." : `Tambah ke Keranjang — ${formatPrice(productPrice * quantity)}`}
+          <Button disabled={loading || remainingStock <= 0 || quantity > remainingStock} onClick={handleAddToCart} size="lg" className="rounded-full w-full h-14 text-lg mb-8">
+            {loading ? "Menambahkan..." : remainingStock <= 0 ? (selectedCartQuantity > 0 ? "Stok sudah ada di keranjang" : "Stok habis") : `Tambah ke Keranjang — ${formatPrice(productPrice * quantity)}`}
           </Button>
+          {cartError && <p role="alert" className="-mt-5 mb-6 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">{cartError}. Cek jumlah varian ini di <Link href="/cart" className="font-semibold underline">keranjang</Link>.</p>}
+          {cartCountAfterAdd !== null && <p role="status" className="-mt-5 mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            {quantity} unit berhasil ditambahkan. Total isi keranjang {cartCountAfterAdd} unit. <Link href="/cart" className="font-semibold underline underline-offset-2">Lihat keranjang</Link>
+          </p>}
 
           <div className="grid grid-cols-2 gap-4 border-t pt-8">
             <div className="flex items-start gap-3">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addToCartAction } from "@/actions/cart";
+import { emitCartUpdated } from "@/lib/cart-events";
 
 export function useAddToCart() {
   const router = useRouter();
@@ -11,7 +12,8 @@ export function useAddToCart() {
   const addToCart = async (productId: string) => {
     setLoadingProductId(productId);
     try {
-      await addToCartAction(productId, 1);
+      const result = await addToCartAction(productId, 1);
+      emitCartUpdated(result.cartCount);
     } catch (error) {
       if (error instanceof Error && error.message === "Unauthorized") {
         router.push("/login");

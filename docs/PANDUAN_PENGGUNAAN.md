@@ -45,7 +45,9 @@ Keluar dan masuk lagi setelah role diubah. `admin` mengelola katalog dan pesanan
 
 ### Produk, foto, kategori, dan brand
 
-- Produk memiliki SKU, harga normal/promo, stok, status draft/terbit/arsip, kategori, brand, deskripsi, penanda terlaris/terbaru, dan galeri hingga 8 foto.
+- Produk memiliki SKU, harga normal/promo, stok, status draft/terbit/arsip, kategori, brand, deskripsi, penanda terlaris/terbaru, spesifikasi, varian warna/RAM/storage dengan stok dan SKU masing-masing, serta galeri hingga 8 foto.
+- Admin dapat memakai **Upload produk massal** dengan satu template CSV yang sama untuk Excel `.xlsx`, CSV, Word `.docx`, atau PDF. Isi satu baris untuk produk tanpa varian, atau ulangi data produk per kombinasi varian. SKU produk yang sama menggabungkan beberapa baris. Kategori dan brand harus sudah ada. Preview memvalidasi semua baris sebelum impor transaksional; foto diimpor melalui URL HTTPS.
+- Word dan PDF harus berisi tabel dengan header template yang diunduh dari panel. PDF harus memiliki teks yang dapat dibaca dan tabel bergaris, bukan hasil scan. Format `.doc` lama tidak didukung.
 - Foto yang diunggah dikompres di browser menjadi WebP maksimal 800 KB dan sisi terpanjang maksimal 1440 px. Foto pertama di galeri menjadi foto utama.
 - File sumber upload maksimal 15 MB. Storage memakai bucket publik `products`, `brands`, dan `banners`; upload dibatasi ke admin melalui policy Supabase.
 - Katalog storefront memakai pencarian, filter kategori/brand/promo, sorting, dan pagination. Super admin dapat memilih 24, 48, 100, atau 200 produk per halaman; angka ini tidak membatasi jumlah total produk.
@@ -53,12 +55,15 @@ Keluar dan masuk lagi setelah role diubah. `admin` mengelola katalog dan pesanan
 
 ### Pesanan dan stok
 
-- Checkout memeriksa dan mengurangi stok melalui transaksi database.
+- Checkout memeriksa dan mengurangi stok produk/varian melalui transaksi database; detail varian disimpan pada pesanan.
 - Pelanggan dapat memilih pengiriman standar/express atau ambil di toko tanpa ongkir. Pengambilan tetap menunggu konfirmasi pembayaran dan admin.
 - Nomor order dibuat aman terhadap checkout bersamaan, memakai tanggal Jakarta dan format `ORD-YYYYMMDD-NN` (urutan harian mulai `01`).
 - Pembayaran perlu dikonfirmasi sukses sebelum order diproses, dikirim, atau ditandai selesai.
+- Jika pembayaran sempat ditandai gagal, admin masih dapat mengonfirmasinya setelah memeriksa ulang bukti transfer.
 - Alur status: menunggu → diproses → dikirim → selesai. Order juga dapat dibatalkan sebelum selesai. Order batal terminal; buat order baru jika perlu.
 - Pembatalan mengembalikan stok satu kali.
+- Super Admin dapat mengoreksi status pesanan yang keliru, termasuk pesanan selesai. Koreksi perlu konfirmasi; membuka pesanan batal kembali memerlukan stok yang cukup dan tidak bisa dilakukan setelah refund.
+- Super Admin dapat mengoreksi metode pengiriman menjadi ambil di toko. Jika pembayaran belum sukses, ongkir dan nominal tagihan disesuaikan menjadi gratis; jika sudah sukses, nilai pembayaran tetap tercatat dan pengembalian ongkir perlu diproses terpisah.
 
 ### Konten storefront (super admin)
 
