@@ -88,7 +88,7 @@ npm run db:push
 
 Jalankan `db:push` hanya setelah memastikan target project dan riwayat migration cocok. Jangan jalankan `supabase db reset`, `supabase start`, atau perintah Docker pada alur kerja ini. Jangan jalankan `supabase/seed.sql` pada toko yang sudah berisi data. Seed hanya untuk project baru yang kosong, setelah ditinjau.
 
-Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai migration terbaru. Tambahan order, dashboard/laporan, dan validasi pembayaran berada pada migration `20261010000000` sampai `20261015000000`. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
+Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai `20261016000000_store_pickup_checkout.sql`. Tambahan order, dashboard/laporan, validasi pembayaran, dan checkout ambil di toko berada pada migration `20261010000000` sampai `20261016000000`. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
 
 Jika hanya meng-clone untuk menjalankan aplikasi pada database kantor yang sudah siap, migration tidak perlu dijalankan ulang. Jika ada migration baru, pastikan remote sudah terhubung ke project ref yang benar, bandingkan daftar migration lokal dan remote, lalu terapkan hanya migration yang belum diterapkan. `npm run db:push` mengubah database hosted; periksa perubahan dan backup database sebelum menerapkannya pada toko aktif. Jika riwayat lokal/remote tidak cocok, hentikan dulu dan selesaikan rekonsiliasi migration—jangan mengatasi ketidakcocokan dengan reset.
 
@@ -114,6 +114,7 @@ npm run build
 - **Produk:** CRUD produk, SKU, kategori, brand, harga dan harga promo, stok, status tayang, tanda produk terlaris/terbaru, serta galeri sampai 8 gambar. Gambar upload dikompres di browser menjadi WebP maksimal 800 KB dan sisi terpanjang maksimal 1440 px.
 - **Kategori, brand, dan konten landing:** CRUD dan preview gambar. Upload sumber gambar maksimal 15 MB; foto disimpan pada Supabase Storage bucket `products`, `brands`, atau `banners`. Bucket publik untuk pembacaan gambar, sedangkan upload membutuhkan admin.
 - **Pesanan:** nomor pesanan dibuat per tanggal Jakarta dalam format `ORD-YYYYMMDD-NN` dan nomor urut bertambah otomatis. Status pesanan hanya mengikuti alur yang diizinkan; pembayaran sukses diperlukan sebelum pesanan diproses/dikirim. Pembatalan memulihkan stok satu kali.
+- Checkout mendukung pengiriman standar/express dan ambil di toko tanpa ongkir. Pilihan ambil di toko tetap menunggu konfirmasi pembayaran dan admin.
 - **Dashboard/laporan:** ringkasan pesanan, omzet dari transaksi selesai, grafik penjualan, produk terlaris/terendah, dan pelanggan. Laporan bisa diunduh CSV, CSV transaksi, Word-compatible `.doc`, atau dicetak/disimpan sebagai PDF dari dialog print browser.
 - **Konten halaman depan:** section bisa diatur judul, deskripsi, urutan/visibilitas serta konten hero/banner, FAQ, testimoni, informasi toko, dan cabang. Pengelolaan konten dan brand dibatasi untuk super admin.
 

@@ -94,7 +94,7 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   const allowed: Record<string, string[]> = current.courier === 'pickup'
     ? { pending: ['cancelled'], processing: ['ready_for_pickup', 'cancelled'], ready_for_pickup: ['delivered'], delivered: [], cancelled: [] }
     : { pending: ['cancelled'], processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [] }
-  if (!manualOverride && current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
+  if (current.status !== status && !allowed[current.status]?.includes(status)) throw new Error('Perubahan status tidak valid. Pesanan batal atau selesai tidak dapat dibuka kembali.')
   const paymentRows = Array.isArray(current.payments) ? current.payments : []
   if (['processing', 'shipped', 'ready_for_pickup', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
   const { error } = await supabase.from('orders').update({ status }).eq('id', id)

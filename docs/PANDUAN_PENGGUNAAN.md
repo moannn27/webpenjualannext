@@ -54,6 +54,7 @@ Keluar dan masuk lagi setelah role diubah. `admin` mengelola katalog dan pesanan
 ### Pesanan dan stok
 
 - Checkout memeriksa dan mengurangi stok melalui transaksi database.
+- Pelanggan dapat memilih pengiriman standar/express atau ambil di toko tanpa ongkir. Pengambilan tetap menunggu konfirmasi pembayaran dan admin.
 - Nomor order dibuat aman terhadap checkout bersamaan, memakai tanggal Jakarta dan format `ORD-YYYYMMDD-NN` (urutan harian mulai `01`).
 - Pembayaran perlu dikonfirmasi sukses sebelum order diproses, dikirim, atau ditandai selesai.
 - Alur status: menunggu → diproses → dikirim → selesai. Order juga dapat dibatalkan sebelum selesai. Order batal terminal; buat order baru jika perlu.
