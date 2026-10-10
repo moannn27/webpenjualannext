@@ -10,12 +10,12 @@ import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin
 
 const adminService = new AdminService()
 
-export async function getDashboardStatsAction() {
+export async function getDashboardStatsAction(lowStockThreshold?: number) {
   const { user, isAdmin } = await getAdminAccess()
   if (!user) throw new Error("Unauthorized")
   if (!isAdmin) throw new Error("Forbidden")
   
-  return await adminService.getDashboardStats()
+  return await adminService.getDashboardStats(lowStockThreshold)
 }
 
 export async function getAdminEcommerceReportAction(days: number): Promise<EcommerceReport> {
@@ -63,8 +63,17 @@ export async function getAdminProductOptionsAction() {
 export async function getAdminOrdersAction() {
   await requireAdmin()
   const supabase = await createClient()
+
+  const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  await supabase
+    .from('orders')
+    .update({ status: 'delivered', updated_at: new Date().toISOString() })
+    .eq('status', 'shipped')
+    .neq('courier', 'pickup')
+    .lte('updated_at', twoDaysAgo)
+
   const { data, error } = await supabase.from('orders')
-    .select('id, order_number, status, total_amount, shipping_amount, grand_total, created_at, courier, shipping_address, users(full_name, phone), order_items(id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
+    .select('id, order_number, status, total_amount, shipping_amount, grand_total, created_at, updated_at, courier, shipping_address, users(full_name, phone), order_items(id, product_id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return data ?? []
@@ -515,30 +524,80 @@ export async function getLandingContentAction() {
 
 export async function saveStorefrontSettingsAction(settings: unknown) {
   await requireSuperAdmin()
-  if (!settings || typeof settings !== 'object' || JSON.stringify(settings).length > 30000) throw new Error('Pengaturan toko tidak valid.')
+  if (!settings || typeof settings !== 'object' || JSON.stringify(settings).length > 100000) throw new Error('Pengaturan toko tidak valid.')
   const catalogPageSize = (settings as { admin?: { catalogPageSize?: unknown } }).admin?.catalogPageSize
   if (catalogPageSize !== undefined && ![24, 48, 100, 200].includes(Number(catalogPageSize))) throw new Error('Jumlah produk per halaman harus 24, 48, 100, atau 200.')
-  const store = (settings as { store?: { branches?: unknown; email?: unknown } }).store
+  const store = (settings as { store?: { branches?: unknown; email?: unknown; maps_url?: unknown } }).store
   if (typeof store?.email === 'string' && store.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(store.email)) throw new Error('Email toko tidak valid.')
+  const isValidMapsUrl = (urlString: unknown): boolean => {
+    if (typeof urlString !== 'string' || !urlString.trim()) return true
+    try {
+      const url = new URL(urlString.trim())
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return false
+      const host = url.hostname.toLowerCase()
+      return (
+        host === 'share.google' ||
+        host.endsWith('.google.com') ||
+        host === 'google.com' ||
+        host === 'maps.google.com' ||
+        host.endsWith('.goo.gl') ||
+        host === 'goo.gl' ||
+        host === 'g.co' ||
+        host.includes('google')
+      )
+    } catch {
+      return false
+    }
+  }
+  if (typeof store?.maps_url === 'string' && store.maps_url.trim()) {
+    if (!isValidMapsUrl(store.maps_url)) throw new Error('Gunakan link Google Maps yang valid untuk toko utama.')
+  }
   if (Array.isArray(store?.branches)) {
     for (const branch of store.branches) {
       if (!branch || typeof branch !== 'object') throw new Error('Data cabang tidak valid.')
       const item = branch as { name?: unknown; address?: unknown; maps_url?: unknown }
       if (typeof item.name !== 'string' || !item.name.trim() || typeof item.address !== 'string' || !item.address.trim()) throw new Error('Setiap cabang perlu nama dan alamat.')
-      if (typeof item.maps_url === 'string' && item.maps_url) {
-        let url: URL
-        try { url = new URL(item.maps_url) } catch { throw new Error('Link Maps tidak valid.') }
-        if (url.protocol !== 'https:' || !['google.com', 'www.google.com', 'maps.google.com', 'maps.app.goo.gl', 'goo.gl'].includes(url.hostname)) throw new Error('Gunakan link Google Maps HTTPS yang valid.')
+      if (typeof item.maps_url === 'string' && item.maps_url.trim()) {
+        if (!isValidMapsUrl(item.maps_url)) throw new Error('Gunakan link Google Maps yang valid untuk cabang.')
+      }
+    }
+  }
+  const officialMarketplaces = (settings as { official_marketplaces?: unknown }).official_marketplaces
+  if (officialMarketplaces !== undefined && !Array.isArray(officialMarketplaces)) throw new Error('Data marketplace tidak valid.')
+  if (Array.isArray(officialMarketplaces)) {
+    for (const mp of officialMarketplaces) {
+      if (!mp || typeof mp !== 'object') throw new Error('Data marketplace tidak valid.')
+      const item = mp as { name?: unknown; stores?: unknown }
+      if (typeof item.name !== 'string' || !item.name.trim()) {
+        throw new Error('Setiap marketplace harus memiliki nama.')
+      }
+      if (Array.isArray(item.stores)) {
+        for (const s of item.stores) {
+          if (!s || typeof s !== 'object') throw new Error('Data toko marketplace tidak valid.')
+          const store = s as { name?: unknown; url?: unknown }
+          if (typeof store.name !== 'string' || !store.name.trim() || typeof store.url !== 'string' || !store.url.trim()) {
+            throw new Error('Setiap toko di marketplace harus memiliki nama dan tautan URL.')
+          }
+        }
+      }
+    }
+  }
+  const officialChannels = (settings as { official_channels?: unknown }).official_channels
+  if (officialChannels !== undefined && !Array.isArray(officialChannels)) throw new Error('Data official channel tidak valid.')
+  if (Array.isArray(officialChannels)) {
+    for (const ch of officialChannels) {
+      if (!ch || typeof ch !== 'object') throw new Error('Data official channel tidak valid.')
+      const item = ch as { name?: unknown; url?: unknown }
+      if (typeof item.name !== 'string' || !item.name.trim() || typeof item.url !== 'string' || !item.url.trim()) {
+        throw new Error('Setiap official channel harus memiliki nama dan link URL yang valid.')
       }
     }
   }
   const pickupInfo = (settings as { pickup_info?: { store_name?: unknown; store_address?: unknown; maps_url?: unknown } }).pickup_info
   if (pickupInfo) {
     if (typeof pickupInfo.store_name !== 'string' || pickupInfo.store_name.length > 80 || typeof pickupInfo.store_address !== 'string' || pickupInfo.store_address.length > 300 || typeof pickupInfo.maps_url !== 'string') throw new Error('Informasi lokasi pickup tidak valid.')
-    if (pickupInfo.maps_url) {
-      let url: URL
-      try { url = new URL(pickupInfo.maps_url) } catch { throw new Error('Link Maps pickup tidak valid.') }
-      if (url.protocol !== 'https:' || !['google.com', 'www.google.com', 'maps.google.com', 'maps.app.goo.gl', 'goo.gl'].includes(url.hostname)) throw new Error('Gunakan link Google Maps HTTPS yang valid.')
+    if (pickupInfo.maps_url && pickupInfo.maps_url.trim()) {
+      if (!isValidMapsUrl(pickupInfo.maps_url)) throw new Error('Gunakan link Google Maps yang valid untuk lokasi pickup.')
     }
   }
   const bankTransfer = (settings as { bank_transfer?: unknown }).bank_transfer
@@ -559,6 +618,8 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   revalidatePath('/promo')
   revalidatePath('/admin/content')
   revalidatePath('/checkout')
+  revalidatePath('/cart')
+  revalidatePath('/products')
   return { success: true }
 }
 

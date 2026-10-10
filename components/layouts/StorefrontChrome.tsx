@@ -12,7 +12,7 @@ export function StorefrontChrome({ children, cartCount, settings }: { children: 
   return <>
     <Navbar cartCount={cartCount} />
     <main className="flex-1">{children}</main>
-    <Footer settings={settings.store} />
+    <Footer settings={settings.store} marketplaces={settings.official_marketplaces} channels={settings.official_channels} />
     <RecommendationChat whatsappNumber={settings.store.whatsapp} />
   </>;
 }

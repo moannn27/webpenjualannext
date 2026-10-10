@@ -164,13 +164,14 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               src={activeImage || product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
               alt={product.name}
               fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
               className="object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-125"
             />
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2">
             {images.map((image) => (
               <button key={image.id} type="button" onClick={() => setActiveImage(image.url)} aria-label={`Tampilkan gambar ${image.alt_text || product.name}`} className={`relative w-24 h-24 rounded-2xl bg-muted/30 overflow-hidden border-2 ${activeImage === image.url ? "border-primary" : "border-transparent"} hover:border-primary shrink-0 focus-visible:outline-none focus-visible:border-primary transition-colors`}>
-                {image.url && <Image src={image.url} alt={image.alt_text || product.name} fill className="object-cover mix-blend-multiply p-2" />}
+                {image.url && <Image src={image.url} alt={image.alt_text || product.name} fill sizes="96px" className="object-cover mix-blend-multiply p-2" />}
               </button>
             ))}
           </div>

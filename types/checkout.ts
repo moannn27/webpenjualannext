@@ -18,3 +18,10 @@ export interface CheckoutAddress {
   province: string;
   postal_code: string;
 }
+
+export interface PickupLocation {
+  id: string;
+  name: string;
+  address: string;
+  maps_url?: string;
+}

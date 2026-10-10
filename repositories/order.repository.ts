@@ -28,9 +28,20 @@ export class OrderRepository extends BaseRepository {
 
   async getUserOrders(userId: string) {
     const supabase = await this.getClient()
+
+    // Otomatis tandai 'delivered' jika pesanan kurir sudah berstatus 'shipped' lebih dari 2 hari (48 jam)
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+    await supabase
+      .from('orders')
+      .update({ status: 'delivered', updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('status', 'shipped')
+      .neq('courier', 'pickup')
+      .lte('updated_at', twoDaysAgo)
+
     const { data, error } = await supabase
       .from('orders')
-      .select('id, order_number, status, total_amount, shipping_amount, discount_amount, grand_total, courier, shipping_address, created_at, updated_at, order_items(id, product_name, price, quantity, variant_details, products(product_images(url, is_primary), product_specifications(key, value, display_order))), payments(id, amount, payment_method, status)')
+      .select('id, order_number, status, total_amount, shipping_amount, discount_amount, grand_total, courier, shipping_address, created_at, updated_at, order_items(id, product_id, product_name, price, quantity, variant_details, products(id, name, product_images(url, is_primary), product_specifications(key, value, display_order))), payments(id, amount, payment_method, status)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
     if (error) throw error
@@ -52,7 +63,7 @@ export class OrderRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { error } = await supabase
       .from('orders')
-      .update({ status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq('id', orderId)
     if (error) throw error
   }

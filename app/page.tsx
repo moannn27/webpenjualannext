@@ -6,6 +6,8 @@ import { BrandShowcase } from "@/features/landing/BrandShowcase";
 import { WhyChooseUs } from "@/features/landing/WhyChooseUs";
 import { Testimonials } from "@/features/landing/Testimonials";
 import { FaqSection } from "@/features/landing/FaqSection";
+import { BranchLocatorSection } from "@/features/landing/BranchLocatorSection";
+import { OfficialChannelsSection } from "@/features/landing/OfficialChannelsSection";
 import type { Metadata } from "next";
 import { getBestSellerAction, getNewArrivalAction, getProductsByIdsAction, getPromoProductsAction } from "@/actions/product";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
@@ -67,6 +69,23 @@ export default async function Home() {
       {sections.newArrivals.visible && <FeaturedProducts title={sections.newArrivals.title} subtitle={sections.newArrivals.subtitle} type="new" initialData={selected("newArrivals", (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.promo.visible && <FeaturedProducts title={sections.promo.title} subtitle={sections.promo.subtitle} type="promo" initialData={selected("promo", promoProducts.map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.brands.visible && <BrandShowcase brands={brands ?? []} title={sections.brands.title} />}
+      {sections.branches?.visible && (
+        <BranchLocatorSection
+          sectionSetting={sections.branches}
+          branches={settings.store.branches}
+          storeWhatsApp={settings.store.whatsapp}
+          storeAddress={settings.store.address}
+          storeMapsUrl={settings.store.maps_url}
+          storeName="Next Solution"
+        />
+      )}
+      {sections.channels?.visible && (
+        <OfficialChannelsSection
+          sectionSetting={sections.channels}
+          marketplaces={settings.official_marketplaces}
+          storeName="Next Solution"
+        />
+      )}
       {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} store={settings.store} pickupInfo={settings.pickup_info} />}
       {sections.testimonials.visible && <Testimonials testimonials={testimonials ?? []} title={sections.testimonials.title} subtitle={sections.testimonials.subtitle} />}
       {sections.faq.visible && <FaqSection faqs={faqs ?? []} title={sections.faq.title} subtitle={sections.faq.subtitle} />}

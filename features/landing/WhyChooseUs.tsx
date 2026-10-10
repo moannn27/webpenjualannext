@@ -6,6 +6,7 @@ interface WhyChooseUsProps {
   subtitle?: string;
   store?: {
     address?: string;
+    maps_url?: string;
     phone?: string;
     whatsapp?: string;
     email?: string;
@@ -50,6 +51,7 @@ export function WhyChooseUs({
   const cleanWhatsapp = store?.whatsapp ? store.whatsapp.replace(/\D/g, "") : "";
   const hasPickup = Boolean(pickupInfo?.store_address || store?.address);
   const displayAddress = pickupInfo?.store_address || store?.address || "";
+  const activeMapsUrl = pickupInfo?.maps_url || store?.maps_url;
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -93,9 +95,9 @@ export function WhyChooseUs({
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {hasPickup && pickupInfo?.maps_url && (
+            {hasPickup && activeMapsUrl && (
               <a
-                href={pickupInfo.maps_url}
+                href={activeMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"

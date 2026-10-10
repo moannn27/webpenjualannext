@@ -13,8 +13,8 @@ const statusLabels: Record<string, string> = {
   processing: "Pembayaran dikonfirmasi · disiapkan",
   shipped: "Dikirim",
   ready_for_pickup: "Siap diambil di toko",
-  delivered: "Selesai",
-  cancelled: "Dibatalkan",
+  delivered: "Selesai (Diterima)",
+  cancelled: "Dibatalkan (Refund)",
 };
 const paymentLabels: Record<string, string> = { pending: "Menunggu", success: "Terkonfirmasi", failed: "Gagal", refunded: "Refund" };
 const statusChoices: Record<string, { value: string; label: string }[]> = {
@@ -52,8 +52,8 @@ export default async function AdminOrdersPage({
     { value: "processing", label: "Disiapkan", count: counts.processing },
     { value: "ready_for_pickup", label: "Siap Pickup", count: counts.ready_for_pickup },
     { value: "shipped", label: "Dikirim", count: counts.shipped },
-    { value: "delivered", label: "Selesai", count: counts.delivered },
-    { value: "cancelled", label: "Dibatalkan", count: counts.cancelled },
+    { value: "delivered", label: "Selesai (Diterima)", count: counts.delivered },
+    { value: "cancelled", label: "Dibatalkan (Refund)", count: counts.cancelled },
   ];
 
   const filteredOrders = orders.filter((order) => {
@@ -63,7 +63,8 @@ export default async function AdminOrdersPage({
       const orderNum = order.order_number?.toLowerCase() ?? "";
       const customer = (order.users?.[0]?.full_name ?? "").toLowerCase();
       const phone = (order.users?.[0]?.phone ?? "").toLowerCase();
-      if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term)) return false;
+      const items = (order.order_items ?? []).map((i: any) => i.product_name?.toLowerCase() ?? "").join(" ");
+      if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term) && !items.includes(term)) return false;
     }
     return true;
   });
@@ -109,14 +110,14 @@ export default async function AdminOrdersPage({
         <form method="GET" action="/admin/orders" className="flex w-full items-center gap-2 sm:w-auto">
           {filterStatus && <input type="hidden" name="status" value={filterStatus} />}
           <label className="relative min-w-0 flex-1 sm:w-64 sm:flex-none">
-            <span className="sr-only">Cari nomor pesanan, nama, atau telepon pelanggan</span>
+            <span className="sr-only">Cari nomor pesanan, nama, telepon, atau nama produk</span>
             <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
             <input
-              aria-label="Cari nomor pesanan, nama, atau telepon pelanggan"
+              aria-label="Cari nomor pesanan, nama pelanggan, atau nama produk"
               type="search"
               name="search"
               defaultValue={filterSearch}
-              placeholder="Cari pesanan atau pelanggan"
+              placeholder="Cari pesanan, pelanggan, produk..."
               className="h-10 w-full rounded-lg border bg-background pl-8 pr-3 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
