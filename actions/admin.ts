@@ -7,6 +7,8 @@ import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
+import { requireModulePermission } from '@/lib/auth/permissions'
+import { recordAdminActivity } from '@/lib/audit-log'
 
 const adminService = new AdminService()
 
@@ -19,7 +21,7 @@ export async function getDashboardStatsAction(lowStockThreshold?: number) {
 }
 
 export async function getAdminEcommerceReportAction(days: number): Promise<EcommerceReport> {
-  await requireAdmin()
+  await requireModulePermission('reports')
   if (![7, 30, 90, 365].includes(days)) throw new Error('Periode laporan tidak valid.')
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_admin_ecommerce_report', { p_days: days })
@@ -28,15 +30,15 @@ export async function getAdminEcommerceReportAction(days: number): Promise<Ecomm
 }
 
 async function requireAdmin() {
-  const { user, isAdmin } = await getAdminAccess()
+  const { user, isAdmin, adminName, role } = await getAdminAccess()
   if (!user || !isAdmin) throw new Error('Forbidden')
-  return { user }
+  return { user, adminName, role: role || 'admin' }
 }
 
 async function requireSuperAdmin() {
-  const { user, role } = await getAdminAccess()
+  const { user, role, adminName } = await getAdminAccess()
   if (!user || role !== 'super_admin') throw new Error('Forbidden')
-  return { user }
+  return { user, adminName, role: 'super_admin' }
 }
 
 export async function getAdminProductsAction() {
@@ -73,7 +75,7 @@ export async function getAdminOrdersAction() {
     .lte('updated_at', twoDaysAgo)
 
   const { data, error } = await supabase.from('orders')
-    .select('id, order_number, status, total_amount, shipping_amount, grand_total, created_at, updated_at, courier, shipping_address, users(full_name, phone), order_items(id, product_id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
+    .select('id, order_number, status, total_amount, discount_amount, shipping_amount, grand_total, created_at, updated_at, courier, shipping_address, users(full_name, phone), order_items(id, product_id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return data ?? []
@@ -90,28 +92,53 @@ export async function getAdminOrderNotificationsAction() {
   return { count: count ?? 0, latestId: latest?.id ?? null, latestOrderNumber: latest?.order_number ?? null }
 }
 
+const statusLabels: Record<string, string> = {
+  pending: 'Menunggu Pembayaran',
+  processing: 'Diproses',
+  ready_for_pickup: 'Siap Diambil',
+  shipped: 'Dikirim',
+  delivered: 'Selesai',
+  cancelled: 'Dibatalkan',
+}
+
 export async function updateAdminOrderStatusAction(formData: FormData) {
   const statusCorrection = formData.get('status_correction') === 'on'
+  let user: any;
+  let adminName = 'Admin';
+  let adminRole = 'admin';
+
   if (statusCorrection) {
-    await requireSuperAdmin()
+    const auth = await requireSuperAdmin()
+    user = auth.user;
+    adminName = auth.adminName;
+    adminRole = auth.role;
     if (formData.get('confirm_correction') !== 'on') throw new Error('Konfirmasi koreksi status terlebih dahulu.')
   } else {
-    await requireAdmin()
+    const auth = await requireModulePermission('orders')
+    user = auth.user;
+    adminName = auth.adminName;
+    adminRole = auth.role;
   }
   const id = String(formData.get('id') ?? '').trim()
   const status = String(formData.get('status') ?? '')
   if (!id || !['pending', 'processing', 'ready_for_pickup', 'shipped', 'delivered', 'cancelled'].includes(status)) throw new Error('Status pesanan tidak valid.')
   const requestedPickup = statusCorrection && formData.get('fulfillment_correction') === 'pickup'
   const supabase = await createClient()
-  const { data: current, error: readError } = await supabase.from('orders').select('status, courier, payments(status)').eq('id', id).single()
+  const { data: current, error: readError } = await supabase.from('orders').select('status, courier, order_number, payments(status)').eq('id', id).single()
   if (readError || !current) throw new Error('Pesanan tidak ditemukan.')
-  // In a super-admin correction, choosing "Siap diambil di toko" also sets
-  // pickup fulfillment. This avoids rejecting the form because its default
-  // fulfillment choice was still "keep delivery".
   const correctToPickup = statusCorrection && current.courier !== 'pickup' && (requestedPickup || status === 'ready_for_pickup')
   if (correctToPickup) {
     const { error } = await supabase.rpc('super_admin_correct_order_pickup', { p_order_id: id, p_status: status })
     if (error) throw new Error(error.message)
+    await recordAdminActivity({
+      admin_id: user.id,
+      admin_name: adminName,
+      admin_role: adminRole,
+      action: 'status_change',
+      entity_type: 'order',
+      entity_name: current.order_number || id,
+      details: `Koreksi metode pesanan #${current.order_number || id} menjadi Ambil di Toko dengan status "${statusLabels[status] ?? status}"`,
+    })
     revalidatePath('/admin/orders')
     revalidatePath('/admin/reports')
     revalidatePath('/admin')
@@ -128,6 +155,17 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
   if (['processing', 'shipped', 'ready_for_pickup', 'delivered'].includes(status) && !paymentRows.some((payment) => payment.status === 'success')) throw new Error('Konfirmasi pembayaran berhasil sebelum memproses atau mengirim pesanan.')
   const { error } = await supabase.from('orders').update({ status }).eq('id', id)
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: adminRole,
+    action: 'status_change',
+    entity_type: 'order',
+    entity_name: current.order_number || id,
+    details: `Mengubah status pesanan #${current.order_number || id} menjadi "${statusLabels[status] ?? status}"`,
+  })
+
   revalidatePath('/admin/orders')
   revalidatePath('/admin/reports')
   revalidatePath('/admin')
@@ -162,12 +200,12 @@ export async function updateAdminOrderDetailsAction(formData: FormData) {
 }
 
 export async function updateAdminPaymentStatusAction(formData: FormData) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('orders')
   const orderId = String(formData.get('order_id') ?? '').trim()
   const nextStatus = String(formData.get('payment_status') ?? '')
   if (!orderId || !['success', 'failed', 'refunded'].includes(nextStatus)) throw new Error('Status pembayaran tidak valid.')
   const supabase = await createClient()
-  const { data: order, error: orderError } = await supabase.from('orders').select('status').eq('id', orderId).single()
+  const { data: order, error: orderError } = await supabase.from('orders').select('status, order_number').eq('id', orderId).single()
   if (orderError || !order) throw new Error('Pesanan tidak ditemukan.')
   const allowedPreviousStatuses = nextStatus === 'success'
     ? ['pending', 'failed', 'success']
@@ -185,6 +223,17 @@ export async function updateAdminPaymentStatusAction(formData: FormData) {
     const { error: orderUpdateError } = await supabase.from('orders').update({ status: 'processing' }).eq('id', orderId).eq('status', 'pending')
     if (orderUpdateError) throw new Error(`Pembayaran terkonfirmasi, tetapi status pesanan gagal diperbarui: ${orderUpdateError.message}`)
   }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'status_change',
+    entity_type: 'order',
+    entity_name: order.order_number || orderId,
+    details: `Memperbarui status pembayaran pesanan #${order.order_number || orderId} menjadi "${nextStatus === 'success' ? 'Terkonfirmasi' : nextStatus}"`,
+  })
+
   revalidatePath('/admin/orders')
   revalidatePath('/admin/reports')
   revalidatePath('/admin')
@@ -198,33 +247,223 @@ export async function getAdminCustomersAction() {
     .select('id, full_name, phone, role, created_at')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return data ?? []
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (serviceKey && url) {
+    try {
+      const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+      const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const userMetaMap = new Map(
+        authData?.users?.map((u) => [
+          u.id,
+          {
+            email: u.email ?? null,
+            is_password_locked: Boolean(u.user_metadata?.is_password_locked),
+            failed_attempts: Number(u.user_metadata?.failed_password_attempts ?? 0),
+            locked_at: (u.user_metadata?.password_locked_at as string) || null,
+          },
+        ]) ?? []
+      )
+      return (data ?? []).map((row) => ({
+        ...row,
+        email: userMetaMap.get(row.id)?.email ?? null,
+        is_password_locked: userMetaMap.get(row.id)?.is_password_locked ?? false,
+        failed_attempts: userMetaMap.get(row.id)?.failed_attempts ?? 0,
+        locked_at: userMetaMap.get(row.id)?.locked_at ?? null,
+      }))
+    } catch {
+      // fallback
+    }
+  }
+
+  return (data ?? []).map((row) => ({
+    ...row,
+    email: null,
+    is_password_locked: false,
+    failed_attempts: 0,
+    locked_at: null,
+  }))
 }
 
-export async function createAdminManagedAccountAction(input: { fullName: string; email: string; phone: string; role: string }) {
-  await requireSuperAdmin()
+export async function createAdminManagedAccountAction(input: {
+  fullName: string
+  email: string
+  phone: string
+  role: string
+  password?: string
+}) {
+  const { user, adminName } = await requireSuperAdmin()
   const fullName = input.fullName.trim()
   const email = input.email.trim().toLowerCase()
   const phone = input.phone.trim()
   const role = input.role
+  const password = input.password?.trim()
   if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !['customer', 'admin', 'super_admin'].includes(role)) {
     return { error: 'Periksa nama, email, dan role yang dipilih.' }
+  }
+  if (password && password.length < 6) {
+    return { error: 'Password minimal 6 karakter jika ingin dibuatkan langsung.' }
   }
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } })
-  if (error || !data.user) return { error: error?.message ?? 'Undangan akun gagal dibuat.' }
-  const { error: profileError } = await adminClient.from('users').update({ full_name: fullName, phone: phone || null, role }).eq('id', data.user.id)
+
+  let createdUserId: string | null = null
+
+  if (password) {
+    const { data, error } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: fullName },
+    })
+    if (error || !data.user) return { error: error?.message ?? 'Gagal membuat akun dengan password.' }
+    createdUserId = data.user.id
+  } else {
+    const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } })
+    if (error || !data.user) return { error: error?.message ?? 'Undangan akun gagal dibuat.' }
+    createdUserId = data.user.id
+  }
+
+  const { error: profileError } = await adminClient.from('users').update({ full_name: fullName, phone: phone || null, role }).eq('id', createdUserId)
   if (profileError) return { error: `Akun terbuat, tetapi profil gagal diperbarui: ${profileError.message}` }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: 'super_admin',
+    action: 'create',
+    entity_type: 'account',
+    entity_name: fullName,
+    details: password
+      ? `Membuat akun baru "${fullName}" (${email}) dengan role ${role} dan password langsung aktif`
+      : `Mengundang akun baru "${fullName}" (${email}) dengan role ${role}`,
+  })
+
   revalidatePath('/admin/customers')
   return { success: true }
 }
 
+export async function setAdminManagedAccountPasswordAction(input: {
+  userId: string
+  newPassword: string
+}) {
+  const { user, adminName } = await requireSuperAdmin()
+  const userId = input.userId.trim()
+  const newPassword = input.newPassword.trim()
+  if (!userId || newPassword.length < 6) {
+    return { error: 'Password minimal 6 karakter.' }
+  }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
+  const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  const { data: targetUser } = await adminClient.auth.admin.getUserById(userId)
+  const currentMeta = targetUser?.user?.user_metadata || {}
+
+  const { data: updatedUser, error } = await adminClient.auth.admin.updateUserById(userId, {
+    password: newPassword,
+    email_confirm: true,
+    user_metadata: {
+      ...currentMeta,
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+      password_reset_by_admin: true,
+      password_reset_at: new Date().toISOString(),
+    },
+  })
+  if (error) return { error: error.message }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: 'super_admin',
+    action: 'update',
+    entity_type: 'account',
+    entity_name: updatedUser.user?.email || userId,
+    details: `Menyetel password baru untuk akun "${updatedUser.user?.email || userId}" (kunci akun dibuka)`,
+  })
+
+  revalidatePath('/admin/customers')
+  revalidatePath('/profile')
+  return { success: true }
+}
+
+export async function unlockAdminManagedAccountAction(userId: string) {
+  const { user, adminName } = await requireSuperAdmin()
+  const targetId = userId.trim()
+  if (!targetId) return { error: 'User ID tidak valid.' }
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
+  const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  const { data: targetUser } = await adminClient.auth.admin.getUserById(targetId)
+  const currentMeta = targetUser?.user?.user_metadata || {}
+
+  const { data: updatedUser, error } = await adminClient.auth.admin.updateUserById(targetId, {
+    user_metadata: {
+      ...currentMeta,
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+      unlocked_by_admin: true,
+      unlocked_at: new Date().toISOString(),
+    },
+  })
+  if (error) return { error: error.message }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: 'super_admin',
+    action: 'update',
+    entity_type: 'account',
+    entity_name: updatedUser.user?.email || targetId,
+    details: `Membuka kunci akun "${updatedUser.user?.email || targetId}" (kunci 3x gagal sandi dibersihkan)`,
+  })
+
+  revalidatePath('/admin/customers')
+  revalidatePath('/profile')
+  return { success: true }
+}
+
+export async function getAdminLockedAccountsNotificationAction() {
+  const { isAdmin } = await getAdminAccess()
+  if (!isAdmin) return { count: 0, lockedAccounts: [] }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !url) return { count: 0, lockedAccounts: [] }
+
+  try {
+    const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+    const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+    const lockedUsers = (authData?.users ?? []).filter(
+      (u) => Boolean(u.user_metadata?.is_password_locked)
+    )
+
+    return {
+      count: lockedUsers.length,
+      lockedAccounts: lockedUsers.map((u) => ({
+        id: u.id,
+        email: u.email ?? null,
+        name: (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || u.email || 'Pelanggan',
+        lockedAt: (u.user_metadata?.password_locked_at as string) || null,
+      })),
+    }
+  } catch {
+    return { count: 0, lockedAccounts: [] }
+  }
+}
+
 export async function updateAdminManagedAccountRoleAction(formData: FormData) {
   try {
-    const { user } = await requireSuperAdmin()
+    const { user, adminName } = await requireSuperAdmin()
     const id = String(formData.get('id') ?? '')
     const role = String(formData.get('role') ?? '')
     if (!id || !['customer', 'admin', 'super_admin'].includes(role)) return { error: 'Role akun tidak valid.' }
@@ -239,6 +478,17 @@ export async function updateAdminManagedAccountRoleAction(formData: FormData) {
       error = fallback.error
     }
     if (error) return { error: error.message }
+
+    await recordAdminActivity({
+      admin_id: user.id,
+      admin_name: adminName,
+      admin_role: 'super_admin',
+      action: 'update',
+      entity_type: 'account',
+      entity_name: id,
+      details: `Mengubah role akun pengguna (ID: ${id}) menjadi "${role}"`,
+    })
+
     revalidatePath('/admin/customers')
     return { success: true }
   } catch (cause) {
@@ -247,7 +497,7 @@ export async function updateAdminManagedAccountRoleAction(formData: FormData) {
 }
 
 export async function saveAdminProductAction(formData: FormData) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('products')
   const name = String(formData.get('name') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
   const sku = String(formData.get('sku') ?? '').trim()
@@ -396,6 +646,17 @@ export async function saveAdminProductAction(formData: FormData) {
       if (error) throw new Error(error.message)
     }
   }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: productId ? 'update' : 'create',
+    entity_type: 'product',
+    entity_name: name,
+    details: productId ? `Memperbarui produk "${name}"` : `Menambahkan produk baru "${name}"`,
+  })
+
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/')
@@ -403,7 +664,7 @@ export async function saveAdminProductAction(formData: FormData) {
 }
 
 export async function bulkImportAdminProductsAction(products: unknown) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('products')
   if (!Array.isArray(products) || products.length < 1 || products.length > 500) throw new Error('Impor dapat memuat 1 sampai 500 produk sekaligus.')
   for (const product of products) {
     if (!product || typeof product !== 'object' || typeof product.name !== 'string' || !product.name.trim() || typeof product.sku !== 'string' || typeof product.description !== 'string' || !product.description.trim() || typeof product.category !== 'string' || !product.category.trim() || typeof product.brand !== 'string' || !product.brand.trim() || !isValidImportPrices(product.price, product.discount_price ?? null) || !hasConfirmedImportPriceMapping(product) || !Array.isArray(product.variants) || !Array.isArray(product.specifications) || !['create', 'update'].includes(product.importAction)) throw new Error('Data impor tidak valid, harga promo tidak valid, atau konfirmasi harga belum lengkap. Periksa setiap baris preview.')
@@ -421,6 +682,17 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     }
   }
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'create',
+    entity_type: 'product',
+    entity_name: 'Impor Katalog',
+    details: `Mengimpor ${products.length} produk katalog sekaligus`,
+  })
+
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/')
@@ -428,11 +700,22 @@ export async function bulkImportAdminProductsAction(products: unknown) {
 }
 
 export async function deleteAdminProductAction(productId: string) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('products')
   if (!productId) throw new Error('ID produk tidak valid.')
   const supabase = await createClient()
   const { error } = await supabase.from('products').delete().eq('id', productId)
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'delete',
+    entity_type: 'product',
+    entity_name: productId,
+    details: `Menghapus produk (ID: ${productId})`,
+  })
+
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/')
@@ -448,7 +731,7 @@ export async function getAdminCategoriesAction() {
 }
 
 export async function saveAdminCategoryAction(formData: FormData) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('categories')
   const id = String(formData.get('id') ?? '').trim()
   const name = String(formData.get('name') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
@@ -461,24 +744,46 @@ export async function saveAdminCategoryAction(formData: FormData) {
     ? await supabase.from('categories').update(payload).eq('id', id)
     : await supabase.from('categories').insert({ ...payload, slug })
   if (result.error) throw new Error(result.error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: id ? 'update' : 'create',
+    entity_type: 'category',
+    entity_name: name,
+    details: id ? `Memperbarui kategori "${name}"` : `Menambahkan kategori baru "${name}"`,
+  })
+
   revalidatePath('/admin/categories')
   revalidatePath('/', 'layout')
   return { success: true }
 }
 
 export async function deleteAdminCategoryAction(id: string) {
-  await requireAdmin()
+  const { user, adminName, role } = await requireModulePermission('categories')
   if (!id) throw new Error('ID kategori tidak valid.')
   const supabase = await createClient()
   const { error } = await supabase.from('categories').delete().eq('id', id)
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'delete',
+    entity_type: 'category',
+    entity_name: id,
+    details: `Menghapus kategori (ID: ${id})`,
+  })
+
   revalidatePath('/admin/categories')
   revalidatePath('/', 'layout')
   return { success: true }
 }
 
 export async function getAdminBrandsAction() {
-  await requireSuperAdmin()
+  await requireModulePermission('brands')
   const supabase = await createClient()
   const { data, error } = await supabase.from('brands').select('id,name,slug,logo_url').order('name')
   if (error) throw new Error(error.message)
@@ -486,7 +791,7 @@ export async function getAdminBrandsAction() {
 }
 
 export async function saveAdminBrandAction(formData: FormData) {
-  await requireSuperAdmin()
+  const { user, adminName, role } = await requireModulePermission('brands')
   const id = String(formData.get('id') ?? '').trim()
   const name = String(formData.get('name') ?? '').trim()
   const logoUrl = String(formData.get('logo_url') ?? '').trim()
@@ -497,6 +802,17 @@ export async function saveAdminBrandAction(formData: FormData) {
     ? await supabase.from('brands').update({ name, logo_url: logoUrl || null }).eq('id', id)
     : await supabase.from('brands').insert({ name, slug, logo_url: logoUrl || null })
   if (result.error) throw new Error(result.error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: id ? 'update' : 'create',
+    entity_type: 'brand',
+    entity_name: name,
+    details: id ? `Memperbarui brand "${name}"` : `Menambahkan brand baru "${name}"`,
+  })
+
   revalidatePath('/admin/brands')
   revalidatePath('/')
   revalidatePath('/brands')
@@ -504,11 +820,22 @@ export async function saveAdminBrandAction(formData: FormData) {
 }
 
 export async function deleteAdminBrandAction(id: string) {
-  await requireSuperAdmin()
+  const { user, adminName, role } = await requireModulePermission('brands')
   if (!id) throw new Error('ID brand tidak valid.')
   const supabase = await createClient()
   const { error } = await supabase.from('brands').delete().eq('id', id)
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'delete',
+    entity_type: 'brand',
+    entity_name: id,
+    details: `Menghapus brand (ID: ${id})`,
+  })
+
   revalidatePath('/admin/brands')
   revalidatePath('/')
   return { success: true }
@@ -523,7 +850,7 @@ export async function getLandingContentAction() {
 }
 
 export async function saveStorefrontSettingsAction(settings: unknown) {
-  await requireSuperAdmin()
+  const { user, adminName } = await requireSuperAdmin()
   if (!settings || typeof settings !== 'object' || JSON.stringify(settings).length > 100000) throw new Error('Pengaturan toko tidak valid.')
   const catalogPageSize = (settings as { admin?: { catalogPageSize?: unknown } }).admin?.catalogPageSize
   if (catalogPageSize !== undefined && ![24, 48, 100, 200].includes(Number(catalogPageSize))) throw new Error('Jumlah produk per halaman harus 24, 48, 100, atau 200.')
@@ -624,6 +951,17 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   const supabase = await createClient()
   const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
   if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: 'super_admin',
+    action: 'update',
+    entity_type: 'settings',
+    entity_name: 'Pengaturan Toko',
+    details: 'Memperbarui pengaturan storefront, cabang, dan official marketplace',
+  })
+
   revalidatePath('/')
   revalidatePath('/promo')
   revalidatePath('/admin/content')
@@ -794,3 +1132,131 @@ export async function cleanupUnusedStorageAction() {
   }
   return { success: true, deletedCount }
 }
+
+export type AdminNotificationItem = {
+  id: string
+  category: 'order' | 'stock' | 'security'
+  title: string
+  description: string
+  link: string
+  created_at: string
+  severity: 'urgent' | 'warning' | 'info'
+}
+
+export async function getAdminAllNotificationsAction(): Promise<{
+  notifications: AdminNotificationItem[]
+  counts: {
+    total: number
+    orders: number
+    stock: number
+    security: number
+  }
+}> {
+  const { isAdmin } = await getAdminAccess()
+  if (!isAdmin) {
+    return {
+      notifications: [],
+      counts: { total: 0, orders: 0, stock: 0, security: 0 },
+    }
+  }
+
+  const supabase = await createClient()
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  const notifs: AdminNotificationItem[] = []
+
+  // 1. Akun Terkunci (Keamanan)
+  if (serviceKey && url) {
+    try {
+      const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+      const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const lockedUsers = (authData?.users ?? []).filter(
+        (u) => Boolean(u.user_metadata?.is_password_locked)
+      )
+      for (const u of lockedUsers) {
+        const name = (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || u.email || 'Pengguna'
+        notifs.push({
+          id: `sec-${u.id}`,
+          category: 'security',
+          title: `Akun Terkunci: ${name}`,
+          description: `${u.email || '-'} telah 3x salah memasukkan kata sandi lama dan butuh bantuan reset password.`,
+          link: '/admin/customers',
+          created_at: (u.user_metadata?.password_locked_at as string) || new Date().toISOString(),
+          severity: 'urgent',
+        })
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  // 2. Pesanan Baru / Menunggu Pembayaran / Diproses (Orders)
+  try {
+    const { data: pendingOrders } = await supabase
+      .from('orders')
+      .select('id, order_number, status, grand_total, created_at, users(full_name)')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    for (const o of pendingOrders ?? []) {
+      const profile = Array.isArray(o.users) ? o.users[0] : o.users
+      const customerName = profile?.full_name || 'Pelanggan'
+      const isPending = o.status === 'pending'
+      notifs.push({
+        id: `ord-${o.id}`,
+        category: 'order',
+        title: isPending ? `Pesanan #${o.order_number || o.id}` : `Pesanan Diproses #${o.order_number || o.id}`,
+        description: `${customerName} • Total Rp ${Number(o.grand_total ?? 0).toLocaleString('id-ID')} • ${isPending ? 'Menunggu Pembayaran' : 'Siap Diproses Toko'}`,
+        link: '/admin/orders',
+        created_at: o.created_at,
+        severity: isPending ? 'warning' : 'info',
+      })
+    }
+  } catch {
+    // fallback
+  }
+
+  // 3. Stok Menipis / Habis (Stock <= 5)
+  try {
+    const { data: lowStockProducts } = await supabase
+      .from('products')
+      .select('id, name, stock, updated_at, categories(name)')
+      .lte('stock', 5)
+      .order('stock', { ascending: true })
+      .limit(10)
+
+    for (const p of lowStockProducts ?? []) {
+      const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories
+      const isOut = (p.stock ?? 0) <= 0
+      notifs.push({
+        id: `stock-${p.id}`,
+        category: 'stock',
+        title: isOut ? `Stok Habis: ${p.name}` : `Stok Menipis: ${p.name}`,
+        description: isOut ? `Stok kosong! Kategori: ${cat?.name || '-'}. Segera lakukan restock inventaris.` : `Sisa ${p.stock} unit (Kategori: ${cat?.name || '-'}). Segera restock sebelum kehabisan.`,
+        link: `/admin/products?search=${encodeURIComponent(p.name)}`,
+        created_at: p.updated_at || new Date().toISOString(),
+        severity: isOut ? 'urgent' : 'warning',
+      })
+    }
+  } catch {
+    // fallback
+  }
+
+  // Urutkan berdasarkan waktu terbaru
+  notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const counts = {
+    total: notifs.length,
+    orders: notifs.filter((n) => n.category === 'order').length,
+    stock: notifs.filter((n) => n.category === 'stock').length,
+    security: notifs.filter((n) => n.category === 'security').length,
+  }
+
+  return {
+    notifications: notifs,
+    counts,
+  }
+}
+

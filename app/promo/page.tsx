@@ -7,7 +7,6 @@ import { PagedProductCatalog } from "@/features/catalog/PagedProductCatalog";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import type { Product } from "@/store/useProductStore";
-import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import type { Metadata } from "next";
 import { clampCatalogPage, normalizeCatalogSearchParams, parseCatalogFilters, type RawCatalogSearchParams } from "@/lib/catalog-filters";
 
@@ -35,7 +34,7 @@ export default async function PromoPage({ searchParams }: { searchParams: Promis
   if (selectedIds.length) {
     const rows = await getProductsByIdsAction(selectedIds).catch(() => []);
     const products = rows.map((row) => toStorefrontProduct(row as StoreProduct));
-    return <main className="container mx-auto px-4 py-12 sm:px-6 lg:px-8"><h1 className="mb-2 text-3xl font-bold">{title}</h1><p className="mb-8 text-muted-foreground">{subtitle}</p>{products.length ? <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="rounded-2xl border p-8 text-center"><p className="mb-4 text-muted-foreground">Produk pilihan promo belum tersedia.</p><Link className="text-primary hover:underline" href="/products">Lihat semua produk</Link></div>}<ProductCompareBar /></main>;
+    return <main className="container mx-auto px-4 py-12 sm:px-6 lg:px-8"><h1 className="mb-2 text-3xl font-bold">{title}</h1><p className="mb-8 text-muted-foreground">{subtitle}</p>{products.length ? <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="rounded-2xl border p-8 text-center"><p className="mb-4 text-muted-foreground">Produk pilihan promo belum tersedia.</p><Link className="text-primary hover:underline" href="/products">Lihat semua produk</Link></div>}</main>;
   }
 
   const pageSize = settings.admin.catalogPageSize;

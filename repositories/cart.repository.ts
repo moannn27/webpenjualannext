@@ -28,7 +28,7 @@ export class CartRepository extends BaseRepository {
     const supabase = await this.getClient()
     const { data, error } = await supabase
       .from('cart')
-      .select('*, cart_items(*, products(*, product_images(*), product_specifications(*)), product_variants(*))')
+      .select('*, cart_items(*, products(*, product_images(*), product_specifications(*), categories(id, name), brands(id, name)), product_variants(*))')
       .eq('user_id', userId)
       .single()
     

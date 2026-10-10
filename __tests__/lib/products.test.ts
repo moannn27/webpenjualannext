@@ -15,3 +15,46 @@ describe('storefront product pricing', () => {
     expect(product.discountPrice).toBeNull()
   })
 })
+
+describe('product search matching (matchesProductSearch)', () => {
+  const sampleProduct = {
+    name: 'Ideapad slim 3',
+    sku: 'LNV-IP3',
+    description: 'Laptop ringan untuk komputasi harian dan kerja',
+    brands: { name: 'Lenovo' },
+    categories: { name: 'Laptops' },
+    product_specifications: [
+      { key: 'Processor', value: 'Intel Core i3-1215U' },
+      { key: 'RAM', value: '8GB DDR4' },
+      { key: 'Storage', value: '512GB NVMe SSD' },
+    ],
+  }
+
+  it('matches product by brand name when brand is not in product name (e.g. searching "lenovo")', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    expect(matchesProductSearch(sampleProduct, 'lenovo')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'LENOVO')).toBe(true)
+  })
+
+  it('matches product by name, SKU, category, or specifications', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    expect(matchesProductSearch(sampleProduct, 'ideapad')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'LNV-IP3')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'laptop')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'Core i3')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, '512GB')).toBe(true)
+  })
+
+  it('matches multi-word queries combining brand and model across attributes', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    expect(matchesProductSearch(sampleProduct, 'lenovo ideapad')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'ideapad lenovo')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'laptop lenovo ideapad')).toBe(true)
+  })
+
+  it('returns false when any required token is missing', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    expect(matchesProductSearch(sampleProduct, 'asus')).toBe(false)
+    expect(matchesProductSearch(sampleProduct, 'lenovo macbook')).toBe(false)
+  })
+})

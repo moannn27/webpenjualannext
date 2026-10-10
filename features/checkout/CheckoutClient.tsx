@@ -6,18 +6,24 @@ import {
   ArrowLeft,
   Banknote,
   Check,
+  CheckCircle2,
   Clock3,
   LoaderCircle,
   MapPin,
   PackageCheck,
   ShieldCheck,
+  Sparkles,
   Store,
+  Tag,
+  TicketPercent,
   Truck,
+  X,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { proceedToCheckoutAction } from "@/actions/checkout";
+import { validateVoucherForCheckoutAction } from "@/actions/voucher";
 import { type CartData } from "@/types/cart";
 import {
   PAYMENT_METHOD,
@@ -64,6 +70,22 @@ export function CheckoutClient({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [voucherInput, setVoucherInput] = useState("");
+  const [appliedVoucher, setAppliedVoucher] = useState<{
+    code: string;
+    discountAmount: number;
+    description: string;
+    discountType?: "fixed_amount" | "percentage";
+    discountValue?: number;
+    maxDiscount?: number | null;
+    targetScope?: string;
+    applicableCategoryNames?: string[];
+    applicableBrandNames?: string[];
+    isNewCustomerOnly?: boolean;
+  } | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherError, setVoucherError] = useState("");
+
   const locations: PickupLocation[] = pickupLocations.length > 0 ? pickupLocations : [pickupInfo];
   const [selectedPickupId, setSelectedPickupId] = useState<string>(locations[0]?.id ?? "main");
 
@@ -80,7 +102,70 @@ export function CheckoutClient({
     return total + getItemPrice(item) * item.quantity;
   }, 0);
 
+  const discountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
   const shippingPrice = fulfillmentMode === "pickup" ? 0 : selectedShipping?.price ?? 0;
+  const finalTotal = Math.max(0, subtotal - discountAmount) + shippingPrice;
+
+  const handleApplyVoucher = async () => {
+    if (!voucherInput.trim()) {
+      setVoucherError("Ketik kode voucher terlebih dahulu.");
+      return;
+    }
+    setVoucherLoading(true);
+    setVoucherError("");
+    try {
+      const cartItems = initialCart.cart_items.map((item) => ({
+        product_id: item.products.id,
+        price: getItemPrice(item),
+        quantity: item.quantity,
+        category_id: (item.products as any).category_id ?? (item.products as any).categories?.id ?? null,
+        brand_id: (item.products as any).brand_id ?? (item.products as any).brands?.id ?? null,
+        category_name: (item.products as any).categories?.name ?? null,
+        brand_name: (item.products as any).brands?.name ?? null,
+      }));
+
+      const formEl = typeof document !== "undefined" ? (document.getElementById("checkout-form") as HTMLFormElement | null) : null;
+      const phoneVal = formEl
+        ? String(new FormData(formEl).get("phone") || "")
+        : String(initialAddress?.phone || "");
+
+      const result = await validateVoucherForCheckoutAction(
+        voucherInput,
+        subtotal,
+        cartItems,
+        phoneVal
+      );
+      if (!result.success) {
+        setVoucherError(result.error || "Kode voucher tidak valid.");
+        setAppliedVoucher(null);
+      } else {
+        setAppliedVoucher({
+          code: result.voucherCode!,
+          discountAmount: result.discountAmount!,
+          description: result.description!,
+          discountType: result.discountType,
+          discountValue: result.discountValue,
+          maxDiscount: result.maxDiscount,
+          targetScope: result.targetScope,
+          applicableCategoryNames: result.applicableCategoryNames,
+          applicableBrandNames: result.applicableBrandNames,
+          isNewCustomerOnly: result.isNewCustomerOnly,
+        });
+        setVoucherInput("");
+        setVoucherError("");
+      }
+    } catch (err) {
+      setVoucherError(err instanceof Error ? err.message : "Gagal memeriksa voucher.");
+      setAppliedVoucher(null);
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherError("");
+  };
 
   const goToStep = (step: 1 | 2 | 3) => {
     if (step > currentStep) return;
@@ -181,6 +266,9 @@ export function CheckoutClient({
 
       <div className="grid gap-10 lg:grid-cols-12">
         <form onSubmit={handleSubmit} id="checkout-form" className="space-y-8 lg:col-span-7">
+          {appliedVoucher && (
+            <input type="hidden" name="voucherCode" value={appliedVoucher.code} />
+          )}
           <header className="space-y-1">
             <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
             <p className="text-sm text-muted-foreground">
@@ -440,11 +528,136 @@ export function CheckoutClient({
             })}
           </div>
 
+          {/* Voucher Section */}
+          <div className="mt-5 rounded-xl border border-border bg-muted/20 p-3.5">
+            <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-foreground">
+              <TicketPercent className="size-4 text-primary" />
+              <span>Kupon / Voucher Diskon</span>
+            </div>
+
+            {appliedVoucher ? (
+              <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3 text-xs space-y-2">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                      <Tag className="size-3.5 shrink-0" />
+                      <span className="font-mono tracking-wider">{appliedVoucher.code}</span>
+                      <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
+                        VOUCHER AKTIF
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveVoucher}
+                    className="rounded p-1 text-muted-foreground hover:bg-emerald-500/20 hover:text-foreground transition-colors shrink-0"
+                    title="Hapus voucher"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                {/* Info detail keuntungan voucher */}
+                <div className="rounded-lg bg-background/90 p-2.5 border border-emerald-500/25 space-y-1 shadow-2xs">
+                  <p className="font-medium text-emerald-950 dark:text-emerald-100 flex items-start gap-1.5">
+                    <Sparkles className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <span>
+                      Selamat! Kamu mendapatkan voucher{" "}
+                      <strong className="text-emerald-700 dark:text-emerald-400 font-bold">
+                        {appliedVoucher.discountType === "percentage"
+                          ? `diskon ${appliedVoucher.discountValue}%${
+                              appliedVoucher.maxDiscount
+                                ? ` (maks. ${formatCurrency(appliedVoucher.maxDiscount)})`
+                                : ""
+                            }`
+                          : `potongan harga ${formatCurrency(appliedVoucher.discountValue || appliedVoucher.discountAmount)}`}
+                      </strong>
+                    </span>
+                  </p>
+
+                  <div className="pl-5 text-emerald-700 dark:text-emerald-400 font-bold text-xs sm:text-sm">
+                    Total diskon: -{formatCurrency(appliedVoucher.discountAmount)}
+                  </div>
+
+                  {(appliedVoucher.applicableCategoryNames?.length || appliedVoucher.applicableBrandNames?.length || appliedVoucher.isNewCustomerOnly) ? (
+                    <div className="pl-5 flex flex-wrap gap-1.5 pt-0.5 text-[10px]">
+                      {appliedVoucher.isNewCustomerOnly ? (
+                        <span className="rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 font-semibold flex items-center gap-1">
+                          <Sparkles className="size-2.5" /> Khusus Pembeli Pertama
+                        </span>
+                      ) : null}
+                      {appliedVoucher.applicableCategoryNames?.length ? (
+                        <span className="rounded bg-primary/10 text-primary px-1.5 py-0.5 font-medium">
+                          Khusus Kategori: {appliedVoucher.applicableCategoryNames.join(', ')}
+                        </span>
+                      ) : null}
+                      {appliedVoucher.applicableBrandNames?.length ? (
+                        <span className="rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 font-medium">
+                          Khusus Merk: {appliedVoucher.applicableBrandNames.join(', ')}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {appliedVoucher.description &&
+                    appliedVoucher.description !== appliedVoucher.code && (
+                      <p className="text-[11px] text-muted-foreground pl-5 pt-0.5 border-t border-border/40 mt-1">
+                        {appliedVoucher.description}
+                      </p>
+                    )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Masukkan kode kupon"
+                    value={voucherInput}
+                    onChange={(e) => {
+                      setVoucherInput(e.target.value.toUpperCase());
+                      setVoucherError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleApplyVoucher();
+                      }
+                    }}
+                    className="h-9 uppercase text-xs font-mono tracking-wider"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleApplyVoucher}
+                    disabled={voucherLoading || !voucherInput.trim()}
+                    className="h-9 text-xs px-3 font-medium"
+                  >
+                    {voucherLoading ? <LoaderCircle className="size-3.5 animate-spin" /> : "Gunakan"}
+                  </Button>
+                </div>
+                {voucherError && (
+                  <p className="text-xs font-medium text-destructive">{voucherError}</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <dl className="space-y-3 py-5 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Subtotal</dt>
               <dd className="font-medium tabular-nums">{formatCurrency(subtotal)}</dd>
             </div>
+            {appliedVoucher && discountAmount > 0 && (
+              <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
+                <dt className="flex items-center gap-1 font-medium">
+                  <Tag className="size-3.5" />
+                  <span>Diskon Kupon ({appliedVoucher.code})</span>
+                </dt>
+                <dd className="font-semibold tabular-nums">-{formatCurrency(discountAmount)}</dd>
+              </div>
+            )}
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">{fulfillmentMode === "pickup" ? "Pengambilan" : "Ongkir"}</dt>
               <dd className="font-medium tabular-nums">
@@ -460,7 +673,7 @@ export function CheckoutClient({
           <div className="flex items-baseline justify-between gap-4 border-t border-border pt-4">
             <span className="font-semibold">Total</span>
             <span className="text-xl font-bold tabular-nums">
-              {formatCurrency(subtotal + shippingPrice)}
+              {formatCurrency(finalTotal)}
             </span>
           </div>
 

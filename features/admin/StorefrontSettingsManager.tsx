@@ -7,6 +7,8 @@ import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/acti
 import {
   DEFAULT_STOREFRONT_SETTINGS,
   DEFAULT_FEATURED_REVIEWS,
+  CITY_COORDINATES,
+  extractCoordinatesFromLocation,
   normalizeStorefrontSettings,
   type StorefrontSettings,
   type StoreBranch,
@@ -54,35 +56,42 @@ const names: Record<string, string> = {
   faq: "FAQ",
 };
 
-const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
-  Semarang: { lat: -6.9932, lng: 110.4203 },
-  Yogyakarta: { lat: -7.7712, lng: 110.3892 },
-  Surakarta: { lat: -7.5684, lng: 110.8284 },
-  Solo: { lat: -7.5684, lng: 110.8284 },
-  Surabaya: { lat: -7.2754, lng: 112.7562 },
-  Purwokerto: { lat: -7.4243, lng: 109.2302 },
-  Cirebon: { lat: -6.7214, lng: 108.5562 },
-  Pekalongan: { lat: -6.8886, lng: 109.6753 },
-  Kudus: { lat: -6.8048, lng: 110.8405 },
-  Magelang: { lat: -7.4797, lng: 110.2177 },
-  Madiun: { lat: -7.6298, lng: 111.5239 },
-  Malang: { lat: -7.9497, lng: 112.6174 },
-  Kediri: { lat: -7.818, lng: 112.0128 },
-  Jember: { lat: -8.1845, lng: 113.6681 },
-  Bandung: { lat: -6.9015, lng: 107.6186 },
-  Jakarta: { lat: -6.1368, lng: 106.8272 },
-  Denpasar: { lat: -8.6705, lng: 115.2126 },
-};
-
-function GoogleMapsPreviewBox({ address, mapsUrl, label }: { address?: string; mapsUrl?: string; label: string }) {
+function GoogleMapsPreviewBox({
+  address,
+  mapsUrl,
+  lat,
+  lng,
+  city,
+  label,
+}: {
+  address?: string;
+  mapsUrl?: string;
+  lat?: number;
+  lng?: number;
+  city?: string;
+  label: string;
+}) {
   const cleanAddress = address?.trim() || "";
   const cleanMapsUrl = mapsUrl?.trim() || "";
-  const hasLocation = Boolean(cleanAddress || cleanMapsUrl);
+  const hasCoords = typeof lat === "number" && !isNaN(lat) && typeof lng === "number" && !isNaN(lng) && (lat !== 0 || lng !== 0);
+  const hasLocation = Boolean(cleanAddress || cleanMapsUrl || hasCoords);
   if (!hasLocation) return null;
 
   const targetMapsLink =
     cleanMapsUrl ||
-    (cleanAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddress)}` : "");
+    (hasCoords
+      ? `https://www.google.com/maps?q=${lat},${lng}`
+      : cleanAddress
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanAddress)}`
+      : "");
+
+  const embedQuery = hasCoords
+    ? `${lat},${lng}`
+    : cleanAddress
+    ? cleanAddress.toLowerCase().includes("bandung")
+      ? cleanAddress
+      : `${cleanAddress}, ${city || "Bandung"}`
+    : cleanMapsUrl;
 
   return (
     <div className="mt-3 space-y-2 rounded-xl border border-border/80 bg-muted/30 p-3 sm:p-4">
@@ -102,19 +111,19 @@ function GoogleMapsPreviewBox({ address, mapsUrl, label }: { address?: string; m
           </a>
         )}
       </div>
-      {cleanAddress ? (
-        <div className="relative overflow-hidden rounded-lg border border-border shadow-sm">
-          <iframe
-            title={label}
-            src={`https://maps.google.com/maps?q=${encodeURIComponent(cleanAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-            className="h-44 w-full border-0 sm:h-52"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Isi alamat lengkap di atas untuk memunculkan tampilan peta interaktif Google Maps secara otomatis.
+      <div className="relative overflow-hidden rounded-lg border border-border shadow-sm">
+        <iframe
+          title={label}
+          src={`https://maps.google.com/maps?q=${encodeURIComponent(embedQuery)}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+          className="h-44 w-full border-0 sm:h-52"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      </div>
+      {hasCoords && (
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <CheckCircle2 className="size-3 text-emerald-500" />
+          Titik koordinat aktif: <strong>{lat}, {lng}</strong> {city ? `(${city})` : ""}
         </p>
       )}
     </div>
@@ -233,7 +242,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       sections: { ...current.sections, [key]: { ...current.sections[key], [field]: value } },
     }));
 
-  const updateStore = (field: Exclude<keyof StorefrontSettings["store"], "branches">, value: string) =>
+  const updateStore = <K extends Exclude<keyof StorefrontSettings["store"], "branches">>(
+    field: K,
+    value: StorefrontSettings["store"][K]
+  ) =>
     setSettings((current) => ({ ...current, store: { ...current.store, [field]: value } }));
 
   const updateCatalogPageSize = (value: number) =>
@@ -250,28 +262,33 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     }));
 
   const addBranch = () =>
-    setSettings((current) => ({
-      ...current,
-      store: {
-        ...current.store,
-        branches: [
-          ...current.store.branches,
-          {
-            id: crypto.randomUUID(),
-            name: "",
-            city: "Pusat",
-            address: "",
-            latitude: -6.9932,
-            longitude: 110.4203,
-            phone: "",
-            whatsapp: current.store.whatsapp || "6281234567890",
-            operating_hours: "09:00 - 21:00 WIB",
-            maps_url: "",
-            is_active: true,
-          },
-        ],
-      },
-    }));
+    setSettings((current) => {
+      const defaultLat = current.store.latitude || -6.9185411;
+      const defaultLng = current.store.longitude || 107.6165665;
+      const defaultCity = current.store.city || "Bandung";
+      return {
+        ...current,
+        store: {
+          ...current.store,
+          branches: [
+            ...current.store.branches,
+            {
+              id: crypto.randomUUID(),
+              name: "",
+              city: defaultCity,
+              address: "",
+              latitude: defaultLat,
+              longitude: defaultLng,
+              phone: "",
+              whatsapp: current.store.whatsapp || "6281234567890",
+              operating_hours: "09:00 - 21:00 WIB",
+              maps_url: "",
+              is_active: true,
+            },
+          ],
+        },
+      };
+    });
 
   const removeBranch = (id: string) =>
     setSettings((current) => ({
@@ -871,18 +888,35 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                 </label>
 
                 <div className="space-y-1 text-xs">
-                  <label className="block">Kota / Wilayah</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block">Kota / Wilayah</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const extracted = extractCoordinatesFromLocation(branch.maps_url, branch.address, branch.city);
+                        updateBranch(branch.id, "latitude", extracted.lat);
+                        updateBranch(branch.id, "longitude", extracted.lng);
+                        if (extracted.detectedCity) updateBranch(branch.id, "city", extracted.detectedCity);
+                      }}
+                      className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <Sparkles className="size-2.5 text-amber-500" /> Deteksi
+                    </button>
+                  </div>
                   <Input
                     value={branch.city}
                     onChange={(event) => {
                       const cityVal = event.target.value;
                       updateBranch(branch.id, "city", cityVal);
-                      if (CITY_COORDINATES[cityVal]) {
-                        updateBranch(branch.id, "latitude", CITY_COORDINATES[cityVal].lat);
-                        updateBranch(branch.id, "longitude", CITY_COORDINATES[cityVal].lng);
+                      const matched = Object.keys(CITY_COORDINATES).find(
+                        (c) => c.toLowerCase() === cityVal.trim().toLowerCase()
+                      );
+                      if (matched) {
+                        updateBranch(branch.id, "latitude", CITY_COORDINATES[matched].lat);
+                        updateBranch(branch.id, "longitude", CITY_COORDINATES[matched].lng);
                       }
                     }}
-                    placeholder="Contoh: Semarang / Yogyakarta"
+                    placeholder="Contoh: Bandung / Semarang"
                   />
                 </div>
 
@@ -903,8 +937,17 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   Alamat Lengkap Cabang
                   <Input
                     value={branch.address}
-                    onChange={(event) => updateBranch(branch.id, "address", event.target.value)}
-                    placeholder="Jl. Pandanaran No. 58, Pleburan, Semarang"
+                    onChange={(event) => {
+                      const addrVal = event.target.value;
+                      updateBranch(branch.id, "address", addrVal);
+                      const extracted = extractCoordinatesFromLocation(branch.maps_url, addrVal, branch.city);
+                      if (extracted.detectedCity && (!branch.city || branch.city === "Pusat")) {
+                        updateBranch(branch.id, "city", extracted.detectedCity);
+                        updateBranch(branch.id, "latitude", extracted.lat);
+                        updateBranch(branch.id, "longitude", extracted.lng);
+                      }
+                    }}
+                    placeholder="Contoh: Jl. Kartini No. 9, Bandung"
                   />
                 </label>
 
@@ -931,7 +974,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                       value={branch.phone ?? ""}
                       onChange={(event) => updateBranch(branch.id, "phone", event.target.value)}
                       className="pl-8"
-                      placeholder="024-8412345"
+                      placeholder="022-4264150"
                     />
                   </div>
                 </label>
@@ -943,7 +986,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                     step="any"
                     value={branch.latitude}
                     onChange={(event) => updateBranch(branch.id, "latitude", parseFloat(event.target.value) || 0)}
-                    placeholder="-6.9932"
+                    placeholder="-6.9185411"
                   />
                 </label>
 
@@ -954,7 +997,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                     step="any"
                     value={branch.longitude}
                     onChange={(event) => updateBranch(branch.id, "longitude", parseFloat(event.target.value) || 0)}
-                    placeholder="110.4203"
+                    placeholder="107.6165665"
                   />
                 </label>
 
@@ -963,8 +1006,19 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   <Input
                     type="url"
                     value={branch.maps_url}
-                    onChange={(event) => updateBranch(branch.id, "maps_url", event.target.value)}
-                    placeholder="https://maps.google.com/?q=..."
+                    onChange={(event) => {
+                      const urlVal = event.target.value;
+                      updateBranch(branch.id, "maps_url", urlVal);
+                      const extracted = extractCoordinatesFromLocation(urlVal, branch.address, branch.city);
+                      if (extracted.lat && extracted.lng) {
+                        updateBranch(branch.id, "latitude", extracted.lat);
+                        updateBranch(branch.id, "longitude", extracted.lng);
+                        if (extracted.detectedCity && (!branch.city || branch.city === "Pusat")) {
+                          updateBranch(branch.id, "city", extracted.detectedCity);
+                        }
+                      }
+                    }}
+                    placeholder="https://maps.google.com/?q=... atau link share Google Maps"
                   />
                 </label>
               </div>
@@ -991,6 +1045,9 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
               <GoogleMapsPreviewBox
                 address={branch.address}
                 mapsUrl={branch.maps_url}
+                lat={branch.latitude}
+                lng={branch.longitude}
+                city={branch.city}
                 label={`Pratinjau Peta Cabang ${index + 1}: ${branch.name || "Cabang"}`}
               />
             </article>
@@ -1266,9 +1323,16 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           Alamat toko utama
           <textarea
             value={settings.store.address}
-            onChange={(event) => updateStore("address", event.target.value)}
+            onChange={(event) => {
+              const addr = event.target.value;
+              updateStore("address", addr);
+              const extracted = extractCoordinatesFromLocation(settings.store.maps_url, addr, settings.store.city);
+              if (extracted.detectedCity) updateStore("city", extracted.detectedCity);
+              updateStore("latitude", extracted.lat);
+              updateStore("longitude", extracted.lng);
+            }}
             maxLength={400}
-            placeholder="Alamat lengkap toko fisik utama"
+            placeholder="Alamat lengkap toko fisik utama, contoh: Jl. Kartini No. 9, Bandung"
             className="min-h-20 w-full rounded-lg border border-input bg-background p-3 text-sm"
           />
         </label>
@@ -1276,20 +1340,121 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         <label className="block space-y-1 text-sm">
           <span className="flex items-center gap-1.5 font-medium">
             <MapPin className="size-3.5 text-primary" />
-            Link Google Maps toko utama
+            Link Google Maps toko utama (Link Share atau Maps)
           </span>
           <Input
             type="url"
             value={settings.store.maps_url}
-            onChange={(event) => updateStore("maps_url", event.target.value)}
+            onChange={(event) => {
+              const url = event.target.value;
+              updateStore("maps_url", url);
+              const extracted = extractCoordinatesFromLocation(url, settings.store.address, settings.store.city);
+              if (extracted.lat && extracted.lng) {
+                updateStore("latitude", extracted.lat);
+                updateStore("longitude", extracted.lng);
+                if (extracted.detectedCity) updateStore("city", extracted.detectedCity);
+              }
+            }}
             placeholder="https://maps.google.com/... atau https://share.google/..."
           />
         </label>
 
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="space-y-1 text-sm sm:col-span-1">
+            Kota / Wilayah toko utama
+            <Input
+              value={settings.store.city ?? "Bandung"}
+              onChange={(e) => {
+                const c = e.target.value;
+                updateStore("city", c);
+                const matched = Object.keys(CITY_COORDINATES).find(
+                  (k) => k.toLowerCase() === c.trim().toLowerCase()
+                );
+                if (matched) {
+                  updateStore("latitude", CITY_COORDINATES[matched].lat);
+                  updateStore("longitude", CITY_COORDINATES[matched].lng);
+                }
+              }}
+              placeholder="Contoh: Bandung"
+            />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-1">
+            Latitude toko utama (Titik Peta)
+            <Input
+              type="number"
+              step="any"
+              value={settings.store.latitude ?? -6.9185411}
+              onChange={(e) => updateStore("latitude", parseFloat(e.target.value) || 0)}
+              placeholder="-6.9185411"
+            />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-1">
+            Longitude toko utama (Titik Peta)
+            <Input
+              type="number"
+              step="any"
+              value={settings.store.longitude ?? 107.6165665}
+              onChange={(e) => updateStore("longitude", parseFloat(e.target.value) || 0)}
+              placeholder="107.6165665"
+            />
+          </label>
+        </div>
+
+        {/* Quick Helper Button and City Presets */}
+        <div className="space-y-2 pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground font-medium">
+              Pilihan Cepat Koordinat Toko Utama:
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => {
+                const extracted = extractCoordinatesFromLocation(
+                  settings.store.maps_url,
+                  settings.store.address,
+                  settings.store.city
+                );
+                updateStore("latitude", extracted.lat);
+                updateStore("longitude", extracted.lng);
+                if (extracted.detectedCity) updateStore("city", extracted.detectedCity);
+              }}
+            >
+              <Sparkles className="size-3 text-amber-500" />
+              Deteksi Otomatis dari Alamat / Maps
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            {["Bandung", "Jakarta", "Semarang", "Surabaya", "Yogyakarta", "Solo", "Bogor", "Tangerang", "Bekasi"].map((city) => (
+              <button
+                key={city}
+                type="button"
+                onClick={() => {
+                  updateStore("city", city);
+                  updateStore("latitude", CITY_COORDINATES[city].lat);
+                  updateStore("longitude", CITY_COORDINATES[city].lng);
+                }}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                  (settings.store.city || "Bandung").toLowerCase() === city.toLowerCase()
+                    ? "bg-primary text-primary-foreground font-semibold"
+                    : "bg-muted text-muted-foreground hover:bg-muted-foreground/20"
+                }`}
+              >
+                {city}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <GoogleMapsPreviewBox
           address={settings.store.address}
           mapsUrl={settings.store.maps_url}
-          label="Pratinjau Peta Toko Utama (Footer)"
+          lat={settings.store.latitude}
+          lng={settings.store.longitude}
+          city={settings.store.city}
+          label="Pratinjau Peta Toko Utama (Footer & Peta Beranda)"
         />
 
         <div className="grid gap-4 sm:grid-cols-2">

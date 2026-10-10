@@ -139,6 +139,9 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                   <Link href="/promo" className="text-lg font-medium">
                     Promo
                   </Link>
+                  <Link href="/compare" className="text-lg font-medium">
+                    Bandingkan
+                  </Link>
                 </div>
               </SheetContent>
             </Sheet>
@@ -187,6 +190,11 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                     Promo
                   </NavigationMenuLink>
                 </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink render={<Link href="/compare" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
+                    Bandingkan
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
               </NavigationMenuList>
             </NavigationMenu>
           </div>
@@ -225,6 +233,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                   <div className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium"><span>Akun & tampilan</span><ChevronDown className="size-4 rotate-180 text-muted-foreground" /></div>
                   <Link href="/profile" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Profil akun</Link>
                   <Link href="/wishlist" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Wishlist</Link>
+                  <Link href="/compare" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Bandingkan Produk</Link>
                   <Link href="/cart" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Keranjang</Link>
                   <div className="my-1 border-t" />
                   <div className="flex items-center justify-between px-3 py-1 text-sm"><span>Mode tema</span><ThemeToggle /></div>

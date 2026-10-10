@@ -1,8 +1,16 @@
 import { ProductTable } from "@/features/admin/ProductTable";
 import { getAdminProductsAction } from "@/actions/admin";
 import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
+import { requireModulePermission } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
 
 export default async function AdminProductsPage({ searchParams }: { searchParams: Promise<{ search?: string }> }) {
+  try {
+    await requireModulePermission("products");
+  } catch {
+    redirect("/admin?error=forbidden");
+  }
+
   const { search = "" } = await searchParams;
   const [products, categories, brands] = await Promise.all([
     getAdminProductsAction(),

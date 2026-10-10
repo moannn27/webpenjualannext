@@ -7,7 +7,10 @@ export interface CartProduct {
   stock?: number;
   product_images?: { url: string; is_primary?: boolean }[];
   product_specifications?: { key: string; value: string; display_order?: number | null }[];
-  brands?: { name: string } | null;
+  category_id?: string | null;
+  brand_id?: string | null;
+  categories?: { id?: string; name: string } | null;
+  brands?: { id?: string; name: string } | null;
 }
 
 export interface CartVariant {

@@ -39,7 +39,8 @@ export async function proceedToCheckoutAction(formData: FormData) {
     }
   }
 
-  const order = await checkoutService.checkout(user.id, validated.data)
+  const voucherCode = (formData.get('voucherCode') as string | null)?.trim() || undefined
+  const order = await checkoutService.checkout(user.id, validated.data, voucherCode)
   revalidatePath('/', 'layout')
   redirect(`/checkout/success?order_id=${order.id}`)
 }

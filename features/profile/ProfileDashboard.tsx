@@ -1,27 +1,38 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useEffect, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
+  FileText,
   Heart,
+  Lock,
   LogOut,
+  MessageCircle,
   Package,
   PackageCheck,
   Search,
   Settings,
   Shield,
+  ShieldAlert,
   Star,
   Store,
   Truck,
   X,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
-import { updateProfileAction } from "@/actions/user";
+import {
+  updateProfileAction,
+  updateUserPasswordAction,
+  checkUserLockStatusAction,
+} from "@/actions/user";
 import { confirmOrderDeliveredAction } from "@/actions/order";
 import { submitReviewAction } from "@/actions/review";
+import { formatWhatsAppNumber } from "@/lib/phone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -32,6 +43,8 @@ type Profile = {
   email?: string | null;
   home_address?: string | null;
   role?: string | null;
+  is_password_locked?: boolean;
+  failed_password_attempts?: number;
 } | null;
 
 type OrderedProduct = {
@@ -159,11 +172,13 @@ export function ProfileDashboard({
   orders,
   wishlist,
   reviews = [],
+  storeWhatsapp = "081234567890",
 }: {
   profile: Profile;
   orders: Order[];
   wishlist: WishlistEntry[];
   reviews?: UserReview[];
+  storeWhatsapp?: string;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("orders");
   const [saved, setSaved] = useState(false);
@@ -214,6 +229,135 @@ export function ProfileDashboard({
         setError(cause instanceof Error ? cause.message : "Perubahan gagal disimpan. Coba lagi.");
       }
     });
+  };
+
+  // Ubah Kata Sandi Akun
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+
+  const failedStorageKey = `pwd_fail_${profile?.email || "user"}`;
+
+  const [checkingUnlock, setCheckingUnlock] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // Jika server menyatakan akun TIDAK terkunci (misalnya setelah admin reset):
+      if (!profile?.is_password_locked) {
+        localStorage.removeItem(failedStorageKey);
+        setFailedAttempts(0);
+        return;
+      }
+
+      // Jika server menyatakan akun terkunci:
+      if (profile?.is_password_locked) {
+        setFailedAttempts(3);
+        localStorage.setItem(failedStorageKey, "3");
+        return;
+      }
+    }
+  }, [failedStorageKey, profile?.is_password_locked]);
+
+  const handleCheckUnlockStatus = async () => {
+    setCheckingUnlock(true);
+    setPasswordError("");
+    setPasswordSuccess("");
+    try {
+      const res = await checkUserLockStatusAction();
+      if (!res.isLocked) {
+        setFailedAttempts(0);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(failedStorageKey);
+        }
+        setPasswordSuccess("Kunci akun telah dibuka! Anda sekarang dapat memasukkan kata sandi baru.");
+      } else {
+        setPasswordError("Akun masih terkunci. Silakan hubungi admin toko via WhatsApp agar dibantu reset.");
+      }
+    } catch {
+      setPasswordError("Gagal memeriksa status kunci. Silakan muat ulang halaman.");
+    } finally {
+      setCheckingUnlock(false);
+    }
+  };
+
+  const handleUpdatePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (failedAttempts >= 3) {
+      setPasswordError(
+        "Form ubah kata sandi telah dikunci karena 3x salah kata sandi lama. Silakan hubungi admin."
+      );
+      return;
+    }
+
+    if (!oldPassword) {
+      setPasswordError("Masukkan kata sandi lama Anda.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("Kata sandi baru minimal 6 karakter.");
+      return;
+    }
+    if (newPassword === oldPassword) {
+      setPasswordError("Kata sandi baru harus berbeda dengan kata sandi lama.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Konfirmasi kata sandi tidak cocok.");
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const data = new FormData();
+      data.append("old_password", oldPassword);
+      data.append("new_password", newPassword);
+      data.append("confirm_password", confirmPassword);
+      const result = await updateUserPasswordAction(data);
+
+      if (result.error) {
+        if (result.isWrongOldPassword) {
+          const nextCount = failedAttempts + 1;
+          setFailedAttempts(nextCount);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(failedStorageKey, String(nextCount));
+          }
+          if (nextCount >= 3) {
+            setPasswordError(
+              "Anda telah 3x salah memasukkan kata sandi lama. Akses ubah sandi dikunci. Silakan hubungi admin toko agar dibantu reset kata sandi."
+            );
+          } else {
+            setPasswordError(
+              `Kata sandi lama salah! Sisa percobaan: ${3 - nextCount}x lagi.`
+            );
+          }
+        } else {
+          setPasswordError(result.error);
+        }
+      } else {
+        setPasswordSuccess("Kata sandi berhasil diperbarui!");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setFailedAttempts(0);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(failedStorageKey);
+        }
+      }
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Gagal memperbarui kata sandi.");
+    } finally {
+      setPasswordBusy(false);
+    }
   };
 
   // Konfirmasi Barang Diterima oleh User
@@ -763,6 +907,17 @@ export function ProfileDashboard({
                                   Rp {Number(order.grand_total ?? 0).toLocaleString("id-ID")}
                                 </span>
                               </div>
+
+                              <div className="pt-3 border-t flex justify-end">
+                                <Link
+                                  href={`/orders/${order.id}/invoice`}
+                                  target="_blank"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors shadow-2xs"
+                                >
+                                  <FileText className="size-3.5 text-primary" />
+                                  Lihat / Cetak Faktur (Invoice)
+                                </Link>
+                              </div>
                             </div>
                           </div>
                         </details>
@@ -824,40 +979,212 @@ export function ProfileDashboard({
           )}
 
           {activeTab === "settings" && (
-            <>
-              <h1 className="mb-6 text-2xl font-bold">Pengaturan akun</h1>
-              <form onSubmit={saveProfile} className="max-w-lg space-y-4">
-                <label className="block space-y-2 text-sm font-medium">
-                  Nama lengkap
-                  <Input name="full_name" defaultValue={profile?.full_name ?? ""} required minLength={2} />
-                </label>
-                <label className="block space-y-2 text-sm font-medium">
-                  Alamat email
-                  <Input name="email" type="email" autoComplete="email" defaultValue={profile?.email ?? ""} required />
-                </label>
-                <p className="-mt-2 text-xs text-muted-foreground">
-                  Jika email diubah, Supabase akan mengirim email konfirmasi.
-                </p>
-                <label className="block space-y-2 text-sm font-medium">
-                  Nomor HP
-                  <Input name="phone" type="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} placeholder="Contoh: 081234567890" />
-                </label>
-                <label className="block space-y-2 text-sm font-medium">
-                  Alamat rumah
-                  <textarea
-                    name="home_address"
-                    autoComplete="street-address"
-                    defaultValue={profile?.home_address ?? ""}
-                    maxLength={500}
-                    placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota, kode pos"
-                    className="min-h-28 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </label>
-                <Button type="submit" disabled={busy}>
-                  {busy ? "Menyimpan..." : "Simpan perubahan"}
-                </Button>
-              </form>
-            </>
+            <div className="max-w-2xl space-y-10">
+              <div>
+                <h1 className="mb-6 text-2xl font-bold">Pengaturan akun</h1>
+                {saved && notice && (
+                  <div className="mb-4 max-w-lg rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-sm text-emerald-700 dark:text-emerald-400">
+                    {notice}
+                  </div>
+                )}
+                {error && (
+                  <div className="mb-4 max-w-lg rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
+                <form onSubmit={saveProfile} className="max-w-lg space-y-4">
+                  <label className="block space-y-2 text-sm font-medium">
+                    Nama lengkap
+                    <Input name="full_name" defaultValue={profile?.full_name ?? ""} required minLength={2} />
+                  </label>
+                  <label className="block space-y-2 text-sm font-medium">
+                    Alamat email
+                    <Input name="email" type="email" autoComplete="email" defaultValue={profile?.email ?? ""} required />
+                  </label>
+                  <p className="-mt-2 text-xs text-muted-foreground">
+                    Jika email diubah, Supabase akan mengirim email konfirmasi.
+                  </p>
+                  <label className="block space-y-2 text-sm font-medium">
+                    Nomor HP
+                    <Input name="phone" type="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} placeholder="Contoh: 081234567890" />
+                  </label>
+                  <label className="block space-y-2 text-sm font-medium">
+                    Alamat rumah
+                    <textarea
+                      name="home_address"
+                      autoComplete="street-address"
+                      defaultValue={profile?.home_address ?? ""}
+                      maxLength={500}
+                      placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota, kode pos"
+                      className="min-h-28 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                  </label>
+                  <Button type="submit" disabled={busy}>
+                    {busy ? "Menyimpan..." : "Simpan perubahan"}
+                  </Button>
+                </form>
+              </div>
+
+              {/* UBAH KATA SANDI */}
+              <div className="border-t pt-8">
+                <div className="mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Lock className="size-5 text-primary" />
+                    Ubah Kata Sandi
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Perbarui kata sandi akunmu untuk keamanan login.
+                  </p>
+                </div>
+
+                {failedAttempts >= 3 ? (
+                  <div className="max-w-lg rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center animate-in fade-in duration-200">
+                    <div className="mx-auto grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive mb-3">
+                      <ShieldAlert className="size-6" />
+                    </div>
+                    <h3 className="text-base font-bold text-foreground">
+                      Akses Ubah Sandi Dikunci
+                    </h3>
+                    <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                      Anda telah salah memasukkan kata sandi lama sebanyak <strong>3 kali</strong>. Demi keamanan akun Anda, silakan hubungi admin toko agar dibantu reset kata sandi, atau gunakan tautan lupa kata sandi.
+                    </p>
+
+                    <div className="mt-5 flex flex-col sm:flex-row gap-2.5 justify-center">
+                      <a
+                        href={`https://wa.me/${formatWhatsAppNumber(storeWhatsapp || "081234567890")}?text=${encodeURIComponent(
+                          `Halo Admin, saya mengalami kendala lupa / salah kata sandi pada akun saya:\n- Nama: ${name}\n- Email: ${profile?.email || "-"}\nMohon bantuan untuk reset kata sandi akun saya. Terima kasih!`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 transition-colors"
+                      >
+                        <MessageCircle className="size-4" />
+                        Hubungi Admin via WhatsApp
+                      </a>
+                      <Link
+                        href="/forgot-password"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                      >
+                        Lupa Kata Sandi?
+                      </Link>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-border/50">
+                      <button
+                        type="button"
+                        onClick={handleCheckUnlockStatus}
+                        disabled={checkingUnlock}
+                        className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:underline underline-offset-2 transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <CheckCircle2 className="size-3.5 text-primary" />
+                        {checkingUnlock ? "Memeriksa status dari server..." : "Sudah dibantu reset oleh admin? Buka Kunci Sekarang"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {failedAttempts > 0 && (
+                      <div className="mb-4 max-w-lg rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="size-4 shrink-0 text-amber-500" />
+                          <span>Percobaan salah kata sandi: <strong>{failedAttempts}/3</strong></span>
+                        </div>
+                        <span className="font-semibold text-amber-600 dark:text-amber-300">
+                          Sisa {3 - failedAttempts}x lagi
+                        </span>
+                      </div>
+                    )}
+
+                    {passwordSuccess && (
+                      <div className="mb-4 max-w-lg rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-sm text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                        <CheckCircle2 className="size-4 shrink-0" />
+                        <span>{passwordSuccess}</span>
+                      </div>
+                    )}
+                    {passwordError && (
+                      <div className="mb-4 max-w-lg rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm text-destructive flex items-center gap-2">
+                        <AlertCircle className="size-4 shrink-0" />
+                        <span>{passwordError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleUpdatePassword} className="max-w-lg space-y-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium">Kata sandi lama</label>
+                        <div className="relative">
+                          <Input
+                            type={showOldPassword ? "text" : "password"}
+                            value={oldPassword}
+                            onChange={(e) => setOldPassword(e.target.value)}
+                            placeholder="Masukkan kata sandi lama"
+                            required
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowOldPassword(!showOldPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            title={showOldPassword ? "Sembunyikan kata sandi" : "Lihat kata sandi"}
+                          >
+                            {showOldPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium">Kata sandi baru</label>
+                        <div className="relative">
+                          <Input
+                            type={showNewPassword ? "text" : "password"}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Minimal 6 karakter"
+                            required
+                            minLength={6}
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            title={showNewPassword ? "Sembunyikan kata sandi" : "Lihat kata sandi"}
+                          >
+                            {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium">Konfirmasi kata sandi baru</label>
+                        <div className="relative">
+                          <Input
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Ulangi kata sandi baru"
+                            required
+                            minLength={6}
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            title={showConfirmPassword ? "Sembunyikan kata sandi" : "Lihat kata sandi"}
+                          >
+                            {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <Button type="submit" disabled={passwordBusy || !oldPassword || !newPassword || !confirmPassword}>
+                        {passwordBusy ? "Menyimpan kata sandi..." : "Perbarui Kata Sandi"}
+                      </Button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </section>
       </div>

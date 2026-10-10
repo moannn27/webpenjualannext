@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Search, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw, Sparkles } from "lucide-react";
 import { ProductCard } from "@/components/shared/ProductCard";
 import type { Product } from "@/store/useProductStore";
-import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import type { CatalogSearchParams } from "@/lib/catalog-filters";
 
 type Choice = { id: string; name: string };
@@ -323,7 +322,6 @@ export function PagedProductCatalog({
           </nav>
         )}
       </section>
-      <ProductCompareBar />
     </>
   );
 }

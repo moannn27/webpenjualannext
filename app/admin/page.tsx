@@ -1,19 +1,56 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Users, CreditCard, Activity, Package, Tags, AlertTriangle, ArrowRight } from "lucide-react";
+import {
+  DollarSign,
+  Users,
+  CreditCard,
+  Activity,
+  Package,
+  Tags,
+  AlertTriangle,
+  ArrowRight,
+  ShieldAlert,
+  History,
+  Bell,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  Download,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getDashboardStatsAction } from "@/actions/admin";
+import { getDashboardStatsAction, getAdminAllNotificationsAction } from "@/actions/admin";
+import { getAdminAccess } from "@/lib/auth/admin";
+import { getAdminAuditLogsAction } from "@/actions/admin-permissions";
+import type { AdminAuditLog } from "@/lib/storefront-settings";
 import { SalesChart } from "@/features/admin/SalesChart";
 import { CleanupStorageButton } from "@/features/admin/CleanupStorageButton";
 
 export default async function AdminOverview(props: {
-  searchParams?: Promise<{ threshold?: string }>;
+  searchParams?: Promise<{ threshold?: string; error?: string }>;
 }) {
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const parsedThreshold = Number(searchParams?.threshold);
   const threshold = [3, 5, 10, 15, 20].includes(parsedThreshold) ? parsedThreshold : 5;
-  const stats = await getDashboardStatsAction(threshold);
+  const isForbidden = searchParams?.error === "forbidden";
+
+  const [stats, adminAccess, notifData] = await Promise.all([
+    getDashboardStatsAction(threshold),
+    getAdminAccess(),
+    getAdminAllNotificationsAction().catch(() => ({
+      notifications: [],
+      counts: { total: 0, orders: 0, stock: 0, security: 0 },
+    })),
+  ]);
+
+  const isSuperAdmin = adminAccess.role === "super_admin";
+  let recentLogs: AdminAuditLog[] = [];
+  try {
+    const allLogs = await getAdminAuditLogsAction();
+    recentLogs = allLogs.slice(0, 8);
+  } catch {
+    recentLogs = [];
+  }
 
   const cards = [
     {
@@ -64,28 +101,111 @@ export default async function AdminOverview(props: {
         <CleanupStorageButton />
       </div>
 
-      {/* Alert Notifikasi Stok Menipis (Screenshot 1) */}
-      {stats.lowStockProducts > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50/90 p-4 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-amber-500/20 p-2 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="size-5" />
+      {/* Alert Akses Ditolak jika staf diarahkan kembali */}
+      {isForbidden && (
+        <div className="flex items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive">
+          <ShieldAlert className="size-5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold">Akses Terbatas / Ditolak</p>
+            <p className="text-xs opacity-90">
+              Anda tidak memiliki izin untuk mengakses halaman atau fitur tersebut. Hubungi Super Admin jika memerlukan wewenang tambahan.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pusat Notifikasi Multi-Kategori (Keamanan, Pesanan, Stok) */}
+      {notifData.counts.total > 0 && (
+        <div className="rounded-2xl border bg-card p-4 shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                <Bell className="size-4.5" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold tracking-tight">Pusat Notifikasi & Kejadian Toko</h2>
+                <p className="text-xs text-muted-foreground">
+                  Ada {notifData.counts.total} kejadian aktif yang memerlukan pantauan atau tindak lanjut admin.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold">
-                Perhatian: Ada {stats.lowStockProducts} produk dengan stok menipis (≤ {threshold} unit)
-              </p>
-              <p className="text-xs text-amber-800/80 dark:text-amber-300/80">
-                Segera lakukan restock agar pesanan dan transaksi pelanggan tidak tertunda.
-              </p>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-0.5">
+                {notifData.counts.total} Kejadian Aktif
+              </Badge>
             </div>
           </div>
-          <a
-            href="#stok-menipis"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-700 transition-colors"
-          >
-            Lihat Stok Menipis ↓
-          </a>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* 1. Keamanan & Kunci Akun */}
+            <Link
+              href="/admin/customers"
+              className={`group flex items-center justify-between gap-3 rounded-xl border p-3 transition-all hover:shadow-xs ${
+                notifData.counts.security > 0
+                  ? "border-destructive/40 bg-destructive/5 hover:bg-destructive/10 text-destructive"
+                  : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <ShieldAlert className="size-4.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold truncate group-hover:underline">Akun Terkunci / Reset</p>
+                  <p className="text-[11px] opacity-85 truncate">
+                    {notifData.counts.security > 0
+                      ? `${notifData.counts.security} akun salah 3x sandi`
+                      : "Semua akun normal"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="size-3.5 shrink-0 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 2. Pesanan Baru / Menunggu Tindakan */}
+            <Link
+              href="/admin/orders"
+              className={`group flex items-center justify-between gap-3 rounded-xl border p-3 transition-all hover:shadow-xs ${
+                notifData.counts.orders > 0
+                  ? "border-blue-500/40 bg-blue-500/5 hover:bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                  : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Package className="size-4.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold truncate group-hover:underline">Pesanan Baru & Diproses</p>
+                  <p className="text-[11px] opacity-85 truncate">
+                    {notifData.counts.orders > 0
+                      ? `${notifData.counts.orders} pesanan menunggu respon`
+                      : "Tidak ada antrean"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="size-3.5 shrink-0 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+
+            {/* 3. Stok Menipis / Kosong */}
+            <a
+              href="#stok-menipis"
+              className={`group flex items-center justify-between gap-3 rounded-xl border p-3 transition-all hover:shadow-xs ${
+                notifData.counts.stock > 0
+                  ? "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10 text-amber-800 dark:text-amber-400"
+                  : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <AlertTriangle className="size-4.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold truncate group-hover:underline">Stok Menipis / Habis</p>
+                  <p className="text-[11px] opacity-85 truncate">
+                    {notifData.counts.stock > 0
+                      ? `${notifData.counts.stock} produk perlu restock`
+                      : "Stok inventaris aman"}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="size-3.5 shrink-0 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+            </a>
+          </div>
         </div>
       )}
 
@@ -273,6 +393,110 @@ export default async function AdminOverview(props: {
           </div>
         </Card>
       </div>
+
+      {/* Log Kejadian & Aktivitas Toko (Audit Trail) dengan Tombol Unduh Multi-Format */}
+      <Card>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <History className="size-4 text-primary" />
+              Log Kejadian & Aktivitas Toko (Audit Trail)
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Catatan otomatis dari seluruh peristiwa operasional toko, aksi staf admin, status pesanan, dan penyesuaian inventaris.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Tombol Unduh Laporan Log (Excel, Word, PDF) */}
+            <div className="flex items-center gap-1 rounded-xl border bg-muted/40 p-1 shadow-xs">
+              <span className="text-[11px] font-semibold text-muted-foreground px-2 hidden md:inline">
+                Unduh Log:
+              </span>
+              <a
+                href="/api/admin/reports/logs?format=csv"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-background hover:shadow-xs transition-colors"
+                title="Unduh log kejadian ke Microsoft Excel (CSV)"
+              >
+                <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                Excel (CSV)
+              </a>
+              <a
+                href="/api/admin/reports/logs?format=doc"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-background hover:shadow-xs transition-colors"
+                title="Unduh log kejadian ke Microsoft Word (.doc)"
+              >
+                <FileText className="size-3.5 text-blue-600" />
+                Word (.doc)
+              </a>
+              <a
+                href="/api/admin/reports/logs?format=html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-background hover:shadow-xs transition-colors"
+                title="Cetak atau Simpan Laporan sebagai PDF"
+              >
+                <Printer className="size-3.5 text-purple-600" />
+                Cetak / PDF
+              </a>
+            </div>
+
+            {isSuperAdmin && (
+              <Link
+                href="/admin/logs"
+                className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-primary hover:bg-muted transition-colors"
+              >
+                Semua Log <ArrowRight className="size-3" />
+              </Link>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {recentLogs.length > 0 ? (
+            <div className="divide-y rounded-lg border">
+              {recentLogs.map((log) => (
+                <div key={log.id} className="flex flex-wrap items-center justify-between gap-3 p-3 text-xs sm:text-sm">
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className={`mt-0.5 rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        log.action === "create"
+                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                          : log.action === "update"
+                          ? "bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                          : log.action === "status_change"
+                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                          : "bg-red-500/15 text-red-700 dark:text-red-400"
+                      }`}
+                    >
+                      {log.action}
+                    </span>
+                    <div>
+                      <p className="font-medium">
+                        <span className="font-semibold text-primary">{log.admin_name}</span>{" "}
+                        <span className="text-muted-foreground">({log.admin_role})</span>{" "}
+                        — {log.details}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Target: {log.entity_name} ({log.entity_type})
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground shrink-0 font-mono">
+                    {new Intl.DateTimeFormat("id-ID", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                      timeZone: "Asia/Jakarta",
+                    }).format(new Date(log.created_at))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-xs text-muted-foreground">
+              Belum ada catatan aktivitas admin terbaru.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Search, MessageCircle, MapPin, ExternalLink, Clock, Phone, ChevronRight } from "lucide-react";
 import type { StoreBranch, StoreSectionSetting } from "@/lib/storefront-settings";
+import { extractCoordinatesFromLocation } from "@/lib/storefront-settings";
 
 // Dynamically import Leaflet with ssr: false
 const LeafletBranchMap = dynamic(() => import("./LeafletBranchMap"), {
@@ -22,6 +23,9 @@ type BranchLocatorSectionProps = {
   storeWhatsApp?: string;
   storeAddress?: string;
   storeMapsUrl?: string;
+  storeLatitude?: number;
+  storeLongitude?: number;
+  storeCity?: string;
   storeName?: string;
 };
 
@@ -31,6 +35,9 @@ export function BranchLocatorSection({
   storeWhatsApp = "6281234567890",
   storeAddress = "",
   storeMapsUrl = "",
+  storeLatitude,
+  storeLongitude,
+  storeCity,
   storeName = "Next Solution",
 }: BranchLocatorSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,14 +50,25 @@ export function BranchLocatorSection({
   const displayBranches = useMemo(() => {
     if (activeBranches.length > 0) return activeBranches;
     if (storeAddress?.trim()) {
+      const extracted = extractCoordinatesFromLocation(storeMapsUrl, storeAddress, storeCity);
+      const lat =
+        typeof storeLatitude === "number" && !isNaN(storeLatitude) && storeLatitude !== 0
+          ? storeLatitude
+          : extracted.lat;
+      const lng =
+        typeof storeLongitude === "number" && !isNaN(storeLongitude) && storeLongitude !== 0
+          ? storeLongitude
+          : extracted.lng;
+      const city = storeCity?.trim() || extracted.detectedCity || "Bandung";
+
       return [
         {
           id: "store-main-pusat",
           name: `${storeName} (Pusat)`,
-          city: "Pusat",
+          city,
           address: storeAddress,
-          latitude: -6.9932,
-          longitude: 110.4203,
+          latitude: lat,
+          longitude: lng,
           whatsapp: storeWhatsApp,
           operating_hours: "09:00 - 21:00 WIB",
           maps_url: storeMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${storeName} ${storeAddress}`)}`,
@@ -59,7 +77,7 @@ export function BranchLocatorSection({
       ];
     }
     return [];
-  }, [activeBranches, storeAddress, storeMapsUrl, storeName, storeWhatsApp]);
+  }, [activeBranches, storeAddress, storeMapsUrl, storeLatitude, storeLongitude, storeCity, storeName, storeWhatsApp]);
 
   const [selectedBranch, setSelectedBranch] = useState<StoreBranch | null>(() => displayBranches[0] ?? null);
 

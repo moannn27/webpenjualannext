@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { updateAdminOrderStatusAction, updateAdminPaymentStatusAction } from "@/actions/admin";
 import { getAdminAccess } from "@/lib/auth/admin";
+import { requireModulePermission } from "@/lib/auth/permissions";
+import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, MessageCircle } from "lucide-react";
+import { Search, MessageCircle, FileText } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
   pending: "Menunggu pembayaran",
@@ -32,6 +34,12 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<{ status?: string; search?: string }>;
 }) {
+  try {
+    await requireModulePermission("orders");
+  } catch {
+    redirect("/admin?error=forbidden");
+  }
+
   const { role } = await getAdminAccess();
   const isSuperAdmin = role === "super_admin";
   const { status: filterStatus = "", search: filterSearch = "" } = (await searchParams) ?? {};
@@ -147,13 +155,17 @@ export default async function AdminOrdersPage({
               <div><p className="text-xs text-muted-foreground">Tanggal</p><p className="mt-1">{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" }).format(new Date(order.created_at))}</p></div>
               <div><p className="text-xs text-muted-foreground">Pemenuhan</p><p className="mt-1">{isPickup ? "Ambil di toko" : "Diantar"}</p></div>
             </div>
-            {order.users?.[0]?.phone && <a href={`https://wa.me/${order.users[0].phone.replace(/\D/g, '').replace(/^0/, '62')}?text=Halo%20${encodeURIComponent(order.users[0].full_name || 'Pelanggan')}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100"><MessageCircle className="size-4" /> Chat pelanggan via WhatsApp</a>}
+            <div className="flex flex-wrap items-center gap-2">
+              {order.users?.[0]?.phone && <a href={`https://wa.me/${order.users[0].phone.replace(/\D/g, '').replace(/^0/, '62')}?text=Halo%20${encodeURIComponent(order.users[0].full_name || 'Pelanggan')}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100"><MessageCircle className="size-4" /> Chat WA</a>}
+              <a href={`/orders/${order.id}/invoice`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary/10 px-3 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"><FileText className="size-4" /> Lihat Invoice</a>
+            </div>
             <details className="rounded-lg border px-3">
               <summary className="cursor-pointer py-3 text-sm font-medium">Lihat barang dan alamat</summary>
               <div className="space-y-3 border-t py-3 text-sm">
                 <ul className="space-y-2">{(order.order_items ?? []).map((item) => <li key={item.id} className="flex justify-between gap-3"><span>{item.product_name} × {item.quantity}</span><span className="shrink-0">{money(item.price * item.quantity)}</span></li>)}</ul>
                 <div className="border-t pt-2"><p className="font-medium">{isPickup ? "Lokasi pengambilan" : "Alamat penerima"}</p><p className="mt-1 text-muted-foreground">{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{isPickup ? ([address?.pickup_location, address?.pickup_address].filter(Boolean).map(String).join(" · ") || "Ambil di toko") : [address?.street_address, address?.city, address?.province, address?.postal_code].filter(Boolean).map(String).join(", ")}</p>{isPickup && typeof address?.fulfillment_change_note === "string" && <p className="mt-2 whitespace-normal break-words rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">{address.fulfillment_change_note}</p>}</div>
                 <div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>{money(order.total_amount)}</span></div>
+                {Number(order.discount_amount) > 0 && <div className="flex justify-between text-emerald-600 font-medium"><span>Diskon Voucher</span><span>-{money(order.discount_amount)}</span></div>}
                 <div className="flex justify-between"><span>{isPickup ? "Pengambilan" : "Ongkir"}</span><span>{isPickup && Number(order.shipping_amount) === 0 ? "Gratis" : money(order.shipping_amount)}</span></div>
               </div>
             </details>
@@ -190,16 +202,27 @@ export default async function AdminOrdersPage({
             <p className="font-medium">{order.order_number}</p>
             <p className="mt-1 text-xs text-muted-foreground">{order.users?.[0]?.full_name || "Pelanggan"}</p>
             <p className="text-xs text-muted-foreground">{order.users?.[0]?.phone || ""}</p>
-            {order.users?.[0]?.phone && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              {order.users?.[0]?.phone && (
+                <a
+                  href={`https://wa.me/${order.users[0].phone.replace(/\D/g, '').replace(/^0/, '62')}?text=Halo%20${encodeURIComponent(order.users[0].full_name || 'Pelanggan')}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                >
+                  <MessageCircle className="size-3" /> Chat WA
+                </a>
+              )}
               <a
-                href={`https://wa.me/${order.users[0].phone.replace(/\D/g, '').replace(/^0/, '62')}?text=Halo%20${encodeURIComponent(order.users[0].full_name || 'Pelanggan')}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`}
+                href={`/orders/${order.id}/invoice`}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                title="Lihat / Cetak Faktur Resmi"
               >
-                <MessageCircle className="size-3" /> Chat WA
+                <FileText className="size-3" /> Invoice
               </a>
-            )}
+            </div>
           </TableCell>
           <TableCell><time dateTime={order.created_at}>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" }).format(new Date(order.created_at))}</time></TableCell>
           <TableCell><div className="space-y-1"><Badge variant={payment?.status === "success" ? "default" : payment?.status === "failed" ? "destructive" : "secondary"}>{paymentLabels[payment?.status ?? ""] ?? payment?.status ?? "Belum tercatat"}</Badge><p className="text-xs text-muted-foreground">{payment?.payment_method === "manual_transfer" ? "Transfer manual" : payment?.payment_method || "—"}</p></div></TableCell>
@@ -216,7 +239,7 @@ export default async function AdminOrdersPage({
               </div>
               <span className="shrink-0">{money(item.price * item.quantity)}</span>
             </li>
-          })}</ul></div><div><p className="font-semibold">{isPickup ? "Pickup" : "Alamat penerima"}</p>{isPickup ? <><p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{([address?.pickup_location, address?.pickup_address].filter(Boolean).map(String).join(" · ") || "Ambil di toko")}</p>{typeof address?.fulfillment_change_note === "string" && <p className="mt-2 whitespace-normal break-words rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">{address.fulfillment_change_note}</p>}</> : <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.street_address ?? "")}<br />{[address?.city, address?.province, address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>{money(order.total_amount)}</span></div><div className="flex justify-between"><span>{isPickup ? "Pengambilan" : "Ongkir"}</span><span>{isPickup && Number(order.shipping_amount) === 0 ? "Gratis" : money(order.shipping_amount)}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.grand_total)}</span></div>
+          })}</ul></div><div><p className="font-semibold">{isPickup ? "Pickup" : "Alamat penerima"}</p>{isPickup ? <><p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{([address?.pickup_location, address?.pickup_address].filter(Boolean).map(String).join(" · ") || "Ambil di toko")}</p>{typeof address?.fulfillment_change_note === "string" && <p className="mt-2 whitespace-normal break-words rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-900">{address.fulfillment_change_note}</p>}</> : <p>{String(address?.recipient_name ?? "")} · {String(address?.phone ?? "")}<br />{String(address?.street_address ?? "")}<br />{[address?.city, address?.province, address?.postal_code].filter(Boolean).map(String).join(", ")}</p>}</div><div className="flex justify-between border-t pt-2"><span>Subtotal</span><span>{money(order.total_amount)}</span></div>{Number(order.discount_amount) > 0 && <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium"><span>Diskon Voucher</span><span>-{money(order.discount_amount)}</span></div>}<div className="flex justify-between"><span>{isPickup ? "Pengambilan" : "Ongkir"}</span><span>{isPickup && Number(order.shipping_amount) === 0 ? "Gratis" : money(order.shipping_amount)}</span></div><div className="flex justify-between font-semibold"><span>Total</span><span>{money(order.grand_total)}</span></div>
             {(payment?.status === "pending" || payment?.status === "failed" || payment?.status === "success") && order.status === "pending" && <form action={updateAdminPaymentStatusAction} className="flex flex-wrap gap-2 border-t pt-3"><input type="hidden" name="order_id" value={order.id} /><Button type="submit" name="payment_status" value="success" size="sm">{payment.status === "failed" ? "Konfirmasi pembayaran" : payment.status === "success" ? "Lanjutkan proses pesanan" : "Transfer sudah dicek"}</Button>{payment.status === "pending" && <Button type="submit" name="payment_status" value="failed" variant="outline" size="sm">Tandai gagal</Button>}</form>}
             {payment?.status === "success" && order.status === "cancelled" && <form action={updateAdminPaymentStatusAction} className="border-t pt-3"><input type="hidden" name="order_id" value={order.id} /><Button type="submit" name="payment_status" value="refunded" variant="outline" size="sm">Tandai refund</Button></form>}
             {!!choices.length && <form action={updateAdminOrderStatusAction} className="flex gap-2 border-t pt-3"><input type="hidden" name="id" value={order.id} /><select name="status" aria-label={`Proses ${order.order_number}`} defaultValue={choices[0].value} className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs">{choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}</select><Button type="submit" size="sm">Perbarui</Button></form>}

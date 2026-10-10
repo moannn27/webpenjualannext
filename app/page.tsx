@@ -72,9 +72,15 @@ export default async function Home() {
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
       {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
       {sections.bestsellers.visible && <FeaturedProducts title={sections.bestsellers.title} subtitle={sections.bestsellers.subtitle} type="bestseller" initialData={selected("bestsellers", (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
-      {sections.promo.visible && <PromoBanner banner={(banners ?? []).find((banner) => banner.placement === "promo")} sectionTitle={sections.promo.title} sectionSubtitle={sections.promo.subtitle} />}
+      {sections.promo.visible && (
+        <PromoBanner
+          banner={(banners ?? []).find((banner) => banner.placement === "promo")}
+          sectionTitle={sections.promo.title}
+          sectionSubtitle={sections.promo.subtitle}
+          products={selected("promo", promoProducts.map((product) => toStorefrontProduct(product as StoreProduct)))}
+        />
+      )}
       {sections.newArrivals.visible && <FeaturedProducts title={sections.newArrivals.title} subtitle={sections.newArrivals.subtitle} type="new" initialData={selected("newArrivals", (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
-      {sections.promo.visible && <FeaturedProducts title={sections.promo.title} subtitle={sections.promo.subtitle} type="promo" initialData={selected("promo", promoProducts.map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.brands.visible && <BrandShowcase brands={brands ?? []} title={sections.brands.title} />}
       {sections.branches?.visible && (
         <BranchLocatorSection
@@ -83,6 +89,9 @@ export default async function Home() {
           storeWhatsApp={settings.store.whatsapp}
           storeAddress={settings.store.address}
           storeMapsUrl={settings.store.maps_url}
+          storeLatitude={settings.store.latitude}
+          storeLongitude={settings.store.longitude}
+          storeCity={settings.store.city}
           storeName="Next Solution"
         />
       )}

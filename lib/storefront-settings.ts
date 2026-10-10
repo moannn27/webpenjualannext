@@ -1,3 +1,5 @@
+import { type VoucherTargeting } from '@/types/voucher';
+
 export type StoreSectionSetting = {
   visible: boolean;
   title: string;
@@ -80,11 +82,82 @@ export type FeaturedReviewItem = {
   is_verified?: boolean;
 };
 
+export const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  Bandung: { lat: -6.9185411, lng: 107.6165665 }, // Jl. Kartini No. 9, Bandung (Next Solution / Platinum Store)
+  Semarang: { lat: -6.9932, lng: 110.4203 },
+  Jakarta: { lat: -6.2088, lng: 106.8456 },
+  Surabaya: { lat: -7.2575, lng: 112.7521 },
+  Yogyakarta: { lat: -7.7712, lng: 110.3892 },
+  Solo: { lat: -7.5684, lng: 110.8284 },
+  Surakarta: { lat: -7.5684, lng: 110.8284 },
+  Purwokerto: { lat: -7.4243, lng: 109.2302 },
+  Cirebon: { lat: -6.7214, lng: 108.5562 },
+  Pekalongan: { lat: -6.8886, lng: 109.6753 },
+  Kudus: { lat: -6.8048, lng: 110.8405 },
+  Magelang: { lat: -7.4797, lng: 110.2177 },
+  Madiun: { lat: -7.6298, lng: 111.5239 },
+  Malang: { lat: -7.9497, lng: 112.6174 },
+  Kediri: { lat: -7.818, lng: 112.0128 },
+  Jember: { lat: -8.1845, lng: 113.6681 },
+  Denpasar: { lat: -8.6705, lng: 115.2126 },
+  Bekasi: { lat: -6.2383, lng: 106.9756 },
+  Tangerang: { lat: -6.1783, lng: 106.6319 },
+  Depok: { lat: -6.4025, lng: 106.7942 },
+  Bogor: { lat: -6.5971, lng: 106.8060 },
+};
+
+export function extractCoordinatesFromLocation(
+  mapsUrl?: string,
+  address?: string,
+  city?: string
+): { lat: number; lng: number; detectedCity?: string } {
+  if (mapsUrl) {
+    const url = mapsUrl.trim();
+    const atMatch = url.match(/@(-?\d+\.\d{3,}),(-?\d+\.\d{3,})/);
+    if (atMatch) {
+      const lat = parseFloat(atMatch[1]);
+      const lng = parseFloat(atMatch[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+
+    const queryMatch = url.match(/[?&](?:q|query|ll|center)=(-?\d+\.\d{3,}),(-?\d+\.\d{3,})/i);
+    if (queryMatch) {
+      const lat = parseFloat(queryMatch[1]);
+      const lng = parseFloat(queryMatch[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+
+    const dataMatch = url.match(/!3d(-?\d+\.\d{3,})!4d(-?\d+\.\d{3,})/i);
+    if (dataMatch) {
+      const lat = parseFloat(dataMatch[1]);
+      const lng = parseFloat(dataMatch[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+  }
+
+  const combinedText = `${city || ""} ${address || ""} ${mapsUrl || ""}`.toLowerCase();
+
+  if (combinedText.includes("kartini")) {
+    return { lat: -6.9185411, lng: 107.6165665, detectedCity: "Bandung" };
+  }
+
+  for (const [cityName, coords] of Object.entries(CITY_COORDINATES)) {
+    if (combinedText.includes(cityName.toLowerCase())) {
+      return { lat: coords.lat, lng: coords.lng, detectedCity: cityName };
+    }
+  }
+
+  return { lat: -6.9185411, lng: 107.6165665, detectedCity: "Bandung" };
+}
+
 export type StorefrontSettings = {
   sections: Record<string, StoreSectionSetting>;
   store: {
     description: string;
     address: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
     maps_url: string;
     email: string;
     phone: string;
@@ -99,6 +172,21 @@ export type StorefrontSettings = {
   admin: { catalogPageSize: number };
   featured_reviews: FeaturedReviewItem[];
   selected_review_ids?: string[];
+  admin_permissions?: Record<string, string[]>;
+  admin_audit_logs?: AdminAuditLog[];
+  voucher_targeting?: Record<string, VoucherTargeting>;
+};
+
+export type AdminAuditLog = {
+  id: string;
+  admin_id: string;
+  admin_name: string;
+  admin_role: string;
+  action: "create" | "update" | "delete" | "status_change";
+  entity_type: "product" | "category" | "brand" | "order" | "voucher" | "content" | "account" | "settings";
+  entity_name: string;
+  details: string;
+  created_at: string;
 };
 
 export const DEFAULT_OFFICIAL_MARKETPLACES: OfficialMarketplace[] = [
@@ -247,7 +335,10 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   },
   store: {
     description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.",
-    address: "",
+    address: "Jl. Kartini No. 9",
+    city: "Bandung",
+    latitude: -6.9185411,
+    longitude: 107.6165665,
     maps_url: "",
     email: "",
     phone: "",
@@ -259,13 +350,16 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   official_channels: [],
   pickup_info: {
     store_name: "Toko Next Solution",
-    store_address: "",
+    store_address: "Jl. Kartini No. 9, Bandung",
     maps_url: "",
   },
   bank_transfer: [],
   admin: { catalogPageSize: 24 },
   featured_reviews: DEFAULT_FEATURED_REVIEWS,
   selected_review_ids: [],
+  admin_permissions: {},
+  admin_audit_logs: [],
+  voucher_targeting: {},
 };
 
 export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
@@ -273,10 +367,10 @@ export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
     return {
       id: `branch-${index + 1}`,
       name: `Cabang ${index + 1}`,
-      city: "Pusat",
+      city: "Bandung",
       address: "",
-      latitude: -6.9932,
-      longitude: 110.4203,
+      latitude: -6.9185411,
+      longitude: 107.6165665,
       maps_url: "",
       is_active: true,
     };
@@ -284,9 +378,17 @@ export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
   const item = raw as Partial<StoreBranch>;
   const name = String(item.name ?? "").trim() || `Cabang ${index + 1}`;
   const address = String(item.address ?? "").trim();
-  const city = String(item.city ?? "").trim() || (address.includes(",") ? address.split(",").pop()?.trim() || "Pusat" : "Pusat");
-  const lat = typeof item.latitude === "number" && !isNaN(item.latitude) ? item.latitude : -6.9932;
-  const lng = typeof item.longitude === "number" && !isNaN(item.longitude) ? item.longitude : 110.4203;
+  const maps_url = String(item.maps_url ?? "").trim();
+  const rawCity = String(item.city ?? "").trim();
+
+  const extracted = extractCoordinatesFromLocation(maps_url, address, rawCity);
+  const city = rawCity && rawCity !== "Pusat" ? rawCity : (extracted.detectedCity || "Bandung");
+  const lat = typeof item.latitude === "number" && !isNaN(item.latitude) && item.latitude !== 0
+    ? item.latitude
+    : extracted.lat;
+  const lng = typeof item.longitude === "number" && !isNaN(item.longitude) && item.longitude !== 0
+    ? item.longitude
+    : extracted.lng;
 
   return {
     id: String(item.id ?? `branch-${index + 1}`),
@@ -298,7 +400,7 @@ export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
     phone: item.phone ? String(item.phone).trim() : undefined,
     whatsapp: item.whatsapp ? String(item.whatsapp).trim() : undefined,
     operating_hours: item.operating_hours ? String(item.operating_hours).trim() : "09:00 - 21:00 WIB",
-    maps_url: String(item.maps_url ?? "").trim(),
+    maps_url: maps_url,
     is_active: item.is_active !== false,
   };
 }
@@ -462,12 +564,31 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
     ? input.selected_review_ids.filter((id) => typeof id === "string" && id)
     : [];
 
+  const storeCity = String(input.store?.city ?? "").trim();
+  const extractedStoreCoords = extractCoordinatesFromLocation(storeMapsUrl, storeAddress, storeCity);
+
+  const storeLat =
+    typeof input.store?.latitude === "number" && !isNaN(input.store.latitude) && input.store.latitude !== 0
+      ? input.store.latitude
+      : extractedStoreCoords.lat;
+
+  const storeLng =
+    typeof input.store?.longitude === "number" && !isNaN(input.store.longitude) && input.store.longitude !== 0
+      ? input.store.longitude
+      : extractedStoreCoords.lng;
+
+  const finalStoreCity = storeCity && storeCity !== "Pusat" ? storeCity : (extractedStoreCoords.detectedCity || "Bandung");
+
   return {
     sections,
     store: {
       ...DEFAULT_STOREFRONT_SETTINGS.store,
       ...(input.store ?? {}),
-      maps_url: String(input.store?.maps_url ?? "").trim() || DEFAULT_STOREFRONT_SETTINGS.store.maps_url,
+      address: storeAddress,
+      city: finalStoreCity,
+      latitude: storeLat,
+      longitude: storeLng,
+      maps_url: storeMapsUrl || DEFAULT_STOREFRONT_SETTINGS.store.maps_url,
       whatsapp: input.store?.whatsapp?.trim() || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp,
       branches,
     },
@@ -478,6 +599,17 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
     admin: { catalogPageSize },
     featured_reviews,
     selected_review_ids,
+    admin_permissions:
+      input.admin_permissions && typeof input.admin_permissions === "object"
+        ? (input.admin_permissions as Record<string, string[]>)
+        : {},
+    admin_audit_logs: Array.isArray(input.admin_audit_logs)
+      ? (input.admin_audit_logs as AdminAuditLog[])
+      : [],
+    voucher_targeting:
+      input.voucher_targeting && typeof input.voucher_targeting === "object"
+        ? (input.voucher_targeting as Record<string, VoucherTargeting>)
+        : {},
   };
 }
 

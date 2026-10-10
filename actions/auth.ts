@@ -1,8 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { loginSchema, registerSchema } from '@/validators/auth.validator'
+import { normalizePhoneNumber, isValidIndonesianPhone, getPhoneVariants } from '@/lib/phone'
 
 export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse({
@@ -38,23 +40,61 @@ export async function login(formData: FormData) {
 }
 
 export async function register(formData: FormData) {
+  const rawPhone = String(formData.get('phone') ?? '').trim()
   const parsed = registerSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
     full_name: formData.get('full_name'),
+    phone: rawPhone,
   })
-  if (!parsed.success) return { error: 'Periksa kembali nama, email, dan kata sandi (minimal 6 karakter).' }
+  if (!parsed.success) {
+    return { error: 'Periksa kembali nama, email, nomor HP/WhatsApp, dan kata sandi (minimal 6 karakter).' }
+  }
 
+  if (!isValidIndonesianPhone(parsed.data.phone)) {
+    return { error: 'Masukkan nomor HP / WhatsApp Indonesia yang valid (contoh: 08123456789 atau 628123456789).' }
+  }
+
+  const cleanPhone = normalizePhoneNumber(parsed.data.phone)
+  const variants = getPhoneVariants(parsed.data.phone)
   const supabase = await createClient()
+
+  // Anti-abuse: Check if phone number is already registered to any existing account
+  try {
+    const adminClient = getSupabaseAdminClient()
+    const { data: existingUser } = await adminClient
+      .from('users')
+      .select('id')
+      .in('phone', variants)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingUser) {
+      return { error: 'Nomor HP / WhatsApp sudah terdaftar pada akun lain. Silakan login atau gunakan nomor lain.' }
+    }
+  } catch {
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .in('phone', variants)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingUser) {
+      return { error: 'Nomor HP / WhatsApp sudah terdaftar pada akun lain. Silakan login atau gunakan nomor lain.' }
+    }
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-  const { error } = await supabase.auth.signUp({
+  const { data: authData, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
       emailRedirectTo: `${siteUrl.replace(/\/$/, '')}/auth/callback?next=/profile`,
       data: {
         full_name: parsed.data.full_name,
+        phone: cleanPhone,
       },
     }
   })
@@ -64,6 +104,19 @@ export async function register(formData: FormData) {
       ? 'Batas pengiriman email verifikasi Supabase sedang tercapai. Tunggu sebelum mencoba lagi, atau atur SMTP sendiri di Supabase.'
       : error.message
     return { error: message }
+  }
+
+  // Ensure phone is stored in public.users profile
+  if (authData?.user?.id) {
+    try {
+      const adminClient = getSupabaseAdminClient()
+      await adminClient
+        .from('users')
+        .update({ phone: cleanPhone, full_name: parsed.data.full_name })
+        .eq('id', authData.user.id)
+    } catch {
+      // Ignore if trigger handled it or service client unavailable
+    }
   }
 
   redirect('/login?message=Check your email to verify your account')

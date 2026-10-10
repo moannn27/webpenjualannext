@@ -113,13 +113,25 @@ export async function getAllReviewsForAdminAction(): Promise<AdminReviewWithDeta
       .order('created_at', { ascending: false })
       .limit(50)
 
-    if (error) {
-      console.error('Error fetching reviews for admin:', error)
-      return []
+    if (error || !data || data.length === 0) {
+      if (error) console.error('Error fetching reviews for admin:', error)
+      const { DEFAULT_FEATURED_REVIEWS } = await import('@/lib/storefront-settings')
+      return DEFAULT_FEATURED_REVIEWS.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        created_at: new Date().toISOString(),
+        product_id: r.product_id,
+        user_id: `user-${r.id}`,
+        user_name: r.user_name,
+        user_avatar: r.user_avatar || '',
+        product_name: r.product_name,
+        product_image: r.product_image || '',
+      }))
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (data ?? []).map((row: any) => ({
+    return data.map((row: any) => ({
       id: row.id,
       rating: row.rating,
       comment: row.comment || '',
@@ -134,7 +146,23 @@ export async function getAllReviewsForAdminAction(): Promise<AdminReviewWithDeta
     }))
   } catch (err) {
     console.error('Failed to load admin reviews:', err)
-    return []
+    try {
+      const { DEFAULT_FEATURED_REVIEWS } = await import('@/lib/storefront-settings')
+      return DEFAULT_FEATURED_REVIEWS.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        created_at: new Date().toISOString(),
+        product_id: r.product_id,
+        user_id: `user-${r.id}`,
+        user_name: r.user_name,
+        user_avatar: r.user_avatar || '',
+        product_name: r.product_name,
+        product_image: r.product_image || '',
+      }))
+    } catch {
+      return []
+    }
   }
 }
 

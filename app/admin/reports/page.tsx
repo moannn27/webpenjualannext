@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getAdminEcommerceReportAction } from "@/actions/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SalesChart } from "@/features/admin/SalesChart";
 import { ReportExports } from "@/features/admin/ReportExports";
 import type { EcommerceReport } from "@/lib/admin-reports";
+import { requireModulePermission } from "@/lib/auth/permissions";
 
 const money = (value: number) => `Rp ${Number(value).toLocaleString("id-ID")}`;
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeZone: "Asia/Jakarta" }).format(new Date(`${value.slice(0, 10)}T12:00:00+07:00`)) : "-";
@@ -46,6 +48,12 @@ function ReportBody({ report }: { report: EcommerceReport }) {
 }
 
 export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<{ days?: string }> }) {
+  try {
+    await requireModulePermission("reports");
+  } catch {
+    redirect("/admin?error=forbidden");
+  }
+
   const params = await searchParams;
   const requested = Number.parseInt(params.days ?? "30", 10);
   const days = [7, 30, 90, 365].includes(requested) ? requested : 30;
