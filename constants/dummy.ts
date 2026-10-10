@@ -1,21 +1,21 @@
 export const HERO_SLIDES = [
   {
     id: 1,
-    title: "The New Standard of Power.",
-    subtitle: "MacBook Pro M3 Max",
-    description: "Mind-blowing. Head-turning. Experience the ultimate performance with the all-new M3 chip architecture.",
+    title: "Pusat Komputer & Laptop Terkurasi",
+    subtitle: "Next Solution Store",
+    description: "Temukan pilihan laptop kerja, laptop gaming, dan PC dengan spesifikasi teknis lengkap sesuai kebutuhan Anda.",
     image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=2000&auto=format&fit=crop",
-    cta: "Buy Now",
-    href: "/products?search=MacBook%20Pro"
+    cta: "Jelajahi Produk",
+    href: "/products"
   },
   {
     id: 2,
-    title: "Capture Beyond Limits.",
-    subtitle: "Galaxy S24 Ultra",
-    description: "Welcome to the era of Mobile AI. With Galaxy S24 Ultra in your hands, you can unleash whole new levels of creativity.",
+    title: "Penawaran Produk & Aksesoris Pilihan",
+    subtitle: "Katalog & Opsi Ambil di Toko",
+    description: "Pilihan lengkap perangkat komputer dan periferal dengan opsi ambil langsung di toko atau pengiriman pesanan.",
     image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=2000&auto=format&fit=crop",
-    cta: "Pre-order",
-    href: "/products?search=Galaxy%20S24%20Ultra"
+    cta: "Lihat Promo",
+    href: "/promo"
   }
 ];
 

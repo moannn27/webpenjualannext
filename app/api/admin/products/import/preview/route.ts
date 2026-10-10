@@ -4,38 +4,28 @@ import mammoth from 'mammoth'
 import * as cheerio from 'cheerio'
 import { PDFParse } from 'pdf-parse'
 import { getAdminAccess } from '@/lib/auth/admin'
-import { normalizeProductRows } from '@/lib/admin-product-import'
+import { importTablesFromWorkbook, markImportSkuConflicts, normalizeImportTables, type ImportTable } from '@/lib/admin-product-import'
+import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+const MAX_ROWS = 2000
 
 function parseCsv(source: string): string[][] {
   const rows: string[][] = []; let row: string[] = []; let field = ''; let quoted = false
   for (let i = 0; i < source.length; i++) {
     const char = source[i]
-    if (quoted) {
-      if (char === '"' && source[i + 1] === '"') { field += '"'; i++ }
-      else if (char === '"') quoted = false
-      else field += char
-    } else if (char === '"') quoted = true
+    if (quoted) { if (char === '"' && source[i + 1] === '"') { field += '"'; i++ } else if (char === '"') quoted = false; else field += char }
+    else if (char === '"') quoted = true
     else if (char === ',') { row.push(field); field = '' }
     else if (char === '\n' || char === '\r') { if (char === '\r' && source[i + 1] === '\n') i++; row.push(field); rows.push(row); row = []; field = '' }
     else field += char
   }
   if (field || row.length) { row.push(field); rows.push(row) }
+  if (quoted) throw new Error('CSV gagal dibaca: tanda kutip tidak berpasangan.')
   return rows
 }
-
-function excelRows(workbook: ExcelJS.Workbook): string[][] {
-  const sheet = workbook.worksheets[0]
-  if (!sheet) return []
-  const rows: string[][] = []
-  sheet.eachRow({ includeEmpty: false }, (row) => {
-    rows.push(Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text))
-  })
-  return rows
-}
-
 export async function POST(request: Request) {
   try {
     const { user, isAdmin } = await getAdminAccess()
@@ -43,33 +33,77 @@ export async function POST(request: Request) {
     const form = await request.formData()
     const file = form.get('file')
     if (!(file instanceof File)) return NextResponse.json({ error: 'Pilih file yang ingin dipreview.' }, { status: 400 })
-    if (file.size < 1 || file.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'Ukuran file harus kurang dari 10 MB.' }, { status: 413 })
+    if (file.size < 1 || file.size > MAX_FILE_BYTES) return NextResponse.json({ error: 'Ukuran file harus maksimal 10 MB.' }, { status: 413 })
     const extension = file.name.split('.').pop()?.toLowerCase()
     if (!['xlsx', 'csv', 'docx', 'pdf'].includes(extension ?? '')) return NextResponse.json({ error: 'Format yang didukung: XLSX, CSV, DOCX, dan PDF.' }, { status: 415 })
     const buffer = Buffer.from(await file.arrayBuffer())
-    let rows: string[][] = []
-    if (extension === 'csv') rows = parseCsv(new TextDecoder('utf-8').decode(buffer))
+    let tables: ImportTable[] = []
+    if (extension === 'csv') tables = [{ rows: parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(buffer)), source: 'CSV' }]
     else if (extension === 'xlsx') {
       const workbook = new ExcelJS.Workbook()
       await workbook.xlsx.load(buffer as never)
-      rows = excelRows(workbook)
+      tables = importTablesFromWorkbook(workbook)
     } else if (extension === 'docx') {
       const { value } = await mammoth.convertToHtml({ buffer })
       const $ = cheerio.load(value)
-      const table = $('table').toArray().find((element) => $(element).find('tr').length > 1)
-      if (table) rows = $(table).find('tr').toArray().map((tr) => $(tr).find('th,td').toArray().map((cell) => $(cell).text().trim()))
+      tables = $('table').toArray().map((table, tableIndex) => ({
+        source: `DOCX/table ${tableIndex + 1}`,
+        rows: $(table).find('tr').toArray().map((tr) => $(tr).find('th,td').toArray().map((cell) => $(cell).text().trim())),
+      }))
     } else {
       const parser = new PDFParse({ data: new Uint8Array(buffer) })
       try {
         const result = await parser.getTable()
-        const table = result.mergedTables.find((candidate) => candidate.length > 1)
-        if (table) rows = table
+        tables = result.pages.flatMap((page) => page.tables.map((rows, index) => ({ rows, source: `PDF/halaman ${page.num}/tabel ${index + 1}` })))
       } finally { await parser.destroy() }
     }
-    if (rows.length > 2001) return NextResponse.json({ error: 'File terlalu banyak baris. Maksimal 2.000 baris data.' }, { status: 413 })
-    const products = normalizeProductRows(rows)
+    const rowCount = tables.reduce((sum, table) => sum + table.rows.length, 0)
+    if (rowCount > MAX_ROWS + 1) return NextResponse.json({ error: `Maksimal ${MAX_ROWS} baris data per file.` }, { status: 413 })
+    const products = normalizeImportTables(tables)
+    const supabase = await createClient()
+    const existingBySku = new Map<string, string>()
+    const skuList = [...new Set(products.flatMap((product) => [product.sku, ...product.variants.map((variant) => variant.sku)]).filter(Boolean))]
+    if (skuList.length) {
+      let lookupData: { sku: string; product_id: string; match_type: string }[] = []
+      const { data, error } = await supabase.rpc('lookup_admin_import_skus', { p_skus: skuList })
+      if (!error && Array.isArray(data)) {
+        lookupData = data
+      } else {
+        const isMissingRpc = error?.code === 'PGRST202' || error?.code === '42883' || error?.message?.includes('lookup_admin_import_skus')
+        if (isMissingRpc) {
+          const [prods, vars] = await Promise.all([
+            supabase.from('products').select('id, sku').in('sku', skuList),
+            supabase.from('product_variants').select('product_id, sku').in('sku', skuList),
+          ])
+          const fromProds = (prods.data ?? []).map((p) => ({ sku: p.sku, product_id: p.id, match_type: 'product' }))
+          const fromVars = (vars.data ?? []).map((v) => ({ sku: v.sku, product_id: v.product_id, match_type: 'variant' }))
+          lookupData = [...fromProds, ...fromVars]
+        } else if (error) {
+          throw new Error(`SKU database tidak dapat diverifikasi: ${error.message}`)
+        }
+      }
+      const matches = new Map<string, { productId: string; type: string }[]>()
+      for (const item of lookupData) if (item.sku) {
+        const key = item.sku.trim().toLowerCase()
+        matches.set(key, [...(matches.get(key) ?? []), { productId: item.product_id, type: item.match_type }])
+        if (item.match_type === 'product') existingBySku.set(key, item.product_id)
+      }
+      for (const product of products) {
+        const ownSkuMatches = matches.get(product.sku.trim().toLowerCase()) ?? []
+        if (!existingBySku.has(product.sku.trim().toLowerCase()) && ownSkuMatches.length) {
+          product.errors = [...(product.errors ?? []), 'SKU/MTM ini sudah dipakai sebagai SKU varian di database.']
+          product.importAction = 'skip'
+        }
+        const variantConflict = product.variants.some((variant) => (matches.get(variant.sku.trim().toLowerCase()) ?? []).length > 0)
+        if (variantConflict) {
+          product.errors = [...(product.errors ?? []), 'Salah satu SKU varian sudah digunakan di database.']
+          product.importAction = 'skip'
+        }
+      }
+    }
+    markImportSkuConflicts(products, existingBySku)
     return NextResponse.json({ products, summary: { productCount: products.length, variantCount: products.reduce((count, product) => count + product.variants.length, 0) } })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'File tidak dapat dibaca.' }, { status: 400 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'File tidak dapat dibaca. Pastikan dokumen memiliki tabel dengan teks yang dapat diekstrak.' }, { status: 400 })
   }
 }

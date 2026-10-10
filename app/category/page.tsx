@@ -1,5 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { getCategoriesAction } from "@/actions/catalog";
+
+export const metadata: Metadata = {
+  title: "Kategori Produk",
+  description: "Jelajahi berbagai kategori produk mulai dari laptop, PC, hingga aksesoris komputer bergaransi resmi di Next Solution Store.",
+  alternates: {
+    canonical: "/category",
+  },
+  openGraph: {
+    title: "Kategori Produk | Next Solution Store",
+    description: "Jelajahi berbagai kategori produk komputer dan elektronik di Next Solution Store.",
+    url: "/category",
+  },
+};
 
 export default async function CategoriesPage() {
   const categories = await getCategoriesAction().catch(() => []);

@@ -1,29 +1,45 @@
 import { BaseRepository } from './base'
+import type { CatalogFilterParams } from '@/lib/catalog-filters'
 
 export class ProductRepository extends BaseRepository {
-  async findPage(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string }) {
+  async findPage(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string; filters?: CatalogFilterParams }) {
     const supabase = await this.getClient()
-    let query = supabase.from('products').select('*, product_images(*), categories(*), brands(*)', { count: 'exact' }).eq('status', 'published')
-    if (options.categoryId) query = query.eq('category_id', options.categoryId)
-    if (options.brandId) query = query.eq('brand_id', options.brandId)
-    if (options.promoOnly) query = query.not('discount_price', 'is', null)
     const term = (options.search ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}\s-]/gu, '').trim().slice(0, 80)
-    if (term) {
-      const { data: brandData } = await supabase.from('brands').select('id').ilike('name', `%${term}%`)
-      const brandIds = brandData?.map((b) => b.id).join(',')
-      let orQuery = `name.ilike.%${term}%,sku.ilike.%${term}%,description.ilike.%${term}%`
-      if (brandIds) orQuery += `,brand_id.in.(${brandIds})`
-      query = query.or(orQuery)
-    }
-    if (options.sort === 'price-low') query = query.order('price', { ascending: true })
-    else if (options.sort === 'price-high') query = query.order('price', { ascending: false })
-    else if (options.sort === 'popular') query = query.order('is_best_seller', { ascending: false }).order('created_at', { ascending: false })
-    else query = query.order('created_at', { ascending: false })
     const size = Math.min(200, Math.max(1, Math.trunc(options.pageSize)))
     const page = Math.max(1, Math.trunc(options.page))
-    const { data, count, error } = await query.range((page - 1) * size, page * size - 1)
-    if (error) throw error
-    return { rows: data ?? [], total: count ?? 0, page, pageSize: size }
+    const filters = options.filters
+    const { data, error } = await supabase.rpc('search_catalog_products', {
+      p_page: page, p_page_size: size, p_category_id: options.categoryId ?? null, p_brand_id: options.brandId ?? null,
+      p_search: term || null, p_promo_only: Boolean(options.promoOnly), p_sort: options.sort ?? 'newest',
+      p_price_min: filters?.priceMin ?? null, p_price_max: filters?.priceMax ?? null,
+      p_processor: filters?.processor ?? null, p_ram: filters?.ram ?? null, p_storage: filters?.storage ?? null,
+      p_gpu: filters?.gpu ?? null, p_display: filters?.display ?? null, p_in_stock: filters?.inStock ?? null,
+    })
+    if (error) {
+      const isMissingRpc = error.code === 'PGRST202' || error.code === '42883' || error.message?.includes('search_catalog_products')
+      if (isMissingRpc) {
+        let query = supabase.from('products').select('*, product_images(*), categories(*), brands(*)', { count: 'exact' }).eq('status', 'published')
+        if (options.categoryId) query = query.eq('category_id', options.categoryId)
+        if (options.brandId) query = query.eq('brand_id', options.brandId)
+        if (options.promoOnly) query = query.not('discount_price', 'is', null)
+        if (term) query = query.ilike('name', `%${term}%`)
+
+        if (options.sort === 'price_asc') query = query.order('price', { ascending: true })
+        else if (options.sort === 'price_desc') query = query.order('price', { ascending: false })
+        else if (options.sort === 'popular' || options.sort === 'bestseller') query = query.order('is_best_seller', { ascending: false }).order('created_at', { ascending: false })
+        else query = query.order('created_at', { ascending: false })
+
+        const from = (page - 1) * size
+        const to = from + size - 1
+        query = query.range(from, to)
+        const { data: fallbackRows, count, error: fallbackError } = await query
+        if (fallbackError) throw fallbackError
+        return { rows: fallbackRows ?? [], total: Number(count ?? 0), page, pageSize: size }
+      }
+      throw error
+    }
+    const result = data as { rows?: unknown[]; total?: number } | null
+    return { rows: result?.rows ?? [], total: Number(result?.total ?? 0), page, pageSize: size }
   }
 
   async findByIds(ids: string[]) {

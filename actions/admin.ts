@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
+import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
 
 const adminService = new AdminService()
 
@@ -220,14 +221,14 @@ export async function updateAdminManagedAccountRoleAction(formData: FormData) {
     if (!id || !['customer', 'admin', 'super_admin'].includes(role)) return { error: 'Role akun tidak valid.' }
     if (id === user.id && role !== 'super_admin') return { error: 'Role akun yang sedang digunakan tidak dapat diturunkan dari halaman ini.' }
     const supabase = await createClient()
-    if (role !== 'super_admin') {
-      const { count, error: countError } = await supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'super_admin')
-      if (countError) return { error: countError.message }
-      const { data: target, error: targetError } = await supabase.from('users').select('role').eq('id', id).maybeSingle()
-      if (targetError) return { error: targetError.message }
-      if (target?.role === 'super_admin' && (count ?? 0) <= 1) return { error: 'Tidak bisa menurunkan satu-satunya super admin.' }
+    let { error } = await supabase.rpc('admin_update_user_role', {
+      p_user_id: id,
+      p_role: role,
+    })
+    if (error && (error.code === 'PGRST202' || error.message?.includes('admin_update_user_role'))) {
+      const fallback = await supabase.from('users').update({ role }).eq('id', id)
+      error = fallback.error
     }
-    const { error } = await supabase.from('users').update({ role }).eq('id', id)
     if (error) return { error: error.message }
     revalidatePath('/admin/customers')
     return { success: true }
@@ -285,7 +286,7 @@ export async function saveAdminProductAction(formData: FormData) {
         discount_price: typeof item.discount_price === 'number' && Number.isFinite(item.discount_price) ? item.discount_price : null,
         stock: item.stock,
       }))
-      if (variants.some((item) => (!item.color && !item.ram && !item.storage) || !Number.isInteger(item.stock) || item.stock < 0 || (item.price !== null && item.price < 0) || (item.discount_price !== null && (item.discount_price < 0 || item.discount_price >= (item.price ?? price))))) throw new Error()
+      if (variants.some((item) => (!item.color && !item.ram && !item.storage) || !Number.isInteger(item.stock) || item.stock < 0 || (item.price !== null && item.price < 0) || (item.discount_price !== null && (item.discount_price <= 0 || item.discount_price >= (item.price ?? price))))) throw new Error()
       const optionKeys = variants.map((item) => [item.color, item.ram, item.storage].map((value) => value.toLowerCase()).join('|'))
       if (new Set(optionKeys).size !== optionKeys.length) throw new Error()
       const variantSkus = variants.map((item) => item.sku?.toLowerCase()).filter(Boolean)
@@ -293,7 +294,7 @@ export async function saveAdminProductAction(formData: FormData) {
     } catch { throw new Error('Daftar varian tidak valid. Pastikan setiap varian punya warna, RAM, atau storage dan stok yang benar.') }
   }
   const id = String(formData.get('id') ?? '').trim()
-  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice < 0 || discountPrice >= price)) || !['draft', 'published', 'archived'].includes(status)) {
+  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice <= 0 || discountPrice >= price)) || !['draft', 'published', 'archived'].includes(status)) {
     throw new Error('Periksa nama, deskripsi, kategori, brand, harga, stok, dan status produk.')
   }
   const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -396,11 +397,20 @@ export async function bulkImportAdminProductsAction(products: unknown) {
   await requireAdmin()
   if (!Array.isArray(products) || products.length < 1 || products.length > 500) throw new Error('Impor dapat memuat 1 sampai 500 produk sekaligus.')
   for (const product of products) {
-    if (!product || typeof product !== 'object' || typeof product.name !== 'string' || typeof product.description !== 'string' || typeof product.category !== 'string' || typeof product.brand !== 'string' || !Number.isFinite(product.price) || product.price < 0 || !Array.isArray(product.variants) || !Array.isArray(product.specifications)) throw new Error('Data impor tidak valid. Buat ulang preview dari file template.')
-    if (product.variants.length > 100 || product.specifications.length > 50) throw new Error('Jumlah varian atau spesifikasi produk melewati batas.')
+    if (!product || typeof product !== 'object' || typeof product.name !== 'string' || !product.name.trim() || typeof product.sku !== 'string' || typeof product.description !== 'string' || !product.description.trim() || typeof product.category !== 'string' || !product.category.trim() || typeof product.brand !== 'string' || !product.brand.trim() || !isValidImportPrices(product.price, product.discount_price ?? null) || !hasConfirmedImportPriceMapping(product) || !Array.isArray(product.variants) || !Array.isArray(product.specifications) || !['create', 'update'].includes(product.importAction)) throw new Error('Data impor tidak valid, harga promo tidak valid, atau konfirmasi harga belum lengkap. Periksa setiap baris preview.')
+    if (product.errors?.length || product.variants.length > 50 || product.specifications.length > 50) throw new Error('Data memiliki error atau jumlah varian/spesifikasi melewati batas.')
+    if (product.importAction === 'update' && !product.targetProductId) throw new Error('Pilih produk database yang cocok sebelum update.')
   }
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('bulk_import_products', { p_products: products })
+  let { data, error } = await supabase.rpc('bulk_import_products_v2', { p_products: products })
+  if (error && (error.code === 'PGRST202' || error.message?.includes('bulk_import_products_v2'))) {
+    const onlyCreates = products.every((p: { importAction?: string }) => !p.importAction || p.importAction === 'create')
+    if (onlyCreates) {
+      const v1Result = await supabase.rpc('bulk_import_products', { p_products: products })
+      data = v1Result.data
+      error = v1Result.error
+    }
+  }
   if (error) throw new Error(error.message)
   revalidatePath('/admin/products')
   revalidatePath('/products')

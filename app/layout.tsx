@@ -5,6 +5,7 @@ import { getCartAction } from "@/actions/cart";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { type CartItem } from "@/types/cart";
+import { getSiteUrl, DEFAULT_SITE_TITLE, DEFAULT_SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -12,9 +13,54 @@ const outfit = Outfit({
   subsets: ["latin"],
 });
 
+const siteUrl = getSiteUrl();
+
 export const metadata: Metadata = {
-  title: "Next Solution Store | Premium Electronics",
-  description: "Minimalist multi-brand electronics e-commerce.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: DEFAULT_SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_SITE_DESCRIPTION,
+  keywords: [
+    "Next Solution Store",
+    "laptop",
+    "laptop gaming",
+    "komputer PC",
+    "periferal",
+    "aksesoris komputer",
+    "spesifikasi laptop",
+    "ambil di toko",
+  ],
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    url: "/",
+    siteName: SITE_NAME,
+    title: DEFAULT_SITE_TITLE,
+    description: DEFAULT_SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: DEFAULT_SITE_TITLE,
+    description: DEFAULT_SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default async function RootLayout({

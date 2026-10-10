@@ -26,8 +26,13 @@ export function PromoBanner({ banner, sectionTitle, sectionSubtitle }: { banner?
           <p className="mb-6 max-w-xl text-base font-light text-primary-foreground/90 sm:mb-8 sm:text-lg lg:mb-10 lg:text-xl">
             {description}
           </p>
-          <Button render={<Link href={banner?.target_url || "/products"} />} size="lg" className="rounded-full px-8 bg-white text-primary hover:bg-white/90">
-            {banner?.button_label || "Lihat produk"}
+          <Button
+            render={<Link href={banner?.target_url || "/promo"} />}
+            size="lg"
+            className="rounded-full bg-white px-8 text-primary hover:bg-white/90"
+            aria-label={banner?.button_label || "Lihat penawaran promo"}
+          >
+            {banner?.button_label || "Lihat promo"}
           </Button>
         </div>
       </div>

@@ -1,4 +1,18 @@
+import type { Metadata } from "next";
 import { getFAQsAction } from "@/actions/content";
+
+export const metadata: Metadata = {
+  title: "Tanya Jawab (FAQ)",
+  description: "Pertanyaan yang sering diajukan mengenai pemesanan, metode pembayaran, garansi produk, dan pengiriman di Next Solution Store.",
+  alternates: {
+    canonical: "/faq",
+  },
+  openGraph: {
+    title: "Tanya Jawab (FAQ) | Next Solution Store",
+    description: "Pertanyaan yang sering diajukan seputar produk dan layanan di Next Solution Store.",
+    url: "/faq",
+  },
+};
 
 export default async function FAQPage() {
   const faqs = await getFAQsAction().catch(() => []);

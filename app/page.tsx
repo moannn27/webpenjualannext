@@ -6,12 +6,29 @@ import { BrandShowcase } from "@/features/landing/BrandShowcase";
 import { WhyChooseUs } from "@/features/landing/WhyChooseUs";
 import { Testimonials } from "@/features/landing/Testimonials";
 import { FaqSection } from "@/features/landing/FaqSection";
+import type { Metadata } from "next";
 import { getBestSellerAction, getNewArrivalAction, getProductsByIdsAction, getPromoProductsAction } from "@/actions/product";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
 import { getBannersAction, getFAQsAction, getTestimonialsAction } from "@/actions/content";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { buildStoreJsonLd, DEFAULT_SITE_TITLE } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: DEFAULT_SITE_TITLE,
+  },
+  description: "Toko komputer dan laptop dengan spesifikasi lengkap, ragam brand pilihan, serta kemudahan ambil di toko maupun pengiriman pesanan.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: DEFAULT_SITE_TITLE,
+    description: "Toko komputer dan laptop dengan spesifikasi lengkap, ragam brand pilihan, serta kemudahan ambil di toko.",
+    url: "/",
+  },
+};
 
 export default async function Home() {
   const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, testimonials, banners, rawSettings] = await Promise.all([
@@ -35,8 +52,14 @@ export default async function Home() {
     return ids.length ? ids.map((id) => selectedProducts.find((product) => product.id === id)).filter((product): product is (typeof selectedProducts)[number] => Boolean(product)) : fallback;
   };
 
+  const storeJsonLd = buildStoreJsonLd(settings.store);
+
   return (
     <div className="flex flex-col gap-14 pb-16 sm:gap-20 sm:pb-20 lg:gap-24 lg:pb-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd) }}
+      />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
       {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
       {sections.bestsellers.visible && <FeaturedProducts title={sections.bestsellers.title} subtitle={sections.bestsellers.subtitle} type="bestseller" initialData={selected("bestsellers", (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
@@ -44,7 +67,7 @@ export default async function Home() {
       {sections.newArrivals.visible && <FeaturedProducts title={sections.newArrivals.title} subtitle={sections.newArrivals.subtitle} type="new" initialData={selected("newArrivals", (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.promo.visible && <FeaturedProducts title={sections.promo.title} subtitle={sections.promo.subtitle} type="promo" initialData={selected("promo", promoProducts.map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.brands.visible && <BrandShowcase brands={brands ?? []} title={sections.brands.title} />}
-      {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} />}
+      {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} store={settings.store} pickupInfo={settings.pickup_info} />}
       {sections.testimonials.visible && <Testimonials testimonials={testimonials ?? []} title={sections.testimonials.title} subtitle={sections.testimonials.subtitle} />}
       {sections.faq.visible && <FaqSection faqs={faqs ?? []} title={sections.faq.title} subtitle={sections.faq.subtitle} />}
     </div>

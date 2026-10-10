@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Star, ShoppingCart, Heart } from "lucide-react";
+import { Star, ShoppingCart, Heart, GitCompareArrows } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toggleWishlistAction } from "@/actions/wishlist";
+import { useProductCompareStore } from "@/store/useProductCompareStore";
 
 interface ProductCardProps {
   product: Product;
@@ -18,6 +19,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const { addToCart, loadingProductId } = useAddToCart();
   const [saved, setSaved] = useState(false);
   const router = useRouter();
+  const compareIds = useProductCompareStore((state) => state.ids);
+  const toggleCompare = useProductCompareStore((state) => state.toggle);
+  const compareSelected = compareIds.includes(product.id);
+  const payablePrice = product.discountPrice ?? product.price;
+  const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
 
   const toggleWishlist = async () => {
     try {
@@ -57,7 +63,7 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Wishlist Button */}
       <button onClick={toggleWishlist} aria-pressed={saved} className="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
         <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />
-        <span className="sr-only">{saved ? "Remove from wishlist" : "Add to wishlist"}</span>
+        <span className="sr-only">{saved ? "Hapus dari wishlist" : "Tambah ke wishlist"}</span>
       </button>
 
       {/* Image */}
@@ -84,22 +90,25 @@ export function ProductCard({ product }: ProductCardProps) {
             {product.name}
           </h3>
         </Link>
-        <p className="text-sm text-muted-foreground mb-4">{product.brand || product.category}</p>
+        <p className="text-sm text-muted-foreground mb-2">{product.brand || product.category}</p>
+        <button type="button" onClick={() => toggleCompare(product.id)} disabled={!compareSelected && compareIds.length >= 3} aria-pressed={compareSelected} className="mb-3 flex w-fit items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">
+          <GitCompareArrows className="size-4" />{compareSelected ? "Hapus dari compare" : "Bandingkan"}
+        </button>
         
         <div className="mt-auto flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-xl font-bold text-foreground">
-              {formatPrice(product.price)}
+              {formatPrice(payablePrice)}
             </span>
-            {product.originalPrice && (
+            {regularPrice != null && regularPrice > payablePrice && (
               <span className="text-sm text-muted-foreground line-through">
-                {formatPrice(product.originalPrice)}
+                {formatPrice(regularPrice)}
               </span>
             )}
           </div>
-          <Button size="icon" disabled={loadingProductId === product.id} className="rounded-full h-10 w-10 z-10" onClick={() => addToCart(product.id)}>
+          <Button size="icon" disabled={loadingProductId === product.id} className="rounded-full h-10 w-10 z-10" aria-label={`Tambah ${product.name} ke keranjang`} onClick={() => addToCart(product.id)}>
             <ShoppingCart className="h-4 w-4" />
-            <span className="sr-only">Add to cart</span>
+            <span className="sr-only">Tambah ke keranjang</span>
           </Button>
         </div>
       </div>

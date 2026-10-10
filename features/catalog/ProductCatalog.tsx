@@ -34,7 +34,8 @@ export function ProductCatalog({ initialProducts = [], initialSort = "newest" }:
   const products = initialProducts;
   const brands = [...new Set(products.map((product) => product.brand).filter(Boolean))] as string[];
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))] as string[];
-  const maximumPrice = Math.max(5000, ...products.map((product) => product.price));
+  const payablePrice = (product: typeof products[number]) => product.discountPrice ?? product.price;
+  const maximumPrice = Math.max(5000, ...products.map(payablePrice));
   
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [priceRange, setPriceRange] = useState([0, maximumPrice]);
@@ -46,13 +47,13 @@ export function ProductCatalog({ initialProducts = [], initialSort = "newest" }:
   const [page, setPage] = useState(1);
 
   const filteredProducts = products.filter((product) =>
-    product.price >= priceRange[0] && product.price <= priceRange[1] &&
+    payablePrice(product) >= priceRange[0] && payablePrice(product) <= priceRange[1] &&
     (!selectedBrands.length || selectedBrands.includes(product.brand ?? "")) &&
     (!selectedCategories.length || selectedCategories.includes(product.category))
   );
   const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sort === "price-low") return a.price - b.price;
-    if (sort === "price-high") return b.price - a.price;
+    if (sort === "price-low") return payablePrice(a) - payablePrice(b);
+    if (sort === "price-high") return payablePrice(b) - payablePrice(a);
     if (sort === "popular") return Number(b.isBestSeller) - Number(a.isBestSeller) || (b.reviews ?? 0) - (a.reviews ?? 0);
     return 0;
   });
@@ -232,7 +233,7 @@ export function ProductCatalog({ initialProducts = [], initialSort = "newest" }:
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold mb-2">{product.name}</h3>
                     <p className="text-muted-foreground mb-4">{product.brand || product.category}</p>
-                    <div className="text-2xl font-bold">Rp {product.price.toLocaleString("id-ID")}</div>
+                    <div className="text-2xl font-bold">Rp {payablePrice(product).toLocaleString("id-ID")}</div>
                   </div>
                   <Button className="shrink-0 z-10" disabled={loadingProductId === product.id} onClick={() => addToCart(product.id)}>Add to Cart</Button>
                 </div>

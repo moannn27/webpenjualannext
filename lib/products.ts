@@ -6,6 +6,7 @@ export type StoreProduct = {
   sku?: string | null;
   price: number | string;
   discount_price?: number | string | null;
+  product_specifications?: { id?: string; key: string; value: string; display_order?: number }[];
   stock: number;
   status?: string;
   is_best_seller?: boolean;
@@ -20,7 +21,8 @@ export function toStorefrontProduct(row: StoreProduct): Product {
     id: row.id,
     name: row.name,
     sku: row.sku ?? "",
-    price: discount ?? Number(row.price),
+    price: Number(row.price),
+    discountPrice: discount,
     originalPrice: discount === null ? null : Number(row.price),
     stock: row.stock,
     status: row.status ?? "published",
@@ -28,6 +30,7 @@ export function toStorefrontProduct(row: StoreProduct): Product {
     category: row.categories?.name ?? "",
     brand: row.brands?.name ?? "",
     image: row.product_images?.find((image) => image.is_primary)?.url ?? row.product_images?.[0]?.url ?? "",
+    specifications: row.product_specifications ?? [],
     badges: discount === null ? [] : ["Sale"],
   };
 }

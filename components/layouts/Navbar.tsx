@@ -30,24 +30,24 @@ import {
 
 const components: { title: string; href: string; description: string }[] = [
   {
-    title: "Laptops",
+    title: "Laptop",
     href: "/category/laptops",
-    description: "High-performance laptops for work and gaming.",
+    description: "Laptop bisnis, kerja, dan gaming performa tinggi.",
   },
   {
-    title: "Smartphones",
+    title: "Smartphone",
     href: "/category/smartphones",
-    description: "Latest flagship and budget-friendly smartphones.",
+    description: "Smartphone flagship dan kebutuhan harian bergaransi.",
   },
   {
-    title: "Tablets",
+    title: "Tablet",
     href: "/category/tablets",
-    description: "Portable powerhouses for creativity and entertainment.",
+    description: "Tablet portabel untuk produktivitas dan hiburan.",
   },
   {
-    title: "Accessories",
+    title: "Aksesoris",
     href: "/category/accessories",
-    description: "Enhance your experience with premium accessories.",
+    description: "Periferal, memori, dan perlengkapan komputer lengkap.",
   },
 ];
 
@@ -131,10 +131,10 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                 </SheetHeader>
                 <div className="grid gap-4 py-4">
                   <Link href="/products" className="text-lg font-medium">
-                    Products
+                    Produk
                   </Link>
                   <Link href="/brands" className="text-lg font-medium">
-                    Brands
+                    Brand
                   </Link>
                   <Link href="/promo" className="text-lg font-medium">
                     Promo
@@ -162,7 +162,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
             <NavigationMenu className="hidden lg:flex">
               <NavigationMenuList>
                 <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent">Products</NavigationMenuTrigger>
+                  <NavigationMenuTrigger className="bg-transparent">Produk</NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px] ">
                       {components.map((component) => (
@@ -179,7 +179,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                 </NavigationMenuItem>
                 <NavigationMenuItem>
                   <NavigationMenuLink render={<Link href="/brands" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
-                    Brands
+                    Brand
                   </NavigationMenuLink>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
@@ -199,7 +199,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search products..."
+                placeholder="Cari produk atau spesifikasi..."
                 className="w-full bg-muted/50 border-none pl-9 rounded-full focus-visible:ring-1 focus-visible:ring-primary/50 transition-all duration-200"
               />
             </form>

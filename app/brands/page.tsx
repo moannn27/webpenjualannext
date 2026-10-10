@@ -1,6 +1,20 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import { getBrandsAction } from "@/actions/catalog";
+
+export const metadata: Metadata = {
+  title: "Daftar Brand Produk",
+  description: "Jelajahi berbagai pilihan brand komputer, laptop, dan aksesoris yang tersedia di Next Solution Store.",
+  alternates: {
+    canonical: "/brands",
+  },
+  openGraph: {
+    title: "Daftar Brand Produk | Next Solution Store",
+    description: "Jelajahi berbagai pilihan brand komputer, laptop, dan aksesoris yang tersedia di Next Solution Store.",
+    url: "/brands",
+  },
+};
 
 export default async function BrandsPage() {
   const brands = await getBrandsAction().catch(() => []);

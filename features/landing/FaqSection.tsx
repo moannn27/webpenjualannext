@@ -2,9 +2,18 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 type FAQ = { id: string; question: string; answer: string };
 
-export function FaqSection({ faqs = [], title = "Frequently Asked Questions", subtitle = "Have a question? We're here to help." }: { faqs?: FAQ[]; title?: string; subtitle?: string }) {
+export function FaqSection({
+  faqs = [],
+  title = "Pertanyaan Umum",
+  subtitle = "Jawaban atas pertanyaan yang sering diajukan seputar produk, garansi, dan transaksi.",
+}: {
+  faqs?: FAQ[];
+  title?: string;
+  subtitle?: string;
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
@@ -51,6 +60,13 @@ export function FaqSection({ faqs = [], title = "Frequently Asked Questions", su
           </div>
         ))}
       </div>
+      {faqs.length > 0 && (
+        <div className="mt-8 text-center">
+          <Link href="/faq" className="text-sm font-medium text-primary hover:underline">
+            Lihat Semua Tanya Jawab (FAQ) <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
+      )}
       {!faqs.length && <p className="text-center text-sm text-muted-foreground">FAQ belum tersedia.</p>}
     </section>
   );

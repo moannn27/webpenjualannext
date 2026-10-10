@@ -45,3 +45,7 @@ next-env.d.ts
 .playwright-mcp/
 supabase/.temp/
 
+# local agent skills
+.agents/
+skills-lock.json
+

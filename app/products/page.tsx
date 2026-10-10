@@ -4,11 +4,45 @@ import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { PagedProductCatalog } from "@/features/catalog/PagedProductCatalog";
+import type { Metadata } from "next";
+import { clampCatalogPage, normalizeCatalogSearchParams, parseCatalogFilters, type RawCatalogSearchParams } from "@/lib/catalog-filters";
+
+export async function generateMetadata({ searchParams }: {
+  searchParams: Promise<RawCatalogSearchParams>;
+}): Promise<Metadata> {
+  const filters = normalizeCatalogSearchParams(await searchParams);
+  let title = "Katalog Produk & Komputer";
+  if (filters.search) {
+    title = `Cari: "${filters.search}"`;
+  } else if (filters.promo === "1") {
+    title = "Produk Promo Spesial";
+  }
+
+  const description = filters.search
+    ? `Hasil pencarian produk untuk "${filters.search}" di Next Solution Store. Pilihan laptop, PC, dan aksesoris komputer.`
+    : filters.promo === "1"
+      ? "Koleksi produk promo dan penawaran potongan harga pilihan di Next Solution Store."
+      : "Jelajahi katalog lengkap laptop, PC desktop, suku cadang, dan aksesoris komputer di Next Solution Store.";
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: "/products",
+    },
+    openGraph: {
+      title,
+      description,
+      url: "/products",
+    },
+  };
+}
 
 export default async function ProductsPage({ searchParams }: {
-  searchParams: Promise<{ search?: string; category?: string; brand?: string; promo?: string; sort?: string; page?: string }>;
+  searchParams: Promise<RawCatalogSearchParams>;
 }) {
-  const filters = await searchParams;
+  const filters = normalizeCatalogSearchParams(await searchParams);
+  const technicalFilters = parseCatalogFilters(filters);
   const [rawSettings, categories, brands] = await Promise.all([
     getStorefrontSettingsAction().catch(() => null),
     getCategoriesAction().catch(() => []),
@@ -20,13 +54,12 @@ export default async function ProductsPage({ searchParams }: {
   const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
   const result = await getProductsPageAction({
     page, pageSize, categoryId: filters.category, brandId: filters.brand,
-    search: filters.search, promoOnly: Boolean(filters.promo), sort: filters.sort,
+    search: filters.search, promoOnly: filters.promo === '1', sort: filters.sort, filters: technicalFilters,
   });
-  const pageCount = Math.max(1, Math.ceil(result.total / result.pageSize));
-  const currentPage = Math.min(page, pageCount);
+  const { page: currentPage } = clampCatalogPage(page, result.total, result.pageSize);
   const products = currentPage === result.page
     ? result.rows.map((row) => toStorefrontProduct(row as StoreProduct))
-    : (await getProductsPageAction({ page: currentPage, pageSize, categoryId: filters.category, brandId: filters.brand, search: filters.search, promoOnly: Boolean(filters.promo), sort: filters.sort })).rows.map((row) => toStorefrontProduct(row as StoreProduct));
+    : (await getProductsPageAction({ page: currentPage, pageSize, categoryId: filters.category, brandId: filters.brand, search: filters.search, promoOnly: filters.promo === '1', sort: filters.sort, filters: technicalFilters })).rows.map((row) => toStorefrontProduct(row as StoreProduct));
 
   return <div className="pb-24 pt-8">
     <div className="container mx-auto mb-8 px-4 sm:px-6 lg:px-8">

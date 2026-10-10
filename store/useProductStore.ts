@@ -13,7 +13,9 @@ export interface Product {
   image: string;
   // Optional storefront fields
   brand?: string;
+  discountPrice?: number | null;
   originalPrice?: number | null;
+  specifications?: { id?: string; key: string; value: string; display_order?: number }[];
   rating?: number;
   reviews?: number;
   isBestSeller?: boolean;

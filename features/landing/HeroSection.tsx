@@ -58,18 +58,21 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
           transition={{ duration: 0.65, delay: 0.12, ease: "easeOut" }}
             className="max-w-3xl flex flex-col items-center"
           >
-            <span className="text-sm md:text-base font-semibold uppercase tracking-widest text-white/80 mb-4">
+            <span className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/80 sm:mb-4 sm:text-sm md:text-base">
               {slide.subtitle}
             </span>
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
+            <h1 className="mb-4 text-3xl font-bold tracking-tight leading-tight sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl">
               {slide.title}
             </h1>
-            <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl font-light">
+            <p className="mb-8 max-w-2xl text-sm font-light text-white/90 sm:mb-10 sm:text-base md:text-xl">
               {slide.description}
             </p>
-            <div className="flex gap-4">
-              <Button render={<Link href={slide.href} />} size="lg" className="rounded-full px-8 text-base bg-white text-black hover:bg-white/90">
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+              <Button render={<Link href={slide.href} />} size="lg" className="rounded-full px-7 text-sm font-semibold bg-white text-black hover:bg-white/90 sm:px-8 sm:text-base">
                 {slide.cta}
+              </Button>
+              <Button variant="outline" render={<Link href="/products" />} size="lg" className="rounded-full border-white/40 bg-black/25 px-7 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 sm:px-8 sm:text-base">
+                Semua Produk
               </Button>
             </div>
           </motion.div>

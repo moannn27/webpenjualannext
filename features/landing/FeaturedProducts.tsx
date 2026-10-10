@@ -28,11 +28,11 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 text-foreground">
             {title}
           </h2>
-          <p className="text-muted-foreground text-lg">
-            {subtitle ?? (type === "bestseller" ? "Most loved by our customers." : "Discover the latest innovations.")}
+          <p className="text-base text-muted-foreground sm:text-lg">
+            {subtitle ?? (type === "bestseller" ? "Pilihan terfavorit yang paling banyak dibeli pelanggan." : type === "promo" ? "Penawaran harga terbaik dan potongan spesial." : "Lini produk dan teknologi terbaru yang siap dimiliki.")}
           </p>
         </div>
-        <Button variant="outline" className="self-start rounded-full md:self-auto" render={<Link href={type === "promo" ? "/promo" : `/products?sort=${type}`} />}>
+        <Button variant="outline" className="self-start rounded-full md:self-auto" aria-label={`Lihat semua ${title}`} render={<Link href={type === "promo" ? "/promo" : `/products?sort=${type}`} />}>
           Lihat semua <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
