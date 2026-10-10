@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Star, ShieldCheck, Truck, ArrowLeft, Heart, Share2, Plus, Minus } from "lucide-react";
@@ -9,8 +9,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { addToCartAction } from "@/actions/cart";
 import { toggleWishlistAction } from "@/actions/wishlist";
-import { submitReviewAction } from "@/actions/review";
-import { Input } from "@/components/ui/input";
 import { emitCartUpdated } from "@/lib/cart-events";
 
 interface ProductDetailData {
@@ -64,8 +62,6 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const [activeImage, setActiveImage] = useState(images[0]?.url ?? "");
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [reviewError, setReviewError] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
   const reviewCount = reviews.length;
   const averageRating = reviewCount ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1) : "—";
 
@@ -110,23 +106,6 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       if (error instanceof Error && error.message === "Unauthorized") router.push(`/login?redirect=/product/${product.id}`);
       else setFeedback("Wishlist gagal diperbarui.");
     }
-  };
-
-  const handleReview = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setReviewLoading(true);
-    setReviewError("");
-    const formData = new FormData(event.currentTarget);
-    formData.set("productId", product.id);
-    try {
-      await submitReviewAction(formData);
-      setFeedback("Ulasan berhasil dikirim.");
-      event.currentTarget.reset();
-      router.refresh();
-    } catch (error) {
-      if (error instanceof Error && error.message === "Unauthorized") router.push(`/login?redirect=/product/${product.id}`);
-      else setReviewError(error instanceof Error ? error.message : "Ulasan gagal dikirim.");
-    } finally { setReviewLoading(false); }
   };
 
   const formatPrice = (price: number) => `Rp ${Number(price).toLocaleString("id-ID")}`;
@@ -310,21 +289,125 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               )) : <p className="text-muted-foreground">Spesifikasi belum tersedia.</p>}
             </div>
           ) : (
-            <div className="space-y-8 max-w-4xl">
-              {reviews.length ? reviews.map((review) => (
-                <article key={review.id} className="border-b border-border pb-6">
-                  <div className="mb-2 flex items-center gap-2"><h4 className="font-semibold">{review.users?.full_name || "Pelanggan"}</h4><div className="flex" aria-label={`${review.rating} dari 5 bintang`}>{Array.from({ length: 5 }, (_, index) => <Star key={index} className={`size-3 ${index < review.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />)}</div></div>
-                  <p className="mb-2 text-sm text-muted-foreground">{new Date(review.created_at).toLocaleDateString("id-ID")}</p>
-                  <p>{review.comment || "Tidak ada komentar."}</p>
-                </article>
-              )) : <p className="text-muted-foreground">Belum ada ulasan. Jadilah yang pertama.</p>}
-              <form onSubmit={handleReview} className="max-w-xl space-y-3 rounded-2xl border border-border p-5">
-                <h3 className="font-semibold">Tulis ulasan</h3>
-                <label className="block text-sm">Rating<select name="rating" defaultValue="5" className="mt-1 block h-10 w-full rounded-lg border border-input bg-background px-3"><option value="5">5 - Sangat bagus</option><option value="4">4 - Bagus</option><option value="3">3 - Cukup</option><option value="2">2 - Kurang</option><option value="1">1 - Buruk</option></select></label>
-                <Input name="comment" placeholder="Ceritakan pengalamanmu" required minLength={3} />
-                {reviewError && <p role="alert" className="text-sm text-destructive">{reviewError}</p>}
-                <Button type="submit" disabled={reviewLoading}>{reviewLoading ? "Mengirim..." : "Kirim ulasan"}</Button>
-              </form>
+            <div className="space-y-6 max-w-4xl">
+              {reviews.length > 0 ? (
+                <>
+                  {/* Rating Summary Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-extrabold text-foreground">{averageRating}</span>
+                        <span className="text-xs text-muted-foreground">/ 5.0</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex gap-0.5">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`size-4 ${
+                                i < Math.round(Number(averageRating) || 5)
+                                  ? "fill-amber-400 text-amber-400"
+                                  : "fill-muted text-muted"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Berdasarkan {reviewCount} ulasan pembeli
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <ShieldCheck className="size-4" />
+                      100% Pembelian Terverifikasi
+                    </div>
+                  </div>
+
+                  {/* List of Verified Reviews */}
+                  <div className="space-y-4">
+                    {reviews.map((review) => {
+                      const initials = (review.users?.full_name || "Pelanggan")
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+
+                      return (
+                        <article
+                          key={review.id}
+                          className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-2xs space-y-3"
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-3">
+                              <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 font-bold text-xs text-white">
+                                {initials}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-sm text-foreground">
+                                  {review.users?.full_name || "Pelanggan Terverifikasi"}
+                                </h4>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {new Date(review.created_at).toLocaleDateString("id-ID", {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex gap-0.5">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`size-3.5 ${
+                                      i < review.rating
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "fill-muted text-muted"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <ShieldCheck className="size-3" />
+                                Terverifikasi
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-light pl-1">
+                            {review.comment || "Pembeli tidak menyertakan ulasan tertulis."}
+                          </p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                /* Empty State (When no reviews yet) */
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <ShieldCheck className="size-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-base text-foreground">Belum Ada Ulasan Pembeli</h4>
+                    <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
+                      Ulasan untuk produk ini hanya dapat diberikan oleh pembeli terverifikasi setelah pesanan diterima dan selesai.
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <Link
+                      href="/profile"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                    >
+                      Sudah membeli produk ini? Berikan ulasan di Pesanan Saya &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

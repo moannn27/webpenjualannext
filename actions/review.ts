@@ -7,7 +7,61 @@ import { revalidatePath } from 'next/cache'
 const reviewService = new ReviewService()
 
 export async function getProductReviewsAction(productId: string) {
-  return await reviewService.getReviews(productId)
+  const dbReviews = await reviewService.getReviews(productId).catch(() => []);
+  if (dbReviews && dbReviews.length > 0) {
+    return dbReviews;
+  }
+
+  // Fallback to featured reviews from storefront settings if configured for this product
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle();
+    const settings = data?.settings as { featured_reviews?: Array<{ id: string; product_id: string; user_name: string; user_avatar?: string; rating: number; comment: string; date_text?: string; is_verified?: boolean }> } | undefined;
+
+    const matchingFeatured = (settings?.featured_reviews || []).filter((r) => r.product_id === productId);
+    if (matchingFeatured.length > 0) {
+      return matchingFeatured.map((r) => ({
+        id: r.id,
+        product_id: r.product_id,
+        user_id: `user-${r.id}`,
+        rating: r.rating,
+        comment: r.comment,
+        created_at: new Date().toISOString(),
+        users: {
+          full_name: r.user_name,
+          avatar_url: r.user_avatar || null,
+        },
+        is_verified: r.is_verified !== false,
+      }));
+    }
+  } catch (err) {
+    console.error('Error checking featured reviews for product:', err);
+  }
+
+  // Fallback to DEFAULT_FEATURED_REVIEWS matching this product
+  try {
+    const { DEFAULT_FEATURED_REVIEWS } = await import('@/lib/storefront-settings');
+    const defaultMatching = DEFAULT_FEATURED_REVIEWS.filter((r) => r.product_id === productId);
+    if (defaultMatching.length > 0) {
+      return defaultMatching.map((r) => ({
+        id: r.id,
+        product_id: r.product_id,
+        user_id: `user-${r.id}`,
+        rating: r.rating,
+        comment: r.comment,
+        created_at: new Date().toISOString(),
+        users: {
+          full_name: r.user_name,
+          avatar_url: r.user_avatar || null,
+        },
+        is_verified: r.is_verified !== false,
+      }));
+    }
+  } catch {
+    // ignore
+  }
+
+  return [];
 }
 
 export async function getUserReviewsAction() {
