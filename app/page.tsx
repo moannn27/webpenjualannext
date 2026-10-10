@@ -7,6 +7,7 @@ import { WhyChooseUs } from "@/features/landing/WhyChooseUs";
 import { Testimonials } from "@/features/landing/Testimonials";
 import { FaqSection } from "@/features/landing/FaqSection";
 import { BranchLocatorSection } from "@/features/landing/BranchLocatorSection";
+import { ProductReviewsSection } from "@/features/landing/ProductReviewsSection";
 import { OfficialChannelsSection } from "@/features/landing/OfficialChannelsSection";
 import type { Metadata } from "next";
 import { getBestSellerAction, getNewArrivalAction, getProductsByIdsAction, getPromoProductsAction } from "@/actions/product";
@@ -14,6 +15,7 @@ import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
 import { getBannersAction, getFAQsAction, getTestimonialsAction } from "@/actions/content";
 import { getStorefrontSettingsAction } from "@/actions/content";
+import { getStorefrontFeaturedReviewsAction } from "@/actions/review";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { buildStoreJsonLd, DEFAULT_SITE_TITLE } from "@/lib/seo";
 
@@ -54,6 +56,11 @@ export default async function Home() {
     return ids.length ? ids.map((id) => selectedProducts.find((product) => product.id === id)).filter((product): product is (typeof selectedProducts)[number] => Boolean(product)) : fallback;
   };
 
+  const featuredReviews = await getStorefrontFeaturedReviewsAction(
+    settings.featured_reviews,
+    settings.selected_review_ids
+  ).catch(() => settings.featured_reviews);
+
   const storeJsonLd = buildStoreJsonLd(settings.store);
 
   return (
@@ -77,6 +84,12 @@ export default async function Home() {
           storeAddress={settings.store.address}
           storeMapsUrl={settings.store.maps_url}
           storeName="Next Solution"
+        />
+      )}
+      {sections.reviews?.visible && (
+        <ProductReviewsSection
+          sectionSetting={sections.reviews}
+          reviews={featuredReviews}
         />
       )}
       {sections.channels?.visible && (

@@ -67,6 +67,19 @@ export type OfficialChannel = {
   is_active?: boolean;
 };
 
+export type FeaturedReviewItem = {
+  id: string;
+  user_name: string;
+  user_avatar?: string;
+  product_id: string;
+  product_name: string;
+  product_image?: string;
+  rating: number;
+  comment: string;
+  date_text?: string;
+  is_verified?: boolean;
+};
+
 export type StorefrontSettings = {
   sections: Record<string, StoreSectionSetting>;
   store: {
@@ -84,6 +97,8 @@ export type StorefrontSettings = {
   pickup_info: { store_name: string; store_address: string; maps_url: string };
   bank_transfer: BankTransferInfo[];
   admin: { catalogPageSize: number };
+  featured_reviews: FeaturedReviewItem[];
+  selected_review_ids?: string[];
 };
 
 export const DEFAULT_OFFICIAL_MARKETPLACES: OfficialMarketplace[] = [
@@ -153,6 +168,53 @@ export const DEFAULT_OFFICIAL_MARKETPLACES: OfficialMarketplace[] = [
   },
 ];
 
+export const DEFAULT_FEATURED_REVIEWS: FeaturedReviewItem[] = [
+  {
+    id: "review-feat-1",
+    user_name: "Dimas Prasetyo",
+    product_id: "539c23b8-faff-432c-9482-2d3fd963ab5b",
+    product_name: "Ideapad slim 3",
+    product_image: "https://xyhooykvidzstnmaggku.supabase.co/storage/v1/object/public/products/366daf41-bd62-4bab-b2cd-0d5682601da0.webp",
+    rating: 5,
+    comment: "Barang mendarat dengan sangat aman, packing kayu tebal dan bubble wrap berlapis. Laptopnya mulus banget, performa buat kerja harian kencang tanpa kendala sama sekali!",
+    date_text: "2 hari yang lalu",
+    is_verified: true,
+  },
+  {
+    id: "review-feat-2",
+    user_name: "Sarah Amanda",
+    product_id: "f084200e-641f-419d-befd-47ce8d5610e1",
+    product_name: "ROG Zephyrus G14",
+    product_image: "",
+    rating: 5,
+    comment: "Pelayanan Next Solution terbaik! Admin fast response saat tanya detail spesifikasi. Barang 100% original bergaransi resmi, layar cakep dan spek gaming mantap banget.",
+    date_text: "5 hari yang lalu",
+    is_verified: true,
+  },
+  {
+    id: "review-feat-3",
+    user_name: "Budi Santoso",
+    product_id: "4e9d426d-75ac-4752-bd41-bc34c05385d4",
+    product_name: 'MacBook Pro 16" M3 Max',
+    product_image: "",
+    rating: 5,
+    comment: "Kualitas produk luar biasa, pengiriman cepat sampai di hari yang sama dengan opsi kurir instant. Garansi resmi terdaftar aman. Sangat puas belanja di sini!",
+    date_text: "1 minggu yang lalu",
+    is_verified: true,
+  },
+  {
+    id: "review-feat-4",
+    user_name: "Reza Pratama",
+    product_id: "f679c6fb-79f7-4031-bedd-b96d0da1defb",
+    product_name: "Galaxy S24 Ultra",
+    product_image: "",
+    rating: 5,
+    comment: "Bisa ambil langsung di toko cabang, dicek bareng-bareng sama teknisi toko. Toko fisik jelas, garansi aman, belanja gadget di sini tenang tanpa was-was.",
+    date_text: "2 minggu yang lalu",
+    is_verified: true,
+  },
+];
+
 export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   sections: {
     categories: { visible: true, title: "Belanja berdasarkan kategori", subtitle: "Temukan yang kamu cari." },
@@ -166,6 +228,12 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
       title: "Temukan Cabang Next Solution Terdekat",
       subtitle: "Ketik kota atau lokasi Anda, lalu sistem akan membantu menampilkan cabang Next Solution yang paling relevan berdasarkan area terdekat.",
     },
+    reviews: {
+      visible: true,
+      tag: "ULASAN PELANGGAN",
+      title: "Ulasan Pembeli Next Solution",
+      subtitle: "Pengalaman nyata dari pembeli terverifikasi produk pilihan di Next Solution.",
+    },
     channels: {
       visible: true,
       tag: "OFFICIAL CHANNEL",
@@ -174,7 +242,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
       notice: "Transaksi lebih aman: Belanja dan ikuti update resmi Next Solution hanya melalui channel terverifikasi agar transaksi lebih mudah dan terpercaya.",
     },
     whyUs: { visible: true, title: "Kenapa Belanja di Next Solution?", subtitle: "Produk pilihan dan layanan untuk kebutuhanmu." },
-    testimonials: { visible: true, title: "Kata Pelanggan", subtitle: "Pengalaman pelanggan Next Solution." },
+    testimonials: { visible: false, title: "Kata Pelanggan", subtitle: "Pengalaman pelanggan Next Solution." },
     faq: { visible: true, title: "Pertanyaan Umum", subtitle: "Butuh bantuan? Kami siap membantu." },
   },
   store: {
@@ -196,6 +264,8 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   },
   bank_transfer: [],
   admin: { catalogPageSize: 24 },
+  featured_reviews: DEFAULT_FEATURED_REVIEWS,
+  selected_review_ids: [],
 };
 
 export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
@@ -382,6 +452,16 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
     }))
   );
 
+  const rawFeaturedReviews = input.featured_reviews;
+  const featured_reviews: FeaturedReviewItem[] =
+    Array.isArray(rawFeaturedReviews) && rawFeaturedReviews.length > 0
+      ? rawFeaturedReviews.map((r, i) => normalizeFeaturedReview(r, i))
+      : DEFAULT_FEATURED_REVIEWS;
+
+  const selected_review_ids: string[] = Array.isArray(input.selected_review_ids)
+    ? input.selected_review_ids.filter((id) => typeof id === "string" && id)
+    : [];
+
   return {
     sections,
     store: {
@@ -396,5 +476,36 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
     pickup_info,
     bank_transfer,
     admin: { catalogPageSize },
+    featured_reviews,
+    selected_review_ids,
+  };
+}
+
+export function normalizeFeaturedReview(raw: unknown, index = 0): FeaturedReviewItem {
+  if (!raw || typeof raw !== "object") {
+    return {
+      id: `review-${index + 1}`,
+      user_name: "Pelanggan Terverifikasi",
+      product_id: "",
+      product_name: "Produk Next Solution",
+      rating: 5,
+      comment: "Pelayanan sangat memuaskan dan produk berkualitas prima.",
+      date_text: "Terbaru",
+      is_verified: true,
+    };
+  }
+  const item = raw as Partial<FeaturedReviewItem>;
+  const rating = Number(item.rating);
+  return {
+    id: String(item.id ?? `review-${index + 1}`),
+    user_name: String(item.user_name ?? "").trim() || "Pelanggan Terverifikasi",
+    user_avatar: item.user_avatar ? String(item.user_avatar).trim() : undefined,
+    product_id: String(item.product_id ?? "").trim(),
+    product_name: String(item.product_name ?? "").trim() || "Produk Next Solution",
+    product_image: item.product_image ? String(item.product_image).trim() : undefined,
+    rating: isNaN(rating) || rating < 1 || rating > 5 ? 5 : rating,
+    comment: String(item.comment ?? "").trim() || "Pelayanan sangat memuaskan dan produk berkualitas prima.",
+    date_text: String(item.date_text ?? "Terbaru").trim(),
+    is_verified: item.is_verified !== false,
   };
 }

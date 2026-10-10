@@ -611,6 +611,16 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
       if (typeof item.account_holder !== 'string' || !item.account_holder.trim()) throw new Error('Nama pemilik rekening harus diisi.')
     }
   }
+  const featuredReviews = (settings as { featured_reviews?: unknown }).featured_reviews
+  if (featuredReviews !== undefined && !Array.isArray(featuredReviews)) throw new Error('Data ulasan produk tidak valid.')
+  if (Array.isArray(featuredReviews)) {
+    for (const r of featuredReviews) {
+      if (!r || typeof r !== 'object') throw new Error('Data ulasan produk tidak valid.')
+      const rev = r as { user_name?: unknown; comment?: unknown; rating?: unknown }
+      if (typeof rev.user_name !== 'string' || !rev.user_name.trim()) throw new Error('Nama pembeli pada ulasan harus diisi.')
+      if (typeof rev.comment !== 'string' || !rev.comment.trim()) throw new Error('Teks ulasan harus diisi.')
+    }
+  }
   const supabase = await createClient()
   const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
   if (error) throw new Error(error.message)

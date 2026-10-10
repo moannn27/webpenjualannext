@@ -3,8 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { getAdminProductOptionsAction, saveStorefrontSettingsAction } from "@/actions/admin";
+import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/actions/review";
 import {
   DEFAULT_STOREFRONT_SETTINGS,
+  DEFAULT_FEATURED_REVIEWS,
   normalizeStorefrontSettings,
   type StorefrontSettings,
   type StoreBranch,
@@ -12,6 +14,7 @@ import {
   type MarketplaceStore,
   type OfficialChannelPlatform,
   type BankTransferInfo,
+  type FeaturedReviewItem,
 } from "@/lib/storefront-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +34,9 @@ import {
   Compass,
   Layers,
   Image as ImageIcon,
+  MessageSquareQuote,
+  Star,
+  Sparkles,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
@@ -41,6 +47,7 @@ const names: Record<string, string> = {
   newArrivals: "Produk terbaru",
   brands: "Brand",
   branches: "Cabang toko & peta interaktif",
+  reviews: "Ulasan produk pelanggan (Slider Beranda)",
   channels: "Official marketplace & partner store",
   whyUs: "Keunggulan toko",
   testimonials: "Testimoni",
@@ -125,6 +132,8 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [productSearch, setProductSearch] = useState<Record<string, string>>({});
   const router = useRouter();
 
+  const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
+
   useEffect(() => {
     getAdminProductOptionsAction()
       .then((rows) =>
@@ -138,7 +147,81 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         )
       )
       .catch(() => setProducts([]));
+
+    getAllReviewsForAdminAction()
+      .then((data) => setAdminReviews(data))
+      .catch(() => setAdminReviews([]));
   }, []);
+
+  const updateFeaturedReview = <K extends keyof FeaturedReviewItem>(
+    index: number,
+    field: K,
+    value: FeaturedReviewItem[K]
+  ) =>
+    setSettings((current) => {
+      const arr = [...(current.featured_reviews || [])];
+      arr[index] = { ...arr[index], [field]: value };
+      return { ...current, featured_reviews: arr };
+    });
+
+  const addFeaturedReview = () =>
+    setSettings((current) => ({
+      ...current,
+      featured_reviews: [
+        ...(current.featured_reviews || []),
+        {
+          id: crypto.randomUUID(),
+          user_name: "Pelanggan Terverifikasi",
+          product_id: products[0]?.id || "",
+          product_name: products[0]?.name || "Produk Pilihan",
+          product_image: "",
+          rating: 5,
+          comment: "Produk original bergaransi resmi, pengiriman cepat dan sangat memuaskan.",
+          date_text: "Terbaru",
+          is_verified: true,
+        },
+      ],
+    }));
+
+  const removeFeaturedReview = (index: number) =>
+    setSettings((current) => ({
+      ...current,
+      featured_reviews: (current.featured_reviews || []).filter((_, i) => i !== index),
+    }));
+
+  const resetDefaultReviews = () =>
+    setSettings((current) => ({
+      ...current,
+      featured_reviews: DEFAULT_FEATURED_REVIEWS,
+    }));
+
+  const addOrganicReviewToFeatured = (rev: AdminReviewWithDetails) => {
+    setSettings((current) => {
+      if ((current.featured_reviews || []).some((r) => r.id === rev.id)) return current;
+      return {
+        ...current,
+        featured_reviews: [
+          ...(current.featured_reviews || []),
+          {
+            id: rev.id,
+            user_name: rev.user_name,
+            user_avatar: rev.user_avatar,
+            product_id: rev.product_id,
+            product_name: rev.product_name,
+            product_image: rev.product_image,
+            rating: rev.rating,
+            comment: rev.comment,
+            date_text: new Date(rev.created_at).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }),
+            is_verified: true,
+          },
+        ],
+      };
+    });
+  };
 
   const updateSection = (
     key: string,
@@ -918,6 +1001,241 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
             </p>
           )}
         </div>
+      </div>
+
+      {/* SECTION: Ulasan & Review Produk Pelanggan (Slider Beranda) */}
+      <div className="space-y-4 border-t pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <MessageSquareQuote className="size-5 text-primary" />
+              <h2 className="text-xl font-bold">Ulasan & Review Produk di Beranda (Slider Otomatis)</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ulasan produk yang dipilih di sini akan tampil bergantian secara otomatis di beranda (tepat di atas Official Channel), menampilkan rating bintang, nama pembeli, teks ulasan, serta kartu produk yang dibeli.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={resetDefaultReviews} className="text-xs">
+              Kembalikan Default (4 Ulasan)
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={addFeaturedReview} className="gap-1.5 text-xs">
+              <Plus className="size-4" />
+              Tambah Ulasan Manual
+            </Button>
+            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+              <Save className="size-3.5" />
+              {busy ? "Menyimpan..." : "Simpan Ulasan"}
+            </Button>
+          </div>
+        </div>
+
+        {/* List of currently active featured reviews */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Daftar Ulasan yang Tampil di Slider Beranda ({(settings.featured_reviews || []).length} Ulasan)
+            </span>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {(settings.featured_reviews || []).map((review, index) => (
+              <article
+                key={review.id || index}
+                className="rounded-2xl border border-border bg-background p-4 sm:p-5 shadow-2xs space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2 border-b pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
+                      #{index + 1}
+                    </span>
+                    <span className="font-semibold text-sm text-foreground">
+                      {review.user_name || "Nama Pembeli"}
+                    </span>
+                    <div className="flex items-center gap-0.5 ml-2">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`size-3.5 ${
+                            i < (review.rating || 5)
+                              ? "fill-amber-400 text-amber-400"
+                              : "fill-muted text-muted"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeFeaturedReview(index)}
+                    className="h-7 px-2 text-destructive hover:bg-destructive/10 text-xs gap-1"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Hapus
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="space-y-1 text-xs">
+                    Nama Pembeli
+                    <Input
+                      value={review.user_name}
+                      onChange={(e) => updateFeaturedReview(index, "user_name", e.target.value)}
+                      placeholder="Contoh: Dimas Prasetyo"
+                    />
+                  </label>
+
+                  <label className="space-y-1 text-xs">
+                    Rating Bintang (1 - 5)
+                    <select
+                      value={review.rating || 5}
+                      onChange={(e) => updateFeaturedReview(index, "rating", Number(e.target.value))}
+                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs font-semibold"
+                    >
+                      <option value={5}>⭐⭐⭐⭐⭐ (5 Bintang - Sempurna)</option>
+                      <option value={4}>⭐⭐⭐⭐ (4 Bintang - Sangat Baik)</option>
+                      <option value={3}>⭐⭐⭐ (3 Bintang - Cukup)</option>
+                      <option value={2}>⭐⭐ (2 Bintang)</option>
+                      <option value={1}>⭐ (1 Bintang)</option>
+                    </select>
+                  </label>
+
+                  <div className="space-y-1 text-xs sm:col-span-2">
+                    <label className="block">Produk yang Dibeli</label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        value={review.product_id || ""}
+                        onChange={(e) => {
+                          const pid = e.target.value;
+                          updateFeaturedReview(index, "product_id", pid);
+                          const p = products.find((prod) => prod.id === pid);
+                          if (p) {
+                            updateFeaturedReview(index, "product_name", p.name);
+                          }
+                        }}
+                        className="h-9 w-full rounded-lg border border-input bg-background px-3 text-xs"
+                      >
+                        <option value="">-- Pilih Produk dari Katalog Toko --</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.brand ? `(${p.brand})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Input
+                        value={review.product_name}
+                        onChange={(e) => updateFeaturedReview(index, "product_name", e.target.value)}
+                        placeholder="Nama Produk Tampilan"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="space-y-1 text-xs">
+                    URL Gambar Produk (Opsional)
+                    <Input
+                      value={review.product_image || ""}
+                      onChange={(e) => updateFeaturedReview(index, "product_image", e.target.value)}
+                      placeholder="https://.../gambar.webp (Kosongkan jika pakai default)"
+                      className="h-9 text-xs"
+                    />
+                  </label>
+
+                  <label className="space-y-1 text-xs">
+                    Waktu / Keterangan Pembelian
+                    <Input
+                      value={review.date_text || ""}
+                      onChange={(e) => updateFeaturedReview(index, "date_text", e.target.value)}
+                      placeholder="Contoh: 2 hari yang lalu"
+                      className="h-9 text-xs"
+                    />
+                  </label>
+
+                  <label className="space-y-1 text-xs sm:col-span-2">
+                    Isi Ulasan / Testimoni Pembeli
+                    <textarea
+                      value={review.comment}
+                      onChange={(e) => updateFeaturedReview(index, "comment", e.target.value)}
+                      rows={2}
+                      className="w-full rounded-lg border border-input bg-background p-2.5 text-xs"
+                      placeholder="Tulis ulasan pembeli..."
+                    />
+                  </label>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {!(settings.featured_reviews || []).length && (
+            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Belum ada ulasan produk yang dipilih untuk slider beranda. Klik "+ Tambah Ulasan Manual" atau "Kembalikan Default".
+            </p>
+          )}
+        </div>
+
+        {/* Database Organic Reviews Picker (If real reviews exist) */}
+        {adminReviews.length > 0 && (
+          <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Star className="size-4 text-amber-500 fill-amber-500" />
+                  Review Asli Dari Pembeli di Toko ({adminReviews.length} Ulasan Masuk)
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Klik "+ Jadikan Ulasan Unggulan Beranda" untuk menampilkan ulasan organik ini di slider beranda.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {adminReviews.map((ar) => {
+                const isAlreadyFeatured = (settings.featured_reviews || []).some((r) => r.id === ar.id);
+                return (
+                  <div
+                    key={ar.id}
+                    className="flex flex-col justify-between rounded-xl border border-border bg-card p-3 shadow-2xs text-xs space-y-2"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="font-bold text-foreground truncate">{ar.user_name}</span>
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(ar.rating)].map((_, i) => (
+                            <Star key={i} className="size-3 fill-amber-400 text-amber-400" />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground line-clamp-2 italic">&ldquo;{ar.comment}&rdquo;</p>
+                      <p className="font-semibold text-primary text-[11px] mt-1 truncate">📦 {ar.product_name}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant={isAlreadyFeatured ? "secondary" : "outline"}
+                      size="sm"
+                      disabled={isAlreadyFeatured}
+                      onClick={() => addOrganicReviewToFeatured(ar)}
+                      className="w-full h-7 text-[11px] gap-1 mt-2"
+                    >
+                      {isAlreadyFeatured ? (
+                        <>
+                          <CheckCircle2 className="size-3 text-green-600" />
+                          Sudah di Slider
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="size-3" />
+                          + Jadikan Ulasan Unggulan
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Informasi Toko Utama & Footer */}
