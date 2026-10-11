@@ -9,7 +9,7 @@ import type { StorefrontSettings } from "@/lib/storefront-settings";
 
 export function StorefrontChrome({ children, cartCount, settings }: { children: React.ReactNode; cartCount: number; settings: StorefrontSettings }) {
   const pathname = usePathname();
-  if (pathname.startsWith("/admin")) return <>{children}</>;
+  if (pathname.startsWith("/admin") || pathname.includes("/invoice")) return <>{children}</>;
   return <>
     <Navbar cartCount={cartCount} />
     <main className="flex-1">{children}</main>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
@@ -180,11 +181,17 @@ export function ProfileDashboard({
   reviews?: UserReview[];
   storeWhatsapp?: string;
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("orders");
+  const [orderList, setOrderList] = useState<Order[]>(orders);
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, startTransition] = useTransition();
+
+  useEffect(() => {
+    setOrderList(orders);
+  }, [orders]);
 
   // Filter & Search untuk Pesanan
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -368,6 +375,10 @@ export function ProfileDashboard({
     startTransition(async () => {
       try {
         await confirmOrderDeliveredAction(orderId);
+        setOrderList((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: "delivered" } : o))
+        );
+        router.refresh();
         setNotice("Pesanan berhasil dikonfirmasi diterima! Terima kasih. Anda sekarang dapat memberikan ulasan produk.");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Gagal mengonfirmasi pesanan.");
@@ -415,12 +426,12 @@ export function ProfileDashboard({
 
   // Filter orders counts
   const orderCounts = {
-    all: orders.length,
-    pending: orders.filter((o) => o.status === "pending").length,
-    processing: orders.filter((o) => o.status === "processing").length,
-    in_transit: orders.filter((o) => o.status === "shipped" || o.status === "ready_for_pickup").length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
-    cancelled: orders.filter((o) => o.status === "cancelled").length,
+    all: orderList.length,
+    pending: orderList.filter((o) => o.status === "pending").length,
+    processing: orderList.filter((o) => o.status === "processing").length,
+    in_transit: orderList.filter((o) => o.status === "shipped" || o.status === "ready_for_pickup").length,
+    delivered: orderList.filter((o) => o.status === "delivered").length,
+    cancelled: orderList.filter((o) => o.status === "cancelled").length,
   };
 
   const orderTabs = [
@@ -432,7 +443,7 @@ export function ProfileDashboard({
     { key: "cancelled", label: "Dibatalkan (Refund)", count: orderCounts.cancelled },
   ];
 
-  const filteredOrders = orders.filter((order) => {
+  const filteredOrders = orderList.filter((order) => {
     // Filter status tab
     if (orderStatusFilter === "pending" && order.status !== "pending") return false;
     if (orderStatusFilter === "processing" && order.status !== "processing") return false;

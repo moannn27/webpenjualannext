@@ -141,8 +141,40 @@ export function OrderInvoice({
   };
 
   return (
-    <div className="min-h-screen bg-muted/20 py-8 px-4 sm:px-6 lg:px-8 print:bg-white print:p-0">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-muted/20 py-8 px-4 sm:px-6 lg:px-8 print:bg-white print:p-0 print:m-0 print:min-h-0">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
+          }
+          html, body {
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-size: 10.5px !important;
+            line-height: 1.25 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print-invoice-sheet {
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
+      <div className="max-w-4xl mx-auto space-y-6 print:space-y-0 print:max-w-none">
         {/* Navigation & Action Bar - Hidden in Print */}
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden bg-card p-4 rounded-2xl border shadow-xs">
           <Link
@@ -174,73 +206,73 @@ export function OrderInvoice({
         </div>
 
         {/* Invoice Container */}
-        <div className="bg-card rounded-3xl border border-border/80 shadow-md p-6 sm:p-10 print:p-6 print:border-none print:shadow-none print:rounded-none text-foreground">
+        <div className="print-invoice-sheet bg-card rounded-3xl border border-border/80 shadow-md p-6 sm:p-10 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground">
           {/* Header Store Branding & Invoice Title */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-border/70 pb-8">
-            <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-6 border-b border-border/70 pb-5 print:pb-2.5 print:gap-2">
+            <div className="space-y-1 print:space-y-0.5">
               <div className="flex items-center gap-2.5">
-                <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-xl shadow-xs">
+                <div className="size-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-xs print:size-6 print:text-xs">
                   NS
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black tracking-tight leading-tight">{storeName}</h1>
-                  <p className="text-xs text-muted-foreground">Toko Solusi &amp; Perlengkapan Gadget Terpercaya</p>
+                  <h1 className="text-xl font-black tracking-tight leading-tight print:text-base">{storeName}</h1>
+                  <p className="text-xs text-muted-foreground print:text-[9.5px]">Toko Komputer &amp; Elektronik Resmi</p>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
+              <div className="text-xs text-muted-foreground space-y-0.5 print:text-[9.5px]">
                 <p>{storeAddress}, {storeCity}</p>
                 <p>WhatsApp: {formatDisplayPhone(storeWhatsapp)} · Email: {storeEmail}</p>
               </div>
             </div>
 
-            <div className="sm:text-right space-y-1.5 self-stretch sm:self-auto bg-muted/30 sm:bg-transparent p-4 sm:p-0 rounded-2xl sm:rounded-none">
-              <span className="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold tracking-wider uppercase">
+            <div className="sm:text-right space-y-1 self-stretch sm:self-auto bg-muted/30 sm:bg-transparent p-3 sm:p-0 rounded-2xl sm:rounded-none print:p-0">
+              <span className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary rounded-full text-[11px] font-bold tracking-wider uppercase print:text-[9px] print:px-2 print:py-0">
                 FAKTUR PEMBELIAN RESMI
               </span>
-              <p className="text-2xl font-mono font-bold tracking-tight text-foreground">
+              <p className="text-xl font-mono font-bold tracking-tight text-foreground print:text-sm">
                 {order.order_number}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Waktu Transaksi: <span className="font-semibold text-foreground">{formattedDateTimeWIB}</span>
+              <p className="text-xs text-muted-foreground print:text-[9.5px]">
+                Waktu: <span className="font-semibold text-foreground">{formattedDateTimeWIB}</span>
               </p>
             </div>
           </div>
 
           {/* Status Badges Banner */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-6 p-4 rounded-2xl bg-muted/40 border border-border/60">
-            <div className="flex items-center gap-3">
-              <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-5 p-3 rounded-2xl bg-muted/40 border border-border/60 print:my-1.5 print:p-1.5 print:gap-2 print:rounded-lg">
+            <div className="flex items-center gap-2.5 print:gap-1.5">
+              <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 print:size-5 ${
                 isPaymentConfirmed
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                   : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
               }`}>
-                {isPaymentConfirmed ? <CheckCircle2 className="size-5" /> : <Clock className="size-5" />}
+                {isPaymentConfirmed ? <CheckCircle2 className="size-4 print:size-3" /> : <Clock className="size-4 print:size-3" />}
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Status Pembayaran</p>
+                <p className="text-[11px] text-muted-foreground font-medium print:text-[9px]">Status Pembayaran</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`text-sm font-bold ${
+                  <span className={`text-xs font-bold print:text-[10px] ${
                     isPaymentConfirmed
                       ? "text-emerald-700 dark:text-emerald-400"
                       : "text-amber-700 dark:text-amber-400"
                   }`}>
-                    {isPaymentConfirmed ? "Lunas / Terkonfirmasi" : "Menunggu Pembayaran Manual"}
+                    {isPaymentConfirmed ? "Lunas / Terkonfirmasi" : "Menunggu Pembayaran"}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 sm:border-l sm:border-border/60 sm:pl-4">
-              <div className="size-10 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                <AlertCircle className="size-5" />
+            <div className="flex items-center gap-2.5 sm:border-l sm:border-border/60 sm:pl-3 print:gap-1.5 print:pl-2">
+              <div className="size-8 rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 print:size-5">
+                <AlertCircle className="size-4 print:size-3" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground font-medium">Metode Pemenuhan Pesanan</p>
+                <p className="text-[11px] text-muted-foreground font-medium print:text-[9px]">Metode Pemenuhan</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-sm font-bold text-foreground">
-                    {isPickup ? "Ambil Sendiri di Toko (Pickup)" : "Pengiriman ke Alamat (Kurir)"}
+                  <span className="text-xs font-bold text-foreground print:text-[10px]">
+                    {isPickup ? "Ambil di Toko (Pickup)" : "Pengiriman Kurir"}
                   </span>
-                  <Badge variant="outline" className="text-[10px] uppercase">
+                  <Badge variant="outline" className="text-[9px] uppercase px-1.5 py-0 print:text-[8px] print:px-1">
                     {order.status}
                   </Badge>
                 </div>
@@ -249,13 +281,13 @@ export function OrderInvoice({
           </div>
 
           {/* Customer & Delivery Information */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6 border-b border-border/70 text-sm">
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-5 border-b border-border/70 text-sm print:py-2 print:gap-3 print:text-[10px]">
+            <div className="space-y-1.5 print:space-y-0.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground print:text-[9px]">
                 Informasi Pemesan
               </h3>
-              <div className="space-y-1">
-                <p className="font-bold text-base text-foreground">{recipientName}</p>
+              <div className="space-y-0.5">
+                <p className="font-bold text-base text-foreground print:text-xs">{recipientName}</p>
                 <p className="text-muted-foreground">No. WhatsApp / HP: <span className="text-foreground font-medium">{formatDisplayPhone(recipientPhone)}</span></p>
                 {order.users?.email && (
                   <p className="text-muted-foreground">Email: <span className="text-foreground">{order.users.email}</span></p>
@@ -263,24 +295,24 @@ export function OrderInvoice({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <div className="space-y-1.5 print:space-y-0.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground print:text-[9px]">
                 {isPickup ? "Lokasi Pengambilan Toko" : "Alamat Lengkap Pengiriman"}
               </h3>
               {isPickup ? (
-                <div className="space-y-1 text-muted-foreground">
+                <div className="space-y-0.5 text-muted-foreground">
                   <p className="font-semibold text-foreground">
                     {address?.pickup_location || storeName}
                   </p>
                   <p>{address?.pickup_address || `${storeAddress}, ${storeCity}`}</p>
                   {address?.fulfillment_change_note && (
-                    <p className="text-xs bg-amber-500/10 text-amber-900 dark:text-amber-200 p-2 rounded-lg mt-1 border border-amber-500/20">
+                    <p className="text-xs bg-amber-500/10 text-amber-900 dark:text-amber-200 p-2 rounded-lg mt-1 border border-amber-500/20 print:p-1 print:text-[9px]">
                       Catatan: {address.fulfillment_change_note}
                     </p>
                   )}
                 </div>
               ) : (
-                <div className="space-y-1 text-muted-foreground">
+                <div className="space-y-0.5 text-muted-foreground">
                   <p className="text-foreground font-medium">{address?.street_address || "-"}</p>
                   <p>{[address?.city, address?.province, address?.postal_code].filter(Boolean).join(", ") || "-"}</p>
                 </div>
@@ -289,19 +321,19 @@ export function OrderInvoice({
           </div>
 
           {/* Itemized Order Table */}
-          <div className="py-6 border-b border-border/70 space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="py-5 border-b border-border/70 space-y-2.5 print:py-2 print:space-y-1">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground print:text-[9px]">
               Daftar Produk yang Dibeli
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-left text-sm print:text-[10px]">
                 <thead>
-                  <tr className="border-b border-border text-xs text-muted-foreground uppercase">
-                    <th className="py-2.5 pr-3 font-semibold">No</th>
-                    <th className="py-2.5 px-3 font-semibold">Nama Produk &amp; Spesifikasi</th>
-                    <th className="py-2.5 px-3 text-right font-semibold">Harga Satuan</th>
-                    <th className="py-2.5 px-3 text-center font-semibold">Qty</th>
-                    <th className="py-2.5 pl-3 text-right font-semibold">Subtotal</th>
+                  <tr className="border-b border-border text-xs text-muted-foreground uppercase print:text-[9px]">
+                    <th className="py-2 pr-3 font-semibold print:py-1">No</th>
+                    <th className="py-2 px-3 font-semibold print:py-1">Nama Produk &amp; Spesifikasi</th>
+                    <th className="py-2 px-3 text-right font-semibold print:py-1">Harga Satuan</th>
+                    <th className="py-2 px-3 text-center font-semibold print:py-1">Qty</th>
+                    <th className="py-2 pl-3 text-right font-semibold print:py-1">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -313,27 +345,27 @@ export function OrderInvoice({
 
                     return (
                       <tr key={item.id || index} className="text-foreground">
-                        <td className="py-3 pr-3 text-muted-foreground text-xs">{index + 1}</td>
-                        <td className="py-3 px-3">
-                          <p className="font-semibold leading-snug">{item.product_name}</p>
+                        <td className="py-2.5 pr-3 text-muted-foreground text-xs print:py-1 print:text-[9.5px]">{index + 1}</td>
+                        <td className="py-2.5 px-3 print:py-1">
+                          <p className="font-semibold leading-snug print:text-[10px]">{item.product_name}</p>
                           {variantText && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5 print:text-[9px] print:mt-0">
                               Varian: {variantText}
                             </p>
                           )}
                           {item.sku && (
-                            <p className="text-[11px] font-mono text-muted-foreground">
+                            <p className="text-[11px] font-mono text-muted-foreground print:text-[8.5px]">
                               SKU: {item.sku}
                             </p>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono text-muted-foreground">
+                        <td className="py-2.5 px-3 text-right font-mono text-muted-foreground print:py-1">
                           {formatRupiah(item.price)}
                         </td>
-                        <td className="py-3 px-3 text-center font-semibold">
+                        <td className="py-2.5 px-3 text-center font-semibold print:py-1">
                           {item.quantity}
                         </td>
-                        <td className="py-3 pl-3 text-right font-mono font-semibold">
+                        <td className="py-2.5 pl-3 text-right font-mono font-semibold print:py-1">
                           {formatRupiah(item.price * item.quantity)}
                         </td>
                       </tr>
@@ -345,35 +377,44 @@ export function OrderInvoice({
           </div>
 
           {/* Financial Calculation & Bank Transfer Info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-6">
-            {/* Bank Transfer Instructions */}
-            <div className="rounded-2xl border bg-muted/20 p-5 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Tujuan Transfer Pembayaran
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Silakan lakukan transfer manual ke salah satu rekening resmi berikut:
-              </p>
-              <div className="space-y-2.5">
-                {bankAccounts.map((acc, i) => (
-                  <div key={i} className="p-3 bg-card rounded-xl border border-border/80 text-xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-sm text-primary">{acc.bank_name}</span>
-                      <span className="text-muted-foreground">a.n. <strong className="text-foreground">{acc.account_holder}</strong></span>
-                    </div>
-                    <p className="font-mono text-base font-bold tracking-wider text-foreground select-all">
-                      {acc.account_number}
-                    </p>
-                  </div>
-                ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-5 print:py-2 print:gap-3">
+            {/* Bank Transfer Instructions / Paid Confirmation */}
+            {isPaymentConfirmed ? (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-1.5 text-xs text-emerald-800 dark:text-emerald-300 print:p-2.5 print:rounded-lg print:space-y-1">
+                <div className="flex items-center gap-2 font-bold text-sm text-emerald-700 dark:text-emerald-400 print:text-xs">
+                  <CheckCircle2 className="size-4 shrink-0 print:size-3.5" />
+                  Pembayaran Lunas &amp; Terverifikasi
+                </div>
+                <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80 leading-relaxed print:text-[9.5px]">
+                  Transaksi ini telah diverifikasi lunas oleh sistem. Tidak diperlukan pembayaran tambahan. Simpan faktur ini sebagai bukti transaksi resmi dan klaim garansi produk.
+                </p>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
-                ⚠️ Harap transfer tepat sejumlah <strong>{formatRupiah(order.grand_total)}</strong>, lalu klik tombol Konfirmasi WhatsApp di atas dengan menyertakan bukti transfer.
-              </p>
-            </div>
+            ) : (
+              <div className="rounded-2xl border bg-muted/20 p-4 space-y-2.5 print:p-2 print:rounded-lg print:space-y-1">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground print:text-[9px]">
+                  Tujuan Transfer Pembayaran
+                </h4>
+                <div className="space-y-2 print:space-y-1">
+                  {bankAccounts.map((acc, i) => (
+                    <div key={i} className="p-2.5 bg-card rounded-xl border border-border/80 text-xs space-y-0.5 print:p-1.5 print:text-[9.5px]">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-sm text-primary print:text-xs">{acc.bank_name}</span>
+                        <span className="text-muted-foreground print:text-[9px]">a.n. <strong className="text-foreground">{acc.account_holder}</strong></span>
+                      </div>
+                      <p className="font-mono text-sm font-bold tracking-wider text-foreground select-all print:text-xs">
+                        {acc.account_number}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed pt-0.5 print:text-[8.5px]">
+                  ⚠️ Harap transfer tepat <strong>{formatRupiah(order.grand_total)}</strong>, lalu kirim bukti transfer.
+                </p>
+              </div>
+            )}
 
             {/* Calculations Breakdown */}
-            <div className="space-y-2.5 text-sm self-end">
+            <div className="space-y-2 text-sm self-end print:space-y-1 print:text-[10px]">
               <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal Produk</span>
                 <span className="font-mono text-foreground">{formatRupiah(order.total_amount)}</span>
@@ -393,12 +434,12 @@ export function OrderInvoice({
                 </span>
               </div>
 
-              <div className="border-t border-border pt-3 flex justify-between items-baseline">
+              <div className="border-t border-border pt-2.5 flex justify-between items-baseline print:pt-1.5">
                 <div>
-                  <span className="text-base font-bold text-foreground">Total Pembayaran</span>
-                  <p className="text-[11px] text-muted-foreground">Sudah termasuk pajak &amp; diskon</p>
+                  <span className="text-base font-bold text-foreground print:text-xs">Total Pembayaran</span>
+                  <p className="text-[11px] text-muted-foreground print:text-[8.5px]">Sudah termasuk pajak &amp; diskon</p>
                 </div>
-                <span className="text-2xl font-black font-mono text-primary">
+                <span className="text-2xl font-black font-mono text-primary print:text-base">
                   {formatRupiah(order.grand_total)}
                 </span>
               </div>
@@ -406,12 +447,12 @@ export function OrderInvoice({
           </div>
 
           {/* Footer Official Notice */}
-          <div className="border-t border-border/60 pt-6 text-center text-xs text-muted-foreground space-y-1">
+          <div className="border-t border-border/60 pt-4 text-center text-xs text-muted-foreground space-y-0.5 print:pt-2 print:text-[9px]">
             <p className="font-medium text-foreground">
               Terima kasih telah berbelanja di {storeName}!
             </p>
             <p>
-              Faktur ini diterbitkan secara otomatis dan sah sebagai bukti transaksi yang dapat digunakan untuk konfirmasi penerimaan barang dan garansi resmi.
+              Faktur ini sah sebagai bukti transaksi resmi untuk konfirmasi penerimaan dan klaim garansi toko.
             </p>
           </div>
         </div>

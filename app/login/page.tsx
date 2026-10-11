@@ -48,7 +48,10 @@ export default function LoginPage() {
         setError(result.error);
         setGoogleLoading(false);
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {
+        return;
+      }
       setError("Gagal menghubungkan dengan akun Google.");
       setGoogleLoading(false);
     }
