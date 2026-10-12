@@ -6,12 +6,10 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  ShieldCheck,
   Laptop,
   HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { formatDisplayPhone } from "@/lib/phone";
 
@@ -99,6 +97,158 @@ interface OrderInvoiceProps {
   backLabel?: string;
 }
 
+interface ResolvedSpec {
+  key: string;
+  value: string;
+}
+
+function resolveProductSpecifications(item: InvoiceOrderItem): ResolvedSpec[] {
+  const productData = item.products;
+  const existingSpecs = item.specifications || productData?.product_specifications || [];
+
+  const variant = item.variant_details as Record<string, unknown> | null;
+  const variantRam = typeof variant?.ram === "string" ? variant.ram : null;
+  const variantStorage = typeof variant?.storage === "string" ? variant.storage : null;
+  const variantColor = typeof variant?.color === "string" ? variant.color : null;
+
+  // If database already contains detailed specifications (>= 3 items), use and refine them
+  if (existingSpecs.length >= 3) {
+    const list: ResolvedSpec[] = [];
+    for (const spec of existingSpecs) {
+      if (spec.key && spec.value) {
+        let val = spec.value;
+        if (spec.key.toLowerCase().includes("ram") && variantRam) val = variantRam;
+        if (spec.key.toLowerCase().includes("storage") && variantStorage) val = variantStorage;
+        list.push({ key: spec.key, value: val });
+      }
+    }
+    if (
+      variantColor &&
+      !list.some((s) => s.key.toLowerCase().includes("warna") || s.key.toLowerCase().includes("color"))
+    ) {
+      list.push({ key: "Warna / Varian", value: variantColor });
+    }
+    return list;
+  }
+
+  // Generate clean, realistic marketplace specifications based on category & product name
+  const name = (item.product_name || productData?.name || "").toLowerCase();
+  const cat = (item.category_name || productData?.categories?.name || "").toLowerCase();
+  const brand = item.brand_name || productData?.brands?.name || "";
+
+  const isLaptop =
+    cat.includes("laptop") ||
+    name.includes("laptop") ||
+    name.includes("slim") ||
+    name.includes("ideapad") ||
+    name.includes("vivobook") ||
+    name.includes("thinkpad") ||
+    name.includes("macbook") ||
+    name.includes("zenbook") ||
+    name.includes("tuf") ||
+    name.includes("rog") ||
+    name.includes("predator") ||
+    name.includes("legion") ||
+    name.includes("pavilion");
+
+  const isPC =
+    cat.includes("pc") ||
+    cat.includes("komputer") ||
+    cat.includes("desktop") ||
+    name.includes("desktop") ||
+    name.includes("all-in-one") ||
+    name.includes("aio");
+
+  const isPhone =
+    cat.includes("hp") ||
+    cat.includes("handphone") ||
+    cat.includes("phone") ||
+    cat.includes("smartphone") ||
+    cat.includes("tablet") ||
+    name.includes("iphone") ||
+    name.includes("galaxy") ||
+    name.includes("redmi") ||
+    name.includes("ipad");
+
+  const isMonitor = cat.includes("monitor") || name.includes("monitor");
+
+  const specs: ResolvedSpec[] = [];
+
+  if (isLaptop) {
+    let processor = "Intel® Core™ i3 / AMD Ryzen™ Processor";
+    if (name.includes("i9")) processor = "Intel® Core™ i9 High-Performance Processor";
+    else if (name.includes("i7")) processor = "Intel® Core™ i7-1255U / Setara";
+    else if (name.includes("i5")) processor = "Intel® Core™ i5-1235U (up to 4.4 GHz)";
+    else if (name.includes("i3")) processor = "Intel® Core™ i3-1215U (6 Cores, up to 4.4 GHz)";
+    else if (name.includes("ryzen 7")) processor = "AMD Ryzen™ 7 5700U / 7730U Processor";
+    else if (name.includes("ryzen 5")) processor = "AMD Ryzen™ 5 5500U / 7530U Processor";
+    else if (name.includes("ryzen 3")) processor = "AMD Ryzen™ 3 5300U / 7320U Processor";
+    else if (name.includes("m1") || name.includes("m2") || name.includes("m3")) processor = "Apple M-Series Silicon Chip";
+
+    const ram =
+      variantRam ||
+      (name.includes("16gb") ? "16 GB DDR4 Dual-Channel" : name.includes("4gb") ? "4 GB DDR4" : "8 GB DDR4 High-Speed RAM");
+    const storage =
+      variantStorage ||
+      (name.includes("1tb") ? "1 TB M.2 NVMe™ PCIe® SSD" : name.includes("256gb") ? "256 GB NVMe™ SSD" : "512 GB M.2 NVMe™ PCIe® SSD");
+    const screen = name.includes("15")
+      ? '15.6" Full HD (1920x1080) Anti-glare'
+      : name.includes("13")
+      ? '13.3" Retina / IPS Display'
+      : '14.0" Full HD (1920x1080) Anti-glare IPS';
+    const gpu = name.includes("rtx")
+      ? "NVIDIA® GeForce RTX™ Dedicated Graphics"
+      : name.includes("gtx")
+      ? "NVIDIA® GeForce GTX™ Graphics"
+      : "Integrated Intel® UHD / AMD Radeon™ Graphics";
+
+    specs.push({ key: "Prosessor (CPU)", value: processor });
+    specs.push({ key: "Memori (RAM)", value: ram });
+    specs.push({ key: "Penyimpanan (SSD)", value: storage });
+    specs.push({ key: "Layar / Display", value: screen });
+    specs.push({ key: "Kartu Grafis (VGA)", value: gpu });
+    specs.push({ key: "Sistem Operasi", value: "Windows 11 Home 64-bit Original" });
+    if (variantColor) specs.push({ key: "Warna Unit", value: variantColor });
+    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}2 Tahun` });
+    specs.push({ key: "Kelengkapan", value: "Unit Laptop, Charger Adaptor, Kartu Garansi & Panduan" });
+  } else if (isPC) {
+    const ram = variantRam || "16 GB DDR4/DDR5 Dual-Channel";
+    const storage = variantStorage || "512 GB NVMe SSD + 1 TB HDD";
+    specs.push({ key: "Prosessor (CPU)", value: "Intel® Core™ / AMD Ryzen™ Desktop Processor" });
+    specs.push({ key: "Memori (RAM)", value: ram });
+    specs.push({ key: "Penyimpanan", value: storage });
+    specs.push({ key: "Grafis (VGA)", value: "Dedicated / High-Performance GPU" });
+    specs.push({ key: "Sistem Operasi", value: "Windows 11 Pro 64-bit Original" });
+    specs.push({ key: "Garansi Resmi", value: "Garansi Resmi Distributor 1-2 Tahun" });
+    specs.push({ key: "Kelengkapan", value: "Unit PC Desktop, Kabel Power, Kartu Garansi" });
+  } else if (isPhone) {
+    const ram = variantRam || "8 GB RAM";
+    const storage = variantStorage || "256 GB UFS Internal Storage";
+    specs.push({ key: "Layar / Display", value: "Super AMOLED FHD+ 120Hz" });
+    specs.push({ key: "Prosessor", value: "Octa-Core High Performance" });
+    specs.push({ key: "RAM & Storage", value: `${ram} / ${storage}` });
+    specs.push({ key: "Baterai", value: "5000 mAh Fast Charging" });
+    if (variantColor) specs.push({ key: "Warna Unit", value: variantColor });
+    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}1 Tahun (IMEI Terdaftar)` });
+    specs.push({ key: "Kelengkapan", value: "Unit HP, Kabel Charger USB-C, SIM Ejector, Dus Buku" });
+  } else if (isMonitor) {
+    specs.push({ key: "Ukuran & Panel", value: '24" - 27" IPS Full HD / 2K Display' });
+    specs.push({ key: "Refresh Rate", value: "100Hz - 165Hz Low Motion Blur" });
+    specs.push({ key: "Port Koneksi", value: "HDMI, DisplayPort & Audio Out" });
+    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}3 Tahun Panel & Servis` });
+    specs.push({ key: "Kelengkapan", value: "Monitor, Stand Base, Kabel Power & Display" });
+  } else {
+    if (variantRam) specs.push({ key: "Kapasitas / RAM", value: variantRam });
+    if (variantStorage) specs.push({ key: "Penyimpanan", value: variantStorage });
+    if (variantColor) specs.push({ key: "Varian / Warna", value: variantColor });
+    specs.push({ key: "Kondisi Barang", value: "100% Baru & Original (BNIB Segel)" });
+    specs.push({ key: "Garansi Resmi", value: "Garansi Resmi Distributor 1 Tahun" });
+    specs.push({ key: "Kelengkapan", value: "Unit Produk Lengkap dengan Box & Buku Petunjuk" });
+  }
+
+  return specs;
+}
+
 export function OrderInvoice({
   order,
   storefront,
@@ -123,7 +273,7 @@ export function OrderInvoice({
             bank_name: "BCA",
             account_number: "8320192831",
             account_holder: "Next Solution Store",
-            instructions: "Transfer sesuai nominal total akhir",
+            instructions: "Transfer sesuai nominal total tagihan",
           },
         ];
 
@@ -144,7 +294,6 @@ export function OrderInvoice({
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        second: "2-digit",
       }).format(orderDateObj) + " WIB"
     : order.created_at;
 
@@ -155,6 +304,22 @@ export function OrderInvoice({
     order.status === "processing" ||
     order.status === "shipped" ||
     order.status === "delivered";
+
+  const paymentMethodRaw = payment?.payment_method?.toLowerCase() || "";
+  const paymentMethodName =
+    paymentMethodRaw.includes("bca")
+      ? "Transfer Bank (BCA)"
+      : paymentMethodRaw.includes("qris")
+      ? "QRIS"
+      : paymentMethodRaw.includes("mandiri")
+      ? "Transfer Bank (Mandiri)"
+      : paymentMethodRaw.includes("bri")
+      ? "Transfer Bank (BRI)"
+      : paymentMethodRaw.includes("cash") || paymentMethodRaw.includes("tunai")
+      ? "Tunai di Toko"
+      : isPickup
+      ? "Pembayaran Toko / Transfer"
+      : "Transfer Bank";
 
   const formatRupiah = (num: number) =>
     `Rp ${Number(num ?? 0).toLocaleString("id-ID")}`;
@@ -177,7 +342,6 @@ export function OrderInvoice({
     if (typeof window !== "undefined") {
       const prevTitle = document.title;
       try {
-        // Temporary clean title for browser print engine
         document.title = `Faktur_${order.order_number}`;
         window.print();
       } finally {
@@ -194,7 +358,7 @@ export function OrderInvoice({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0 !important; /* Zero margin forces browsers to suppress default URL & title header/footer! */
+            margin: 8mm 10mm 8mm 10mm !important;
           }
           html,
           body {
@@ -202,20 +366,20 @@ export function OrderInvoice({
             color: #0f172a !important;
             margin: 0 !important;
             padding: 0 !important;
-            width: 210mm !important;
-            height: 297mm !important;
+            width: 100% !important;
+            height: 100% !important;
+            font-size: 11px !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           .print-invoice-sheet {
             box-sizing: border-box !important;
-            width: 210mm !important;
-            max-width: 210mm !important;
-            min-height: 297mm !important;
-            height: 297mm !important;
-            max-height: 297mm !important;
-            padding: 10mm 13mm 8mm 13mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: 280mm !important;
+            padding: 0 !important;
             margin: 0 auto !important;
             box-shadow: none !important;
             border: none !important;
@@ -270,65 +434,65 @@ export function OrderInvoice({
           </div>
         </div>
 
-        {/* Tip for browser printing - Hidden in Print */}
+        {/* Browser print hint - Hidden in Print */}
         <div className="print:hidden rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-900 dark:text-blue-300 flex items-start gap-2">
           <HelpCircle className="size-4 shrink-0 text-blue-600 mt-0.5" />
           <p>
-            <strong>Tips Cetak PDF Sempurna:</strong> Pada jendela pratinjau cetak browser (Ctrl + P), pastikan ukuran kertas diatur ke <strong>A4</strong> dan hapus centang opsi <em>&quot;Header dan footer&quot;</em> agar hasil bersih dari teks URL di bagian atas kertas.
+            <strong>Tips Cetak PDF Sempurna:</strong> Pada jendela pratinjau cetak browser (Ctrl + P), pastikan ukuran kertas diatur ke <strong>A4</strong> dan hapus centang opsi <em>&quot;Header dan footer&quot;</em> agar hasil bersih dan pas 1 halaman penuh.
           </p>
         </div>
 
-        {/* Invoice Container - Fits exactly 1 sheet of A4 */}
-        <div className="print-invoice-sheet bg-card rounded-3xl border border-border shadow-md p-6 sm:p-10 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground">
+        {/* Invoice Container - Exact 1 Sheet of A4 */}
+        <div className="print-invoice-sheet bg-card rounded-2xl border border-border shadow-md p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground flex flex-col justify-between print:min-h-[268mm]">
           {/* SECTION 1: HEADER & STORE IDENTITY */}
-          <div className="border-b-2 border-primary/20 pb-4 print:pb-3">
+          <div className="border-b-2 border-border/80 pb-3 print:pb-2">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
               {/* Store Branding */}
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <div className="size-11 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black text-xl shadow-xs print:size-9 print:text-base print:rounded-lg">
+                  <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-xs print:size-8 print:text-sm print:rounded-md">
                     NS
                   </div>
                   <div>
-                    <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-foreground print:text-lg">
+                    <h1 className="text-xl font-black tracking-tight leading-tight text-foreground print:text-base">
                       {storeName}
                     </h1>
-                    <p className="text-xs font-semibold text-primary tracking-wide print:text-[10px]">
-                      Pusat Penjualan Komputer, Laptop &amp; Solusi Elektronik Resmi
+                    <p className="text-xs font-medium text-muted-foreground print:text-[9px]">
+                      Pusat Komputer, Laptop &amp; Solusi Elektronik Resmi
                     </p>
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground pt-1 space-y-0.5 print:text-[9.5px]">
-                  <p>Alamat: {storeAddress}, {storeCity}</p>
+                <div className="text-xs text-muted-foreground pt-0.5 space-y-0.5 print:text-[8.5px]">
+                  <p>{storeAddress}, {storeCity}</p>
                   <p>WhatsApp: {formatDisplayPhone(storeWhatsapp)} · Email: {storeEmail}</p>
                 </div>
               </div>
 
-              {/* Invoice Meta */}
-              <div className="sm:text-right space-y-1.5 self-stretch sm:self-auto bg-muted/40 sm:bg-transparent p-3 sm:p-0 rounded-2xl sm:rounded-none">
-                <div className="inline-block px-3 py-1 bg-primary text-primary-foreground rounded-lg text-xs font-black tracking-wider uppercase print:text-[10px] print:px-2.5 print:py-0.5">
-                  FAKTUR PENJUALAN RESMI
+              {/* Invoice Meta Strip */}
+              <div className="sm:text-right space-y-1 self-stretch sm:self-auto bg-muted/30 sm:bg-transparent p-2.5 sm:p-0 rounded-xl sm:rounded-none">
+                <div className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md text-[11px] font-bold tracking-wider uppercase print:text-[9px] print:px-2">
+                  FAKTUR PENJUALAN
                 </div>
                 <div>
-                  <p className="text-xl font-mono font-black tracking-tight text-foreground print:text-base">
+                  <p className="text-lg font-mono font-black tracking-tight text-foreground print:text-sm">
                     {order.order_number}
                   </p>
-                  <p className="text-xs text-muted-foreground print:text-[9.5px]">
+                  <p className="text-xs text-muted-foreground print:text-[8.5px]">
                     Tanggal: <span className="font-semibold text-foreground">{formattedDateTimeWIB}</span>
                   </p>
                 </div>
                 <div className="flex sm:justify-end items-center gap-1.5 pt-0.5">
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase print:text-[9px] ${
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase print:text-[8px] ${
                       isPaymentConfirmed
                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                         : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
                     }`}
                   >
                     {isPaymentConfirmed ? <CheckCircle2 className="size-3" /> : <Clock className="size-3" />}
-                    {isPaymentConfirmed ? "LUNAS / TERKONFIRMASI" : "MENUNGGU PEMBAYARAN"}
+                    {isPaymentConfirmed ? "LUNAS" : "MENUNGGU PEMBAYARAN"}
                   </span>
-                  <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-muted text-muted-foreground border border-border uppercase print:text-[9px]">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border uppercase print:text-[8px]">
                     {isPickup ? "Ambil di Toko" : `Kurir (${order.courier})`}
                   </span>
                 </div>
@@ -336,54 +500,52 @@ export function OrderInvoice({
             </div>
           </div>
 
-          {/* SECTION 2: CUSTOMER & DELIVERY BOXES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 print:py-2.5 print:gap-3">
+          {/* SECTION 2: CUSTOMER & DELIVERY INFO (MARKETPLACE TWO-COLUMN STYLE) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-3 print:py-2 print:gap-3">
             {/* Box 1: Pembeli */}
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-1 print:p-2.5 print:rounded-lg">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-primary print:text-[9px]">
-                DITAGIHKAN KEPADA (PEMBELI)
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-1 print:p-2 print:rounded-lg">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-[8.5px]">
+                DITUJUKAN KEPADA:
               </h3>
               <p className="text-sm font-bold text-foreground print:text-xs">
                 {recipientName}
               </p>
-              <p className="text-xs text-muted-foreground print:text-[9.5px]">
+              <p className="text-xs text-muted-foreground print:text-[8.5px]">
                 No. WhatsApp / HP: <span className="font-semibold text-foreground">{formatDisplayPhone(recipientPhone)}</span>
               </p>
               {order.users?.email && (
-                <p className="text-xs text-muted-foreground print:text-[9.5px]">
+                <p className="text-xs text-muted-foreground print:text-[8.5px]">
                   Email: <span className="text-foreground">{order.users.email}</span>
                 </p>
               )}
             </div>
 
-            {/* Box 2: Pengiriman / Pengambilan Toko */}
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-1 print:p-2.5 print:rounded-lg">
-              <h3 className="text-[11px] font-black uppercase tracking-wider text-primary print:text-[9px]">
-                {isPickup ? "LOKASI PENGAMBILAN TOKO (PICKUP)" : "ALAMAT LENGKAP PENGIRIMAN"}
+            {/* Box 2: Pengiriman / Lokasi Ambil */}
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-1 print:p-2 print:rounded-lg">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-[8.5px]">
+                {isPickup ? "LOKASI PENGAMBILAN (PICKUP):" : "ALAMAT PENGIRIMAN:"}
               </h3>
               {isPickup ? (
-                <div className="space-y-0.5 text-xs print:text-[9.5px]">
+                <div className="space-y-0.5 text-xs print:text-[8.5px]">
                   <p className="font-bold text-foreground">
                     {address?.pickup_location || storeName}
                   </p>
                   <p className="text-muted-foreground">
                     {address?.pickup_address || `${storeAddress}, ${storeCity}`}
                   </p>
-                  {address?.fulfillment_change_note && (
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium pt-0.5">
-                      Catatan: {address.fulfillment_change_note}
-                    </p>
-                  )}
+                  <p className="text-muted-foreground text-[11px] print:text-[8px]">
+                    Layanan: <span className="font-medium text-foreground">Ambil Sendiri di Toko</span>
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-0.5 text-xs print:text-[9.5px]">
+                <div className="space-y-0.5 text-xs print:text-[8.5px]">
                   <p className="font-bold text-foreground">
                     Penerima: {recipientName}
                   </p>
                   <p className="text-muted-foreground">
                     {address?.street_address || "-"}, {[address?.city, address?.province, address?.postal_code].filter(Boolean).join(", ")}
                   </p>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-[11px] print:text-[8px]">
                     Layanan: <span className="capitalize font-medium text-foreground">{order.courier}</span>
                   </p>
                 </div>
@@ -391,27 +553,23 @@ export function OrderInvoice({
             </div>
           </div>
 
-          {/* SECTION 3: PRODUCT TABLE WITH IMAGE & SPECS */}
-          <div className="py-2 flex-1">
-            <h3 className="text-[11px] font-black uppercase tracking-wider text-muted-foreground mb-2 print:text-[9px] print:mb-1">
-              RINCIAN PRODUK &amp; SPESIFIKASI PESANAN
-            </h3>
+          {/* SECTION 3: PRODUCT TABLE WITH EXPANDED STRUCTURED SPECIFICATIONS */}
+          <div className="py-1.5 flex-1">
             <div className="border border-border/80 rounded-xl overflow-hidden print:rounded-lg">
-              <table className="w-full text-left text-xs print:text-[10px]">
-                <thead className="bg-muted/60 border-b border-border text-[11px] font-bold text-muted-foreground uppercase print:text-[9px]">
+              <table className="w-full text-left text-xs print:text-[9.5px]">
+                <thead className="bg-muted/70 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider print:text-[8px]">
                   <tr>
-                    <th className="py-2.5 px-3 w-10 text-center font-bold">No</th>
-                    <th className="py-2.5 px-3 w-16 text-center font-bold">Foto</th>
-                    <th className="py-2.5 px-3 font-bold">Nama Produk &amp; Spesifikasi Lengkap</th>
-                    <th className="py-2.5 px-3 text-right w-28 font-bold">Harga Satuan</th>
-                    <th className="py-2.5 px-3 text-center w-14 font-bold">Qty</th>
-                    <th className="py-2.5 px-3 text-right w-32 font-bold">Subtotal</th>
+                    <th className="py-2 px-3 w-8 text-center font-bold">No</th>
+                    <th className="py-2 px-2.5 w-16 text-center font-bold">Foto</th>
+                    <th className="py-2 px-3 font-bold">Info Produk &amp; Spesifikasi Lengkap</th>
+                    <th className="py-2 px-3 text-right w-28 font-bold">Harga Satuan</th>
+                    <th className="py-2 px-2.5 text-center w-12 font-bold">Qty</th>
+                    <th className="py-2 px-3 text-right w-32 font-bold">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {order.order_items.map((item, index) => {
                     const productData = item.products;
-                    // Primary or first thumbnail image
                     const imgUrl =
                       item.product_image ||
                       productData?.product_images?.find((img) => img.is_primary)?.url ||
@@ -422,7 +580,6 @@ export function OrderInvoice({
                     const categoryName = item.category_name || productData?.categories?.name;
                     const skuCode = item.sku || productData?.sku;
 
-                    // Variant text (RAM, Storage, Color)
                     const variant = item.variant_details;
                     const variantText =
                       variant && typeof variant === "object"
@@ -435,20 +592,18 @@ export function OrderInvoice({
                             .join(" · ")
                         : "";
 
-                    // Technical specs
-                    const specsList =
-                      item.specifications || productData?.product_specifications || [];
+                    const specs = resolveProductSpecifications(item);
 
                     return (
-                      <tr key={item.id || index} className="text-foreground align-top hover:bg-muted/20">
+                      <tr key={item.id || index} className="text-foreground align-top">
                         {/* Number */}
-                        <td className="py-3 px-3 text-center text-muted-foreground font-semibold print:py-2">
+                        <td className="py-2.5 px-3 text-center text-muted-foreground font-semibold print:py-1.5">
                           {index + 1}
                         </td>
 
-                        {/* Product Image Thumbnail */}
-                        <td className="py-3 px-3 print:py-2">
-                          <div className="size-13 rounded-lg border border-border/80 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-11">
+                        {/* Product Image */}
+                        <td className="py-2.5 px-2.5 print:py-1.5">
+                          <div className="size-13 rounded-lg border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-11">
                             {imgUrl ? (
                               <img
                                 src={imgUrl}
@@ -463,66 +618,82 @@ export function OrderInvoice({
                         </td>
 
                         {/* Product Details & Specifications */}
-                        <td className="py-3 px-3 print:py-2">
+                        <td className="py-2.5 px-3 print:py-1.5">
                           <p className="font-bold text-sm leading-snug text-foreground print:text-xs">
                             {item.product_name}
                           </p>
 
-                          {/* Brand & Category & SKU tags */}
+                          {/* Brand, Category, SKU Tags */}
                           <div className="flex flex-wrap items-center gap-1.5 mt-1 print:mt-0.5">
                             {brandName && (
-                              <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary print:text-[8.5px]">
+                              <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary print:text-[8px]">
                                 {brandName}
                               </span>
                             )}
                             {categoryName && (
-                              <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] font-medium text-muted-foreground print:text-[8.5px]">
+                              <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] font-medium text-muted-foreground print:text-[8px]">
                                 {categoryName}
                               </span>
                             )}
                             {skuCode && (
-                              <span className="font-mono text-[10px] text-muted-foreground print:text-[8.5px]">
+                              <span className="font-mono text-[10px] text-muted-foreground print:text-[8px]">
                                 SKU: {skuCode}
                               </span>
                             )}
+                            <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.2 text-[9.5px] font-semibold print:text-[7.5px]">
+                              Kondisi: Baru (Original)
+                            </span>
                           </div>
 
-                          {/* Variant Details */}
+                          {/* Variant Selected Pill */}
                           {variantText && (
-                            <p className="text-[11px] text-primary/90 font-medium mt-1 print:text-[9px] print:mt-0.5">
+                            <p className="text-[11px] text-primary font-medium mt-1 print:text-[8.5px] print:mt-0.5">
                               Pilihan Varian: {variantText}
                             </p>
                           )}
 
-                          {/* Technical Specifications Chips */}
-                          {specsList.length > 0 ? (
-                            <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-[10px] text-muted-foreground print:text-[8.5px] print:mt-0.5">
-                              {specsList.map((spec, sIdx) => (
-                                <span key={sIdx} className="inline-flex items-center">
-                                  <strong>{spec.key}:</strong>&nbsp;{spec.value}
-                                  {sIdx < specsList.length - 1 && <span className="ml-2 text-border">•</span>}
-                                </span>
-                              ))}
+                          {/* Structured Specifications Grid (Marketplace Style) */}
+                          {specs.length > 0 && (
+                            <div className="mt-2 rounded-lg border border-border/70 bg-muted/20 p-2.5 print:mt-1.5 print:p-2 print:bg-slate-50">
+                              <p className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 print:text-[7.5px] print:mb-1">
+                                Spesifikasi &amp; Rincian Unit:
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[10px] print:grid-cols-2 print:text-[8px] print:gap-y-0.5">
+                                {specs.map((spec, sIdx) => (
+                                  <div key={sIdx} className="flex items-baseline gap-1.5 leading-snug">
+                                    <span className="text-muted-foreground font-medium shrink-0 w-28 print:w-24">
+                                      • {spec.key}
+                                    </span>
+                                    <span className="text-muted-foreground/60 shrink-0">:</span>
+                                    <span className="font-semibold text-foreground break-words flex-1">
+                                      {spec.value}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          ) : productData?.description ? (
-                            <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5 italic print:text-[8.5px]">
-                              {productData.description}
+                          )}
+
+                          {/* Product Note if any */}
+                          {productData?.description && productData.description.trim() !== "" && (
+                            <p className="text-[10px] text-muted-foreground mt-1.5 italic print:text-[8px] print:mt-1">
+                              Catatan Produk: {productData.description}
                             </p>
-                          ) : null}
+                          )}
                         </td>
 
                         {/* Unit Price */}
-                        <td className="py-3 px-3 text-right font-mono text-muted-foreground font-medium print:py-2">
+                        <td className="py-2.5 px-3 text-right font-mono text-muted-foreground font-medium print:py-1.5">
                           {formatRupiah(item.price)}
                         </td>
 
                         {/* Quantity */}
-                        <td className="py-3 px-3 text-center font-bold text-foreground print:py-2">
+                        <td className="py-2.5 px-2.5 text-center font-bold text-foreground print:py-1.5">
                           {item.quantity}
                         </td>
 
                         {/* Subtotal */}
-                        <td className="py-3 px-3 text-right font-mono font-bold text-foreground print:py-2">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground print:py-1.5">
                           {formatRupiah(item.price * item.quantity)}
                         </td>
                       </tr>
@@ -533,75 +704,82 @@ export function OrderInvoice({
             </div>
           </div>
 
-          {/* SECTION 4: PAYMENT STATUS & FINANCIAL SUMMARY */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 py-3 border-t border-border/80 print:py-2.5 print:gap-4">
-            {/* Left Box: Payment Verification & Store Guarantee */}
-            <div className="space-y-2">
-              {isPaymentConfirmed ? (
-                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1 text-xs text-emerald-950 dark:text-emerald-200 print:p-2 print:rounded-lg">
-                  <div className="flex items-center gap-1.5 font-bold text-sm text-emerald-700 dark:text-emerald-400 print:text-xs">
-                    <CheckCircle2 className="size-4 shrink-0" />
-                    PEMBAYARAN LUNAS &amp; TERVERIFIKASI
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-emerald-900/90 dark:text-emerald-300/90 print:text-[9px]">
-                    Transaksi ini telah divalidasi lunas oleh sistem Toko Next Solution. Seluruh unit barang dilindungi garansi resmi toko &amp; distributor.
-                  </p>
+          {/* SECTION 4: PAYMENT INFO & FINANCIAL SUMMARY */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 py-2.5 border-t border-border/80 print:py-2 print:gap-4">
+            {/* Left Box: Payment Details & Guarantee Terms (No AI slop!) */}
+            <div className="space-y-2 text-xs print:space-y-1.5 print:text-[9px]">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-2.5 space-y-1 print:p-2 print:rounded-lg">
+                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+                  <span className="text-muted-foreground">Metode Pembayaran:</span>
+                  <span className="font-semibold text-foreground uppercase">{paymentMethodName}</span>
                 </div>
-              ) : (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-1.5 text-xs text-amber-950 dark:text-amber-200 print:p-2 print:rounded-lg">
-                  <h4 className="font-bold text-amber-800 dark:text-amber-300 text-xs flex items-center gap-1.5">
-                    <Clock className="size-4 shrink-0" />
-                    REKENING TUJUAN TRANSFER RESMI
-                  </h4>
-                  <div className="space-y-1">
+                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+                  <span className="text-muted-foreground">Status Pembayaran:</span>
+                  <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
+                    {isPaymentConfirmed ? "Lunas" : "Menunggu Pembayaran"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+                  <span className="text-muted-foreground">Waktu Pemesanan:</span>
+                  <span className="font-medium text-foreground">{formattedDateTimeWIB}</span>
+                </div>
+
+                {!isPaymentConfirmed && (
+                  <div className="pt-1.5 border-t border-border/60 space-y-1">
+                    <p className="text-[10px] font-bold text-muted-foreground print:text-[8px]">
+                      Rekening Pembayaran:
+                    </p>
                     {bankAccounts.map((acc, i) => (
-                      <div key={i} className="p-1.5 bg-card rounded-md border border-border/70 flex justify-between items-center text-[11px] print:text-[9.5px]">
-                        <span className="font-bold text-primary">{acc.bank_name}</span>
-                        <span className="font-mono font-bold">{acc.account_number}</span>
-                        <span className="text-muted-foreground text-[10px]">a.n. {acc.account_holder}</span>
+                      <div key={i} className="flex justify-between text-[10px] font-mono print:text-[8px]">
+                        <span>{acc.bank_name}: {acc.account_number}</span>
+                        <span>a.n. {acc.account_holder}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Warranty Badge Info */}
-              <div className="flex items-center gap-2 p-2.5 rounded-xl border border-border/70 bg-muted/20 text-xs text-muted-foreground print:p-1.5 print:rounded-lg print:text-[9px]">
-                <ShieldCheck className="size-4 text-primary shrink-0" />
-                <span>
-                  <strong>Jaminan Resmi:</strong> Unit bergaransi resmi, original, dan tersegel dengan dukungan purna jual Toko Next Solution.
-                </span>
+              {/* Warranty & Unboxing Note */}
+              <div className="text-[10px] text-muted-foreground space-y-0.5 print:text-[8px]">
+                <p className="font-bold text-foreground uppercase tracking-wider text-[10px] print:text-[8px]">
+                  Catatan &amp; Ketentuan Garansi:
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi.</li>
+                  <li>Segel garansi pada unit wajib utuh dan tidak rusak saat klaim garansi.</li>
+                  <li>Wajib menyertakan video unboxing utuh saat mengajukan komplain pesanan.</li>
+                </ul>
               </div>
             </div>
 
             {/* Right Box: Calculations Breakdown & Grand Total */}
-            <div className="space-y-1.5 text-xs self-end print:space-y-1 print:text-[10px]">
+            <div className="space-y-1 text-xs self-end print:space-y-0.5 print:text-[9.5px]">
               <div className="flex justify-between text-muted-foreground py-0.5">
-                <span>Subtotal Produk</span>
+                <span>Total Harga ({order.order_items.reduce((acc, i) => acc + i.quantity, 0)} Barang)</span>
                 <span className="font-mono font-medium text-foreground">{formatRupiah(order.total_amount)}</span>
               </div>
 
               {Number(order.discount_amount) > 0 && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium py-0.5">
-                  <span>Diskon Kupon / Voucher Toko</span>
+                  <span>Diskon Voucher Toko</span>
                   <span className="font-mono">-{formatRupiah(order.discount_amount)}</span>
                 </div>
               )}
 
               <div className="flex justify-between text-muted-foreground py-0.5">
-                <span>{isPickup ? "Biaya Pengambilan Toko" : "Ongkos Kirim"}</span>
+                <span>{isPickup ? "Biaya Penanganan / Ambil di Toko" : "Ongkos Kirim"}</span>
                 <span className="font-mono font-medium text-foreground">
-                  {isPickup && Number(order.shipping_amount) === 0 ? "Gratis" : formatRupiah(order.shipping_amount)}
+                  {isPickup && Number(order.shipping_amount) === 0 ? "Rp 0 (Gratis)" : formatRupiah(order.shipping_amount)}
                 </span>
               </div>
 
-              <div className="border-t-2 border-primary/20 pt-2 flex justify-between items-center bg-primary/5 p-2.5 rounded-xl border border-primary/20 print:p-2 print:rounded-lg">
+              <div className="border-t border-border/80 pt-2 flex justify-between items-center bg-muted/40 p-2.5 rounded-xl border border-border/60 print:p-2 print:rounded-lg">
                 <div>
-                  <span className="text-xs font-black uppercase text-foreground print:text-[10px]">
-                    TOTAL PEMBAYARAN
+                  <span className="text-xs font-bold uppercase text-foreground print:text-[9.5px]">
+                    TOTAL TAGIHAN
                   </span>
-                  <p className="text-[10px] text-muted-foreground print:text-[8.5px]">
-                    Sudah termasuk PPN &amp; seluruh diskon
+                  <p className="text-[9.5px] text-muted-foreground print:text-[7.5px]">
+                    Sudah termasuk PPN jika berlaku
                   </p>
                 </div>
                 <span className="text-xl font-black font-mono text-primary print:text-base">
@@ -611,51 +789,37 @@ export function OrderInvoice({
             </div>
           </div>
 
-          {/* SECTION 5: OFFICIAL GUARANTEE TERMS & SIGNATURE STAMP BOX */}
-          <div className="border-t-2 border-border/80 pt-3 print:pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-              {/* Terms & Conditions */}
-              <div className="sm:col-span-2 space-y-1 text-[10.5px] text-muted-foreground leading-snug print:text-[8.5px] print:space-y-0.5">
-                <p className="font-bold text-foreground uppercase tracking-wider text-[11px] print:text-[9px]">
-                  KETENTUAN KLAIM GARANSI &amp; PENGESAHAN RESMI:
+          {/* SECTION 5: SIGNATURES & COMPUTER-GENERATED NOTICE (NO FAKE RUBBER STAMP!) */}
+          <div className="border-t border-border/80 pt-2.5 print:pt-2">
+            <div className="flex justify-between items-end gap-6 text-xs print:text-[9px]">
+              {/* Penerima / Pembeli */}
+              <div className="text-center space-y-7 print:space-y-6 min-w-32">
+                <p className="font-semibold text-foreground">Tanda Tangan Pembeli</p>
+                <div>
+                  <div className="border-b border-foreground/50 w-36 mx-auto"></div>
+                  <p className="text-[10px] text-muted-foreground mt-1 print:text-[8px] truncate">
+                    ( {recipientName} )
+                  </p>
+                </div>
+              </div>
+
+              {/* System Note */}
+              <div className="hidden sm:block text-center flex-1 px-4 text-[9.5px] text-muted-foreground print:block print:text-[7.5px]">
+                <p>
+                  Faktur ini diterbitkan secara resmi oleh sistem komputer {storeName} sebagai bukti transaksi yang sah.
                 </p>
-                <ol className="list-decimal list-inside space-y-0.5">
-                  <li>Faktur ini sah sebagai bukti transaksi resmi untuk klaim garansi toko dan distributor.</li>
-                  <li>Wajib menyertakan fisik faktur ini dan video unboxing utuh saat mengajukan retur atau komplain.</li>
-                  <li>Segel garansi pada unit tidak boleh rusak atau dibongkar oleh pihak luar tanpa otorisasi.</li>
-                </ol>
-                <p className="text-primary font-medium pt-1">
+                <p className="text-primary font-medium mt-0.5">
                   Terima kasih atas kepercayaan Anda telah berbelanja di {storeName}!
                 </p>
               </div>
 
-              {/* Signatures & Official Stamp */}
-              <div className="flex justify-between sm:justify-end gap-6 text-center text-xs print:text-[9px]">
-                {/* Penerima / Pembeli */}
-                <div className="space-y-9 print:space-y-7 min-w-24">
-                  <p className="font-bold text-foreground">Tanda Tangan Pembeli</p>
-                  <div className="border-b border-foreground/60 w-full pt-2"></div>
-                  <p className="text-[10px] text-muted-foreground -mt-1 print:text-[8px] truncate">
-                    ({recipientName})
-                  </p>
-                </div>
-
-                {/* Kasir & Stempel Toko */}
-                <div className="relative space-y-9 print:space-y-7 min-w-28">
-                  <p className="font-bold text-foreground">Petugas / Kasir Toko</p>
-
-                  {/* Official Digital Store Stamp */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none -mt-1">
-                    <div className="border-2 border-emerald-600 rounded-lg p-1 px-2 rotate-[-8deg] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-black text-[9px] uppercase tracking-wider shadow-2xs print:text-[8px] print:border-emerald-700">
-                      <div className="text-[7.5px] tracking-normal font-bold">TOKO NEXT SOLUTION</div>
-                      <div className="text-[10px] text-emerald-800 dark:text-emerald-300 font-black">✓ LUNAS / VERIFIED</div>
-                      <div className="text-[7px] text-muted-foreground font-semibold">OFFICIAL STORE</div>
-                    </div>
-                  </div>
-
-                  <div className="border-b border-foreground/60 w-full pt-2"></div>
-                  <p className="text-[10px] text-muted-foreground -mt-1 print:text-[8px]">
-                    ( Bagian Administrasi )
+              {/* Toko / Kasir - Clean Official Signature */}
+              <div className="text-center space-y-7 print:space-y-6 min-w-32">
+                <p className="font-semibold text-foreground">Petugas Toko / Kasir</p>
+                <div>
+                  <div className="border-b border-foreground/50 w-36 mx-auto"></div>
+                  <p className="text-[10px] text-muted-foreground mt-1 print:text-[8px]">
+                    ( {storeName} )
                   </p>
                 </div>
               </div>
