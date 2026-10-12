@@ -226,6 +226,7 @@ export function ProductReviewsSection({
                             src={review.user_avatar}
                             alt={review.user_name}
                             fill
+                            sizes="40px"
                             className="object-cover"
                           />
                         </div>
@@ -261,6 +262,7 @@ export function ProductReviewsSection({
                               src={review.product_image}
                               alt={review.product_name}
                               fill
+                              sizes="44px"
                               className="object-cover group-hover/prod:scale-105 transition duration-300"
                             />
                           </div>
