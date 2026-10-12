@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Edit,
@@ -14,6 +14,7 @@ import {
   HelpCircle,
   Eye,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,17 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
   const [notice, setNotice] = useState("");
   const [busy, startTransition] = useTransition();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!draft) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        setDraft(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [draft, busy]);
 
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((current) => (current ? { ...current, [key]: value } : current));
@@ -285,19 +297,35 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
 
       {/* MODAL TAMBAH / EDIT KONTEN DENGAN PANDUAN LENGKAP & USER-FRIENDLY */}
       {draft && (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-150"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) setDraft(null);
+          }}
+        >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="banner-title"
+            onClick={(event) => event.stopPropagation()}
             className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-card p-6 sm:p-7 shadow-2xl border border-border"
           >
             {/* Header Modal */}
-            <div className="mb-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <h2 id="banner-title" className="text-xl font-bold tracking-tight">
                 {draft.id ? "Edit Konten" : "Tambah Konten"} ·{" "}
                 {draft.placement === "hero" ? "Carousel Slider Utama" : "Banner Promo Khusus"}
               </h2>
+              <button
+                type="button"
+                onClick={() => !busy && setDraft(null)}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+                aria-label="Tutup dialog (Batal)"
+                title="Tutup (Esc)"
+              >
+                <X className="size-5" />
+              </button>
             </div>
 
             {/* Kotak Panduan Lokasi & Fungsi Bagian Web */}

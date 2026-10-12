@@ -153,15 +153,48 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
 
   useEffect(() => {
+    const handleSwitch = (tab: string, shouldScroll = true) => {
+      if (
+        ["all", "features", "sections", "marketplaces", "branches", "reviews", "store"].includes(tab)
+      ) {
+        setActiveSettingsTab(tab as typeof activeSettingsTab);
+        if (shouldScroll) {
+          setTimeout(() => {
+            if (tab === "features") {
+              const el = document.getElementById("storefront-features-section") || document.getElementById("storefront-settings-tabs");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            } else if (tab !== "all") {
+              const el = document.getElementById("storefront-settings-tabs");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }
+          }, 100);
+        }
+      }
+    };
+
     if (typeof window !== "undefined") {
       const tabParam = new URLSearchParams(window.location.search).get("tab");
-      if (
-        tabParam &&
-        ["all", "features", "sections", "marketplaces", "branches", "reviews", "store"].includes(tabParam)
-      ) {
-        setActiveSettingsTab(tabParam as typeof activeSettingsTab);
+      if (tabParam) {
+        handleSwitch(tabParam, tabParam === "features");
       }
     }
+
+    const onCustomSwitch = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (detail) handleSwitch(detail, true);
+    };
+
+    const onPopState = () => {
+      const tabParam = new URLSearchParams(window.location.search).get("tab") || "all";
+      handleSwitch(tabParam, false);
+    };
+
+    window.addEventListener("admin-switch-tab", onCustomSwitch);
+    window.addEventListener("popstate", onPopState);
 
     getAdminProductOptionsAction()
       .then((rows) =>
@@ -179,6 +212,11 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     getAllReviewsForAdminAction()
       .then((data) => setAdminReviews(data))
       .catch(() => setAdminReviews([]));
+
+    return () => {
+      window.removeEventListener("admin-switch-tab", onCustomSwitch);
+      window.removeEventListener("popstate", onPopState);
+    };
   }, []);
 
   const updateFeatures = <K extends keyof StoreFeaturesSettings>(
@@ -499,7 +537,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       )}
 
       {/* Pembagian Tab Pengaturan ("bagian penyimpanannya juga bisa dibagi bagi") */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-sm border-b border-border/80">
+      <div id="storefront-settings-tabs" className="flex items-center gap-1.5 overflow-x-auto pb-1 text-sm border-b border-border/80 scroll-mt-20">
         {[
           { id: "all", label: "Semua Pengaturan", icon: Layers },
           { id: "features", label: "Fitur & Sistem Toko", icon: SlidersHorizontal },
@@ -515,7 +553,14 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveSettingsTab(tab.id as typeof activeSettingsTab)}
+              onClick={() => {
+                setActiveSettingsTab(tab.id as typeof activeSettingsTab);
+                if (typeof window !== "undefined") {
+                  const newUrl = tab.id === "all" ? "/admin/content" : `/admin/content?tab=${tab.id}`;
+                  window.history.replaceState(null, "", newUrl);
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: tab.id }));
+                }
+              }}
               className={cn(
                 "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
                 isActive
@@ -532,7 +577,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Google Login, dsb.) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "features") && (
-        <div className="space-y-5 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs">
+        <div id="storefront-features-section" className="space-y-5 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
           <div className="border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary">

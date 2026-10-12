@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, type FormEvent } from "react";
+import { useEffect, useState, useTransition, useMemo, type FormEvent } from "react";
 import Image from "next/image";
 import { Check, CheckCircle2, MessageSquareQuote, Package, Pencil, Plus, Search, Sparkles, Star, Trash, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,18 @@ export function HomepageItemsManager({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!editing && !isReviewPickerOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        if (editing) setEditing(null);
+        if (isReviewPickerOpen) setIsReviewPickerOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [editing, isReviewPickerOpen, busy]);
 
   const refresh = async () => {
     try {
@@ -402,11 +414,20 @@ export function HomepageItemsManager({
 
       {/* MODAL 1: PICKER REVIEW PRODUK */}
       {isReviewPickerOpen && (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) {
+              setIsReviewPickerOpen(false);
+            }
+          }}
+        >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="review-picker-title"
+            onClick={(event) => event.stopPropagation()}
             className="max-h-[90vh] w-full max-w-3xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden"
           >
             {/* Header */}
@@ -635,11 +656,20 @@ export function HomepageItemsManager({
 
       {/* MODAL 2: FORM TAMBAH / EDIT (MANUAL ATAU PRE-FILLED REVIEW) */}
       {editing && (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !busy) {
+              setEditing(null);
+            }
+          }}
+        >
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="homepage-item-title"
+            onClick={(event) => event.stopPropagation()}
             className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-card p-6 shadow-2xl border"
           >
             <div className="mb-5 flex items-center justify-between border-b pb-4">

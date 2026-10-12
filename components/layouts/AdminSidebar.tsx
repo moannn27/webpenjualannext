@@ -44,8 +44,33 @@ export function AdminSidebar({
   const [pendingOrders, setPendingOrders] = useState(0);
   const [lockedAccountsCount, setLockedAccountsCount] = useState(0);
   const [newOrderNotice, setNewOrderNotice] = useState("");
+  const [currentTab, setCurrentTab] = useState<string | null>(null);
   const latestOrderId = useRef<string | null>(null);
   const hasLoadedOrders = useRef(false);
+
+  useEffect(() => {
+    const readTabFromUrl = () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        setCurrentTab(params.get("tab"));
+      }
+    };
+    readTabFromUrl();
+
+    const handleSwitchTab = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setCurrentTab(customEvent.detail === "all" ? null : customEvent.detail);
+      }
+    };
+
+    window.addEventListener("popstate", readTabFromUrl);
+    window.addEventListener("admin-switch-tab", handleSwitchTab);
+    return () => {
+      window.removeEventListener("popstate", readTabFromUrl);
+      window.removeEventListener("admin-switch-tab", handleSwitchTab);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -136,7 +161,18 @@ export function AdminSidebar({
           {group.title}
         </h2>
         {group.links.map((link) => {
-          const isActive = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
+          const isFeaturesLink = link.href.includes("tab=features");
+          const isLandingPageLink = link.href === "/admin/content";
+
+          let isActive = false;
+          if (isFeaturesLink) {
+            isActive = pathname === "/admin/content" && currentTab === "features";
+          } else if (isLandingPageLink) {
+            isActive = pathname === "/admin/content" && currentTab !== "features";
+          } else {
+            isActive = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
+          }
+
           const Icon = link.icon;
           return (
             <Link
@@ -144,7 +180,23 @@ export function AdminSidebar({
               href={link.href}
               title={collapsed ? `${link.name}${link.href === "/admin/orders" && pendingOrders ? ` · ${pendingOrders} menunggu` : ""}` : undefined}
               aria-label={link.href === "/admin/orders" && pendingOrders ? `${link.name}, ${pendingOrders} menunggu` : link.name}
-              onClick={() => setMobileOpen(false)}
+              onClick={() => {
+                setMobileOpen(false);
+                if (isFeaturesLink) {
+                  setCurrentTab("features");
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "features" }));
+                  if (pathname === "/admin/content") {
+                    const el = document.getElementById("storefront-features-section") || document.getElementById("storefront-settings-tabs");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                } else if (isLandingPageLink) {
+                  setCurrentTab(null);
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "all" }));
+                  if (pathname === "/admin/content") {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }
+              }}
               className={cn(
                 "relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-all",
                 collapsed ? "justify-center px-2 lg:px-2" : "justify-between px-3",
