@@ -18,8 +18,8 @@ export const metadata: Metadata = {
 
 const formatRupiah = (value: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
 
-const getProductImage = (product: any) => {
-  return product.product_images?.find((img: any) => img.is_primary)?.url ?? product.product_images?.[0]?.url ?? "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"
+const getProductImage = (product: { product_images?: { url: string; is_primary?: boolean }[] }) => {
+  return product.product_images?.find((img) => img.is_primary)?.url ?? product.product_images?.[0]?.url ?? "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"
 }
 
 export default async function ComparePage({ searchParams }: { searchParams: Promise<{ ids?: string }> }) {

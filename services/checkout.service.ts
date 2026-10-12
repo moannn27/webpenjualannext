@@ -41,7 +41,23 @@ export class CheckoutService {
         throw new Error('Keranjang belanja kosong.');
       }
 
-      const cartSubtotal = cart.cart_items.reduce((total: number, item: any) => {
+      type CartItemRecord = {
+        quantity?: number | null
+        products?: {
+          id?: string
+          name?: string
+          price?: number | null
+          discount_price?: number | null
+          status?: string | null
+          stock?: number | null
+          category_id?: string | null
+          brand_id?: string | null
+          categories?: { id?: string | null; name?: string | null } | null
+          brands?: { id?: string | null; name?: string | null } | null
+        } | null
+      }
+
+      const cartSubtotal = (cart.cart_items as CartItemRecord[]).reduce((total: number, item: CartItemRecord) => {
         const itemPrice = Number(item.products?.discount_price ?? item.products?.price ?? 0);
         return total + itemPrice * Number(item.quantity || 1);
       }, 0);
@@ -95,7 +111,7 @@ export class CheckoutService {
         }
       }
 
-      const cartItemsForVoucher = cart.cart_items.map((ci: any) => ({
+      const cartItemsForVoucher = (cart.cart_items as CartItemRecord[]).map((ci: CartItemRecord) => ({
         product_id: ci.products?.id,
         price: Number(ci.products?.discount_price ?? ci.products?.price ?? 0),
         quantity: Number(ci.quantity || 1),

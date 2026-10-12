@@ -1,6 +1,6 @@
 -- Run only with pgTAP against a disposable local database. All fixtures roll back.
 BEGIN;
-SELECT plan(31);
+SELECT plan(37);
 
 SELECT ok(
     NOT has_column_privilege('authenticated', 'public.users', 'role', 'UPDATE'),
@@ -60,6 +60,18 @@ SELECT ok(
     NOT has_function_privilege('anon', 'public.admin_update_user_role(uuid,public.user_role)', 'EXECUTE'),
     'anonymous users cannot call the role change RPC'
 );
+SELECT ok(
+    NOT has_table_privilege('anon', 'public.orders', 'INSERT')
+    AND NOT has_table_privilege('anon', 'public.order_items', 'INSERT')
+    AND NOT has_table_privilege('anon', 'public.payments', 'INSERT'),
+    'anonymous users cannot insert into orders, order_items, or payments'
+);
+SELECT ok(
+    NOT has_function_privilege('anon', 'public.handle_new_user()', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'public.handle_new_user_cart()', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'public.assign_daily_order_number()', 'EXECUTE'),
+    'anonymous users cannot execute internal trigger functions'
+);
 
 -- These fixtures exist only inside this rolled-back local pgTAP transaction.
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -95,25 +107,46 @@ SELECT throws_ok(
     '42501', NULL,
     'customer cannot invoke the role change RPC'
 );
-SELECT row_count(
-    $$UPDATE public.users SET full_name = 'Changed Other User' WHERE id = '10000000-0000-0000-0000-000000000002'$$,
-    0,
+SELECT results_eq(
+    $$WITH updated AS (
+        UPDATE public.users SET full_name = 'Changed Other User' WHERE id = '10000000-0000-0000-0000-000000000002'
+        RETURNING 1
+    ) SELECT count(*) FROM updated$$,
+    $$SELECT 0::bigint$$,
     'customer cannot update another profile'
 );
-SELECT row_count(
-    $$UPDATE public.payments SET status = 'success' WHERE id = '30000000-0000-0000-0000-000000000001'$$,
-    0,
+SELECT results_eq(
+    $$WITH updated AS (
+        UPDATE public.payments SET status = 'success' WHERE id = '30000000-0000-0000-0000-000000000001'
+        RETURNING 1
+    ) SELECT count(*) FROM updated$$,
+    $$SELECT 0::bigint$$,
     'customer cannot confirm their own payment'
 );
-SELECT row_count(
-    $$UPDATE public.payments SET status = 'success' WHERE id = '30000000-0000-0000-0000-000000000002'$$,
-    0,
+SELECT results_eq(
+    $$WITH updated AS (
+        UPDATE public.payments SET status = 'success' WHERE id = '30000000-0000-0000-0000-000000000002'
+        RETURNING 1
+    ) SELECT count(*) FROM updated$$,
+    $$SELECT 0::bigint$$,
     'customer cannot change another user payment'
 );
 SELECT throws_ok(
     $$UPDATE public.payments SET amount = 1 WHERE id = '30000000-0000-0000-0000-000000000001'$$,
     '42501', NULL,
     'customer cannot change payment amount'
+);
+SELECT throws_ok(
+    $$INSERT INTO public.orders (id, user_id, order_number, status, total_amount, shipping_amount, discount_amount, grand_total, shipping_address, courier)
+      VALUES ('20000000-0000-0000-0000-000000000099', '10000000-0000-0000-0000-000000000001', 'FORGED-01', 'delivered', 0, 0, 0, 0, '{}'::jsonb, 'standard')$$,
+    '42501', NULL,
+    'customer cannot directly insert forged orders into public.orders'
+);
+SELECT throws_ok(
+    $$INSERT INTO public.order_items (id, order_id, product_id, product_name, price, quantity)
+      VALUES ('40000000-0000-0000-0000-000000000099', '20000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 'Forged Item', 0, 1)$$,
+    '42501', NULL,
+    'customer cannot directly insert items into public.order_items'
 );
 SELECT set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000099', true);
 SELECT throws_ok(
@@ -132,6 +165,14 @@ SELECT is(
     (SELECT status::text FROM public.payments WHERE id = '30000000-0000-0000-0000-000000000001'),
     'pending',
     'denied customer payment update leaves status unchanged'
+);
+SELECT ok(
+    (SELECT count(*) FROM public.orders WHERE order_number = 'FORGED-01') = 0,
+    'forged order insert was completely blocked'
+);
+SELECT ok(
+    (SELECT count(*) FROM public.order_items WHERE id = '40000000-0000-0000-0000-000000000099') = 0,
+    'forged order item insert was completely blocked'
 );
 
 SET LOCAL ROLE authenticated;
@@ -199,13 +240,13 @@ SELECT throws_ok(
 );
 SELECT lives_ok(
     $$SELECT public.super_admin_correct_order_pickup('20000000-0000-0000-0000-000000000002', 'pending')$$,
-    'trusted super-admin correction RPC can adjust amount through its authorized path'
+    'trusted super-admin correction RPC executes through its authorized path'
 );
 RESET ROLE;
 SELECT is(
     (SELECT amount::numeric FROM public.payments WHERE id = '30000000-0000-0000-0000-000000000002'),
-    100000::numeric,
-    'pickup correction keeps the payment amount synchronized'
+    101000::numeric,
+    'pickup correction preserves recorded payment amount for already-confirmed orders'
 );
 
 SELECT * FROM finish();

@@ -1,3 +1,4 @@
+import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getAdminAccess } from '@/lib/auth/admin';
 import { normalizeStorefrontSettings } from '@/lib/storefront-settings';
@@ -19,7 +20,7 @@ export async function getCurrentAdminPermissions(): Promise<{
   isAdmin: boolean;
   adminName: string;
   permissions: AdminModuleKey[];
-  user: any;
+  user: User | null;
 }> {
   const { user, isAdmin, role, adminName } = await getAdminAccess();
   if (!user || !isAdmin) {

@@ -122,7 +122,21 @@ export async function validateVoucherForCheckoutAction(
         .maybeSingle();
 
       if (cart?.cart_items) {
-        itemsToEvaluate = cart.cart_items.map((ci: any) => ({
+        type RawCartItem = {
+          quantity?: number | null
+          products?: {
+            id?: string
+            name?: string
+            price?: number | null
+            discount_price?: number | null
+            category_id?: string | null
+            brand_id?: string | null
+            categories?: { id?: string | null; name?: string | null } | null
+            brands?: { id?: string | null; name?: string | null } | null
+          } | null
+        }
+
+        itemsToEvaluate = (cart.cart_items as RawCartItem[]).map((ci: RawCartItem) => ({
           product_id: ci.products?.id,
           price: Number(ci.products?.discount_price ?? ci.products?.price ?? 0),
           quantity: Number(ci.quantity || 1),

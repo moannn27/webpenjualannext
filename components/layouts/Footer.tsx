@@ -50,7 +50,6 @@ type FooterStoreSettings = {
 export function Footer({
   settings,
   marketplaces = [],
-  channels = [],
 }: {
   settings?: FooterStoreSettings;
   marketplaces?: OfficialMarketplace[];

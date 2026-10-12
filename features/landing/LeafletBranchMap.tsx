@@ -24,11 +24,14 @@ export default function LeafletBranchMap({
   const markersRef = useRef<Map<string, any>>(new Map());
 
   const branchesRef = useRef(branches);
-  branchesRef.current = branches;
   const selectedBranchRef = useRef(selectedBranch);
-  selectedBranchRef.current = selectedBranch;
   const onSelectBranchRef = useRef(onSelectBranch);
-  onSelectBranchRef.current = onSelectBranch;
+
+  useEffect(() => {
+    branchesRef.current = branches;
+    selectedBranchRef.current = selectedBranch;
+    onSelectBranchRef.current = onSelectBranch;
+  }, [branches, selectedBranch, onSelectBranch]);
 
   // Safe render markers
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -219,6 +222,7 @@ export default function LeafletBranchMap({
 
     void initMap();
 
+    const markers = markersRef.current;
     return () => {
       isCancelled = true;
       if (mapInstanceRef.current) {
@@ -229,7 +233,7 @@ export default function LeafletBranchMap({
         }
         mapInstanceRef.current = null;
       }
-      markersRef.current.clear();
+      markers.clear();
     };
   }, [renderMarkers]);
 

@@ -9,7 +9,6 @@ import { ReportExports } from "@/features/admin/ReportExports";
 import type { EcommerceReport } from "@/lib/admin-reports";
 import { requireModulePermission } from "@/lib/auth/permissions";
 import {
-  TrendingUp,
   DollarSign,
   Package,
   Truck,
@@ -20,8 +19,6 @@ import {
   RotateCcw,
   CreditCard,
   Users,
-  UserPlus,
-  Repeat,
   FileText,
   ArrowUpRight,
 } from "lucide-react";

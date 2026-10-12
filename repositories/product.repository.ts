@@ -111,7 +111,21 @@ export class ProductRepository extends BaseRepository {
     const { data: rawRows, error: fetchError } = await query
     if (fetchError) throw fetchError
 
-    let rows = (rawRows ?? []) as any[]
+    type FallbackProductRow = Record<string, unknown> & {
+      id?: string
+      name?: string | null
+      sku?: string | null
+      description?: string | null
+      price?: number | string | null
+      discount_price?: number | string | null
+      stock?: number | null
+      created_at?: string | null
+      brands?: { name?: string | null } | null
+      categories?: { name?: string | null } | null
+      product_specifications?: { key: string; value: string }[] | null
+    }
+
+    let rows: FallbackProductRow[] = (rawRows ?? []) as FallbackProductRow[]
 
     // 1. Text Search matching across name, sku, description, brand, category, specs
     if (term) {
@@ -199,7 +213,9 @@ export class ProductRepository extends BaseRepository {
         }
       }
       // default: newest created_at DESC
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+      return dateB - dateA
     })
 
     // 5. Pagination

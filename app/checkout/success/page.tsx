@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
-import { OrderInvoice } from "@/components/invoice/OrderInvoice";
+import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
 
 export const metadata = {
   title: "Pesanan Berhasil | Next Solution Store",
@@ -79,7 +79,7 @@ export default async function CheckoutSuccessPage({
     bankAccounts: storefront.bank_transfer,
   };
 
-  const address = order?.shipping_address as Record<string, any> | null;
+  const address = order?.shipping_address as Record<string, unknown> | null;
   const isPickup = order?.courier === "pickup";
   const userObj = Array.isArray(order?.users) ? order.users[0] : order?.users;
   const recipientName = address?.recipient_name || userObj?.full_name || "Pelanggan";
@@ -213,7 +213,7 @@ export default async function CheckoutSuccessPage({
               </span>
             </div>
             <OrderInvoice
-              order={order as any}
+              order={order as unknown as InvoiceOrderData}
               storefront={storefrontInfo}
               backHref="/"
               backLabel="Kembali ke Beranda"

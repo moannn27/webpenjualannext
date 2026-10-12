@@ -13,7 +13,7 @@ import {
   type VoucherTargetScope,
   type VoucherMatchCriteria,
 } from "@/types/voucher";
-import { formatVoucherCurrency, formatVoucherLabel, parseVoucherDate } from "@/lib/voucher";
+import { formatVoucherCurrency, parseVoucherDate } from "@/lib/voucher";
 
 function toLocalDateInput(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
@@ -39,9 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Calendar,
   Check,
-  CheckSquare,
   Copy,
   Edit2,
   Filter,
@@ -50,11 +48,7 @@ import {
   Plus,
   Search,
   Sparkles,
-  Square,
-  Tag,
-  TicketPercent,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 
 interface CategoryOption {

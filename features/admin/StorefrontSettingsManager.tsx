@@ -799,7 +799,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
                   {!marketplace.stores.length && (
                     <p className="py-3 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
-                      Belum ada toko yang ditambahkan di {marketplace.name}. Klik tombol "+ Tambah Toko" di atas.
+                      Belum ada toko yang ditambahkan di {marketplace.name}. Klik tombol &quot;+ Tambah Toko&quot; di atas.
                     </p>
                   )}
                 </div>
@@ -809,7 +809,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
           {!settings.official_marketplaces?.length && (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Belum ada marketplace resmi yang dikonfigurasi. Klik "+ Tambah Platform Marketplace" di atas.
+              Belum ada marketplace resmi yang dikonfigurasi. Klik &quot;+ Tambah Platform Marketplace&quot; di atas.
             </p>
           )}
         </div>
@@ -1054,7 +1054,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           ))}
           {!settings.store.branches.length && (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Belum ada cabang toko yang ditambahkan. Klik "Tambah Cabang" di atas.
+              Belum ada cabang toko yang ditambahkan. Klik &quot;Tambah Cabang&quot; di atas.
             </p>
           )}
         </div>
@@ -1227,7 +1227,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
           {!(settings.featured_reviews || []).length && (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Belum ada ulasan produk yang dipilih untuk slider beranda. Klik "+ Tambah Ulasan Manual" atau "Kembalikan Default".
+              Belum ada ulasan produk yang dipilih untuk slider beranda. Klik &quot;+ Tambah Ulasan Manual&quot; atau &quot;Kembalikan Default&quot;.
             </p>
           )}
         </div>
@@ -1242,7 +1242,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   Review Asli Dari Pembeli di Toko ({adminReviews.length} Ulasan Masuk)
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Klik "+ Jadikan Ulasan Unggulan Beranda" untuk menampilkan ulasan organik ini di slider beranda.
+                  Klik &quot;+ Jadikan Ulasan Unggulan Beranda&quot; untuk menampilkan ulasan organik ini di slider beranda.
                 </p>
               </div>
             </div>

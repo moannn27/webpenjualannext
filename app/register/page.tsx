@@ -47,8 +47,9 @@ export default function RegisterPage() {
         setError(result.error);
         setGoogleLoading(false);
       }
-    } catch (err: any) {
-      if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {
+    } catch (err) {
+      const errorObj = err as { message?: string; digest?: string };
+      if (errorObj?.message?.includes("NEXT_REDIRECT") || errorObj?.digest?.includes("NEXT_REDIRECT")) {
         return;
       }
       setError("Gagal menghubungkan dengan akun Google.");

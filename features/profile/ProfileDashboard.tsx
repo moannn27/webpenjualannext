@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, type FormEvent } from "react";
+import { useState, useEffect, useMemo, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -183,15 +183,15 @@ export function ProfileDashboard({
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("orders");
-  const [orderList, setOrderList] = useState<Order[]>(orders);
+  const [deliveredOrderIds, setDeliveredOrderIds] = useState<string[]>([]);
+  const orderList = useMemo(() => {
+    if (!deliveredOrderIds.length) return orders;
+    return orders.map((o) => (deliveredOrderIds.includes(o.id) ? { ...o, status: "delivered" as const } : o));
+  }, [orders, deliveredOrderIds]);
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, startTransition] = useTransition();
-
-  useEffect(() => {
-    setOrderList(orders);
-  }, [orders]);
 
   // Filter & Search untuk Pesanan
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -248,7 +248,9 @@ export function ProfileDashboard({
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordBusy, setPasswordBusy] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+  const [failedAttempts, setFailedAttempts] = useState<number>(() => {
+    return profile?.is_password_locked ? 3 : 0;
+  });
 
   const failedStorageKey = `pwd_fail_${profile?.email || "user"}`;
 
@@ -256,18 +258,10 @@ export function ProfileDashboard({
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // Jika server menyatakan akun TIDAK terkunci (misalnya setelah admin reset):
       if (!profile?.is_password_locked) {
         localStorage.removeItem(failedStorageKey);
-        setFailedAttempts(0);
-        return;
-      }
-
-      // Jika server menyatakan akun terkunci:
-      if (profile?.is_password_locked) {
-        setFailedAttempts(3);
+      } else {
         localStorage.setItem(failedStorageKey, "3");
-        return;
       }
     }
   }, [failedStorageKey, profile?.is_password_locked]);
@@ -375,9 +369,7 @@ export function ProfileDashboard({
     startTransition(async () => {
       try {
         await confirmOrderDeliveredAction(orderId);
-        setOrderList((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: "delivered" } : o))
-        );
+        setDeliveredOrderIds((prev) => [...prev, orderId]);
         router.refresh();
         setNotice("Pesanan berhasil dikonfirmasi diterima! Terima kasih. Anda sekarang dapat memberikan ulasan produk.");
       } catch (err) {

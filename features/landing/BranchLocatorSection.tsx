@@ -79,14 +79,16 @@ export function BranchLocatorSection({
     return [];
   }, [activeBranches, storeAddress, storeMapsUrl, storeLatitude, storeLongitude, storeCity, storeName, storeWhatsApp]);
 
-  const [selectedBranch, setSelectedBranch] = useState<StoreBranch | null>(() => displayBranches[0] ?? null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
 
-  // Update selected branch if displayBranches changes
-  useMemo(() => {
-    if (!selectedBranch || !displayBranches.some((b) => b.id === selectedBranch.id)) {
-      setSelectedBranch(displayBranches[0] ?? null);
+  // Derived selected branch based on selectedBranchId or first available
+  const selectedBranch = useMemo(() => {
+    if (selectedBranchId) {
+      const match = displayBranches.find((b) => b.id === selectedBranchId);
+      if (match) return match;
     }
-  }, [displayBranches, selectedBranch]);
+    return displayBranches[0] ?? null;
+  }, [displayBranches, selectedBranchId]);
 
   // Filtered branches based on user search query (city, name, address)
   const filteredBranches = useMemo(() => {
@@ -107,13 +109,13 @@ export function BranchLocatorSection({
   }, [displayBranches]);
 
   const handleSelectBranch = (branch: StoreBranch) => {
-    setSelectedBranch(branch);
+    setSelectedBranchId(branch.id);
   };
 
   const handleCityPillClick = (city: string) => {
     setSearchQuery(city);
     const match = displayBranches.find((b) => b.city.toLowerCase() === city.toLowerCase());
-    if (match) setSelectedBranch(match);
+    if (match) setSelectedBranchId(match.id);
   };
 
   const targetWaNumber = (selectedBranch?.whatsapp || storeWhatsApp).replace(/\D/g, "");
@@ -174,7 +176,7 @@ export function BranchLocatorSection({
                         b.city.toLowerCase().includes(val.toLowerCase()) ||
                         b.name.toLowerCase().includes(val.toLowerCase())
                     );
-                    if (firstMatch) setSelectedBranch(firstMatch);
+                    if (firstMatch) setSelectedBranchId(firstMatch.id);
                   }
                 }}
                 placeholder="Ketik kota atau nama cabang..."
@@ -359,7 +361,7 @@ export function BranchLocatorSection({
                   })}
                   {!filteredBranches.length && (
                     <div className="py-6 text-center text-xs text-muted-foreground">
-                      Tidak ada cabang yang cocok dengan pencarian "{searchQuery}".
+                      Tidak ada cabang yang cocok dengan pencarian &quot;{searchQuery}&quot;.
                     </div>
                   )}
                 </div>

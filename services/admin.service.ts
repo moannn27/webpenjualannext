@@ -28,7 +28,17 @@ export class AdminService extends BaseRepository {
     const salesAnalyticsAvailable = !salesChart.error
     const revenue = salesAnalyticsAvailable ? Number(salesChart.data?.[0]?.lifetime_revenue ?? 0) : 0
 
-    const lowStockItems = (lowStockList.data ?? []).map((p: any) => {
+    type RawLowStockProduct = {
+      id?: unknown
+      name?: unknown
+      sku?: unknown
+      stock?: unknown
+      price?: unknown
+      brands?: { name?: unknown } | { name?: unknown }[] | null
+      categories?: { name?: unknown } | { name?: unknown }[] | null
+    }
+
+    const lowStockItems = ((lowStockList.data ?? []) as RawLowStockProduct[]).map((p) => {
       const brandObj = Array.isArray(p.brands) ? p.brands[0] : p.brands
       const catObj = Array.isArray(p.categories) ? p.categories[0] : p.categories
       return {

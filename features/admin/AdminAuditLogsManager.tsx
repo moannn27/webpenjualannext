@@ -9,23 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  Activity,
-  Calendar,
-  CheckCircle2,
   Clock,
-  Download,
   FileSpreadsheet,
   FileText,
-  Filter,
   History,
   Layers,
   LoaderCircle,
-  Package,
   Printer,
   Search,
-  Shield,
   Trash2,
-  UserCheck,
 } from "lucide-react";
 
 interface AdminAuditLogsManagerProps {

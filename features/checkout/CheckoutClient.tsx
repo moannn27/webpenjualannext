@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   Banknote,
   Check,
-  CheckCircle2,
   Clock3,
   LoaderCircle,
   MapPin,
@@ -114,15 +113,23 @@ export function CheckoutClient({
     setVoucherLoading(true);
     setVoucherError("");
     try {
-      const cartItems = initialCart.cart_items.map((item) => ({
-        product_id: item.products.id,
-        price: getItemPrice(item),
-        quantity: item.quantity,
-        category_id: (item.products as any).category_id ?? (item.products as any).categories?.id ?? null,
-        brand_id: (item.products as any).brand_id ?? (item.products as any).brands?.id ?? null,
-        category_name: (item.products as any).categories?.name ?? null,
-        brand_name: (item.products as any).brands?.name ?? null,
-      }));
+      const cartItems = initialCart.cart_items.map((item) => {
+        const prod = item.products as typeof item.products & {
+          category_id?: string | null;
+          brand_id?: string | null;
+          categories?: { id?: string | null; name?: string | null } | null;
+          brands?: { id?: string | null; name?: string | null } | null;
+        };
+        return {
+          product_id: item.products.id,
+          price: getItemPrice(item),
+          quantity: item.quantity,
+          category_id: prod.category_id ?? prod.categories?.id ?? null,
+          brand_id: prod.brand_id ?? prod.brands?.id ?? null,
+          category_name: prod.categories?.name ?? null,
+          brand_name: prod.brands?.name ?? null,
+        };
+      });
 
       const formEl = typeof document !== "undefined" ? (document.getElementById("checkout-form") as HTMLFormElement | null) : null;
       const phoneVal = formEl

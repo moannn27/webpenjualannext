@@ -11,7 +11,7 @@ export interface InvoiceOrderItem {
   product_name: string;
   price: number;
   quantity: number;
-  variant_details?: Record<string, any> | null;
+  variant_details?: Record<string, unknown> | null;
   sku?: string | null;
 }
 

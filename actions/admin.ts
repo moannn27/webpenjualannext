@@ -3,7 +3,7 @@
 import { AdminService } from '@/services/admin.service'
 import { getAdminAccess } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createSupabaseAdminClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseAdminClient, type User } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
@@ -103,7 +103,7 @@ const statusLabels: Record<string, string> = {
 
 export async function updateAdminOrderStatusAction(formData: FormData) {
   const statusCorrection = formData.get('status_correction') === 'on'
-  let user: any;
+  let user: User | null = null;
   let adminName = 'Admin';
   let adminRole = 'admin';
 
@@ -469,15 +469,16 @@ export async function updateAdminManagedAccountRoleAction(formData: FormData) {
     if (!id || !['customer', 'admin', 'super_admin'].includes(role)) return { error: 'Role akun tidak valid.' }
     if (id === user.id && role !== 'super_admin') return { error: 'Role akun yang sedang digunakan tidak dapat diturunkan dari halaman ini.' }
     const supabase = await createClient()
-    let { error } = await supabase.rpc('admin_update_user_role', {
+    const { error } = await supabase.rpc('admin_update_user_role', {
       p_user_id: id,
       p_role: role,
     })
-    if (error && (error.code === 'PGRST202' || error.message?.includes('admin_update_user_role'))) {
-      const fallback = await supabase.from('users').update({ role }).eq('id', id)
-      error = fallback.error
+    if (error) {
+      if (error.code === 'PGRST202' || error.message?.includes('admin_update_user_role')) {
+        return { error: 'Fungsi sistem admin_update_user_role tidak tersedia atau belum diterapkan di database. Pembaruan role dibatalkan secara aman (fail-closed).' }
+      }
+      return { error: error.message }
     }
-    if (error) return { error: error.message }
 
     await recordAdminActivity({
       admin_id: user.id,

@@ -25,7 +25,6 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
-  UserCheck,
 } from "lucide-react";
 
 type Account = {

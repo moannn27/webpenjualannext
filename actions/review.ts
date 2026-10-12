@@ -3,6 +3,7 @@
 import { ReviewService } from '@/services/review.service'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getAdminAccess } from '@/lib/auth/admin'
 
 const reviewService = new ReviewService()
 
@@ -105,6 +106,8 @@ export type AdminReviewWithDetails = {
 };
 
 export async function getAllReviewsForAdminAction(): Promise<AdminReviewWithDetails[]> {
+  const { user, isAdmin } = await getAdminAccess()
+  if (!user || !isAdmin) throw new Error('Forbidden')
   try {
     const supabase = await createClient()
     const { data, error } = await supabase

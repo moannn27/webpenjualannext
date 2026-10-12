@@ -71,7 +71,7 @@ export default async function AdminOrdersPage({
       const orderNum = order.order_number?.toLowerCase() ?? "";
       const customer = (order.users?.[0]?.full_name ?? "").toLowerCase();
       const phone = (order.users?.[0]?.phone ?? "").toLowerCase();
-      const items = (order.order_items ?? []).map((i: any) => i.product_name?.toLowerCase() ?? "").join(" ");
+      const items = (order.order_items ?? []).map((i: { product_name?: string | null }) => i.product_name?.toLowerCase() ?? "").join(" ");
       if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term) && !items.includes(term)) return false;
     }
     return true;

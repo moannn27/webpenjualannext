@@ -10,13 +10,11 @@ import {
   Bell,
   ShieldAlert,
   AlertTriangle,
-  Package,
   CheckCircle2,
   Trash2,
   X,
   FileText,
   Clock,
-  Layers,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -52,7 +50,9 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
-            setDismissedIds(new Set(parsed));
+            queueMicrotask(() => {
+              setDismissedIds(new Set(parsed));
+            });
           }
         }
       } catch {
@@ -309,7 +309,6 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
                   displayedNotifications.map((n) => {
                     const isSec = n.category === "security";
                     const isStock = n.category === "stock";
-                    const isOrd = n.category === "order";
 
                     return (
                       <div

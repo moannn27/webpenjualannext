@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
-import { OrderInvoice } from "@/components/invoice/OrderInvoice";
+import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
 import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
@@ -98,7 +98,7 @@ export default async function OrderInvoicePage({
 
   return (
     <OrderInvoice
-      order={order as any}
+      order={order as unknown as InvoiceOrderData}
       storefront={storefrontInfo}
       backHref={backHref}
       backLabel={backLabel}
