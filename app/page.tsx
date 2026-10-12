@@ -4,7 +4,6 @@ import { FeaturedProducts } from "@/features/landing/FeaturedProducts";
 import { PromoBanner } from "@/features/landing/PromoBanner";
 import { BrandShowcase } from "@/features/landing/BrandShowcase";
 import { WhyChooseUs } from "@/features/landing/WhyChooseUs";
-import { Testimonials } from "@/features/landing/Testimonials";
 import { FaqSection } from "@/features/landing/FaqSection";
 import { BranchLocatorSection } from "@/features/landing/BranchLocatorSection";
 import { ProductReviewsSection } from "@/features/landing/ProductReviewsSection";
@@ -13,7 +12,7 @@ import type { Metadata } from "next";
 import { getBestSellerAction, getNewArrivalAction, getProductsByIdsAction, getPromoProductsAction } from "@/actions/product";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
-import { getBannersAction, getFAQsAction, getTestimonialsAction } from "@/actions/content";
+import { getBannersAction, getFAQsAction } from "@/actions/content";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { getStorefrontFeaturedReviewsAction } from "@/actions/review";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
@@ -35,14 +34,13 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, testimonials, banners, rawSettings] = await Promise.all([
+  const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, banners, rawSettings] = await Promise.all([
     getBestSellerAction().catch(() => []),
     getNewArrivalAction().catch(() => []),
     getPromoProductsAction(8).catch(() => []),
     getCategoriesAction().catch(() => []),
     getBrandsAction().catch(() => []),
     getFAQsAction().catch(() => []),
-    getTestimonialsAction().catch(() => []),
     getBannersAction().catch(() => []),
     getStorefrontSettingsAction().catch(() => null),
   ]);
@@ -109,7 +107,6 @@ export default async function Home() {
         />
       )}
       {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} store={settings.store} pickupInfo={settings.pickup_info} />}
-      {sections.testimonials.visible && <Testimonials testimonials={testimonials ?? []} title={sections.testimonials.title} subtitle={sections.testimonials.subtitle} />}
       {sections.faq.visible && <FaqSection faqs={faqs ?? []} title={sections.faq.title} subtitle={sections.faq.subtitle} />}
     </div>
   );

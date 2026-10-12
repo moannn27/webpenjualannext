@@ -248,18 +248,68 @@ export function PagedProductCatalog({
                     placeholder="Processor (Core i5, Ryzen)"
                     className="h-10 w-full rounded-lg border bg-background px-3 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  <input
-                    name="ram"
-                    defaultValue={filters.ram}
-                    placeholder="RAM (mis. 16 GB)"
-                    className="h-10 w-full rounded-lg border bg-background px-3 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                  <input
-                    name="storage"
-                    defaultValue={filters.storage}
-                    placeholder="Storage (mis. 512 GB SSD)"
-                    className="h-10 w-full rounded-lg border bg-background px-3 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
+                  <div className="space-y-1">
+                    <input
+                      name="ram"
+                      id="catalog-filter-ram"
+                      defaultValue={filters.ram}
+                      placeholder="RAM (mis. 16 GB)"
+                      className="h-10 w-full rounded-lg border bg-background px-3 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {["8 GB", "16 GB", "32 GB"].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById("catalog-filter-ram") as HTMLInputElement;
+                            if (el) {
+                              el.value = el.value === opt ? "" : opt;
+                              el.form?.requestSubmit();
+                            }
+                          }}
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium border transition-colors cursor-pointer ${
+                            filters.ram?.toLowerCase().includes(opt.toLowerCase().replace(/\s/g, ""))
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/60 text-muted-foreground hover:bg-muted border-border/60"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <input
+                      name="storage"
+                      id="catalog-filter-storage"
+                      defaultValue={filters.storage}
+                      placeholder="Storage (mis. 512 GB SSD)"
+                      className="h-10 w-full rounded-lg border bg-background px-3 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {["256 GB", "512 GB", "1 TB"].map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            const el = document.getElementById("catalog-filter-storage") as HTMLInputElement;
+                            if (el) {
+                              el.value = el.value === opt ? "" : opt;
+                              el.form?.requestSubmit();
+                            }
+                          }}
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium border transition-colors cursor-pointer ${
+                            filters.storage?.toLowerCase().includes(opt.toLowerCase().replace(/\s/g, ""))
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/60 text-muted-foreground hover:bg-muted border-border/60"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <input
                     name="gpu"
                     defaultValue={filters.gpu}

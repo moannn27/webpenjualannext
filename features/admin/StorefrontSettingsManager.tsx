@@ -20,6 +20,7 @@ import {
 } from "@/lib/storefront-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Save,
   MapPin,
@@ -141,6 +142,9 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [productSearch, setProductSearch] = useState<Record<string, string>>({});
   const router = useRouter();
 
+  const [activeSettingsTab, setActiveSettingsTab] = useState<
+    "all" | "sections" | "marketplaces" | "branches" | "reviews" | "store"
+  >("all");
   const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
 
   useEffect(() => {
@@ -466,15 +470,50 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         </div>
       )}
 
-      {/* Bagian Halaman Depan */}
-      <div>
-        <h2 className="text-xl font-semibold">Tampilan & Section Halaman Depan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Atur status tampilan, judul, dan deskripsi section yang muncul di halaman beranda.
-        </p>
+      {/* Pembagian Tab Pengaturan ("bagian penyimpanannya juga bisa dibagi bagi") */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-sm border-b border-border/80">
+        {[
+          { id: "all", label: "Semua Pengaturan", icon: Layers },
+          { id: "sections", label: "Section Beranda", icon: Compass },
+          { id: "marketplaces", label: "Marketplace & Channel", icon: Share2 },
+          { id: "branches", label: "Cabang & Peta", icon: MapPin },
+          { id: "reviews", label: "Ulasan Produk", icon: Star },
+          { id: "store", label: "Profil & Rekening", icon: Phone },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeSettingsTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveSettingsTab(tab.id as typeof activeSettingsTab)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Icon className="size-3.5" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {Object.entries(settings.sections).map(([key, section]) => (
+
+      {/* Bagian Halaman Depan */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "sections") && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-xl font-semibold">Tampilan & Section Halaman Depan</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Atur status tampilan, judul, dan deskripsi section yang muncul di halaman beranda.
+            </p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {Object.entries(settings.sections)
+              .filter(([key]) => key !== "testimonials")
+              .map(([key, section]) => (
           <article key={key} className="min-w-0 space-y-3 rounded-xl border bg-background p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold text-primary">{names[key] ?? key}</h3>
@@ -578,9 +617,12 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </article>
         ))}
       </div>
+    </div>
+  )}
 
-      {/* SECTION: Official Marketplace & Toko Online (Screenshot 2 Berkelompok) */}
-      <div className="space-y-4 border-t pt-6">
+  {/* SECTION: Official Marketplace & Toko Online (Screenshot 2 Berkelompok) */}
+  {(activeSettingsTab === "all" || activeSettingsTab === "marketplaces") && (
+    <div className="space-y-4 border-t pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
@@ -814,8 +856,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           )}
         </div>
       </div>
+      )}
 
       {/* SECTION: Cabang Toko & Peta Interaktif (Screenshot 1) */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "branches") && (
       <div className="space-y-4 border-t pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1059,8 +1103,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           )}
         </div>
       </div>
+      )}
 
       {/* SECTION: Ulasan & Review Produk Pelanggan (Slider Beranda) */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "reviews") && (
       <div className="space-y-4 border-t pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1294,8 +1340,11 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </div>
         )}
       </div>
+      )}
 
       {/* Informasi Toko Utama & Footer */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "store") && (
+      <>
       <div className="space-y-4 border-t pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1647,6 +1696,8 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </select>
         </label>
       </div>
+      </>
+      )}
 
       {/* Bottom Save Action Buttons */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">

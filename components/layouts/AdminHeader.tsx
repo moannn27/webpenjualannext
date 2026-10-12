@@ -133,9 +133,11 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
   });
 
   // Handle dismiss single notification
-  const handleDismiss = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+  const handleDismiss = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
     setDismissedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -144,6 +146,12 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
       }
       return next;
     });
+  };
+
+  // Handle clicking notification item (marks as read/dismissed and closes dropdown)
+  const handleNotificationClick = (id: string) => {
+    handleDismiss(id);
+    setNotifOpen(false);
   };
 
   // Handle clear all notifications
@@ -324,7 +332,7 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
                         <div className="flex items-start justify-between gap-2">
                           <Link
                             href={n.link}
-                            onClick={() => setNotifOpen(false)}
+                            onClick={() => handleNotificationClick(n.id)}
                             className="flex items-start gap-2.5 flex-1 min-w-0"
                           >
                             <div

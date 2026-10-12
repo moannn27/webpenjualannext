@@ -198,19 +198,49 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             {product.description || "Rasakan performa optimal dengan arsitektur terkini. Dirancang untuk memenuhi kebutuhan komputasi harian, grafis tajam, dan daya tahan maksimal."}
           </p>
 
-          <div className="space-y-6 mb-10">
-            {variants.length > 0 && <div className="grid gap-4 sm:grid-cols-3">
-              {variantFields.map(({ key, label }) => {
-                const options = variantOptions(key);
-                if (!options.length) return null;
-                return <label key={key} className="space-y-1.5 text-sm font-medium">{label}
-                  <select value={selectedVariant?.[key] ?? ""} onChange={(event) => chooseVariant(key, event.target.value)} className="h-11 w-full rounded-lg border border-input bg-background px-3 font-normal">
-                    {options.map((option) => <option key={option} value={option}>{option}</option>)}
-                  </select>
-                </label>;
-              })}
-              {selectedVariant?.sku && <p className="text-xs text-muted-foreground sm:col-span-3">SKU varian: {selectedVariant.sku}</p>}
-            </div>}
+          <div className="space-y-5 mb-8">
+            {variants.length > 0 && (
+              <div className="space-y-4 rounded-2xl border border-border/80 bg-muted/20 p-4">
+                {variantFields.map(({ key, label }) => {
+                  const options = variantOptions(key);
+                  if (!options.length) return null;
+                  const currentVal = selectedVariant?.[key];
+                  return (
+                    <div key={key} className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+                        <span className="font-semibold text-foreground">{currentVal || "Pilih"}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {options.map((option) => {
+                          const isSelected = currentVal === option;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => chooseVariant(key, option)}
+                              className={cn(
+                                "px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
+                                isSelected
+                                  ? "border-primary bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/20"
+                                  : "border-border bg-card text-foreground hover:bg-muted hover:border-primary/40"
+                              )}
+                            >
+                              {key === "storage" ? `💾 ${option}` : option}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {selectedVariant?.sku && (
+                  <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/60">
+                    SKU Varian: <span className="font-mono font-medium text-foreground">{selectedVariant.sku}</span>
+                  </p>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-4">
               <div className="font-semibold w-24">Jumlah</div>
               <div className="flex items-center border border-border rounded-full p-1 bg-card">

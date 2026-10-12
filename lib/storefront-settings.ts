@@ -462,6 +462,9 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
   const sections = Object.fromEntries(
     Object.entries(DEFAULT_STOREFRONT_SETTINGS.sections).map(([key, fallback]) => {
       const current = input.sections?.[key];
+      if (key === "testimonials") {
+        return [key, { ...fallback, ...(current ?? {}), visible: false }];
+      }
       return [key, { ...fallback, ...(current ?? {}) }];
     })
   );

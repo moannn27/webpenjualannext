@@ -10,6 +10,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { useProductCompareStore } from "@/store/useProductCompareStore";
+import { collectLaptopSpecifications } from "@/lib/product-specifications";
 
 interface ProductCardProps {
   product: Product;
@@ -90,7 +91,33 @@ export function ProductCard({ product }: ProductCardProps) {
             {product.name}
           </h3>
         </Link>
-        <p className="text-sm text-muted-foreground mb-2">{product.brand || product.category}</p>
+        <p className="text-sm text-muted-foreground mb-1.5">{product.brand || product.category}</p>
+
+        {/* Badges Spesifikasi (Storage & RAM) */}
+        {(() => {
+          const specs = collectLaptopSpecifications(product.specifications);
+          const detectedStorage = specs.Storage || product.name.match(/\b(128\s?GB|256\s?GB|512\s?GB|1\s?TB|2\s?TB)\b/i)?.[0];
+          const detectedRam = specs.RAM || product.name.match(/\b(4\s?GB|8\s?GB|16\s?GB|32\s?GB|64\s?GB)\s*(?:RAM)?\b/i)?.[0];
+
+          if (!detectedStorage && !detectedRam) return null;
+
+          return (
+            <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+              {detectedStorage && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary border border-primary/20">
+                  <span className="text-[10px]">💾</span>
+                  <span>{detectedStorage}</span>
+                </span>
+              )}
+              {detectedRam && (
+                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border/80">
+                  {detectedRam}
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
         <button type="button" onClick={() => toggleCompare(product.id)} disabled={!compareSelected && compareIds.length >= 3} aria-pressed={compareSelected} className="mb-3 flex w-fit items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">
           <GitCompareArrows className="size-4" />{compareSelected ? "Hapus dari compare" : "Bandingkan"}
         </button>
