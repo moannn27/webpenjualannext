@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layouts/Navbar";
 import { Footer } from "@/components/layouts/Footer";
 import { RecommendationChat } from "@/features/chat/RecommendationChat";
 import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
+import { ToastNotification } from "@/components/shared/ToastNotification";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { AlertTriangle, Sparkles } from "lucide-react";
 
@@ -51,6 +52,7 @@ export function StorefrontChrome({
       {features?.whatsapp_chat_button !== false && (
         <RecommendationChat whatsappNumber={settings.store.whatsapp} />
       )}
+      <ToastNotification />
     </>
   );
 }

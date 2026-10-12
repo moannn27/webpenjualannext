@@ -97,156 +97,15 @@ interface OrderInvoiceProps {
   backLabel?: string;
 }
 
-interface ResolvedSpec {
-  key: string;
-  value: string;
-}
-
-function resolveProductSpecifications(item: InvoiceOrderItem): ResolvedSpec[] {
+function getProductSpecifications(item: InvoiceOrderItem): Array<{ key: string; value: string }> {
   const productData = item.products;
   const existingSpecs = item.specifications || productData?.product_specifications || [];
-
-  const variant = item.variant_details as Record<string, unknown> | null;
-  const variantRam = typeof variant?.ram === "string" ? variant.ram : null;
-  const variantStorage = typeof variant?.storage === "string" ? variant.storage : null;
-  const variantColor = typeof variant?.color === "string" ? variant.color : null;
-
-  // If database already contains detailed specifications (>= 3 items), use and refine them
-  if (existingSpecs.length >= 3) {
-    const list: ResolvedSpec[] = [];
-    for (const spec of existingSpecs) {
-      if (spec.key && spec.value) {
-        let val = spec.value;
-        if (spec.key.toLowerCase().includes("ram") && variantRam) val = variantRam;
-        if (spec.key.toLowerCase().includes("storage") && variantStorage) val = variantStorage;
-        list.push({ key: spec.key, value: val });
-      }
-    }
-    if (
-      variantColor &&
-      !list.some((s) => s.key.toLowerCase().includes("warna") || s.key.toLowerCase().includes("color"))
-    ) {
-      list.push({ key: "Warna / Varian", value: variantColor });
-    }
-    return list;
+  if (Array.isArray(existingSpecs) && existingSpecs.length > 0) {
+    return existingSpecs
+      .filter((s) => s && typeof s.key === "string" && typeof s.value === "string" && s.key.trim() && s.value.trim())
+      .map((s) => ({ key: s.key.trim(), value: s.value.trim() }));
   }
-
-  // Generate clean, realistic marketplace specifications based on category & product name
-  const name = (item.product_name || productData?.name || "").toLowerCase();
-  const cat = (item.category_name || productData?.categories?.name || "").toLowerCase();
-  const brand = item.brand_name || productData?.brands?.name || "";
-
-  const isLaptop =
-    cat.includes("laptop") ||
-    name.includes("laptop") ||
-    name.includes("slim") ||
-    name.includes("ideapad") ||
-    name.includes("vivobook") ||
-    name.includes("thinkpad") ||
-    name.includes("macbook") ||
-    name.includes("zenbook") ||
-    name.includes("tuf") ||
-    name.includes("rog") ||
-    name.includes("predator") ||
-    name.includes("legion") ||
-    name.includes("pavilion");
-
-  const isPC =
-    cat.includes("pc") ||
-    cat.includes("komputer") ||
-    cat.includes("desktop") ||
-    name.includes("desktop") ||
-    name.includes("all-in-one") ||
-    name.includes("aio");
-
-  const isPhone =
-    cat.includes("hp") ||
-    cat.includes("handphone") ||
-    cat.includes("phone") ||
-    cat.includes("smartphone") ||
-    cat.includes("tablet") ||
-    name.includes("iphone") ||
-    name.includes("galaxy") ||
-    name.includes("redmi") ||
-    name.includes("ipad");
-
-  const isMonitor = cat.includes("monitor") || name.includes("monitor");
-
-  const specs: ResolvedSpec[] = [];
-
-  if (isLaptop) {
-    let processor = "Intel® Core™ i3 / AMD Ryzen™ Processor";
-    if (name.includes("i9")) processor = "Intel® Core™ i9 High-Performance Processor";
-    else if (name.includes("i7")) processor = "Intel® Core™ i7-1255U / Setara";
-    else if (name.includes("i5")) processor = "Intel® Core™ i5-1235U (up to 4.4 GHz)";
-    else if (name.includes("i3")) processor = "Intel® Core™ i3-1215U (6 Cores, up to 4.4 GHz)";
-    else if (name.includes("ryzen 7")) processor = "AMD Ryzen™ 7 5700U / 7730U Processor";
-    else if (name.includes("ryzen 5")) processor = "AMD Ryzen™ 5 5500U / 7530U Processor";
-    else if (name.includes("ryzen 3")) processor = "AMD Ryzen™ 3 5300U / 7320U Processor";
-    else if (name.includes("m1") || name.includes("m2") || name.includes("m3")) processor = "Apple M-Series Silicon Chip";
-
-    const ram =
-      variantRam ||
-      (name.includes("16gb") ? "16 GB DDR4 Dual-Channel" : name.includes("4gb") ? "4 GB DDR4" : "8 GB DDR4 High-Speed RAM");
-    const storage =
-      variantStorage ||
-      (name.includes("1tb") ? "1 TB M.2 NVMe™ PCIe® SSD" : name.includes("256gb") ? "256 GB NVMe™ SSD" : "512 GB M.2 NVMe™ PCIe® SSD");
-    const screen = name.includes("15")
-      ? '15.6" Full HD (1920x1080) Anti-glare'
-      : name.includes("13")
-      ? '13.3" Retina / IPS Display'
-      : '14.0" Full HD (1920x1080) Anti-glare IPS';
-    const gpu = name.includes("rtx")
-      ? "NVIDIA® GeForce RTX™ Dedicated Graphics"
-      : name.includes("gtx")
-      ? "NVIDIA® GeForce GTX™ Graphics"
-      : "Integrated Intel® UHD / AMD Radeon™ Graphics";
-
-    specs.push({ key: "Prosessor (CPU)", value: processor });
-    specs.push({ key: "Memori (RAM)", value: ram });
-    specs.push({ key: "Penyimpanan (SSD)", value: storage });
-    specs.push({ key: "Layar / Display", value: screen });
-    specs.push({ key: "Kartu Grafis (VGA)", value: gpu });
-    specs.push({ key: "Sistem Operasi", value: "Windows 11 Home 64-bit Original" });
-    if (variantColor) specs.push({ key: "Warna Unit", value: variantColor });
-    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}2 Tahun` });
-    specs.push({ key: "Kelengkapan", value: "Unit Laptop, Charger Adaptor, Kartu Garansi & Panduan" });
-  } else if (isPC) {
-    const ram = variantRam || "16 GB DDR4/DDR5 Dual-Channel";
-    const storage = variantStorage || "512 GB NVMe SSD + 1 TB HDD";
-    specs.push({ key: "Prosessor (CPU)", value: "Intel® Core™ / AMD Ryzen™ Desktop Processor" });
-    specs.push({ key: "Memori (RAM)", value: ram });
-    specs.push({ key: "Penyimpanan", value: storage });
-    specs.push({ key: "Grafis (VGA)", value: "Dedicated / High-Performance GPU" });
-    specs.push({ key: "Sistem Operasi", value: "Windows 11 Pro 64-bit Original" });
-    specs.push({ key: "Garansi Resmi", value: "Garansi Resmi Distributor 1-2 Tahun" });
-    specs.push({ key: "Kelengkapan", value: "Unit PC Desktop, Kabel Power, Kartu Garansi" });
-  } else if (isPhone) {
-    const ram = variantRam || "8 GB RAM";
-    const storage = variantStorage || "256 GB UFS Internal Storage";
-    specs.push({ key: "Layar / Display", value: "Super AMOLED FHD+ 120Hz" });
-    specs.push({ key: "Prosessor", value: "Octa-Core High Performance" });
-    specs.push({ key: "RAM & Storage", value: `${ram} / ${storage}` });
-    specs.push({ key: "Baterai", value: "5000 mAh Fast Charging" });
-    if (variantColor) specs.push({ key: "Warna Unit", value: variantColor });
-    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}1 Tahun (IMEI Terdaftar)` });
-    specs.push({ key: "Kelengkapan", value: "Unit HP, Kabel Charger USB-C, SIM Ejector, Dus Buku" });
-  } else if (isMonitor) {
-    specs.push({ key: "Ukuran & Panel", value: '24" - 27" IPS Full HD / 2K Display' });
-    specs.push({ key: "Refresh Rate", value: "100Hz - 165Hz Low Motion Blur" });
-    specs.push({ key: "Port Koneksi", value: "HDMI, DisplayPort & Audio Out" });
-    specs.push({ key: "Garansi Resmi", value: `Garansi Resmi ${brand ? brand + " " : ""}3 Tahun Panel & Servis` });
-    specs.push({ key: "Kelengkapan", value: "Monitor, Stand Base, Kabel Power & Display" });
-  } else {
-    if (variantRam) specs.push({ key: "Kapasitas / RAM", value: variantRam });
-    if (variantStorage) specs.push({ key: "Penyimpanan", value: variantStorage });
-    if (variantColor) specs.push({ key: "Varian / Warna", value: variantColor });
-    specs.push({ key: "Kondisi Barang", value: "100% Baru & Original (BNIB Segel)" });
-    specs.push({ key: "Garansi Resmi", value: "Garansi Resmi Distributor 1 Tahun" });
-    specs.push({ key: "Kelengkapan", value: "Unit Produk Lengkap dengan Box & Buku Petunjuk" });
-  }
-
-  return specs;
+  return [];
 }
 
 export function OrderInvoice({
@@ -483,14 +342,14 @@ export function OrderInvoice({
                 </div>
                 <div className="flex sm:justify-end items-center gap-1.5 pt-0.5">
                   <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase print:text-[8px] ${
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase print:text-[8px] ${
                       isPaymentConfirmed
                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                         : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
                     }`}
                   >
                     {isPaymentConfirmed ? <CheckCircle2 className="size-3" /> : <Clock className="size-3" />}
-                    {isPaymentConfirmed ? "LUNAS" : "MENUNGGU PEMBAYARAN"}
+                    {isPaymentConfirmed ? "LUNAS · PEMBAYARAN BERHASIL" : "PENDING · MENUNGGU VERIFIKASI ADMIN"}
                   </span>
                   <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border uppercase print:text-[8px]">
                     {isPickup ? "Ambil di Toko" : `Kurir (${order.courier})`}
@@ -553,7 +412,7 @@ export function OrderInvoice({
             </div>
           </div>
 
-          {/* SECTION 3: PRODUCT TABLE WITH EXPANDED STRUCTURED SPECIFICATIONS */}
+          {/* SECTION 3: PRODUCT TABLE WITH AUTHENTIC MARKETPLACE LAYOUT */}
           <div className="py-1.5 flex-1">
             <div className="border border-border/80 rounded-xl overflow-hidden print:rounded-lg">
               <table className="w-full text-left text-xs print:text-[9.5px]">
@@ -561,7 +420,7 @@ export function OrderInvoice({
                   <tr>
                     <th className="py-2 px-3 w-8 text-center font-bold">No</th>
                     <th className="py-2 px-2.5 w-16 text-center font-bold">Foto</th>
-                    <th className="py-2 px-3 font-bold">Info Produk &amp; Spesifikasi Lengkap</th>
+                    <th className="py-2 px-3 font-bold">Info &amp; Rincian Produk</th>
                     <th className="py-2 px-3 text-right w-28 font-bold">Harga Satuan</th>
                     <th className="py-2 px-2.5 text-center w-12 font-bold">Qty</th>
                     <th className="py-2 px-3 text-right w-32 font-bold">Subtotal</th>
@@ -592,7 +451,7 @@ export function OrderInvoice({
                             .join(" · ")
                         : "";
 
-                    const specs = resolveProductSpecifications(item);
+                    const specs = getProductSpecifications(item);
 
                     return (
                       <tr key={item.id || index} className="text-foreground align-top">
@@ -603,7 +462,7 @@ export function OrderInvoice({
 
                         {/* Product Image */}
                         <td className="py-2.5 px-2.5 print:py-1.5">
-                          <div className="size-13 rounded-lg border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-11">
+                          <div className="size-12 rounded-lg border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-10">
                             {imgUrl ? (
                               <img
                                 src={imgUrl}
@@ -612,12 +471,12 @@ export function OrderInvoice({
                                 crossOrigin="anonymous"
                               />
                             ) : (
-                              <Laptop className="size-6 text-muted-foreground/40" />
+                              <Laptop className="size-5 text-muted-foreground/40" />
                             )}
                           </div>
                         </td>
 
-                        {/* Product Details & Specifications */}
+                        {/* Product Details */}
                         <td className="py-2.5 px-3 print:py-1.5">
                           <p className="font-bold text-sm leading-snug text-foreground print:text-xs">
                             {item.product_name}
@@ -640,44 +499,31 @@ export function OrderInvoice({
                                 SKU: {skuCode}
                               </span>
                             )}
-                            <span className="rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.2 text-[9.5px] font-semibold print:text-[7.5px]">
-                              Kondisi: Baru (Original)
-                            </span>
                           </div>
 
                           {/* Variant Selected Pill */}
                           {variantText && (
-                            <p className="text-[11px] text-primary font-medium mt-1 print:text-[8.5px] print:mt-0.5">
+                            <p className="text-[11px] text-primary font-semibold mt-1 print:text-[8.5px] print:mt-0.5">
                               Pilihan Varian: {variantText}
                             </p>
                           )}
 
-                          {/* Structured Specifications Grid (Marketplace Style) */}
+                          {/* Real Specifications from DB only */}
                           {specs.length > 0 && (
-                            <div className="mt-2 rounded-lg border border-border/70 bg-muted/20 p-2.5 print:mt-1.5 print:p-2 print:bg-slate-50">
-                              <p className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5 print:text-[7.5px] print:mb-1">
-                                Spesifikasi &amp; Rincian Unit:
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[10px] print:grid-cols-2 print:text-[8px] print:gap-y-0.5">
-                                {specs.map((spec, sIdx) => (
-                                  <div key={sIdx} className="flex items-baseline gap-1.5 leading-snug">
-                                    <span className="text-muted-foreground font-medium shrink-0 w-28 print:w-24">
-                                      • {spec.key}
-                                    </span>
-                                    <span className="text-muted-foreground/60 shrink-0">:</span>
-                                    <span className="font-semibold text-foreground break-words flex-1">
-                                      {spec.value}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground print:text-[8px]">
+                              {specs.map((spec, sIdx) => (
+                                <span key={sIdx} className="leading-snug">
+                                  <strong className="font-medium text-muted-foreground">• {spec.key}:</strong>{" "}
+                                  <span className="text-foreground">{spec.value}</span>
+                                </span>
+                              ))}
                             </div>
                           )}
 
                           {/* Product Note if any */}
                           {productData?.description && productData.description.trim() !== "" && (
-                            <p className="text-[10px] text-muted-foreground mt-1.5 italic print:text-[8px] print:mt-1">
-                              Catatan Produk: {productData.description}
+                            <p className="text-[10px] text-muted-foreground mt-1 italic print:text-[8px] line-clamp-1">
+                              Catatan: {productData.description}
                             </p>
                           )}
                         </td>
@@ -716,7 +562,7 @@ export function OrderInvoice({
                 <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
                   <span className="text-muted-foreground">Status Pembayaran:</span>
                   <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
-                    {isPaymentConfirmed ? "Lunas" : "Menunggu Pembayaran"}
+                    {isPaymentConfirmed ? "Lunas (Diverifikasi Admin)" : "Menunggu Verifikasi Admin (Pending)"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">

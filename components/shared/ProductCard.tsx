@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { useProductCompareStore } from "@/store/useProductCompareStore";
 import { collectLaptopSpecifications } from "@/lib/product-specifications";
+import { toast } from "@/store/useToastStore";
+import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -25,6 +27,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const compareSelected = compareIds.includes(product.id);
   const payablePrice = product.discountPrice ?? product.price;
   const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
+  const isOutOfStock = (product.stock ?? 0) <= 0;
 
   const toggleWishlist = async () => {
     try {
@@ -48,7 +51,12 @@ export function ProductCard({ product }: ProductCardProps) {
     <div className="group relative flex flex-col bg-card rounded-[24px] border border-border p-4 transition-all duration-300 hover:shadow-xl hover:border-primary/20">
       
       {/* Badges */}
-      <div className="absolute top-6 left-6 z-10 flex flex-col gap-2">
+      <div className="absolute top-6 left-6 z-10 flex flex-col gap-1.5 items-start">
+        {isOutOfStock && (
+          <span className="px-3 py-1 text-xs font-bold rounded-full bg-rose-600 text-white shadow-xs tracking-wide">
+            Stok Habis
+          </span>
+        )}
         {product.badges?.map((badge) => (
           <span
             key={badge}
@@ -133,9 +141,32 @@ export function ProductCard({ product }: ProductCardProps) {
               </span>
             )}
           </div>
-          <Button size="icon" disabled={loadingProductId === product.id} className="rounded-full h-10 w-10 z-10" aria-label={`Tambah ${product.name} ke keranjang`} onClick={() => addToCart(product.id)}>
+          <Button
+            size="icon"
+            disabled={loadingProductId === product.id}
+            className={cn(
+              "rounded-full h-10 w-10 z-10 transition-colors",
+              isOutOfStock
+                ? "bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+            aria-label={isOutOfStock ? `Stok ${product.name} habis` : `Tambah ${product.name} ke keranjang`}
+            title={isOutOfStock ? "Barang kosong / Stok habis" : "Tambah ke keranjang"}
+            onClick={() => {
+              if (isOutOfStock) {
+                toast.error(
+                  "Barang Kosong / Stok Habis",
+                  `Maaf, produk "${product.name}" sedang kosong dan belum dapat ditambahkan ke keranjang.`
+                );
+                return;
+              }
+              addToCart(product.id, product.name);
+            }}
+          >
             <ShoppingCart className="h-4 w-4" />
-            <span className="sr-only">Tambah ke keranjang</span>
+            <span className="sr-only">
+              {isOutOfStock ? "Stok habis" : "Tambah ke keranjang"}
+            </span>
           </Button>
         </div>
       </div>

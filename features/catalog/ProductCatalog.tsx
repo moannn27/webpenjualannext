@@ -235,7 +235,18 @@ export function ProductCatalog({ initialProducts = [], initialSort = "newest" }:
                     <p className="text-muted-foreground mb-4">{product.brand || product.category}</p>
                     <div className="text-2xl font-bold">Rp {payablePrice(product).toLocaleString("id-ID")}</div>
                   </div>
-                  <Button className="shrink-0 z-10" disabled={loadingProductId === product.id} onClick={() => addToCart(product.id)}>Add to Cart</Button>
+                  <Button
+                    className="shrink-0 z-10"
+                    disabled={loadingProductId === product.id || (product.stock ?? 0) <= 0}
+                    onClick={() => {
+                      if ((product.stock ?? 0) <= 0) {
+                        return;
+                      }
+                      addToCart(product.id, product.name);
+                    }}
+                  >
+                    {(product.stock ?? 0) <= 0 ? "Stok Habis" : "Tambah ke Keranjang"}
+                  </Button>
                 </div>
               ))}
               {visibleProducts.length === 0 && (

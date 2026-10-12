@@ -1,4 +1,4 @@
-import { CheckCircle2, MessageCircle, FileText, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock3, MessageCircle, FileText, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -6,7 +6,7 @@ import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
 
 export const metadata = {
-  title: "Pesanan Berhasil | Next Solution Store",
+  title: "Faktur Pesanan | Next Solution Store",
   description: "Konfirmasi pesanan dan instruksi pembayaran.",
 };
 
@@ -110,15 +110,22 @@ export default async function CheckoutSuccessPage({
       }).format(orderDateObj) + " WIB"
     : "";
 
+  const paymentStatus = order?.payments?.[0]?.status || "pending";
+  const isPaymentConfirmed =
+    paymentStatus === "success" ||
+    order?.status === "processing" ||
+    order?.status === "shipped" ||
+    order?.status === "delivered";
+
   const fulfillment = isPickup ? "Ambil sendiri di toko" : "Diantar ke alamat penerima";
   const confirmationMessage = order
-    ? `Halo Admin ${storeName},\nSaya sudah membuat pesanan dan ingin konfirmasi pembayaran:\n` +
+    ? `Halo Admin ${storeName},\nSaya ingin konfirmasi pembayaran untuk pesanan saya:\n` +
       `• Nomor Pesanan: *${order.order_number}*\n` +
       `• Nama Pembeli: *${recipientName}*\n` +
-      `• Tanggal & Jam: ${formattedDateTimeWIB}\n` +
+      `• Tanggal: ${formattedDateTimeWIB}\n` +
       `• Total Tagihan: *Rp ${Number(order.grand_total).toLocaleString("id-ID")}*\n` +
       `• Metode: ${fulfillment}\n\n` +
-      `Mohon informasikan langkah selanjutnya dan cek bukti pembayaran yang akan saya kirim. Terima kasih!`
+      `Berikut saya lampirkan bukti transfer pembayarannya. Mohon diverifikasi agar segera diproses. Terima kasih!`
     : `Halo Admin ${storeName}, saya ingin konfirmasi pembayaran pesanan. Mohon bantu cek pesanan saya.`;
 
   const waTarget = whatsappNumber.startsWith("0") ? "62" + whatsappNumber.slice(1) : whatsappNumber;
@@ -129,15 +136,36 @@ export default async function CheckoutSuccessPage({
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Top Banner Notice */}
         <div className="bg-card rounded-3xl border border-border p-6 sm:p-8 shadow-sm text-center flex flex-col items-center">
-          <div className="h-16 w-16 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mb-4">
-            <CheckCircle2 className="h-9 w-9" />
+          <div
+            className={`h-16 w-16 rounded-full flex items-center justify-center mb-4 ${
+              isPaymentConfirmed
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {isPaymentConfirmed ? <CheckCircle2 className="h-9 w-9" /> : <Clock3 className="h-9 w-9" />}
+          </div>
+
+          <div className="mb-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                isPaymentConfirmed
+                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
+                  : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
+              }`}
+            >
+              <span className={`size-2 rounded-full ${isPaymentConfirmed ? "bg-emerald-500" : "bg-amber-500 animate-pulse"}`} />
+              {isPaymentConfirmed ? "LUNAS · PEMBAYARAN DISETUJUI ADMIN" : "PENDING · MENUNGGU VERIFIKASI ADMIN"}
+            </span>
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-2">
-            Pesanan Berhasil Dibuat!
+            {isPaymentConfirmed ? "Pembayaran Telah Diverifikasi!" : "Pesanan Diterima — Menunggu Konfirmasi"}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base max-w-xl">
-            Terima kasih! Pesanan Anda telah tercatat dalam sistem kami tanpa batasan waktu pembayaran yang terburu-buru.
+            {isPaymentConfirmed
+              ? "Pembayaran Anda telah berhasil diverifikasi oleh admin. Pesanan Anda sedang dipersiapkan untuk dikirim / diambil."
+              : "Pesanan Anda berhasil dicatat dengan status Pending. Silakan transfer sesuai total tagihan dan kirim bukti transfer ke WhatsApp admin agar status faktur berubah menjadi Lunas."}
           </p>
 
           {order && (
@@ -146,6 +174,12 @@ export default async function CheckoutSuccessPage({
                 <span className="text-muted-foreground">Nomor Kode Pesanan:</span>
                 <span className="font-mono font-bold text-foreground text-base tracking-wider">
                   {order.order_number}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Status Pembayaran:</span>
+                <span className={`font-semibold text-xs sm:text-sm ${isPaymentConfirmed ? "text-emerald-600" : "text-amber-600"}`}>
+                  {isPaymentConfirmed ? "Lunas" : "Menunggu Verifikasi Admin (Pending)"}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">

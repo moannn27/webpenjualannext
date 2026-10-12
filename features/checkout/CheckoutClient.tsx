@@ -7,9 +7,14 @@ import {
   ArrowLeft,
   Banknote,
   Check,
+  CheckCheck,
   Clock3,
+  Copy,
+  ExternalLink,
+  FileText,
   LoaderCircle,
   MapPin,
+  MessageCircle,
   PackageCheck,
   ShieldCheck,
   Sparkles,
@@ -24,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { proceedToCheckoutAction } from "@/actions/checkout";
 import { validateVoucherForCheckoutAction } from "@/actions/voucher";
+import { emitCartUpdated } from "@/lib/cart-events";
 import { type CartData } from "@/types/cart";
 import {
   PAYMENT_METHOD,
@@ -53,6 +59,8 @@ interface CheckoutClientProps {
   pickupLocations?: PickupLocation[];
   bankTransfer: BankTransferInfo[];
   features?: StoreFeaturesSettings;
+  storeWhatsapp?: string;
+  storeName?: string;
 }
 
 export function CheckoutClient({
@@ -63,6 +71,8 @@ export function CheckoutClient({
   pickupLocations = [],
   bankTransfer,
   features,
+  storeWhatsapp,
+  storeName,
 }: CheckoutClientProps) {
   const isDeliveryEnabled = features?.delivery_enabled !== false;
   const isPickupEnabled = features?.pickup_enabled !== false;
@@ -75,6 +85,24 @@ export function CheckoutClient({
   const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">(initialFulfillment);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [placedOrder, setPlacedOrder] = useState<{
+    orderId: string;
+    orderNumber: string;
+    grandTotal: number;
+    courier: string;
+    recipientName: string;
+  } | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2500);
+    } catch (e) {
+      console.error("Gagal menyalin", e);
+    }
+  };
 
   const [voucherInput, setVoucherInput] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<{
@@ -224,15 +252,268 @@ export function CheckoutClient({
     setErrorMessage("");
 
     try {
-      await proceedToCheckoutAction(new FormData(event.currentTarget));
+      const result = await proceedToCheckoutAction(new FormData(event.currentTarget));
+      if (result && result.success) {
+        emitCartUpdated(0);
+        setPlacedOrder({
+          orderId: result.orderId,
+          orderNumber: result.orderNumber,
+          grandTotal: result.grandTotal,
+          courier: result.courier,
+          recipientName: result.recipientName,
+        });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (error) {
       if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
       setErrorMessage(
         error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi."
       );
+    } finally {
       setLoading(false);
     }
   };
+
+  if (placedOrder) {
+    const rawWa = (storeWhatsapp || "6281234567890").replace(/\D/g, "");
+    const waNumber = rawWa.startsWith("0") ? "62" + rawWa.slice(1) : rawWa;
+    const sName = storeName || "Next Solution Store";
+    const waText =
+      `Halo Admin ${sName},\n` +
+      `Saya ingin konfirmasi pembayaran pesanan saya:\n` +
+      `• No. Pesanan: *${placedOrder.orderNumber}*\n` +
+      `• Nama Pemesan: *${placedOrder.recipientName}*\n` +
+      `• Total Transfer: *${formatCurrency(placedOrder.grandTotal)}*\n` +
+      `• Metode Pengiriman: ${placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : `Kurir (${placedOrder.courier})`}\n\n` +
+      `Berikut saya lampirkan bukti transfer pembayarannya. Mohon diverifikasi agar pesanan segera diproses. Terima kasih!`;
+    const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+
+    return (
+      <main className="mx-auto w-full max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-8 animate-in fade-in duration-300">
+        {/* Top Pending Alert Banner */}
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 sm:p-6 mb-8 text-amber-950 dark:text-amber-200">
+          <div className="flex items-start gap-4">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+              <Clock3 className="size-6" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+                  STATUS: PENDING · MENUNGGU PEMBAYARAN
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                Pesanan Berhasil Dicatat — Silakan Transfer &amp; Konfirmasi
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Pesanan Anda telah tersimpan dengan status <strong>Pending</strong>. Silakan transfer tepat sesuai total tagihan ke rekening toko di bawah ini, lalu kirim bukti transfer ke WhatsApp Admin. Faktur pesanan akan diperbarui menjadi <strong>Lunas / Berhasil</strong> setelah admin mengonfirmasi pembayaran Anda.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-12">
+          {/* Left Column: Bank Details & Instructions */}
+          <div className="space-y-6 md:col-span-7">
+            {/* Rekening Tujuan Transfer */}
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2 font-semibold text-base">
+                  <Banknote className="size-5 text-primary" />
+                  <span>Rekening Bank Resmi Toko</span>
+                </div>
+                <span className="text-xs text-muted-foreground">Transfer Manual</span>
+              </div>
+
+              {bankTransfer.length > 0 ? (
+                <div className="space-y-3">
+                  {bankTransfer.map((bank, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-xl border border-border bg-muted/20 p-4 transition-all hover:border-primary/40 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-0.5 rounded">
+                          {bank.bank_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(bank.account_number, `bank-${idx}`)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-background border px-2.5 py-1 rounded-md"
+                        >
+                          {copiedKey === `bank-${idx}` ? (
+                            <>
+                              <CheckCheck className="size-3.5 text-emerald-600" />
+                              <span className="text-emerald-600 font-semibold">Tersalin!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="size-3.5" />
+                              <span>Salin Rekening</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div>
+                        <p className="font-mono text-xl sm:text-2xl font-bold tracking-widest text-foreground">
+                          {bank.account_number}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Atas Nama: <strong className="text-foreground">{bank.account_holder}</strong>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Informasi nomor rekening dapat diminta langsung ke WhatsApp admin.
+                </p>
+              )}
+
+              <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Petunjuk Pembayaran:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                  <li>Transfer tepat hingga nominal rupiah terakhir.</li>
+                  <li>Simpan foto / screenshot bukti transfer.</li>
+                  <li>Kirim bukti tersebut ke WhatsApp admin agar pembayaran segera disetujui.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* WA Button Section */}
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 sm:p-6 shadow-xs space-y-3">
+              <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
+                <MessageCircle className="size-5 shrink-0" />
+                <span>Kirim Bukti Pembayaran ke WhatsApp Admin</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Setelah selesai melakukan transfer, klik tombol hijau di bawah untuk terhubung langsung ke WhatsApp Admin dengan nomor pesanan otomatis:
+              </p>
+              <Button
+                render={<a href={waUrl} target="_blank" rel="noreferrer" />}
+                className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm sm:text-base gap-2 shadow-sm"
+              >
+                <MessageCircle className="size-5 shrink-0" />
+                Kirim Bukti Transfer ke WhatsApp Admin
+              </Button>
+            </div>
+          </div>
+
+          {/* Right Column: Order Summary & Navigation */}
+          <div className="space-y-6 md:col-span-5">
+            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+              <h2 className="font-semibold text-base border-b border-border pb-3">
+                Ringkasan Tagihan Pesanan
+              </h2>
+
+              {/* Order Number */}
+              <div className="rounded-xl border border-border/80 bg-muted/30 p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Nomor Pesanan</span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(placedOrder.orderNumber, "order-code")}
+                    className="inline-flex items-center gap-1 hover:text-foreground text-[11px] font-medium"
+                  >
+                    {copiedKey === "order-code" ? (
+                      <>
+                        <CheckCheck className="size-3 text-emerald-600" />
+                        <span className="text-emerald-600 font-semibold">Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3" />
+                        <span>Salin</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="font-mono text-base sm:text-lg font-bold text-foreground tracking-wider">
+                  {placedOrder.orderNumber}
+                </p>
+              </div>
+
+              {/* Total Tagihan */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Total yang Harus Ditransfer</span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(String(placedOrder.grandTotal), "total-amount")}
+                    className="inline-flex items-center gap-1 hover:text-foreground text-[11px] font-medium"
+                  >
+                    {copiedKey === "total-amount" ? (
+                      <>
+                        <CheckCheck className="size-3 text-emerald-600" />
+                        <span className="text-emerald-600 font-semibold">Tersalin!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3" />
+                        <span>Salin Nominal</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="font-mono text-2xl font-black text-primary">
+                  {formatCurrency(placedOrder.grandTotal)}
+                </p>
+              </div>
+
+              <div className="space-y-2 text-xs divide-y divide-border/60 pt-1">
+                <div className="flex justify-between py-1.5">
+                  <span className="text-muted-foreground">Nama Pemesan</span>
+                  <span className="font-semibold text-foreground">{placedOrder.recipientName}</span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-muted-foreground">Metode Pengiriman</span>
+                  <span className="font-medium text-foreground">
+                    {placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : `Kurir (${placedOrder.courier})`}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1.5">
+                  <span className="text-muted-foreground">Status Pembayaran</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">
+                    Menunggu Verifikasi Admin (Pending)
+                  </span>
+                </div>
+              </div>
+
+              {/* Navigation Actions: "kalo mau lanjut baru lanjut" */}
+              <div className="pt-3 border-t border-border space-y-2.5">
+                <Button
+                  render={<Link href={`/checkout/success?order_id=${placedOrder.orderId}`} />}
+                  className="w-full h-11 rounded-xl font-semibold gap-2 shadow-xs"
+                >
+                  <FileText className="size-4" />
+                  Lanjut ke Faktur Pesanan
+                </Button>
+
+                <Button
+                  render={<Link href="/profile" />}
+                  variant="outline"
+                  className="w-full h-10 rounded-xl text-xs font-medium"
+                >
+                  Lihat Riwayat Pesanan
+                </Button>
+
+                <Button
+                  render={<Link href="/" />}
+                  variant="ghost"
+                  className="w-full h-9 rounded-xl text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Kembali ke Beranda
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">

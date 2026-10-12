@@ -41,6 +41,20 @@ export async function proceedToCheckoutAction(formData: FormData) {
 
   const voucherCode = (formData.get('voucherCode') as string | null)?.trim() || undefined
   const order = await checkoutService.checkout(user.id, validated.data, voucherCode)
+
+  const { data: createdOrder } = await supabase
+    .from('orders')
+    .select('id, order_number, grand_total, status, courier')
+    .eq('id', order.id)
+    .single()
+
   revalidatePath('/', 'layout')
-  redirect(`/checkout/success?order_id=${order.id}`)
+  return {
+    success: true,
+    orderId: order.id,
+    orderNumber: createdOrder?.order_number || '',
+    grandTotal: Number(createdOrder?.grand_total || 0),
+    courier: createdOrder?.courier || validated.data.shippingMethod,
+    recipientName: validated.data.recipientName,
+  }
 }

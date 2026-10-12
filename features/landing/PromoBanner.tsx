@@ -315,13 +315,20 @@ export function PromoBanner({
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       <Button
                         type="button"
-                        onClick={() => addToCart(activeProduct.id)}
-                        disabled={loadingProductId === activeProduct.id}
+                        onClick={() => {
+                          if ((activeProduct.stock ?? 0) <= 0) return;
+                          addToCart(activeProduct.id, activeProduct.name);
+                        }}
+                        disabled={loadingProductId === activeProduct.id || (activeProduct.stock ?? 0) <= 0}
                         className="w-full gap-1.5 rounded-xl text-xs font-semibold sm:text-sm"
                       >
                         <ShoppingCart className="size-4" />
                         <span>
-                          {loadingProductId === activeProduct.id ? "Menambah..." : "Beli"}
+                          {loadingProductId === activeProduct.id
+                            ? "Menambah..."
+                            : (activeProduct.stock ?? 0) <= 0
+                            ? "Habis"
+                            : "Beli"}
                         </span>
                       </Button>
 

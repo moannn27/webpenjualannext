@@ -68,6 +68,8 @@ export default async function CheckoutPage() {
       pickupLocations={pickupLocations}
       bankTransfer={sfSettings.bank_transfer}
       features={sfSettings.features}
+      storeWhatsapp={sfSettings.store.whatsapp || "6281234567890"}
+      storeName={sfSettings.pickup_info.store_name || "Next Solution Store"}
     />
   );
 }

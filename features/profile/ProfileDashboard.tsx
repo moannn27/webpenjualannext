@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
+import { toast } from "@/store/useToastStore";
 import {
   updateProfileAction,
   updateUserPasswordAction,
@@ -410,7 +411,7 @@ export function ProfileDashboard({
       setReviewComment("");
       setReviewRating(5);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal menyimpan ulasan.");
+      toast.error("Gagal Menyimpan Ulasan", err instanceof Error ? err.message : "Gagal menyimpan ulasan.");
     } finally {
       setReviewSubmitting(false);
     }

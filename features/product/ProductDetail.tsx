@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { addToCartAction } from "@/actions/cart";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { emitCartUpdated } from "@/lib/cart-events";
+import { toast } from "@/store/useToastStore";
 
 interface ProductDetailData {
   id: string;
@@ -78,11 +79,29 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       setCartCountAfterAdd(result.cartCount);
       setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity }));
       emitCartUpdated(result.cartCount);
+      toast.success(
+        "Berhasil Ditambahkan",
+        `${quantity} unit "${product.name}" berhasil dimasukkan ke keranjang belanja.`
+      );
     } catch (error) {
       if (error instanceof Error && error.message === "Unauthorized") {
+        toast.warning(
+          "Silakan Masuk Terlebih Dahulu",
+          "Anda perlu login untuk menambahkan produk ke keranjang."
+        );
         router.push(`/login?redirect=/product/${product.id}`);
       } else {
-        setCartError(error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.");
+        const rawMsg = error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.";
+        const lower = rawMsg.toLowerCase();
+        if (lower.includes("stok") || lower.includes("habis") || lower.includes("kosong")) {
+          toast.error(
+            "Stok Tidak Mencukupi",
+            "Jumlah yang diminta melebihi stok yang tersedia saat ini."
+          );
+        } else {
+          toast.error("Gagal Menambahkan", rawMsg);
+        }
+        setCartError(rawMsg);
       }
     } finally {
       setLoading(false);
@@ -93,18 +112,35 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     const url = window.location.href;
     try {
       if (navigator.share) await navigator.share({ title: product.name, url });
-      else { await navigator.clipboard.writeText(url); setFeedback("Tautan produk disalin."); }
-    } catch { setFeedback("Tautan produk tidak dapat dibagikan."); }
+      else {
+        await navigator.clipboard.writeText(url);
+        toast.info("Tautan Disalin", "Tautan produk telah disalin ke clipboard.");
+        setFeedback("Tautan produk disalin.");
+      }
+    } catch {
+      setFeedback("Tautan produk tidak dapat dibagikan.");
+    }
   };
 
   const handleWishlist = async () => {
     try {
       const result = await toggleWishlistAction(product.id);
       setSaved(result.action === "added");
-      setFeedback(result.action === "added" ? "Ditambahkan ke wishlist." : "Dihapus dari wishlist.");
+      if (result.action === "added") {
+        toast.success("Wishlist", `"${product.name}" berhasil ditambahkan ke wishlist.`);
+        setFeedback("Ditambahkan ke wishlist.");
+      } else {
+        toast.info("Wishlist", `"${product.name}" dihapus dari wishlist.`);
+        setFeedback("Dihapus dari wishlist.");
+      }
     } catch (error) {
-      if (error instanceof Error && error.message === "Unauthorized") router.push(`/login?redirect=/product/${product.id}`);
-      else setFeedback("Wishlist gagal diperbarui.");
+      if (error instanceof Error && error.message === "Unauthorized") {
+        toast.warning("Silakan Masuk", "Masuk untuk menyimpan produk ke wishlist.");
+        router.push(`/login?redirect=/product/${product.id}`);
+      } else {
+        toast.error("Gagal Wishlist", "Wishlist gagal diperbarui.");
+        setFeedback("Wishlist gagal diperbarui.");
+      }
     }
   };
 
