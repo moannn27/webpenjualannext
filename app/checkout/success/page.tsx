@@ -37,10 +37,21 @@ export default async function CheckoutSuccessPage({
           shipping_address,
           order_items (
             id,
+            product_id,
             product_name,
             price,
             quantity,
-            variant_details
+            variant_details,
+            products (
+              id,
+              sku,
+              name,
+              description,
+              brands (name),
+              categories (name),
+              product_images (url, is_primary),
+              product_specifications (key, value)
+            )
           ),
           payments (
             id,

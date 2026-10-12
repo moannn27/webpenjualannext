@@ -5,7 +5,7 @@ import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderI
 import { notFound, redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Faktur Pembelian Resmi | Next Solution Store",
+  title: "Faktur Pembelian Resmi",
   description: "Faktur dan invoice rincian transaksi pemesanan produk.",
 };
 
@@ -50,10 +50,21 @@ export default async function OrderInvoicePage({
       user_id,
       order_items (
         id,
+        product_id,
         product_name,
         price,
         quantity,
-        variant_details
+        variant_details,
+        products (
+          id,
+          sku,
+          name,
+          description,
+          brands (name),
+          categories (name),
+          product_images (url, is_primary),
+          product_specifications (key, value)
+        )
       ),
       payments (
         id,
