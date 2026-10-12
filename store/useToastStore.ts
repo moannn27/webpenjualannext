@@ -38,3 +38,4 @@ export const toast = {
   info: (title: string, message = "") =>
     useToastStore.getState().showToast({ title, message, type: "info" }),
 };
+
