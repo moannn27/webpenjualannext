@@ -175,7 +175,72 @@ export type StorefrontSettings = {
   admin_permissions?: Record<string, string[]>;
   admin_audit_logs?: AdminAuditLog[];
   voucher_targeting?: Record<string, VoucherTargeting>;
+  features: StoreFeaturesSettings;
 };
+
+export type StoreFeaturesSettings = {
+  // Pengiriman & Pengambilan
+  delivery_enabled: boolean;
+  pickup_enabled: boolean;
+  delivery_notice?: string;
+  pickup_notice?: string;
+
+  // Login & Autentikasi
+  google_login_enabled: boolean;
+
+  // Metode Pembayaran
+  bank_transfer_enabled: boolean;
+  cash_payment_enabled: boolean;
+  qris_enabled: boolean;
+
+  // Pengumuman & Operasional
+  announcement_bar_enabled: boolean;
+  announcement_bar_text?: string;
+  store_maintenance_mode: boolean;
+  store_maintenance_message?: string;
+  reviews_enabled: boolean;
+  whatsapp_chat_button: boolean;
+};
+
+export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
+  delivery_enabled: true,
+  pickup_enabled: true,
+  delivery_notice: "Pengiriman kurir sementara tidak tersedia.",
+  pickup_notice: "Layanan ambil di tempat sementara tidak tersedia.",
+  google_login_enabled: true,
+  bank_transfer_enabled: true,
+  cash_payment_enabled: true,
+  qris_enabled: true,
+  announcement_bar_enabled: false,
+  announcement_bar_text: "🔥 Promo Spesial: Garansi resmi & gratis konsultasi untuk setiap pembelian laptop & PC!",
+  store_maintenance_mode: false,
+  store_maintenance_message: "Toko sedang libur operasional sementara. Pesanan tetap dapat dibuat dan akan diproses pada hari kerja berikutnya.",
+  reviews_enabled: true,
+  whatsapp_chat_button: true,
+};
+
+export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_STORE_FEATURES };
+  }
+  const item = raw as Partial<StoreFeaturesSettings>;
+  return {
+    delivery_enabled: item.delivery_enabled !== false,
+    pickup_enabled: item.pickup_enabled !== false,
+    delivery_notice: String(item.delivery_notice ?? DEFAULT_STORE_FEATURES.delivery_notice).trim(),
+    pickup_notice: String(item.pickup_notice ?? DEFAULT_STORE_FEATURES.pickup_notice).trim(),
+    google_login_enabled: item.google_login_enabled !== false,
+    bank_transfer_enabled: item.bank_transfer_enabled !== false,
+    cash_payment_enabled: item.cash_payment_enabled !== false,
+    qris_enabled: item.qris_enabled !== false,
+    announcement_bar_enabled: Boolean(item.announcement_bar_enabled),
+    announcement_bar_text: String(item.announcement_bar_text ?? DEFAULT_STORE_FEATURES.announcement_bar_text).trim(),
+    store_maintenance_mode: Boolean(item.store_maintenance_mode),
+    store_maintenance_message: String(item.store_maintenance_message ?? DEFAULT_STORE_FEATURES.store_maintenance_message).trim(),
+    reviews_enabled: item.reviews_enabled !== false,
+    whatsapp_chat_button: item.whatsapp_chat_button !== false,
+  };
+}
 
 export type AdminAuditLog = {
   id: string;
@@ -360,6 +425,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   admin_permissions: {},
   admin_audit_logs: [],
   voucher_targeting: {},
+  features: DEFAULT_STORE_FEATURES,
 };
 
 export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
@@ -613,6 +679,7 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
       input.voucher_targeting && typeof input.voucher_targeting === "object"
         ? (input.voucher_targeting as Record<string, VoucherTargeting>)
         : {},
+    features: normalizeStoreFeatures((input as { features?: unknown })?.features),
   };
 }
 

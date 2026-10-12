@@ -67,6 +67,7 @@ export default async function CheckoutPage() {
       pickupInfo={mainPickup}
       pickupLocations={pickupLocations}
       bankTransfer={sfSettings.bank_transfer}
+      features={sfSettings.features}
     />
   );
 }

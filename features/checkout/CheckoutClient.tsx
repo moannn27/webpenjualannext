@@ -3,6 +3,7 @@
 import { Fragment, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
+  AlertCircle,
   ArrowLeft,
   Banknote,
   Check,
@@ -32,7 +33,7 @@ import {
   type PickupLocation,
 } from "@/types/checkout";
 
-import { type BankTransferInfo } from "@/lib/storefront-settings";
+import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
 
 const getItemPrice = (item: CartData["cart_items"][number]) =>
   Number(item.products.discount_price ?? item.products.price);
@@ -51,6 +52,7 @@ interface CheckoutClientProps {
   pickupInfo: PickupLocation;
   pickupLocations?: PickupLocation[];
   bankTransfer: BankTransferInfo[];
+  features?: StoreFeaturesSettings;
 }
 
 export function CheckoutClient({
@@ -60,12 +62,17 @@ export function CheckoutClient({
   pickupInfo,
   pickupLocations = [],
   bankTransfer,
+  features,
 }: CheckoutClientProps) {
+  const isDeliveryEnabled = features?.delivery_enabled !== false;
+  const isPickupEnabled = features?.pickup_enabled !== false;
+  const initialFulfillment: "delivery" | "pickup" = isDeliveryEnabled ? "delivery" : "pickup";
+
   const [shippingCode, setShippingCode] = useState<ShippingMethodCode | "">(
     shippingMethods[0]?.code ?? ""
   );
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">("delivery");
+  const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">(initialFulfillment);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -306,24 +313,49 @@ export function CheckoutClient({
             </div>
 
             <div className="mb-6 grid gap-3 sm:grid-cols-2">
-              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "delivery" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
-                <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "delivery"} onChange={() => setFulfillmentMode("delivery")} />
-                <Truck className="mt-0.5 size-4 text-primary" />
-                <span>
-                  <span className="block font-semibold">Diantar ke alamat</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">Pilih alamat tujuan dan jasa pengiriman kurir.</span>
-                </span>
-              </label>
-              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "pickup" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
-                <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "pickup"} onChange={() => setFulfillmentMode("pickup")} />
-                <Store className="mt-0.5 size-4 text-primary" />
-                <span>
-                  <span className="block font-semibold">Ambil di toko</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    Gratis ongkir. Pilih lokasi toko dan ambil setelah dikonfirmasi admin.
+              {isDeliveryEnabled ? (
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "delivery" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
+                  <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "delivery"} onChange={() => setFulfillmentMode("delivery")} />
+                  <Truck className="mt-0.5 size-4 text-primary" />
+                  <span>
+                    <span className="block font-semibold">Diantar ke alamat</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">Pilih alamat tujuan dan jasa pengiriman kurir.</span>
                   </span>
-                </span>
-              </label>
+                </label>
+              ) : (
+                <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                  <AlertCircle className="size-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold">Pengiriman Kurir Tidak Tersedia</p>
+                    <p className="mt-0.5 text-amber-900/80 dark:text-amber-300/80">
+                      {features?.delivery_notice || "Layanan pengiriman kurir sedang ditutup sementara."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {isPickupEnabled ? (
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "pickup" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
+                  <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "pickup"} onChange={() => setFulfillmentMode("pickup")} />
+                  <Store className="mt-0.5 size-4 text-primary" />
+                  <span>
+                    <span className="block font-semibold">Ambil di toko</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Gratis ongkir. Pilih lokasi toko dan ambil setelah dikonfirmasi admin.
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                  <AlertCircle className="size-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold">Ambil di Toko Tidak Tersedia</p>
+                    <p className="mt-0.5 text-amber-900/80 dark:text-amber-300/80">
+                      {features?.pickup_notice || "Layanan ambil di toko sedang ditutup sementara."}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

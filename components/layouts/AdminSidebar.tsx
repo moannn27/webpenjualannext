@@ -25,6 +25,7 @@ import {
   ChartNoAxesCombined,
   History,
   TicketPercent,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -113,9 +114,10 @@ export function AdminSidebar({
       ],
     },
     {
-      title: "Konten toko",
+      title: "Konten & Pengaturan",
       links: [
         { name: "Landing page", href: "/admin/content", icon: Images, permission: "content" as AdminModuleKey },
+        { name: "Fitur & Pengaturan", href: "/admin/content?tab=features", icon: SlidersHorizontal, permission: "content" as AdminModuleKey },
       ],
     },
   ];
