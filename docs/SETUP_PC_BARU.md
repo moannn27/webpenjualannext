@@ -48,6 +48,9 @@ Project hosted yang sama boleh dipakai dari beberapa komputer. Setiap komputer p
 
 - Di **Authentication → Providers**, pastikan Email aktif. Pendaftaran/login memakai Supabase Auth.
 - Di **Authentication → URL Configuration**, alamat lokal biasanya `http://localhost:3000` dengan callback `/auth/callback`. Untuk domain publik, tambahkan domain dan callback produksi di pengaturan yang sama.
+- Untuk login Google, daftarkan callback **Supabase** berikut di Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client ID → Authorized redirect URIs: `https://PROJECT-REF.supabase.co/auth/v1/callback` (ganti `PROJECT-REF` dengan ref pada `NEXT_PUBLIC_SUPABASE_URL`). Callback untuk project yang saat ini tertulis di `.env.local` adalah `https://xyhooykvidzstnmaggku.supabase.co/auth/v1/callback`.
+- Di Supabase Dashboard → Authentication → Providers → Google, aktifkan Google dan masukkan Client ID serta Client Secret dari OAuth client web yang sama. Di **Authentication → URL Configuration**, set Site URL ke URL website yang dipakai dan tambahkan URL redirect aplikasi, misalnya `http://localhost:3000/auth/callback` dan `https://DOMAIN-PRODUKSI/auth/callback`. URL aplikasi ini berbeda dari callback Google di atas.
+- Jika Google menampilkan `Error 400: redirect_uri_mismatch`, samakan Authorized redirect URI di Google Cloud dengan callback Supabase persis, termasuk `https`, project ref, dan `/auth/v1/callback`. API key biasa atau mengaktifkan Google API saja tidak menggantikan OAuth Client ID dan Client Secret.
 - Migration `20261005000200_storage_setup.sql` menyiapkan bucket `products`, `brands`, `banners`, `avatars`, `reviews`, dan `documents`. Bucket gambar katalog/brand/banner dapat dibaca publik; operasi upload diatur oleh policy admin.
 - Upload produk/brand/banner memakai file WebP hasil kompresi di browser. Simpan file foto di bucket yang sesuai; jangan mengandalkan file lokal komputer kantor.
 

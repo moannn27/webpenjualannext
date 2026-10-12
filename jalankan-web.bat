@@ -43,7 +43,7 @@ echo   [1] Jalankan Server (Start)
 echo   [2] Restart Server
 echo   [3] Matikan Server (Stop / Bebaskan Port 3000)
 echo   [4] Buka Website di Browser (http://localhost:3000)
-echo   [5] Keluar (Exit / Matikan Server)
+echo   [5] Keluar (Matikan Server ^& Tutup Semua Jendela CMD)
 echo ======================================================
 set "pilihan="
 set /p "pilihan=Pilih menu [1-5]: "
@@ -54,6 +54,8 @@ if "%pilihan%"=="2" goto RESTART_SERVER
 if "%pilihan%"=="3" goto STOP_SERVER
 if "%pilihan%"=="4" goto OPEN_BROWSER
 if "%pilihan%"=="5" goto EXIT_SCRIPT
+if /i "%pilihan%"=="q" goto EXIT_SCRIPT
+if /i "%pilihan%"=="exit" goto EXIT_SCRIPT
 
 echo.
 echo [!] Pilihan tidak valid. Silakan masukkan angka 1 sampai 5.
@@ -124,7 +126,7 @@ echo ======================================================
 echo.
 call :KILL_PROCESS
 echo.
-echo [OK] Server berhasil dimatikan dan Port 3000 sudah bebas!
+echo [OK] Server berhasil dimatikan dan jendela server ditutup!
 echo.
 pause
 goto MENU
@@ -138,29 +140,28 @@ goto MENU
 
 :EXIT_SCRIPT
 cls
-netstat -ano | findstr :3000 | findstr LISTENING >nul
-if %errorlevel% equ 0 (
-    echo ======================================================
-    echo   Menutup dan mematikan server Next.js...
-    echo ======================================================
-    call :KILL_PROCESS
-)
+echo ======================================================
+echo   Menutup dan mematikan semua server ^& jendela CMD...
+echo ======================================================
 echo.
-echo Sampai jumpa!
+call :KILL_PROCESS
+echo.
+echo [OK] Semua proses dan jendela CMD telah ditutup. Sampai jumpa!
 ping -n 2 127.0.0.1 >nul
-exit /b 0
+exit
 
 :KILL_PROCESS
-echo [INFO] Menutup jendela Next.js Dev Server...
-taskkill /f /fi "WINDOWTITLE eq Next.js Dev Server (Port 3000)*" >nul 2>&1
+echo [INFO] Menghentikan proses server dan menutup jendela CMD...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop-server.ps1"
 
-echo [INFO] Menghentikan proses pada Port 3000...
+:: Fallback pembersihan port & window
 for /f "tokens=5" %%p in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do (
-    taskkill /f /pid %%p >nul 2>&1
+    taskkill /f /t /pid %%p >nul 2>&1
 )
-
-:: Pastikan proses node pada port 3000 tuntas dimatikan
-powershell -NoProfile -Command "Get-Process -Id (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force" >nul 2>&1
+for /f "tokens=5" %%p in ('netstat -aon ^| findstr :3001 ^| findstr LISTENING') do (
+    taskkill /f /t /pid %%p >nul 2>&1
+)
+taskkill /f /t /fi "WINDOWTITLE eq Next.js Dev Server*" >nul 2>&1
 
 echo [INFO] Pembersihan selesai.
 goto :eof
