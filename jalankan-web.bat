@@ -152,9 +152,11 @@ exit
 
 :KILL_PROCESS
 echo [INFO] Menghentikan proses server dan menutup jendela CMD...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\stop-server.ps1"
 
-:: Fallback pembersihan port & window
+:: Tutup seluruh jendela dev server dan proses node proyek secara mandiri
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[regex]::Escape('%~dp0'.TrimEnd('\')); Get-NetTCPConnection -LocalPort 3000,3001 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'cmd.exe' -and ($_.CommandLine -like '*Next.js Dev Server*' -or $_.CommandLine -like '*next dev*' -or $_.CommandLine -like '*npm run dev*')) -or ($_.Name -eq 'node.exe' -and ($_.CommandLine -match $p -or $_.CommandLine -like '*next\dist\bin\next*' -or $_.CommandLine -like '*npm-cli.js* run dev*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+
+:: Fallback taskkill
 for /f "tokens=5" %%p in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do (
     taskkill /f /t /pid %%p >nul 2>&1
 )
