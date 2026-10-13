@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import type { Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { toggleWishlistAction } from "@/actions/wishlist";
+import { toast } from "@/store/useToastStore";
 
 type LandingPromo = {
   title: string;
@@ -72,14 +73,25 @@ export function PromoBanner({
   const image = banner?.image_url;
   const hasMultiple = products.length > 1;
 
-  // Auto rotation if multiple promo products exist
+  // Change index with smooth fade transition
+  // NEVER call scrollIntoView or window scroll!
   const changeIndex = useCallback(
-    (newIndex: number) => {
+    (newIndex: number, userClicked = false) => {
       setFadeState("fading");
       setTimeout(() => {
         setCurrentIndex(newIndex);
         setFadeState("visible");
-      }, 150);
+      }, 140);
+
+      // If user specifically clicked, scroll ONLY inside the horizontal pill track
+      if (userClicked && pillTrackRef.current) {
+        const track = pillTrackRef.current;
+        const targetPill = track.querySelector(`[data-index="${newIndex}"]`) as HTMLElement | null;
+        if (targetPill) {
+          const targetLeft = targetPill.offsetLeft - track.offsetLeft - (track.clientWidth / 2) + (targetPill.clientWidth / 2);
+          track.scrollTo({ left: targetLeft, behavior: "smooth" });
+        }
+      }
     },
     []
   );
@@ -87,15 +99,16 @@ export function PromoBanner({
   const goToNext = useCallback(() => {
     if (!products.length) return;
     const nextIdx = (currentIndex + 1) % products.length;
-    changeIndex(nextIdx);
+    changeIndex(nextIdx, false);
   }, [currentIndex, products.length, changeIndex]);
 
   const goToPrev = useCallback(() => {
     if (!products.length) return;
     const prevIdx = (currentIndex - 1 + products.length) % products.length;
-    changeIndex(prevIdx);
+    changeIndex(prevIdx, false);
   }, [currentIndex, products.length, changeIndex]);
 
+  // Auto rotation every 4.5 seconds (paused on hover / touch)
   useEffect(() => {
     if (products.length <= 1 || isPaused) return;
     const timer = setInterval(() => {
@@ -103,15 +116,6 @@ export function PromoBanner({
     }, 4500);
     return () => clearInterval(timer);
   }, [products.length, isPaused, goToNext]);
-
-  // Keep scrollable pill in view
-  useEffect(() => {
-    if (!pillTrackRef.current) return;
-    const activePill = pillTrackRef.current.querySelector(`[data-index="${currentIndex}"]`) as HTMLElement | null;
-    if (activePill) {
-      activePill.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-    }
-  }, [currentIndex]);
 
   // Touch gesture handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -138,7 +142,7 @@ export function PromoBanner({
     setIsPaused(false);
   };
 
-  // Horizontal wheel scroll handler
+  // Horizontal trackpad / wheel scroll
   const handleWheel = (e: React.WheelEvent) => {
     if (Math.abs(e.deltaX) > 25 || (e.shiftKey && Math.abs(e.deltaY) > 25)) {
       const now = Date.now();
@@ -153,7 +157,7 @@ export function PromoBanner({
     }
   };
 
-  // Safe active product index
+  // Safe active product
   const safeIndex = products.length ? (currentIndex % products.length + products.length) % products.length : 0;
   const activeProduct = products[safeIndex];
 
@@ -189,9 +193,24 @@ export function PromoBanner({
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="relative overflow-hidden rounded-[26px] bg-primary text-primary-foreground shadow-2xl sm:rounded-[32px]">
-        {/* Background decorative image with soft gradients */}
-        <div className="pointer-events-none absolute inset-0 h-full w-full">
+      {/* Rich Multi-Layer Glowing Gradient Container */}
+      <div className="relative overflow-hidden rounded-[28px] border border-blue-400/30 bg-gradient-to-br from-[#071d49] via-[#0f3470] to-[#06142e] text-primary-foreground shadow-[0_24px_60px_-15px_rgba(7,29,73,0.5)] sm:rounded-[34px]">
+        {/* Dynamic ambient glowing light orbs */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {/* Cyan glow top-left */}
+          <div className="absolute -top-32 -left-32 size-[420px] rounded-full bg-cyan-400/25 blur-[100px] animate-pulse" />
+          {/* Indigo/purple glow bottom-right */}
+          <div className="absolute -bottom-32 -right-32 size-[450px] rounded-full bg-indigo-500/30 blur-[110px]" />
+          {/* Subtle warm amber aura center-right */}
+          <div className="absolute top-1/4 right-1/3 size-[300px] rounded-full bg-amber-400/15 blur-[95px]" />
+
+          {/* Futuristic subtle tech grid pattern overlay */}
+          <div className="absolute inset-0 bg-[radial-gradient(#ffffff20_1px,transparent_1px)] [background-size:24px_24px] opacity-60" />
+
+          {/* Elegant diagonal sheen beam */}
+          <div className="absolute -inset-y-1/2 -right-1/4 w-2/3 rotate-12 bg-gradient-to-r from-transparent via-white/[0.04] to-transparent blur-md" />
+
+          {/* Banner image background if available */}
           {image && (
             <Image
               src={image}
@@ -201,22 +220,21 @@ export function PromoBanner({
               className="object-cover opacity-15 mix-blend-overlay"
             />
           )}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary/95 to-primary/80 lg:to-primary/60" />
         </div>
 
         <div className="relative z-10 grid grid-cols-1 items-center gap-8 p-6 sm:p-10 lg:grid-cols-12 lg:gap-10 lg:p-12 xl:p-14">
           {/* Left Side: Headline & Promo Description */}
           <div className="flex flex-col items-start justify-center lg:col-span-7 xl:col-span-7">
-            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1 text-xs font-semibold backdrop-blur-md sm:mb-4 sm:text-sm">
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3.5 py-1 text-xs font-semibold backdrop-blur-md shadow-xs sm:mb-4 sm:text-sm">
               <Sparkles className="size-3.5 text-amber-300" />
               {sectionTitle || banner?.title || "Promo Pilihan"}
             </span>
 
-            <h2 className="mb-3 text-3xl font-bold tracking-tight sm:mb-5 sm:text-4xl lg:text-5xl">
+            <h2 className="mb-3 text-3xl font-extrabold tracking-tight sm:mb-5 sm:text-4xl lg:text-5xl bg-gradient-to-r from-white via-white to-blue-100 bg-clip-text text-transparent">
               {title}
             </h2>
 
-            <p className="mb-6 max-w-xl text-base font-light text-primary-foreground/90 sm:mb-8 sm:text-lg">
+            <p className="mb-6 max-w-xl text-base font-light text-blue-100/90 sm:mb-8 sm:text-lg leading-relaxed">
               {description}
             </p>
 
@@ -224,22 +242,22 @@ export function PromoBanner({
               <Button
                 render={<Link href={banner?.target_url || "/promo"} />}
                 size="lg"
-                className="rounded-full bg-white px-8 font-semibold text-primary shadow-lg hover:bg-white/90"
+                className="rounded-full bg-white px-8 font-bold text-primary shadow-xl hover:bg-white/95 hover:scale-105 active:scale-95 transition-all duration-200"
                 aria-label={banner?.button_label || "Lihat penawaran promo"}
               >
                 {banner?.button_label || "Lihat promo"}
               </Button>
 
               {hasMultiple && (
-                <span className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs text-white backdrop-blur-xs sm:inline-flex">
+                <span className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs text-white backdrop-blur-xs sm:inline-flex">
                   <Tag className="size-3 text-amber-300" />
-                  {products.length} Produk Pilihan Spesial
+                  {products.length} Pilihan Unggulan & Best Seller
                 </span>
               )}
             </div>
           </div>
 
-          {/* Right Side: Product Spotlight Card (Muncul Satu per Satu) */}
+          {/* Right Side: Product Spotlight Card */}
           <div className="flex w-full flex-col items-center justify-center lg:col-span-5 lg:items-end xl:col-span-5">
             {activeProduct ? (
               <div
@@ -253,8 +271,10 @@ export function PromoBanner({
               >
                 {/* Spotlight Card */}
                 <div
-                  className={`relative flex flex-col rounded-[22px] border border-white/25 bg-card p-4 text-card-foreground shadow-2xl backdrop-blur-md transition-all duration-300 sm:p-5 ${
-                    fadeState === "fading" ? "opacity-60 scale-[0.99]" : "opacity-100 scale-100"
+                  className={`relative flex flex-col rounded-[24px] border border-white/30 bg-card/95 p-4 text-card-foreground shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-all duration-300 ease-out sm:p-5 ${
+                    fadeState === "fading"
+                      ? "opacity-50 scale-[0.98] translate-y-1"
+                      : "opacity-100 scale-100 translate-y-0"
                   }`}
                 >
                   {/* Top Bar of the Card: Badges & Carousel Controls */}
@@ -300,7 +320,7 @@ export function PromoBanner({
                             type="button"
                             onClick={goToPrev}
                             aria-label="Produk spotlight sebelumnya"
-                            className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs"
+                            className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs active:scale-95"
                           >
                             <ChevronLeft className="size-3.5" />
                           </button>
@@ -308,7 +328,7 @@ export function PromoBanner({
                             type="button"
                             onClick={goToNext}
                             aria-label="Produk spotlight berikutnya"
-                            className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs"
+                            className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs active:scale-95"
                           >
                             <ChevronRight className="size-3.5" />
                           </button>
@@ -318,13 +338,13 @@ export function PromoBanner({
                   </div>
 
                   {/* Product Image Area */}
-                  <div className="group/img relative mb-3 flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-white p-3">
+                  <div className="group/img relative mb-3 flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-white p-3 shadow-inner">
                     {/* Wishlist Button */}
                     <button
                       type="button"
                       onClick={() => handleToggleWishlist(activeProduct.id)}
                       aria-label="Simpan ke wishlist"
-                      className="absolute top-2.5 right-2.5 z-10 rounded-full bg-white/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-white hover:text-destructive"
+                      className="absolute top-2.5 right-2.5 z-10 rounded-full bg-white/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-white hover:text-destructive active:scale-95"
                     >
                       <Heart
                         className={`size-4 ${
@@ -345,7 +365,7 @@ export function PromoBanner({
                         alt={activeProduct.name}
                         fill
                         sizes="(max-width: 640px) 100vw, 360px"
-                        className="object-contain p-2 transition-transform duration-500 ease-out group-hover/img:scale-105"
+                        className="object-contain p-2 transition-transform duration-500 ease-out group-hover/img:scale-108"
                       />
                     </Link>
                   </div>
@@ -395,11 +415,21 @@ export function PromoBanner({
                       <Button
                         type="button"
                         onClick={() => {
-                          if ((activeProduct.stock ?? 0) <= 0) return;
+                          if ((activeProduct.stock ?? 0) <= 0) {
+                            toast.error(
+                              "Barang Kosong / Stok Habis",
+                              `Maaf, produk "${activeProduct.name}" sedang kosong dan belum dapat dipesan.`
+                            );
+                            return;
+                          }
                           addToCart(activeProduct.id, activeProduct.name);
                         }}
-                        disabled={loadingProductId === activeProduct.id || (activeProduct.stock ?? 0) <= 0}
-                        className="w-full gap-1.5 rounded-xl text-xs font-semibold sm:text-sm"
+                        disabled={loadingProductId === activeProduct.id}
+                        className={`w-full gap-1.5 rounded-xl text-xs font-semibold sm:text-sm ${
+                          (activeProduct.stock ?? 0) <= 0
+                            ? "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed opacity-70"
+                            : ""
+                        }`}
                       >
                         <ShoppingCart className="size-4" />
                         <span>
@@ -414,7 +444,7 @@ export function PromoBanner({
                       <Button
                         render={<Link href={`/product/${activeProduct.id}`} />}
                         variant="outline"
-                        className="w-full gap-1 rounded-xl text-xs font-semibold sm:text-sm"
+                        className="w-full gap-1 rounded-xl text-xs font-semibold sm:text-sm hover:border-primary"
                       >
                         <span>Detail</span>
                         <ArrowRight className="size-3.5" />
@@ -425,7 +455,7 @@ export function PromoBanner({
 
                 {/* Horizontal Scrollable Product Selector Pills & Dot Pagination */}
                 {hasMultiple && (
-                  <div className="mt-3.5 flex flex-col items-center gap-2.5">
+                  <div className="mt-4 flex flex-col items-center gap-2.5">
                     {/* Horizontal scrollable pills */}
                     <div 
                       ref={pillTrackRef}
@@ -438,11 +468,11 @@ export function PromoBanner({
                             key={p.id}
                             data-index={idx}
                             type="button"
-                            onClick={() => changeIndex(idx)}
-                            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-all snap-center ${
+                            onClick={() => changeIndex(idx, true)}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[11px] transition-all snap-center ${
                               isCurrent
-                                ? "bg-white text-primary font-bold shadow-md scale-105"
-                                : "bg-white/20 text-white/90 hover:bg-white/35 backdrop-blur-xs font-medium"
+                                ? "bg-white text-primary font-extrabold shadow-lg scale-105"
+                                : "bg-white/15 text-white/90 hover:bg-white/30 backdrop-blur-sm font-medium"
                             }`}
                           >
                             {p.isBestSeller && <Star className="size-2.5 fill-amber-300 text-amber-300 shrink-0" />}
@@ -459,7 +489,7 @@ export function PromoBanner({
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => changeIndex(idx)}
+                          onClick={() => changeIndex(idx, true)}
                           aria-label={`Tampilkan produk spotlight ke-${idx + 1}`}
                           className={`h-1.5 rounded-full transition-all duration-300 ${
                             safeIndex === idx
@@ -474,7 +504,7 @@ export function PromoBanner({
               </div>
             ) : (
               /* Fallback when no promo product exists */
-              <div className="flex w-full max-w-sm flex-col items-center justify-center rounded-[22px] border border-white/20 bg-white/10 p-6 text-center text-primary-foreground backdrop-blur-md">
+              <div className="flex w-full max-w-sm flex-col items-center justify-center rounded-[24px] border border-white/20 bg-white/10 p-6 text-center text-primary-foreground backdrop-blur-md">
                 <Gift className="mb-2 size-10 text-white/80" />
                 <h4 className="text-base font-semibold">Produk Promo Pilihan</h4>
                 <p className="mt-1 text-xs text-primary-foreground/80">

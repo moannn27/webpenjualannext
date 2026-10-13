@@ -51,26 +51,40 @@ export function ProductCard({ product }: ProductCardProps) {
     <div className="group relative flex flex-col bg-card rounded-[24px] border border-border p-4 transition-all duration-300 hover:shadow-xl hover:border-primary/20">
       
       {/* Badges */}
-      <div className="absolute top-6 left-6 z-10 flex flex-col gap-1.5 items-start">
+      <div className="absolute top-3.5 left-3.5 z-10 flex flex-wrap gap-1.5 items-center max-w-[calc(100%-3.5rem)] pointer-events-none">
         {isOutOfStock && (
-          <span className="px-3 py-1 text-xs font-bold rounded-full bg-rose-600 text-white shadow-xs tracking-wide">
+          <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-full bg-rose-600 text-white shadow-xs tracking-wide">
             Stok Habis
           </span>
         )}
-        {product.badges?.map((badge) => (
-          <span
-            key={badge}
-            className={`px-3 py-1 text-xs font-semibold rounded-full ${
-              badge === "Sale" ? "bg-destructive text-white" : "bg-primary text-white"
-            }`}
-          >
-            {badge}
-          </span>
-        ))}
+        {product.badges
+          ?.filter((badge) => !(isOutOfStock && badge === "Sale"))
+          .slice(0, isOutOfStock ? 1 : 2)
+          .map((badge) => {
+            const badgeColor =
+              badge === "Sale"
+                ? "bg-rose-600 text-white"
+                : badge === "Best Seller"
+                ? "bg-amber-500 text-slate-950 font-extrabold"
+                : badge === "Baru"
+                ? "bg-sky-600 text-white"
+                : "bg-primary text-white";
+            return (
+              <span
+                key={badge}
+                className={cn(
+                  "px-2.5 py-0.5 text-[10.5px] font-bold rounded-full shadow-2xs whitespace-nowrap",
+                  badgeColor
+                )}
+              >
+                {badge}
+              </span>
+            );
+          })}
       </div>
 
       {/* Wishlist Button */}
-      <button onClick={toggleWishlist} aria-pressed={saved} className="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+      <button onClick={toggleWishlist} aria-pressed={saved} className="absolute top-3.5 right-3.5 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
         <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />
         <span className="sr-only">{saved ? "Hapus dari wishlist" : "Tambah ke wishlist"}</span>
       </button>
