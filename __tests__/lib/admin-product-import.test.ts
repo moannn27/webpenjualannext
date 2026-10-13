@@ -302,14 +302,117 @@ describe('analyzeAndNormalizeImportTables and multi-sheet handling', () => {
     expect(wb.worksheets.length).toBeGreaterThanOrEqual(1)
 
     const tables = importTablesFromWorkbook(wb)
+    const importTable = tables.find(t => t.source === 'XLSX/Import')
+    const nonEmptyRows = (importTable?.rows.slice(1) ?? []).filter(r => r.some(Boolean))
     const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables)
-    expect(products.length).toBe(102)
-    expect(products[0].sku).toBe('91CF001VID')
-    const f0hn = products.find((p) => p.sku === 'F0HN00Q3ID')
-    expect(f0hn).toBeDefined()
-    expect(f0hn?.name).toContain('AIO 24IRH9')
-    expect(f0hn?.price).toBe(12799000)
+    let varCount = 0
+    let standaloneCount = 0
+    for (const p of products) {
+      if (p.variants.length > 0) {
+        varCount += p.variants.length
+        console.log('GROUP:', p.name, 'parent SKU:', p.sku, 'variants:', p.variants.length)
+      } else {
+        standaloneCount++
+      }
+    }
+    const allOriginalSkus = nonEmptyRows.map(r => r[1]).filter(Boolean)
+    const allParsedSkus = new Set(products.flatMap(p => [p.sku, ...p.variants.map(v => v.sku)]))
+    const missingSkus = allOriginalSkus.filter(s => !allParsedSkus.has(s))
+    expect(varCount).toBeGreaterThan(0)
+    expect(standaloneCount).toBeGreaterThan(0)
+    expect(missingSkus).toHaveLength(0)
+
+    const aio = products.find((p) => p.name.includes('AIO 24IRH9') || p.variants.some((v) => v.sku === 'F0HN00Q3ID'))
+    expect(aio).toBeDefined()
+    expect(aio?.variants.length).toBeGreaterThanOrEqual(2)
+    expect(aio?.variants.map((v) => v.sku)).toContain('F0HN00Q3ID')
+    expect(aio?.variants.map((v) => v.sku)).toContain('F0HN00Q4ID')
+    expect(aio?.variants.find((v) => v.sku === 'F0HN00Q3ID')?.color).toBe('Luna Grey')
+    expect(aio?.variants.find((v) => v.sku === 'F0HN00Q4ID')?.color).toBe('Cloud Grey')
     expect(sheetSummary.detectedSheets[0].name).toBe('Import')
     expect(sheetSummary.skippedSheets.map((s) => s.name)).toEqual(['Perlu Review', 'Audit Sumber', 'Petunjuk'])
+  })
+})
+
+describe('variant grouping, duplicates, pricing, and legacy compatibility', () => {
+  it('groups multiple color rows with different MTMs into 1 parent product with distinct variants', () => {
+    const rows = [
+      ['TYPE', 'MTM', 'Processor', 'RAM', 'Storage', 'NEW PRICE USER', 'STOK', 'KETERANGAN'],
+      ['IdeaPad Slim 3 14IAH8 - Arctic Grey', '83EQ001AID', 'Core i3-1215U', '8GB', '512GB SSD', '6.999.000', '5', 'Arctic Grey'],
+      ['IdeaPad Slim 3 14IAH8 - Abyss Blue', '83EQ002BID', 'Core i3-1215U', '8GB', '512GB SSD', '6.999.000', '3', 'Abyss Blue'],
+    ]
+    const products = normalizeImportTables([{ source: 'Lenovo', rows }])
+    expect(products).toHaveLength(1)
+    const parent = products[0]
+    expect(parent.variants).toHaveLength(2)
+    expect(parent.sku).toContain('83EQ-IDEAPAD-SLIM-3-14IAH8')
+    expect(parent.stock).toBe(8)
+    expect(parent.variants[0].sku).toBe('83EQ001AID')
+    expect(parent.variants[0].color).toBe('Arctic Grey')
+    expect(parent.variants[0].stock).toBe(5)
+    expect(parent.variants[1].sku).toBe('83EQ002BID')
+    expect(parent.variants[1].color).toBe('Abyss Blue')
+    expect(parent.variants[1].stock).toBe(3)
+  })
+
+  it('detects duplicate SKUs within file and flags warnings properly', () => {
+    const rows = [
+      ['TYPE', 'MTM', 'NEW PRICE USER', 'STOK'],
+      ['ThinkCentre Neo 50s', '11SX001XID', '10.000.000', '5'],
+      ['ThinkCentre Neo 50s', '11SX001XID', '10.000.000', '3'],
+    ]
+    const products = normalizeImportTables([{ source: 'Lenovo', rows }])
+    expect(products).toHaveLength(1)
+    expect(products[0].duplicateInFile).toBe(true)
+    expect(products[0].warnings?.some((w) => w.includes('duplikat'))).toBe(true)
+  })
+
+  it('aggregates variant prices and stock correctly (min price, sum stock)', () => {
+    const rows = [
+      ['TYPE', 'MTM', 'Processor', 'RAM', 'Storage', 'NEW PRICE USER', 'HARGA JUAL', 'STOK', 'KETERANGAN'],
+      ['Yoga 7 14AHP9 - Tidal Teal', '83DK001AID', 'Ryzen 7 8845HS', '16GB', '512GB', '15.000.000', '14.000.000', '4', 'Tidal Teal'],
+      ['Yoga 7 14AHP9 - Storm Grey', '83DK002BID', 'Ryzen 7 8845HS', '16GB', '1TB', '17.000.000', '16.500.000', '6', 'Storm Grey'],
+    ]
+    const products = normalizeImportTables([{ source: 'Lenovo', rows }])
+    expect(products).toHaveLength(1)
+    const parent = products[0]
+    expect(parent.price).toBe(15000000)
+    expect(parent.stock).toBe(10)
+    expect(parent.variants[0].price).toBe(15000000)
+    expect(parent.variants[0].stock).toBe(4)
+    expect(parent.variants[1].price).toBe(17000000)
+    expect(parent.variants[1].stock).toBe(6)
+  })
+
+  it('supports updating existing product with variants without creating duplicates', () => {
+    const rows = [
+      ['TYPE', 'MTM', 'Processor', 'RAM', 'Storage', 'NEW PRICE USER', 'STOK', 'KETERANGAN'],
+      ['LOQ 15IAX9 - Luna Grey', '83GS001AID', 'Core i5-12450HX', '12GB', '512GB', '12.000.000', '7', 'Luna Grey'],
+    ]
+    const products = normalizeImportTables([{ source: 'Lenovo', rows }])
+    expect(products).toHaveLength(1)
+    const targetDbMap = new Map([['83gs001aid', 'existing-loq-uuid']])
+    markImportSkuConflicts(products, targetDbMap)
+    expect(products[0].targetProductId).toBe('existing-loq-uuid')
+    expect(products[0].duplicateInDatabase).toBe(true)
+    expect(products[0].importAction).toBe('skip')
+    products[0].importAction = 'update'
+    expect(products[0].importAction).toBe('update')
+  })
+
+  it('maintains full backwards compatibility with legacy flat import templates', () => {
+    const legacyData = [
+      ['product_name', 'sku', 'description', 'price', 'discount_price', 'stock', 'category', 'brand', 'status', 'is_best_seller', 'is_new_arrival', 'image_url', 'specifications'],
+      ['Mouse Wireless Standar', 'MS-001', 'Mouse tanpa kabel ergonomis', '150.000', '120.000', '50', 'Aksesoris', 'Logitech', 'published', 'false', 'false', 'https://example.com/mouse.jpg', 'Koneksi: 2.4GHz; DPI: 1600'],
+    ]
+    const products = normalizeProductRows(legacyData)
+    expect(products).toHaveLength(1)
+    expect(products[0].name).toBe('Mouse Wireless Standar')
+    expect(products[0].sku).toBe('MS-001')
+    expect(products[0].price).toBe(150000)
+    expect(products[0].discount_price).toBe(120000)
+    expect(products[0].stock).toBe(50)
+    expect(products[0].variants).toHaveLength(0)
+    expect(products[0].specifications).toHaveLength(2)
   })
 })

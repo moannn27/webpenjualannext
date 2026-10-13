@@ -769,6 +769,94 @@ export async function bulkImportAdminProductsAction(products: unknown) {
   }
   if (error) throw new Error(error.message)
 
+  // Ensure variants are upserted for any updated products with variants
+  const updatedProductsWithVariants = (products as Array<{
+    importAction?: string
+    targetProductId?: string
+    variants?: Array<{
+      id?: string
+      sku?: string
+      color: string
+      ram: string
+      storage: string
+      price: number | null
+      discount_price: number | null
+      stock: number
+    }>
+  }>).filter((p) => p.importAction === 'update' && p.targetProductId && Array.isArray(p.variants) && p.variants.length > 0)
+
+  if (updatedProductsWithVariants.length > 0) {
+    for (const prod of updatedProductsWithVariants) {
+      const targetId = prod.targetProductId!
+      const { data: currentVariants } = await supabase
+        .from('product_variants')
+        .select('id, sku, color, ram, storage')
+        .eq('product_id', targetId)
+
+      const existingVars = currentVariants ?? []
+
+      for (const v of prod.variants!) {
+        const vSku = v.sku?.trim() || null
+        const vColor = v.color?.trim() || ''
+        const vRam = v.ram?.trim() || ''
+        const vStorage = v.storage?.trim() || ''
+        const vPrice = v.price != null && Number.isFinite(v.price) ? v.price : null
+        const vDiscount = v.discount_price != null && Number.isFinite(v.discount_price) ? v.discount_price : null
+        const vStock = Number.isInteger(v.stock) && v.stock >= 0 ? v.stock : 0
+
+        const match = existingVars.find((ev) =>
+          (vSku && ev.sku && ev.sku.toLowerCase() === vSku.toLowerCase()) ||
+          (ev.color.toLowerCase() === vColor.toLowerCase() &&
+           ev.ram.toLowerCase() === vRam.toLowerCase() &&
+           ev.storage.toLowerCase() === vStorage.toLowerCase())
+        )
+
+        if (match) {
+          await supabase
+            .from('product_variants')
+            .update({
+              sku: vSku,
+              color: vColor,
+              ram: vRam,
+              storage: vStorage,
+              price: vPrice,
+              discount_price: vDiscount,
+              stock: vStock,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', match.id)
+            .eq('product_id', targetId)
+        } else {
+          await supabase
+            .from('product_variants')
+            .insert({
+              product_id: targetId,
+              sku: vSku,
+              color: vColor,
+              ram: vRam,
+              storage: vStorage,
+              price: vPrice,
+              discount_price: vDiscount,
+              stock: vStock,
+            })
+        }
+      }
+
+      const { data: allVars } = await supabase
+        .from('product_variants')
+        .select('stock')
+        .eq('product_id', targetId)
+
+      if (allVars && allVars.length > 0) {
+        const totalStock = allVars.reduce((sum, item) => sum + (item.stock || 0), 0)
+        await supabase
+          .from('products')
+          .update({ stock: totalStock })
+          .eq('id', targetId)
+      }
+    }
+  }
+
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,

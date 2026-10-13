@@ -42,7 +42,12 @@ import {
 import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
 
 const getItemPrice = (item: CartData["cart_items"][number]) =>
-  Number(item.products.discount_price ?? item.products.price);
+  Number(
+    item.product_variants?.discount_price ??
+    item.product_variants?.price ??
+    item.products.discount_price ??
+    item.products.price
+  );
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -892,6 +897,12 @@ export function CheckoutClient({
                     <span className="size-2 shrink-0 rounded-full bg-primary" />
                     <div className="min-w-0">
                       <p className="truncate font-medium">{item.products.name}</p>
+                      {item.product_variants && (
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {[item.product_variants.color, item.product_variants.ram, item.product_variants.storage].filter(Boolean).join(" · ")}
+                          {item.product_variants.sku ? ` (${item.product_variants.sku})` : ""}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {item.quantity} x {formatCurrency(price)}
                       </p>

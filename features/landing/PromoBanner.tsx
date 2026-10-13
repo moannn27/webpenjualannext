@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { 
   Sparkles, 
   ChevronLeft, 
@@ -59,7 +59,6 @@ export function PromoBanner({
   const [isPaused, setIsPaused] = useState(false);
   const [savedProducts, setSavedProducts] = useState<Record<string, boolean>>({});
   const [isInView, setIsInView] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   const bannerRef = useRef<HTMLElement>(null);
   const touchStartX = useRef<number | null>(null);
@@ -73,16 +72,16 @@ export function PromoBanner({
   const image = banner?.image_url;
   const hasMultiple = products.length > 1;
 
-  // Responsive mobile detection for 3D card offset
+  // Preload all product images to eliminate decoding freeze during animation
   useEffect(() => {
-    const handleResize = () => {
-      if (typeof window === "undefined") return;
-      setIsMobile(window.innerWidth < 640);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize, { passive: true });
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+    if (typeof window === "undefined" || !products.length) return;
+    products.forEach((p) => {
+      if (p.image) {
+        const img = new window.Image();
+        img.src = p.image;
+      }
+    });
+  }, [products]);
 
   // Intersection Observer: only animate when banner is visible on screen
   useEffect(() => {
@@ -111,12 +110,17 @@ export function PromoBanner({
     setCurrentIndex((prev) => (prev - 1 + products.length) % products.length);
   }, [products.length]);
 
+  const goToIndex = (targetIdx: number) => {
+    if (targetIdx === currentIndex) return;
+    setCurrentIndex(targetIdx);
+  };
+
   // Auto rotation: runs only when banner is in view and not hovered
   useEffect(() => {
     if (products.length <= 1 || isPaused || !isInView) return;
     const timer = setInterval(() => {
       goToNext();
-    }, 5000);
+    }, 5500);
     return () => clearInterval(timer);
   }, [products.length, isPaused, isInView, goToNext]);
 
@@ -156,27 +160,91 @@ export function PromoBanner({
     }
   };
 
-  // Circular offset calculation for 3-card coverflow
-  const getOffset = (idx: number) => {
-    if (!products.length) return 0;
-    let diff = idx - currentIndex;
-    if (diff > products.length / 2) diff -= products.length;
-    if (diff < -products.length / 2) diff += products.length;
-    return diff;
+  // Safe active product index
+  const safeIndex = products.length ? (currentIndex % products.length + products.length) % products.length : 0;
+  const activeProduct = products[safeIndex];
+
+  // Mathematical circular distance from active card
+  const getDistance = (index: number, active: number, total: number) => {
+    if (total <= 1) return 0;
+    let d = ((index - active) % total + total) % total;
+    if (d > total / 2) {
+      d -= total;
+    } else if (d === total / 2 && index < active) {
+      d = -d;
+    }
+    return d;
   };
 
-  // Card horizontal offset based on screen size
-  const cardShift = isMobile ? 65 : 145;
+  // Hardware-accelerated 3D coverflow styling (transforms & opacity only, 0 layout shifts)
+  const getCardStyle = (d: number) => {
+    switch (d) {
+      case 0:
+        return {
+          x: "0%",
+          scale: 1,
+          opacity: 1,
+          zIndex: 30,
+          pointerEvents: "auto" as const,
+        };
+      case 1:
+        return {
+          x: "70%",
+          scale: 0.86,
+          opacity: 0.58,
+          zIndex: 20,
+          pointerEvents: "auto" as const,
+        };
+      case -1:
+        return {
+          x: "-70%",
+          scale: 0.86,
+          opacity: 0.58,
+          zIndex: 20,
+          pointerEvents: "auto" as const,
+        };
+      case 2:
+        return {
+          x: "135%",
+          scale: 0.72,
+          opacity: 0,
+          zIndex: 10,
+          pointerEvents: "none" as const,
+        };
+      case -2:
+        return {
+          x: "-135%",
+          scale: 0.72,
+          opacity: 0,
+          zIndex: 10,
+          pointerEvents: "none" as const,
+        };
+      default:
+        return {
+          x: d > 0 ? "160%" : "-160%",
+          scale: 0.6,
+          opacity: 0,
+          zIndex: 0,
+          pointerEvents: "none" as const,
+        };
+    }
+  };
+
+  // Apple-grade fluid deceleration curve for natural, buttery-smooth gliding
+  const transitionConfig = {
+    duration: 0.52,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
 
   return (
     <section ref={bannerRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
       {/* High-Performance Lightweight Cyber Gradient Container */}
       <div 
-        className="relative overflow-hidden rounded-[28px] border border-blue-400/30 bg-[#071d49] text-primary-foreground shadow-[0_24px_60px_-15px_rgba(7,29,73,0.5)] sm:rounded-[34px]"
+        className="relative overflow-hidden rounded-[28px] border border-blue-400/30 bg-[#071d49] text-primary-foreground shadow-[0_20px_50px_-15px_rgba(7,29,73,0.5)] sm:rounded-[34px]"
         style={{
           backgroundImage: `
-            radial-gradient(circle at 12% 18%, rgba(34, 211, 238, 0.18) 0%, transparent 45%),
-            radial-gradient(circle at 88% 82%, rgba(99, 102, 241, 0.24) 0%, transparent 50%),
+            radial-gradient(circle at 12% 18%, rgba(34, 211, 238, 0.16) 0%, transparent 45%),
+            radial-gradient(circle at 88% 82%, rgba(99, 102, 241, 0.22) 0%, transparent 50%),
             radial-gradient(circle at 55% 45%, rgba(251, 191, 36, 0.10) 0%, transparent 40%),
             radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08) 1.2px, transparent 1.2px),
             linear-gradient(135deg, #071d49 0%, #0f3470 50%, #06142e 100%)
@@ -232,154 +300,123 @@ export function PromoBanner({
             </div>
           </div>
 
-          {/* Right/Center Side: 3-Card 3D Coverflow Deck (Bayangan Kiri, Tengah Utama, Bayangan Kanan) */}
+          {/* Right/Center Side: 3-Card 3D Stage (Bayangan Kiri, Tengah Utama, Bayangan Kanan) */}
           <div className="flex w-full flex-col items-center justify-center lg:col-span-8 xl:col-span-8">
-            {products.length > 0 ? (
+            {activeProduct ? (
               <div
-                className="w-full flex flex-col items-center"
+                className="w-full max-w-[540px] sm:max-w-[600px] lg:max-w-[650px] flex flex-col items-center"
                 onMouseEnter={() => setIsPaused(true)}
                 onMouseLeave={() => setIsPaused(false)}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
               >
-                {/* 3D Coverflow Stage */}
-                <div className="relative flex items-center justify-center w-full min-h-[440px] sm:min-h-[470px] lg:min-h-[480px]">
+                {/* Continuous 3D Coverflow Carousel Stage */}
+                <div className="relative flex items-center justify-center w-full min-h-[460px] sm:min-h-[485px] lg:min-h-[495px]">
                   {products.map((product, idx) => {
-                    const offset = getOffset(idx);
-                    // Only render visible items within distance of 2 to save resources
-                    if (Math.abs(offset) > 2) return null;
+                    const d = getDistance(idx, safeIndex, products.length);
 
-                    const isCenter = offset === 0;
-                    const isLeft = offset === -1;
-                    const isRight = offset === 1;
+                    // Keep items within distance [-2, 2] so enter/exit buffers animate seamlessly with 0 DOM bloat
+                    if (Math.abs(d) > 2) return null;
 
-                    // Payable & discount calculation
+                    const isCenter = d === 0;
+                    const isSide = Math.abs(d) === 1;
                     const payablePrice = product.discountPrice ?? product.price;
-                    const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
-                    const discountPct = regularPrice && regularPrice > payablePrice
-                      ? Math.round(((regularPrice - payablePrice) / regularPrice) * 100)
-                      : null;
-                    const savingAmount = regularPrice && regularPrice > payablePrice
-                      ? regularPrice - payablePrice
-                      : null;
-
-                    // Motion variant coordinates
-                    let targetX = 0;
-                    let targetScale = 1;
-                    let targetOpacity = 1;
-                    let targetZIndex = 30;
-
-                    if (isCenter) {
-                      targetX = 0;
-                      targetScale = 1;
-                      targetOpacity = 1;
-                      targetZIndex = 30;
-                    } else if (isLeft) {
-                      targetX = -cardShift;
-                      targetScale = isMobile ? 0.88 : 0.86;
-                      targetOpacity = 0.55;
-                      targetZIndex = 15;
-                    } else if (isRight) {
-                      targetX = cardShift;
-                      targetScale = isMobile ? 0.88 : 0.86;
-                      targetOpacity = 0.55;
-                      targetZIndex = 15;
-                    } else if (offset === -2) {
-                      targetX = -cardShift * 1.8;
-                      targetScale = 0.72;
-                      targetOpacity = 0;
-                      targetZIndex = 5;
-                    } else if (offset === 2) {
-                      targetX = cardShift * 1.8;
-                      targetScale = 0.72;
-                      targetOpacity = 0;
-                      targetZIndex = 5;
-                    }
+                    const regularPrice =
+                      product.discountPrice != null
+                        ? product.price
+                        : product.originalPrice;
+                    const discountPct =
+                      regularPrice && regularPrice > payablePrice
+                        ? Math.round(((regularPrice - payablePrice) / regularPrice) * 100)
+                        : null;
+                    const savingAmount =
+                      regularPrice && regularPrice > payablePrice
+                        ? regularPrice - payablePrice
+                        : null;
 
                     return (
                       <motion.div
                         key={product.id}
                         initial={false}
-                        animate={{
-                          x: targetX,
-                          scale: targetScale,
-                          opacity: targetOpacity,
-                          zIndex: targetZIndex,
-                        }}
-                        transition={{
-                          duration: 0.6,
-                          ease: [0.25, 1, 0.5, 1], // Apple-style smooth decelerating cubic-bezier curve
-                        }}
-                        style={{
-                          willChange: "transform, opacity",
-                        }}
-                        className={`absolute w-[270px] sm:w-[310px] md:w-[330px] lg:w-[340px] select-none ${
-                          !isCenter ? "cursor-pointer" : ""
-                        }`}
-                        onClick={() => {
-                          if (isLeft) goToPrev();
-                          if (isRight) goToNext();
-                        }}
+                        animate={getCardStyle(d)}
+                        transition={transitionConfig}
+                        style={{ willChange: "transform, opacity" }}
+                        className="absolute w-[275px] sm:w-[315px] md:w-[330px] select-none"
                       >
-                        {/* THE CARD */}
                         <div
-                          className={`relative flex flex-col rounded-[24px] border p-4 sm:p-5 shadow-2xl transition-all duration-300 ${
+                          className={`relative flex flex-col rounded-[24px] border bg-card p-4 sm:p-5 text-card-foreground transition-shadow duration-300 ${
                             isCenter
-                              ? "border-white/35 bg-card text-card-foreground shadow-[0_24px_50px_rgba(0,0,0,0.35)]"
-                              : "border-white/20 bg-card/80 text-card-foreground/80 hover:opacity-85 hover:border-white/40 shadow-xl"
+                              ? "border-white/35 shadow-2xl"
+                              : "border-white/20 shadow-lg hover:opacity-80"
                           }`}
                         >
-                          {/* Top Bar: Badges & Controls */}
-                          <div className="mb-2.5 flex items-center justify-between gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              {discountPct ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                  Sale {discountPct}%
-                                </span>
-                              ) : null}
-                              {product.isBestSeller && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-950 shadow-xs">
-                                  <Star className="size-2.5 fill-slate-950" />
-                                  Best Seller
-                                </span>
-                              )}
-                              {product.isNewArrival && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                  <Sparkles className="size-2.5" />
-                                  Baru
-                                </span>
-                              )}
-                              {!discountPct && !product.isBestSeller && !product.isNewArrival && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                  Pilihan
-                                </span>
-                              )}
-                            </div>
+                          {/* Transparent click overlay for side cards */}
+                          {isSide && (
+                            <div
+                              className="absolute inset-0 z-30 cursor-pointer rounded-[24px]"
+                              title={
+                                d < 0
+                                  ? `Lihat sebelumnya: ${product.name}`
+                                  : `Lihat berikutnya: ${product.name}`
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (d < 0) goToPrev();
+                                else goToNext();
+                              }}
+                            />
+                          )}
 
-                            {/* Position pill for side shadow cards */}
-                            {isLeft && (
-                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-muted-foreground backdrop-blur-xs">
-                                ❮ Sebelumnya
-                              </span>
-                            )}
-                            {isRight && (
-                              <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-muted-foreground backdrop-blur-xs">
-                                Berikutnya ❯
-                              </span>
-                            )}
+                          {/* Top Bar: Badges & Counter (Center) or Direction Indicator (Side) */}
+                          <div className="mb-2.5 flex items-center justify-between gap-1.5 min-h-[24px]">
+                            {isSide ? (
+                              <>
+                                <span className="rounded-full bg-slate-900/60 dark:bg-white/15 px-2.5 py-0.5 text-[10.5px] font-bold text-white backdrop-blur-xs">
+                                  {d < 0 ? "❮ Sebelumnya" : "Berikutnya ❯"}
+                                </span>
+                                <span className="text-[11px] font-bold text-primary">
+                                  {formatPrice(payablePrice)}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {discountPct ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                      Sale {discountPct}%
+                                    </span>
+                                  ) : null}
+                                  {product.isBestSeller && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-950 shadow-xs">
+                                      <Star className="size-2.5 fill-slate-950" />
+                                      Best Seller
+                                    </span>
+                                  )}
+                                  {product.isNewArrival && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                      <Sparkles className="size-2.5" />
+                                      Baru
+                                    </span>
+                                  )}
+                                  {!discountPct && !product.isBestSeller && !product.isNewArrival && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                      Pilihan
+                                    </span>
+                                  )}
+                                </div>
 
-                            {/* Counter on Center Card */}
-                            {isCenter && hasMultiple && (
-                              <span className="text-[11px] font-bold text-muted-foreground tabular-nums">
-                                {idx + 1}/{products.length}
-                              </span>
+                                {hasMultiple && (
+                                  <span className="text-[11px] font-bold text-muted-foreground tabular-nums">
+                                    {safeIndex + 1}/{products.length}
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
 
-                          {/* Product Image */}
+                          {/* Product Image Area */}
                           <div className="group/img relative mb-3 flex aspect-4/3 w-full items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-white p-2.5 shadow-inner">
-                            {/* Wishlist Button (only active on center card) */}
                             {isCenter && (
                               <button
                                 type="button"
@@ -398,26 +435,17 @@ export function PromoBanner({
                               </button>
                             )}
 
-                            <Link
-                              href={`/product/${product.id}`}
-                              className="relative flex size-full items-center justify-center"
-                              tabIndex={isCenter ? 0 : -1}
-                              onClick={(e) => {
-                                if (!isCenter) {
-                                  e.preventDefault();
-                                  if (isLeft) goToPrev();
-                                  if (isRight) goToNext();
-                                }
-                              }}
-                            >
+                            <div className="relative flex size-full items-center justify-center">
                               <Image
                                 src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
                                 alt={product.name}
                                 fill
                                 sizes="(max-width: 640px) 100vw, 340px"
-                                className="object-contain p-2 transition-transform duration-500 ease-out group-hover/img:scale-108"
+                                className={`object-contain p-2 ${
+                                  isCenter ? "transition-transform duration-500 ease-out group-hover/img:scale-108" : ""
+                                }`}
                               />
-                            </Link>
+                            </div>
                           </div>
 
                           {/* Product Details */}
@@ -434,29 +462,16 @@ export function PromoBanner({
                               </div>
                             </div>
 
-                            <Link
-                              href={`/product/${product.id}`}
-                              className="block"
-                              tabIndex={isCenter ? 0 : -1}
-                              onClick={(e) => {
-                                if (!isCenter) {
-                                  e.preventDefault();
-                                  if (isLeft) goToPrev();
-                                  if (isRight) goToNext();
-                                }
-                              }}
-                            >
-                              <h3 className="line-clamp-2 text-sm sm:text-base font-semibold leading-snug hover:text-primary transition-colors">
-                                {product.name}
-                              </h3>
-                            </Link>
+                            <h3 className="line-clamp-2 text-sm sm:text-base font-semibold leading-snug text-foreground">
+                              {product.name}
+                            </h3>
 
-                            {/* Price */}
+                            {/* Price Tag */}
                             <div className="flex flex-col pt-0.5">
                               <span className="text-lg font-bold text-foreground sm:text-xl">
                                 {formatPrice(payablePrice)}
                               </span>
-                              {regularPrice != null && regularPrice > payablePrice && (
+                              {regularPrice != null && regularPrice > payablePrice ? (
                                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                                   <span className="text-muted-foreground line-through">
                                     {formatPrice(regularPrice)}
@@ -467,57 +482,61 @@ export function PromoBanner({
                                     </span>
                                   )}
                                 </div>
+                              ) : (
+                                <div className="h-[18px]" />
                               )}
                             </div>
 
-                            {/* Action Buttons (Center Card only) */}
-                            {isCenter ? (
-                              <div className="grid grid-cols-2 gap-2 pt-2">
-                                <Button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if ((product.stock ?? 0) <= 0) {
-                                      toast.error(
-                                        "Barang Kosong / Stok Habis",
-                                        `Maaf, produk "${product.name}" sedang kosong dan belum dapat dipesan.`
-                                      );
-                                      return;
-                                    }
-                                    addToCart(product.id, product.name);
-                                  }}
-                                  disabled={loadingProductId === product.id}
-                                  className={`w-full gap-1 rounded-xl text-xs font-semibold ${
-                                    (product.stock ?? 0) <= 0
-                                      ? "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed opacity-70"
-                                      : ""
-                                  }`}
-                                >
-                                  <ShoppingCart className="size-3.5" />
-                                  <span>
-                                    {loadingProductId === product.id
-                                      ? "Menambah..."
-                                      : (product.stock ?? 0) <= 0
-                                      ? "Habis"
-                                      : "Beli"}
-                                  </span>
-                                </Button>
+                            {/* Action Buttons (Center) or Tap Hint (Side) */}
+                            <div className="pt-2">
+                              {isCenter ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if ((product.stock ?? 0) <= 0) {
+                                        toast.error(
+                                          "Barang Kosong / Stok Habis",
+                                          `Maaf, produk "${product.name}" sedang kosong dan belum dapat dipesan.`
+                                        );
+                                        return;
+                                      }
+                                      addToCart(product.id, product.name);
+                                    }}
+                                    disabled={loadingProductId === product.id}
+                                    className={`w-full gap-1 rounded-xl text-xs font-semibold ${
+                                      (product.stock ?? 0) <= 0
+                                        ? "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed opacity-70"
+                                        : ""
+                                    }`}
+                                  >
+                                    <ShoppingCart className="size-3.5" />
+                                    <span>
+                                      {loadingProductId === product.id
+                                        ? "Menambah..."
+                                        : (product.stock ?? 0) <= 0
+                                        ? "Habis"
+                                        : "Beli"}
+                                    </span>
+                                  </Button>
 
-                                <Button
-                                  render={<Link href={`/product/${product.id}`} />}
-                                  variant="outline"
-                                  className="w-full gap-1 rounded-xl text-xs font-semibold hover:border-primary"
-                                >
-                                  <span>Detail</span>
+                                  <Button
+                                    render={<Link href={`/product/${product.id}`} />}
+                                    variant="outline"
+                                    className="w-full gap-1 rounded-xl text-xs font-semibold hover:border-primary"
+                                  >
+                                    <span>Detail</span>
+                                    <ArrowRight className="size-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-1.5 rounded-xl border border-primary/20 bg-primary/10 py-2 text-xs font-semibold text-primary">
+                                  <span>Klik untuk pilih produk</span>
                                   <ArrowRight className="size-3" />
-                                </Button>
-                              </div>
-                            ) : (
-                              /* Side shadow card hint */
-                              <div className="pt-2 text-center text-[11px] font-semibold text-primary">
-                                Klik untuk melihat produk ini →
-                              </div>
-                            )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </motion.div>
@@ -545,10 +564,10 @@ export function PromoBanner({
                           <button
                             key={p.id}
                             type="button"
-                            onClick={() => setCurrentIndex(idx)}
+                            onClick={() => goToIndex(idx)}
                             aria-label={`Tampilkan produk spotlight ke-${idx + 1}`}
                             className={`h-2 rounded-full transition-all duration-300 ${
-                              currentIndex === idx
+                              safeIndex === idx
                                 ? "w-7 bg-white shadow-md"
                                 : "w-2 bg-white/40 hover:bg-white/70"
                             }`}
@@ -568,7 +587,7 @@ export function PromoBanner({
 
                     {/* Status hint text */}
                     <p className="text-[11px] font-medium text-blue-200/80">
-                      Produk {currentIndex + 1} dari {products.length} · Geser atau klik bayangan untuk mengganti
+                      Produk {safeIndex + 1} dari {products.length} · Geser atau klik bayangan kiri/kanan untuk berganti
                     </p>
                   </div>
                 )}

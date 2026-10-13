@@ -33,7 +33,7 @@ export class CheckoutService {
       // Re-fetch cart items to verify server truth subtotal with categories & brands
       const { data: cart } = await supabase
         .from('cart')
-        .select('id, cart_items(quantity, products(id, name, price, discount_price, status, stock, category_id, brand_id, categories(id, name), brands(id, name)))')
+        .select('id, cart_items(quantity, variant_id, products(id, name, price, discount_price, status, stock, category_id, brand_id, categories(id, name), brands(id, name)), product_variants(id, sku, price, discount_price, stock))')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -43,6 +43,7 @@ export class CheckoutService {
 
       type CartItemRecord = {
         quantity?: number | null
+        variant_id?: string | null
         products?: {
           id?: string
           name?: string
@@ -55,10 +56,22 @@ export class CheckoutService {
           categories?: { id?: string | null; name?: string | null } | null
           brands?: { id?: string | null; name?: string | null } | null
         } | null
+        product_variants?: {
+          id?: string
+          sku?: string | null
+          price?: number | null
+          discount_price?: number | null
+          stock?: number | null
+        } | null
       }
 
       const cartSubtotal = (cart.cart_items as CartItemRecord[]).reduce((total: number, item: CartItemRecord) => {
-        const itemPrice = Number(item.products?.discount_price ?? item.products?.price ?? 0);
+        const itemPrice = Number(
+          item.product_variants?.discount_price ??
+          item.product_variants?.price ??
+          item.products?.discount_price ??
+          item.products?.price ?? 0
+        );
         return total + itemPrice * Number(item.quantity || 1);
       }, 0);
 
@@ -113,7 +126,12 @@ export class CheckoutService {
 
       const cartItemsForVoucher = (cart.cart_items as CartItemRecord[]).map((ci: CartItemRecord) => ({
         product_id: ci.products?.id,
-        price: Number(ci.products?.discount_price ?? ci.products?.price ?? 0),
+        price: Number(
+          ci.product_variants?.discount_price ??
+          ci.product_variants?.price ??
+          ci.products?.discount_price ??
+          ci.products?.price ?? 0
+        ),
         quantity: Number(ci.quantity || 1),
         category_id: ci.products?.category_id,
         brand_id: ci.products?.brand_id,

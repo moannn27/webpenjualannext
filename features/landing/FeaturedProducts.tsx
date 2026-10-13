@@ -61,13 +61,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
   const products = initialData;
   const maxIndex = Math.max(0, products.length - itemsPerPage);
   const canSlide = products.length > itemsPerPage;
-
-  // Keep currentIndex bounded if itemsPerPage or products change
-  useEffect(() => {
-    if (currentIndex > maxIndex) {
-      setCurrentIndex(maxIndex);
-    }
-  }, [currentIndex, maxIndex]);
+  const safeIndex = Math.min(currentIndex, maxIndex);
 
   const goToNext = useCallback(() => {
     if (!canSlide) return;
@@ -172,7 +166,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
             <div
               className="flex transition-transform duration-500 ease-out"
               style={{
-                transform: `translate3d(-${currentIndex * (100 / itemsPerPage)}%, 0, 0)`,
+                transform: `translate3d(-${safeIndex * (100 / itemsPerPage)}%, 0, 0)`,
                 willChange: "transform",
               }}
             >

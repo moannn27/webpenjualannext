@@ -95,14 +95,19 @@ export async function POST(request: Request) {
         if (item.match_type === 'product') existingBySku.set(key, item.product_id)
       }
       for (const product of products) {
-        const ownSkuMatches = matches.get(product.sku.trim().toLowerCase()) ?? []
-        if (!existingBySku.has(product.sku.trim().toLowerCase()) && ownSkuMatches.length) {
+        const prodSkuKey = product.sku.trim().toLowerCase()
+        const ownSkuMatches = matches.get(prodSkuKey) ?? []
+        const targetId = existingBySku.get(prodSkuKey)
+        if (!existingBySku.has(prodSkuKey) && ownSkuMatches.length) {
           product.errors = [...(product.errors ?? []), 'SKU/MTM ini sudah dipakai sebagai SKU varian di database.']
           product.importAction = 'skip'
         }
-        const variantConflict = product.variants.some((variant) => (matches.get(variant.sku.trim().toLowerCase()) ?? []).length > 0)
+        const variantConflict = product.variants.some((variant) => {
+          const vMatches = matches.get(variant.sku.trim().toLowerCase()) ?? []
+          return vMatches.some((m) => m.productId !== targetId)
+        })
         if (variantConflict) {
-          product.errors = [...(product.errors ?? []), 'Salah satu SKU varian sudah digunakan di database.']
+          product.errors = [...(product.errors ?? []), 'Salah satu SKU varian sudah digunakan oleh produk lain di database.']
           product.importAction = 'skip'
         }
       }

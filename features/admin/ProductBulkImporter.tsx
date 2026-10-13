@@ -1473,14 +1473,22 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
-                                <p className="font-semibold">
-                                  {product.name || <span className="text-destructive">(Nama produk kosong)</span>}{" "}
-                                  <span className="font-normal text-muted-foreground">
-                                    · {product.sku || <span className="text-destructive">SKU kosong</span>}
-                                  </span>
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-semibold">
+                                    {product.name || <span className="text-destructive">(Nama produk kosong)</span>}{" "}
+                                    <span className="font-normal text-muted-foreground">
+                                      · {product.sku || <span className="text-destructive">SKU kosong</span>}
+                                    </span>
+                                  </p>
+                                  {product.variants?.length > 0 && (
+                                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                      {product.variants.length} Varian
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-muted-foreground">
                                   Baris sumber: {product.sourceRow ?? "template"} · {product.specifications.length} spesifikasi
+                                  {product.variants?.length > 0 && ` · Total Stok Varian: ${product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)}`}
                                 </p>
                               </div>
                               <label className="text-xs font-medium">
@@ -1692,6 +1700,66 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                   )}
                               </div>
                             </div>
+
+                            {/* Product Variants Table */}
+                            {product.variants && product.variants.length > 0 && (
+                              <div className="rounded-lg border bg-card/60 p-2.5 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-xs text-foreground">
+                                      Daftar Varian Produk ({product.variants.length})
+                                    </span>
+                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                      Total Stok: {product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Setiap varian memiliki MTM/SKU, harga, dan stok mandiri
+                                  </span>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-muted/50 text-[11px] text-muted-foreground">
+                                      <tr>
+                                        <th className="p-1.5 font-medium">Warna</th>
+                                        <th className="p-1.5 font-medium">RAM / Storage</th>
+                                        <th className="p-1.5 font-medium">SKU / MTM Varian</th>
+                                        <th className="p-1.5 font-medium text-right">Harga Varian</th>
+                                        <th className="p-1.5 font-medium text-right">Promo Varian</th>
+                                        <th className="p-1.5 font-medium text-right">Stok</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border/40">
+                                      {product.variants.map((v, vIdx) => (
+                                        <tr key={`${v.sku || vIdx}-${vIdx}`} className="hover:bg-muted/20">
+                                          <td className="p-1.5 font-medium text-foreground">
+                                            {v.color || <span className="text-muted-foreground italic">Standar</span>}
+                                          </td>
+                                          <td className="p-1.5 text-muted-foreground">
+                                            {[v.ram, v.storage].filter(Boolean).join(' / ') || '-'}
+                                          </td>
+                                          <td className="p-1.5 font-mono text-[11px] text-foreground font-semibold">
+                                            {v.sku || <span className="text-muted-foreground italic">Auto</span>}
+                                          </td>
+                                          <td className="p-1.5 text-right font-medium">
+                                            {v.price != null
+                                              ? `Rp ${Number(v.price).toLocaleString('id-ID')}`
+                                              : `Rp ${Number(product.price).toLocaleString('id-ID')}`}
+                                          </td>
+                                          <td className="p-1.5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
+                                            {v.discount_price != null ? `Rp ${Number(v.discount_price).toLocaleString('id-ID')}` : '-'}
+                                          </td>
+                                          <td className="p-1.5 text-right font-semibold">
+                                            {v.stock}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Details / Warnings / Errors */}
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
