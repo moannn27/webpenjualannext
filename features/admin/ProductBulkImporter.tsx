@@ -2134,9 +2134,9 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="pricing-modal-title"
-                  className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6 shadow-2xl border"
+                  className="w-full max-w-xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-5 sm:p-6 pb-4 border-b bg-muted/10">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Tag className="size-5" />
                     </div>
@@ -2150,74 +2150,76 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-1">
-                    {/* Pilihan 1: Harga Normal Saja */}
-                    <label
-                      className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
-                        selectedPricingScheme === "normal"
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border/70 bg-card hover:bg-muted/40"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="pricing_scheme_choice"
-                        value="normal"
-                        checked={selectedPricingScheme === "normal"}
-                        onChange={() => setSelectedPricingScheme("normal")}
-                        className="mt-0.5 size-4 text-primary"
-                      />
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground text-sm">Gunakan Harga Normal Saja</span>
-                          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                            Tanpa Promo
-                          </span>
+                  <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                    <div className="space-y-3">
+                      {/* Pilihan 1: Harga Normal Saja */}
+                      <label
+                        className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                          selectedPricingScheme === "normal"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                            : "border-border/70 bg-card hover:bg-muted/40"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="pricing_scheme_choice"
+                          value="normal"
+                          checked={selectedPricingScheme === "normal"}
+                          onChange={() => setSelectedPricingScheme("normal")}
+                          className="mt-0.5 size-4 text-primary"
+                        />
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground text-sm">Gunakan Harga Normal Saja</span>
+                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                              Tanpa Promo
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground leading-relaxed">
+                            Seluruh produk akan diunggah menggunakan <b>Harga Normal (SRP / Harga User)</b> dari file. Kolom diskon/promo diabaikan sehingga produk tampil dengan harga standar.
+                          </p>
                         </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          Seluruh produk akan diunggah menggunakan <b>Harga Normal (SRP / Harga User)</b> dari file. Kolom diskon/promo diabaikan sehingga produk tampil dengan harga standar.
-                        </p>
-                      </div>
-                    </label>
+                      </label>
 
-                    {/* Pilihan 2: Harga Promo + Normal */}
-                    <label
-                      className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
-                        selectedPricingScheme === "promo"
-                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                          : "border-border/70 bg-card hover:bg-muted/40"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="pricing_scheme_choice"
-                        value="promo"
-                        checked={selectedPricingScheme === "promo"}
-                        onChange={() => setSelectedPricingScheme("promo")}
-                        className="mt-0.5 size-4 text-primary"
-                      />
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground text-sm">Gunakan Harga Promo (+ Harga Normal)</span>
-                          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                            Promo Aktif
-                          </span>
+                      {/* Pilihan 2: Harga Promo + Normal */}
+                      <label
+                        className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                          selectedPricingScheme === "promo"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                            : "border-border/70 bg-card hover:bg-muted/40"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="pricing_scheme_choice"
+                          value="promo"
+                          checked={selectedPricingScheme === "promo"}
+                          onChange={() => setSelectedPricingScheme("promo")}
+                          className="mt-0.5 size-4 text-primary"
+                        />
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground text-sm">Gunakan Harga Promo (+ Harga Normal)</span>
+                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                              Promo Aktif
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground leading-relaxed">
+                            Produk yang memiliki kolom promo valid akan menampilkan <b>harga promo sebagai harga aktif</b>, dengan harga normal sebagai harga coret. Produk tanpa promo otomatis menggunakan harga normal.
+                          </p>
                         </div>
-                        <p className="text-muted-foreground leading-relaxed">
-                          Produk yang memiliki kolom promo valid akan menampilkan <b>harga promo sebagai harga aktif</b>, dengan harga normal sebagai harga coret. Produk tanpa promo otomatis menggunakan harga normal.
-                        </p>
-                      </div>
-                    </label>
+                      </label>
+                    </div>
+
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                      <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                      <p>
+                        Anda tidak perlu mencentang satu per satu. Sistem akan otomatis memvalidasi seluruh produk sesuai skema yang dipilih dan langsung melanjutkan proses impor.
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
-                    <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
-                    <p>
-                      Anda tidak perlu mencentang satu per satu. Sistem akan otomatis memvalidasi seluruh produk sesuai skema yang dipilih dan langsung melanjutkan proses impor.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t">
+                  <div className="flex items-center justify-end gap-2.5 p-4 px-5 sm:px-6 border-t bg-muted/20 shrink-0">
                     <Button
                       type="button"
                       variant="outline"
@@ -2231,7 +2233,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                       onClick={() => handleApplyPricingSchemeAndImport(selectedPricingScheme)}
                     >
                       <CheckCheck className="mr-1.5 size-4" />
-                      Terapkan &amp; Lanjutkan Impor
+                      Terapkan &amp; Lanjutkan
                     </Button>
                   </div>
                 </div>
@@ -2251,9 +2253,9 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="confirm-modal-title"
-                  className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6 shadow-2xl border"
+                  className="w-full max-w-xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-5 sm:p-6 pb-4 border-b bg-muted/10">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                       <AlertTriangle className="size-5" />
                     </div>
@@ -2271,35 +2273,37 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                   </div>
 
                   {/* Alert Notification Box */}
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2.5 text-amber-950 dark:text-amber-200">
-                    <div className="flex items-start gap-2">
-                      <Info className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                      <div>
-                        <span className="font-semibold block">Pemberitahuan Sistem:</span>
-                        <span>{confirmModalConfig.description}</span>
+                  <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2.5 text-amber-950 dark:text-amber-200">
+                      <div className="flex items-start gap-2">
+                        <Info className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                        <div>
+                          <span className="font-semibold block">Pemberitahuan Sistem:</span>
+                          <span>{confirmModalConfig.description}</span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="rounded-lg bg-background/80 p-3 space-y-1.5 border border-border/50 text-foreground">
-                      <p className="font-semibold text-xs flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2 className="size-3.5" /> Ketentuan Konfirmasi Otomatis:
-                      </p>
-                      <ul className="list-disc pl-4 space-y-1 text-muted-foreground text-[11px]">
-                        <li>
-                          <b>Harga Normal:</b> Menggunakan kolom harga resmi SRP / Harga User dari file spreadsheet tanpa perubahan nominal.
-                        </li>
-                        <li>
-                          <b>Harga Promo:</b> Jika file memiliki kolom diskon/promo yang valid di bawah harga utama, promo tersebut otomatis disetujui. Jika tidak ada kolom diskon, otomatis disetel <i>&quot;Tanpa harga promo&quot;</i>.
-                        </li>
-                        <li>
-                          <b>Fleksibilitas Penuh:</b> Seluruh produk terpilih akan langsung siap di-push ke katalog. Namun Anda <b>tetap bebas</b> mengubah tindakan produk (<i>Produk Baru / Update / Lewati</i>) atau mengedit nominal harga per produk sebelum menekan tombol &quot;Konfirmasi impor&quot;.
-                        </li>
-                      </ul>
+                      <div className="rounded-lg bg-background/80 p-3 space-y-1.5 border border-border/50 text-foreground">
+                        <p className="font-semibold text-xs flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="size-3.5" /> Ketentuan Konfirmasi Otomatis:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1 text-muted-foreground text-[11px]">
+                          <li>
+                            <b>Harga Normal:</b> Menggunakan kolom harga resmi SRP / Harga User dari file spreadsheet tanpa perubahan nominal.
+                          </li>
+                          <li>
+                            <b>Harga Promo:</b> Jika file memiliki kolom diskon/promo yang valid di bawah harga utama, promo tersebut otomatis disetujui. Jika tidak ada kolom diskon, otomatis disetel <i>&quot;Tanpa harga promo&quot;</i>.
+                          </li>
+                          <li>
+                            <b>Fleksibilitas Penuh:</b> Seluruh produk terpilih akan langsung siap di-push ke katalog. Namun Anda <b>tetap bebas</b> mengubah tindakan produk (<i>Produk Baru / Update / Lewati</i>) atau mengedit nominal harga per produk sebelum menekan tombol &quot;Konfirmasi impor&quot;.
+                          </li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t">
+                  <div className="flex items-center justify-end gap-2.5 p-4 px-5 sm:px-6 border-t bg-muted/20 shrink-0">
                     <Button
                       type="button"
                       variant="outline"
@@ -2333,9 +2337,9 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="missing-taxonomy-title"
-                  className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6 shadow-2xl border"
+                  className="w-full max-w-xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 p-5 sm:p-6 pb-4 border-b bg-muted/10">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                       <FolderPlus className="size-5" />
                     </div>
@@ -2349,70 +2353,72 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-xs space-y-3 text-blue-950 dark:text-blue-200">
-                    <div className="flex items-start gap-2">
-                      <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
-                      <div>
-                        <span className="font-semibold block">Konfirmasi Pembuatan Kategori &amp; Brand:</span>
-                        <span>
-                          Sistem mendeteksi bahwa produk yang akan diimpor menggunakan kategori atau brand berikut yang saat ini belum terdaftar di database toko:
-                        </span>
-                      </div>
-                    </div>
-
-                    {missingTaxonomyModal.categories.length > 0 && (
-                      <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
-                        <span className="font-semibold text-xs flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                          <Layers className="size-3.5" /> Kategori Baru ({missingTaxonomyModal.categories.length}):
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {missingTaxonomyModal.categories.map((cat) => (
-                            <span
-                              key={cat}
-                              className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
-                            >
-                              📁 {cat}
-                            </span>
-                          ))}
+                  <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-xs space-y-3 text-blue-950 dark:text-blue-200">
+                      <div className="flex items-start gap-2">
+                        <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                        <div>
+                          <span className="font-semibold block">Konfirmasi Pembuatan Kategori &amp; Brand:</span>
+                          <span>
+                            Sistem mendeteksi bahwa produk yang akan diimpor menggunakan kategori atau brand berikut yang saat ini belum terdaftar di database toko:
+                          </span>
                         </div>
                       </div>
-                    )}
 
-                    {missingTaxonomyModal.brands.length > 0 && (
-                      <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
-                        <span className="font-semibold text-xs flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
-                          <Tag className="size-3.5" /> Brand / Merk Baru ({missingTaxonomyModal.brands.length}):
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {missingTaxonomyModal.brands.map((brand) => (
-                            <span
-                              key={brand}
-                              className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
-                            >
-                              🏷️ {brand}
-                            </span>
-                          ))}
+                      {missingTaxonomyModal.categories.length > 0 && (
+                        <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
+                          <span className="font-semibold text-xs flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                            <Layers className="size-3.5" /> Kategori Baru ({missingTaxonomyModal.categories.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {missingTaxonomyModal.categories.map((cat) => (
+                              <span
+                                key={cat}
+                                className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
+                              >
+                                📁 {cat}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <div className="rounded-lg bg-background/80 p-2.5 border border-border/50 text-foreground text-[11px] space-y-1">
-                      <p className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="size-3.5" /> Ketentuan Otomatis:
-                      </p>
-                      <p className="text-muted-foreground">
-                        Jika Anda melanjutkan, sistem akan otomatis membuat kategori &amp; brand di atas beserta slug URL resmi sebelum mengimpor seluruh produk. Anda tidak perlu membuat kategori secara manual satu per satu.
-                      </p>
+                      {missingTaxonomyModal.brands.length > 0 && (
+                        <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
+                          <span className="font-semibold text-xs flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+                            <Tag className="size-3.5" /> Brand / Merk Baru ({missingTaxonomyModal.brands.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {missingTaxonomyModal.brands.map((brand) => (
+                              <span
+                                key={brand}
+                                className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
+                              >
+                                🏷️ {brand}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="rounded-lg bg-background/80 p-2.5 border border-border/50 text-foreground text-[11px] space-y-1">
+                        <p className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="size-3.5" /> Ketentuan Otomatis:
+                        </p>
+                        <p className="text-muted-foreground">
+                          Jika Anda melanjutkan, sistem akan otomatis membuat kategori &amp; brand di atas beserta slug URL resmi sebelum mengimpor seluruh produk. Anda tidak perlu membuat kategori secara manual satu per satu.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t">
+                  <div className="flex items-center justify-end gap-2.5 p-4 px-5 sm:px-6 border-t bg-muted/20 shrink-0">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setMissingTaxonomyModal(null)}
                     >
-                      Batal (Tinjau Kembali)
+                      Batal
                     </Button>
                     <Button
                       type="button"
@@ -2420,7 +2426,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                       onClick={missingTaxonomyModal.onConfirm}
                     >
                       <CheckCheck className="mr-1.5 size-4" />
-                      Ya, Buat Kategori/Brand &amp; Lanjutkan Impor
+                      Ya, Buat Kategori/Brand &amp; Lanjutkan
                     </Button>
                   </div>
                 </div>

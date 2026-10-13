@@ -21,6 +21,10 @@ import {
   Users,
   FileText,
   ArrowUpRight,
+  TrendingUp,
+  Sparkles,
+  Target,
+  Lightbulb,
 } from "lucide-react";
 
 const money = (value: number) => `Rp ${Number(value ?? 0).toLocaleString("id-ID")}`;
@@ -153,6 +157,12 @@ function ReportBody({
       ? ((summary.repeat_customers / summary.buying_customers) * 100).toFixed(0)
       : "0";
 
+  const dailyAverageSales = Math.round(summary.completed_sales / Math.max(1, report.days));
+  const projectedMonthlyRevenue = dailyAverageSales * 30;
+  const topProduct = report.best_products[0] || null;
+  const leastProduct = report.least_products[0] || null;
+  const topCustomer = report.top_customers[0] || null;
+
   return (
     <div className="space-y-8">
       {/* 1. Ringkasan Finansial Utama */}
@@ -219,6 +229,99 @@ function ReportBody({
           </Card>
         </div>
       </div>
+
+      {/* Intelligence & Rekomendasi Aksi Sales */}
+      <Card className="border-border bg-gradient-to-br from-card via-card to-muted/30 shadow-xs">
+        <CardHeader className="pb-3 border-b">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Sparkles className="size-4.5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-foreground">
+                  Sales Intelligence &amp; Rekomendasi Aksi Toko
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Wawasan analitik performa penjualan untuk membantu admin &amp; staf sales mengambil keputusan operasional.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs font-semibold">
+                <Target className="mr-1.5 size-3.5 text-primary" />
+                Run-Rate: {money(dailyAverageSales)}/hari
+              </Badge>
+              <Badge variant="secondary" className="text-xs font-semibold">
+                Proyeksi 30H: {money(projectedMonthlyRevenue)}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card A: Follow up Pending */}
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-300">
+              <Clock className="size-4 shrink-0" />
+              <span>Prioritas Follow-Up</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11.5px]">
+              Ada <b>{summary.pending_orders} pesanan</b> menanti pembayaran/verifikasi. Segera kirim konfirmasi WhatsApp ke pelanggan agar transaksi tidak kedaluwarsa.
+            </p>
+          </div>
+
+          {/* Card B: Buffer Stock Top Seller */}
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 font-bold text-emerald-800 dark:text-emerald-300">
+              <TrendingUp className="size-4 shrink-0" />
+              <span>Jaga Stok Unggulan</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11.5px]">
+              {topProduct ? (
+                <>
+                  Produk <b>{topProduct.name}</b> memimpin dengan {topProduct.units_sold} unit. Pastikan koordinasi restock distributor berjalan lancar.
+                </>
+              ) : (
+                "Belum ada produk dominan di periode ini. Pantau pergerakan katalog terbit."
+              )}
+            </p>
+          </div>
+
+          {/* Card C: Bundling & Promo Slow Movers */}
+          <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 font-bold text-blue-800 dark:text-blue-300">
+              <Lightbulb className="size-4 shrink-0" />
+              <span>Strategi Perputaran Modal</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11.5px]">
+              {leastProduct ? (
+                <>
+                  Produk <b>{leastProduct.name}</b> memiliki unit terendah. Disarankan buat promo kombo atau diskon bundling aksesoris di etalase.
+                </>
+              ) : (
+                "Perputaran katalog seimbang. Teruskan pemantauan produk dengan margin tinggi."
+              )}
+            </p>
+          </div>
+
+          {/* Card D: Retensi Pelanggan VIP */}
+          <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3.5 space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 font-bold text-violet-800 dark:text-violet-300">
+              <Sparkles className="size-4 shrink-0" />
+              <span>Apresiasi Pembeli Teratas</span>
+            </div>
+            <p className="text-muted-foreground leading-relaxed text-[11.5px]">
+              {topCustomer ? (
+                <>
+                  <b>{topCustomer.name}</b> telah berbelanja {money(topCustomer.spend)}. Pertimbangkan penawaran diskon loyalitas personal untuk menjaga repeat order.
+                </>
+              ) : (
+                "Fokuskan promosi pada pelanggan baru untuk membangun basis pelanggan loyal."
+              )}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 2. Pipeline Pesanan & Kesehatan Pembayaran */}
       <div className="grid gap-6 lg:grid-cols-2">

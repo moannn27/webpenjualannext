@@ -199,15 +199,7 @@ export function OrderInvoice({
 
   const handlePrint = () => {
     if (typeof window !== "undefined") {
-      const prevTitle = document.title;
-      try {
-        document.title = `Faktur_${order.order_number}`;
-        window.print();
-      } finally {
-        window.setTimeout(() => {
-          document.title = prevTitle;
-        }, 1200);
-      }
+      window.print();
     }
   };
 
@@ -217,7 +209,7 @@ export function OrderInvoice({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 8mm 10mm 8mm 10mm !important;
+            margin: 0 !important;
           }
           html,
           body {
@@ -226,7 +218,7 @@ export function OrderInvoice({
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
-            height: 100% !important;
+            min-height: 100% !important;
             font-size: 11px !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
             -webkit-print-color-adjust: exact !important;
@@ -237,19 +229,15 @@ export function OrderInvoice({
             width: 100% !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: 280mm !important;
-            padding: 0 !important;
+            padding: 12mm 14mm !important;
             margin: 0 auto !important;
             box-shadow: none !important;
             border: none !important;
             border-radius: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
+            display: block !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            overflow: hidden !important;
           }
           tr {
             page-break-inside: avoid !important;
@@ -301,8 +289,8 @@ export function OrderInvoice({
           </p>
         </div>
 
-        {/* Invoice Container - Exact 1 Sheet of A4 */}
-        <div className="print-invoice-sheet bg-card rounded-2xl border border-border shadow-md p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground flex flex-col justify-between print:min-h-[268mm]">
+        {/* Invoice Container - Compact Natural Flow */}
+        <div className="print-invoice-sheet bg-card rounded-2xl border border-border shadow-lg p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground space-y-4 print:space-y-3.5">
           {/* SECTION 1: HEADER & STORE IDENTITY */}
           <div className="border-b-2 border-border/80 pb-3 print:pb-2">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
@@ -413,7 +401,7 @@ export function OrderInvoice({
           </div>
 
           {/* SECTION 3: PRODUCT TABLE WITH AUTHENTIC MARKETPLACE LAYOUT */}
-          <div className="py-1.5 flex-1">
+          <div className="py-1 print:py-0.5">
             <div className="border border-border/80 rounded-xl overflow-hidden print:rounded-lg">
               <table className="w-full text-left text-xs print:text-[9.5px]">
                 <thead className="bg-muted/70 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider print:text-[8px]">
