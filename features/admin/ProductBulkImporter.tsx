@@ -66,6 +66,14 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   };
   const [missingTaxonomyModal, setMissingTaxonomyModal] = useState<MissingTaxonomyModalConfig | null>(null);
 
+  // Pricing Scheme Alert Modal state (Normal vs Promo)
+  type PricingChoiceModalConfig = {
+    targetCount: number;
+    unconfirmedCount: number;
+  };
+  const [pricingChoiceModal, setPricingChoiceModal] = useState<PricingChoiceModalConfig | null>(null);
+  const [selectedPricingScheme, setSelectedPricingScheme] = useState<"normal" | "promo">("normal");
+
   // Confirmation alert modal state
   type ConfirmModalConfig = {
     title: string;
@@ -209,9 +217,9 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
       });
   }, [products, filterType, filterCategory, filterStatus, searchQuery]);
 
-  // Logic to auto-confirm prices for a product according to parsed spreadsheet columns
-  const confirmProductPrices = (product: ImportedProduct): ImportedProduct => {
-    // 1. Primary price
+  // Helper to apply pricing mode: "normal" (Normal SRP only) or "promo" (Promo + Normal)
+  const applyPricingModeToProduct = (product: ImportedProduct, mode: "normal" | "promo"): ImportedProduct => {
+    // 1. Primary price (Harga User / SRP)
     let selectedPriceCol = product.selectedPriceColumn;
     let priceAmount = product.price;
 
@@ -236,20 +244,15 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     }
 
     // 2. Discount / promo price
-    let selectedDiscountCol = product.selectedDiscountColumn;
-    let discountAmount = product.discount_price;
+    let selectedDiscountCol: string;
+    let discountAmount: number | null;
 
-    if (selectedDiscountCol === "none") {
+    if (mode === "normal") {
+      // Skema Harga Normal Saja: tidak ada harga promo
+      selectedDiscountCol = "none";
       discountAmount = null;
-    } else if (
-      selectedDiscountCol &&
-      product.discountCandidates?.some(
-        (candidate) => candidate.column === selectedDiscountCol && candidate.amount === discountAmount
-      )
-    ) {
-      // Keep already selected promo candidate
     } else {
-      // Auto-select promo candidate if available and valid (< price)
+      // Skema Promo: jika ada diskon valid (< price), aktifkan promo. Jika tidak, set "none".
       const validDiscount = product.discountCandidates?.find(
         (candidate) => candidate.amount !== null && candidate.amount > 0 && candidate.amount < priceAmount
       );
@@ -269,8 +272,35 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
       priceConfirmed: Boolean(selectedPriceCol && priceAmount > 0),
       discount_price: discountAmount,
       selectedDiscountColumn: selectedDiscountCol,
-      discountPriceConfirmed: Boolean(selectedDiscountCol),
+      discountPriceConfirmed: true,
     };
+  };
+
+  const confirmProductPrices = (product: ImportedProduct): ImportedProduct => {
+    return applyPricingModeToProduct(product, "promo");
+  };
+
+  const applyPricingMode = (mode: "normal" | "promo", targetIndices?: number[]) => {
+    const indices =
+      targetIndices ??
+      (isFiltered && importScope === "filtered"
+        ? filteredProductItems.map((item) => item.originalIndex)
+        : products.map((_, i) => i));
+
+    const targetSet = new Set(indices);
+    let count = 0;
+    setProducts((current) =>
+      current.map((product, idx) => {
+        if (!targetSet.has(idx) || product.importAction === "skip") return product;
+        count++;
+        return applyPricingModeToProduct(product, mode);
+      })
+    );
+    setNotice(
+      mode === "normal"
+        ? `Berhasil: ${count} produk disetel menggunakan Harga Normal Saja (tanpa diskon promo).`
+        : `Berhasil: ${count} produk disetel menggunakan Skema Promo (diskon aktif jika ada, lainnya harga normal).`
+    );
   };
 
   const isFiltered =
@@ -385,7 +415,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     });
   };
 
-  // Check all normal / primary prices only
+  // Apply normal prices only (Harga Normal Saja - Tanpa Promo)
   const requestCheckNormalPricesOnly = (scope: "all" | "filtered" = "filtered") => {
     const targetIndices =
       scope === "filtered" && isFiltered
@@ -393,48 +423,19 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
         : products.map((_, i) => i);
 
     setConfirmModalConfig({
-      title: `Centang Semua Harga Normal (${targetIndices.length} Produk)?`,
+      title: `Gunakan Harga Normal Saja (${targetIndices.length} Produk)?`,
       description:
-        "Sistem akan otomatis mencentang persetujuan Harga Utama (SRP / User) tanpa mengubah status harga promo.",
+        "Sistem akan otomatis mengonfirmasi Harga Utama (SRP / User) dan menyetel status promo ke 'Tanpa harga promo'. Produk akan diimpor dengan harga reguler tanpa diskon coret.",
       badgeText: scope === "filtered" && isFiltered ? "Produk Terfilter" : "Seluruh Produk",
       affectedCount: targetIndices.length,
       onConfirm: () => {
-        const targetSet = new Set(targetIndices);
-        let count = 0;
-        setProducts((current) =>
-          current.map((product, idx) => {
-            if (!targetSet.has(idx) || product.importAction === "skip") return product;
-            let selPrice = product.selectedPriceColumn;
-            let priceAmount = product.price;
-            if (!selPrice || !product.priceCandidates?.some((c) => c.column === selPrice && c.amount === priceAmount)) {
-              const valid = product.priceCandidates?.find((c) => c.amount !== null && c.amount > 0);
-              if (valid && valid.amount !== null) {
-                selPrice = valid.column;
-                priceAmount = valid.amount;
-              } else if (product.price > 0 && product.priceCandidates?.[0]) {
-                selPrice = product.priceCandidates[0].column;
-                priceAmount = product.priceCandidates[0].amount ?? product.price;
-              } else if (product.price > 0) {
-                selPrice = "price";
-                priceAmount = product.price;
-              }
-            }
-            count++;
-            return {
-              ...product,
-              price: priceAmount,
-              selectedPriceColumn: selPrice,
-              priceConfirmed: Boolean(selPrice && priceAmount > 0),
-            };
-          })
-        );
+        applyPricingMode("normal", targetIndices);
         setConfirmModalConfig(null);
-        setNotice(`Berhasil: Harga normal (utama) untuk ${count} produk telah dicentang dan disetujui.`);
       },
     });
   };
 
-  // Check all promo prices only
+  // Apply promo prices (Promo + Harga Normal)
   const requestCheckPromoPricesOnly = (scope: "all" | "filtered" = "filtered") => {
     const targetIndices =
       scope === "filtered" && isFiltered
@@ -442,50 +443,14 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
         : products.map((_, i) => i);
 
     setConfirmModalConfig({
-      title: `Centang Semua Status Promo (${targetIndices.length} Produk)?`,
+      title: `Gunakan Skema Promo (+ Harga Normal) (${targetIndices.length} Produk)?`,
       description:
-        "Sistem akan otomatis menyetujui status promo: mengaktifkan diskon jika ada di file, atau menyetel 'Tanpa harga promo' jika tidak ada diskon. Harga utama tidak akan terpengaruh.",
+        "Sistem akan otomatis mengonfirmasi harga utama dan mengaktifkan harga promo untuk produk yang memiliki diskon di file. Produk yang tidak memiliki diskon tetap menggunakan harga normal.",
       badgeText: scope === "filtered" && isFiltered ? "Produk Terfilter" : "Seluruh Produk",
       affectedCount: targetIndices.length,
       onConfirm: () => {
-        const targetSet = new Set(targetIndices);
-        let count = 0;
-        setProducts((current) =>
-          current.map((product, idx) => {
-            if (!targetSet.has(idx) || product.importAction === "skip") return product;
-            let selDiscount = product.selectedDiscountColumn;
-            let discountAmount = product.discount_price;
-
-            if (selDiscount === "none") {
-              discountAmount = null;
-            } else if (
-              selDiscount &&
-              product.discountCandidates?.some((c) => c.column === selDiscount && c.amount === discountAmount)
-            ) {
-              // keep
-            } else {
-              const validPromo = product.discountCandidates?.find(
-                (c) => c.amount !== null && c.amount > 0 && c.amount < product.price
-              );
-              if (validPromo && validPromo.amount !== null) {
-                selDiscount = validPromo.column;
-                discountAmount = validPromo.amount;
-              } else {
-                selDiscount = "none";
-                discountAmount = null;
-              }
-            }
-            count++;
-            return {
-              ...product,
-              discount_price: discountAmount,
-              selectedDiscountColumn: selDiscount,
-              discountPriceConfirmed: Boolean(selDiscount),
-            };
-          })
-        );
+        applyPricingMode("promo", targetIndices);
         setConfirmModalConfig(null);
-        setNotice(`Berhasil: Status promo untuk ${count} produk telah dicentang dan disetujui.`);
       },
     });
   };
@@ -604,6 +569,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     (product) => !product.name || !product.sku || !product.description || !product.category || !product.brand
   );
   const ready = targetProductsToImport.length > 0 && !hasFatalErrors && !hasUnconfirmedPrices && !hasMissingBasics;
+  const canInitiateImport = targetProductsToImport.length > 0 && !hasFatalErrors && !hasMissingBasics;
 
   const downloadTemplate = async (format: "xlsx" | "csv") => {
     try {
@@ -702,16 +668,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
       }
     });
 
-  const initiateImport = async () => {
-    if (!ready || busy) return;
-    setError("");
-
-    const targetToImport = targetProductsToImport;
-    if (!targetToImport.length) {
-      setError("Tidak ada produk yang dipilih untuk diimpor.");
-      return;
-    }
-
+  const checkTaxonomiesAndExecute = async (targetToImport: ImportedProduct[]) => {
     const categoriesToCheck = [...new Set(targetToImport.map((p) => p.category?.trim()).filter(Boolean) as string[])];
     const brandsToCheck = [...new Set(targetToImport.map((p) => p.brand?.trim()).filter(Boolean) as string[])];
 
@@ -737,6 +694,59 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     } catch {
       executeFinalImport(targetToImport);
     }
+  };
+
+  const initiateImport = async () => {
+    if (!canInitiateImport || busy) return;
+    setError("");
+
+    const targetToImport = targetProductsToImport;
+    if (!targetToImport.length) {
+      setError("Tidak ada produk yang dipilih untuk diimpor.");
+      return;
+    }
+
+    // Jika masih ada harga yang belum dikonfirmasi, buka dialog pemilihan skema harga (Normal vs Promo)
+    if (hasUnconfirmedPrices) {
+      const unconfirmedCount = targetToImport.filter(
+        (p) => !isValidImportPrices(p.price, p.discount_price) || !hasConfirmedImportPriceMapping(p)
+      ).length;
+      setPricingChoiceModal({
+        targetCount: targetToImport.length,
+        unconfirmedCount,
+      });
+      return;
+    }
+
+    await checkTaxonomiesAndExecute(targetToImport);
+  };
+
+  const handleApplyPricingSchemeAndImport = (mode: "normal" | "promo") => {
+    setPricingChoiceModal(null);
+
+    const targetIndices = new Set(targetProductsToImport.map((p) => products.indexOf(p)));
+
+    const updatedProducts = products.map((product, idx) => {
+      if (!targetIndices.has(idx) || product.importAction === "skip") return product;
+      return applyPricingModeToProduct(product, mode);
+    });
+
+    setProducts(updatedProducts);
+
+    const updatedTargetToImport = isFiltered && importScope === "filtered"
+      ? (() => {
+          const filteredOriginalIndices = new Set(filteredProductItems.map((item) => item.originalIndex));
+          return updatedProducts.filter((p, idx) => filteredOriginalIndices.has(idx) && p.importAction !== "skip");
+        })()
+      : updatedProducts.filter((p) => p.importAction !== "skip");
+
+    setNotice(
+      mode === "normal"
+        ? `Skema Harga Normal Saja diterapkan untuk ${updatedTargetToImport.length} produk. Memulai impor...`
+        : `Skema Promo (+ Harga Normal) diterapkan untuk ${updatedTargetToImport.length} produk. Memulai impor...`
+    );
+
+    void checkTaxonomiesAndExecute(updatedTargetToImport);
   };
 
   return (
@@ -1197,7 +1207,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                   }}
                                   className="w-full rounded-lg px-2 py-1.5 text-left font-medium hover:bg-muted transition-colors text-blue-600 dark:text-blue-400"
                                 >
-                                  Centang Semua Harga Normal
+                                  Gunakan Harga Normal Saja (Tanpa Promo)
                                 </button>
                                 <button
                                   type="button"
@@ -1207,7 +1217,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                   }}
                                   className="w-full rounded-lg px-2 py-1.5 text-left font-medium hover:bg-muted transition-colors text-amber-600 dark:text-amber-400"
                                 >
-                                  Centang Semua Status Promo
+                                  Gunakan Skema Promo (+ Harga Normal)
                                 </button>
 
                                 <div className="border-t my-1 pt-1" />
@@ -1225,30 +1235,30 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                             )}
                           </div>
 
-                          {/* Tombol Langsung: Centang Semua Harga Normal */}
+                          {/* Tombol Langsung: Gunakan Harga Normal Saja */}
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             onClick={() => requestCheckNormalPricesOnly(isFiltered ? "filtered" : "all")}
-                            title="Centang persetujuan seluruh harga normal (SRP/User) tanpa mengubah status promo"
+                            title="Gunakan dan konfirmasi seluruh harga normal (SRP/User), abaikan promo"
                             className="h-8.5 text-xs text-foreground font-medium"
                           >
                             <Tag className="mr-1 size-3 text-blue-600" />
-                            Centang Harga Normal
+                            Harga Normal Saja
                           </Button>
 
-                          {/* Tombol Langsung: Centang Semua Status Promo */}
+                          {/* Tombol Langsung: Gunakan Skema Promo */}
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             onClick={() => requestCheckPromoPricesOnly(isFiltered ? "filtered" : "all")}
-                            title="Centang persetujuan status promo (promo aktif jika ada diskon, atau tanpa promo)"
+                            title="Gunakan harga promo jika tersedia, dan harga normal untuk produk lainnya"
                             className="h-8.5 text-xs text-foreground font-medium"
                           >
                             <Tag className="mr-1 size-3 text-amber-600" />
-                            Centang Promo
+                            Gunakan Promo
                           </Button>
 
                           {/* Tombol Reset Cepat */}
@@ -1553,13 +1563,22 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                       type="radio"
                                       name={`price-${originalIndex}`}
                                       checked={product.selectedPriceColumn === candidate.column}
-                                      onChange={() =>
+                                      onChange={() => {
+                                        const newPrice = candidate.amount ?? -1;
                                         update(originalIndex, {
-                                          price: candidate.amount ?? -1,
+                                          price: newPrice,
                                           selectedPriceColumn: candidate.column,
-                                          priceConfirmed: false,
-                                        })
-                                      }
+                                          priceConfirmed: Boolean(candidate.column && newPrice > 0),
+                                          ...(!product.discountPriceConfirmed
+                                            ? {
+                                                selectedDiscountColumn: product.selectedDiscountColumn || "none",
+                                                discount_price:
+                                                  product.selectedDiscountColumn === "none" ? null : product.discount_price,
+                                                discountPriceConfirmed: true,
+                                              }
+                                            : {}),
+                                        });
+                                      }}
                                     />
                                     <span>
                                       {candidate.column}: <b>{candidate.raw}</b>
@@ -1574,9 +1593,20 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                     type="checkbox"
                                     checked={product.priceConfirmed ?? false}
                                     disabled={!product.selectedPriceColumn || product.price <= 0}
-                                    onChange={(event) =>
-                                      update(originalIndex, { priceConfirmed: event.target.checked })
-                                    }
+                                    onChange={(event) => {
+                                      const isChecked = event.target.checked;
+                                      update(originalIndex, {
+                                        priceConfirmed: isChecked,
+                                        ...(isChecked && !product.discountPriceConfirmed
+                                          ? {
+                                              selectedDiscountColumn: product.selectedDiscountColumn || "none",
+                                              discount_price:
+                                                product.selectedDiscountColumn === "none" ? null : product.discount_price,
+                                              discountPriceConfirmed: true,
+                                            }
+                                          : {}),
+                                      });
+                                    }}
                                   />
                                   Saya mengonfirmasi harga utama Rp {Number(product.price).toLocaleString("id-ID")}
                                 </label>
@@ -1598,7 +1628,11 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                         update(originalIndex, {
                                           discount_price: candidate.amount,
                                           selectedDiscountColumn: candidate.column,
-                                          discountPriceConfirmed: false,
+                                          discountPriceConfirmed: Boolean(
+                                            candidate.amount !== null &&
+                                            candidate.amount > 0 &&
+                                            candidate.amount < product.price
+                                          ),
                                         })
                                       }
                                     />
@@ -1616,7 +1650,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                       update(originalIndex, {
                                         discount_price: null,
                                         selectedDiscountColumn: "none",
-                                        discountPriceConfirmed: false,
+                                        discountPriceConfirmed: true,
                                       })
                                     }
                                   />
@@ -2043,13 +2077,20 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                   </div>
                 )}
 
-                {targetProductsToImport.length > 0 && !ready && (
+                {targetProductsToImport.length > 0 && hasFatalErrors && (
                   <p className="text-xs text-destructive">
-                    {hasFatalErrors
-                      ? "Tidak dapat konfirmasi: Masih ada baris dengan pesan error merah. Perbaiki atau ubah tindakan ke 'Lewati'."
-                      : hasUnconfirmedPrices
-                      ? "Tidak dapat konfirmasi: Centang konfirmasi harga utama dan harga promo pada seluruh produk target."
-                      : "Tidak dapat konfirmasi: Pastikan nama, SKU, kategori, dan brand terisi lengkap."}
+                    Tidak dapat konfirmasi: Masih ada baris dengan pesan error merah. Perbaiki atau ubah tindakan ke &apos;Lewati&apos;.
+                  </p>
+                )}
+                {targetProductsToImport.length > 0 && !hasFatalErrors && hasMissingBasics && (
+                  <p className="text-xs text-destructive">
+                    Tidak dapat konfirmasi: Pastikan nama, SKU, kategori, dan brand terisi lengkap.
+                  </p>
+                )}
+                {targetProductsToImport.length > 0 && !hasFatalErrors && !hasMissingBasics && hasUnconfirmedPrices && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                    <Info className="size-3.5" />
+                    {counts.unconfirmed} harga belum dikonfirmasi. Tekan &quot;Konfirmasi impor&quot; untuk memilih skema (Normal / Promo) dalam 1 klik.
                   </p>
                 )}
                 {targetProductsToImport.length > 0 && ready && (
@@ -2070,7 +2111,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                 </Button>
                 <Button
                   type="button"
-                  disabled={busy || !ready}
+                  disabled={busy || !canInitiateImport}
                   onClick={initiateImport}
                   className="min-w-36 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
                 >
@@ -2079,6 +2120,123 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                 </Button>
               </div>
             </div>
+
+            {/* Alert Dialog Pilihan Skema Harga (Normal vs Promo) */}
+            {pricingChoiceModal && (
+              <div
+                className="fixed inset-0 z-[125] grid place-items-center bg-black/60 p-4 animate-in fade-in duration-200"
+                role="presentation"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setPricingChoiceModal(null);
+                }}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="pricing-modal-title"
+                  className="w-full max-w-lg space-y-4 rounded-2xl bg-card p-6 shadow-2xl border"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Tag className="size-5" />
+                    </div>
+                    <div>
+                      <h3 id="pricing-modal-title" className="text-lg font-bold text-foreground">
+                        Pilih Skema Harga Produk
+                      </h3>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Pilih bagaimana harga produk akan diunggah ke katalog toko untuk {pricingChoiceModal.targetCount} produk.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-1">
+                    {/* Pilihan 1: Harga Normal Saja */}
+                    <label
+                      className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                        selectedPricingScheme === "normal"
+                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                          : "border-border/70 bg-card hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pricing_scheme_choice"
+                        value="normal"
+                        checked={selectedPricingScheme === "normal"}
+                        onChange={() => setSelectedPricingScheme("normal")}
+                        className="mt-0.5 size-4 text-primary"
+                      />
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground text-sm">Gunakan Harga Normal Saja</span>
+                          <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                            Tanpa Promo
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">
+                          Seluruh produk akan diunggah menggunakan <b>Harga Normal (SRP / Harga User)</b> dari file. Kolom diskon/promo diabaikan sehingga produk tampil dengan harga standar.
+                        </p>
+                      </div>
+                    </label>
+
+                    {/* Pilihan 2: Harga Promo + Normal */}
+                    <label
+                      className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                        selectedPricingScheme === "promo"
+                          ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                          : "border-border/70 bg-card hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="pricing_scheme_choice"
+                        value="promo"
+                        checked={selectedPricingScheme === "promo"}
+                        onChange={() => setSelectedPricingScheme("promo")}
+                        className="mt-0.5 size-4 text-primary"
+                      />
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground text-sm">Gunakan Harga Promo (+ Harga Normal)</span>
+                          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                            Promo Aktif
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground leading-relaxed">
+                          Produk yang memiliki kolom promo valid akan menampilkan <b>harga promo sebagai harga aktif</b>, dengan harga normal sebagai harga coret. Produk tanpa promo otomatis menggunakan harga normal.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                    <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                    <p>
+                      Anda tidak perlu mencentang satu per satu. Sistem akan otomatis memvalidasi seluruh produk sesuai skema yang dipilih dan langsung melanjutkan proses impor.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPricingChoiceModal(null)}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
+                      onClick={() => handleApplyPricingSchemeAndImport(selectedPricingScheme)}
+                    >
+                      <CheckCheck className="mr-1.5 size-4" />
+                      Terapkan &amp; Lanjutkan Impor
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Alert Dialog Konfirmasi Cepat & Segmen */}
             {confirmModalConfig && (

@@ -8,6 +8,7 @@ import {
   getAdminLockedAccountsNotificationAction,
 } from "@/actions/admin";
 import { type AdminModuleKey } from "@/types/admin-permissions";
+import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
@@ -33,11 +34,13 @@ export function AdminSidebar({
   permissions = [],
   collapsed = false,
   onToggleCollapse,
+  storeSettings,
 }: {
   isSuperAdmin?: boolean;
   permissions?: AdminModuleKey[];
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  storeSettings?: StorefrontSettings;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -255,14 +258,34 @@ export function AdminSidebar({
         )}
       >
         <div className={cn("flex h-16 items-center border-b", collapsed ? "justify-between px-6 lg:justify-center lg:px-2" : "justify-between px-6")}>
-          <Link href="/admin" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">N</span>
-            </div>
-            <span className={cn("text-xl font-bold tracking-tight text-primary", collapsed && "lg:hidden")}>
-              Admin
-            </span>
-          </Link>
+          {(() => {
+            const adminLogo = storeSettings?.store?.admin_logo_url || storeSettings?.store?.logo_url || "";
+            const displayMode = storeSettings?.store?.logo_display_mode || "both";
+            const showLogo = Boolean(adminLogo) && (displayMode === "both" || displayMode === "logo_only");
+            const showText = !adminLogo || displayMode === "both" || displayMode === "text_only";
+            const brandInitial = (storeSettings?.store?.name || "N").slice(0, 1).toUpperCase();
+
+            return (
+              <Link href="/admin" className="flex items-center gap-2">
+                {showLogo ? (
+                  <img
+                    src={adminLogo}
+                    alt={storeSettings?.store?.name || "Admin"}
+                    className="w-8 h-8 rounded-lg object-contain bg-background"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <span className="text-primary-foreground font-bold text-lg">{brandInitial}</span>
+                  </div>
+                )}
+                {showText && (
+                  <span className={cn("text-xl font-bold tracking-tight text-primary", collapsed && "lg:hidden")}>
+                    Admin
+                  </span>
+                )}
+              </Link>
+            );
+          })()}
           {!collapsed && (
             <button
               type="button"

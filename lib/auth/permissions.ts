@@ -19,19 +19,41 @@ export async function getCurrentAdminPermissions(): Promise<{
   isSuperAdmin: boolean;
   isAdmin: boolean;
   adminName: string;
+  avatarUrl: string;
   permissions: AdminModuleKey[];
   user: User | null;
+  settings: ReturnType<typeof normalizeStorefrontSettings>;
 }> {
-  const { user, isAdmin, role, adminName } = await getAdminAccess();
+  const { user, isAdmin, role, adminName, avatarUrl } = await getAdminAccess();
   if (!user || !isAdmin) {
     return {
       role: null,
       isSuperAdmin: false,
       isAdmin: false,
       adminName: '',
+      avatarUrl: '',
       permissions: [],
       user: null,
+      settings: normalizeStorefrontSettings({}),
     };
+  }
+
+  let settings = normalizeStorefrontSettings({});
+  try {
+    const supabase = await createClient();
+    if (supabase && typeof supabase.from === 'function') {
+      const { data } = await supabase
+        .from('storefront_settings')
+        .select('settings')
+        .eq('id', 'main')
+        .maybeSingle();
+
+      if (data?.settings) {
+        settings = normalizeStorefrontSettings(data.settings);
+      }
+    }
+  } catch {
+    // Fallback to default storefront settings if table or query fails
   }
 
   // Super admin always has full privileges over all modules
@@ -41,20 +63,14 @@ export async function getCurrentAdminPermissions(): Promise<{
       isSuperAdmin: true,
       isAdmin: true,
       adminName,
+      avatarUrl,
       permissions: ALL_ADMIN_MODULES.map((m) => m.key),
       user,
+      settings,
     };
   }
 
   // Regular admin: read granted permissions from storefront_settings
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('storefront_settings')
-    .select('settings')
-    .eq('id', 'main')
-    .maybeSingle();
-
-  const settings = normalizeStorefrontSettings(data?.settings ?? {});
   const userPerms = settings.admin_permissions?.[user.id];
 
   const permissions: AdminModuleKey[] = Array.isArray(userPerms)
@@ -66,8 +82,10 @@ export async function getCurrentAdminPermissions(): Promise<{
     isSuperAdmin: false,
     isAdmin: true,
     adminName,
+    avatarUrl,
     permissions,
     user,
+    settings,
   };
 }
 

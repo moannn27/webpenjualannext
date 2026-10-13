@@ -22,8 +22,9 @@ export default async function AdminLayout({
     <AdminShell
       isSuperAdmin={perms.isSuperAdmin}
       permissions={perms.permissions}
+      storeSettings={perms.settings}
     >
-      <AdminHeader adminName={perms.adminName || "Admin"} />
+      <AdminHeader adminName={perms.adminName || "Admin"} avatarUrl={perms.avatarUrl} />
       <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
     </AdminShell>
   );

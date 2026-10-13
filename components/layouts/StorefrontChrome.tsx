@@ -41,7 +41,7 @@ export function StorefrontChrome({
         </div>
       )}
 
-      <Navbar cartCount={cartCount} />
+      <Navbar cartCount={cartCount} settings={settings} />
       <main className="flex-1">{children}</main>
       <Footer
         settings={settings.store}

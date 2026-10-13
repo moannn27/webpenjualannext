@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { getAdminProductOptionsAction, saveStorefrontSettingsAction } from "@/actions/admin";
+import {
+  getAdminProductOptionsAction,
+  saveStorefrontSettingsAction,
+  uploadAdminImageAction,
+  updateAdminAvatarAction,
+  getCurrentAdminAvatarAction,
+} from "@/actions/admin";
+import { prepareImageUpload } from "@/features/admin/prepare-image-upload";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/actions/review";
 import {
   DEFAULT_STOREFRONT_SETTINGS,
@@ -53,6 +61,7 @@ import {
   Tag,
   Bot,
   Building2,
+  UserRound,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
@@ -156,19 +165,33 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const router = useRouter();
 
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "all" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store"
+    "all" | "branding" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store"
   >("all");
   const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
+  const [adminAvatarUrl, setAdminAvatarUrl] = useState("");
+  const [busyUpload, setBusyUpload] = useState(false);
+  const [busyAvatar, setBusyAvatar] = useState(false);
+
+  useEffect(() => {
+    getCurrentAdminAvatarAction()
+      .then((res) => {
+        if (res.avatarUrl) setAdminAvatarUrl(res.avatarUrl);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleSwitch = (tab: string, shouldScroll = true) => {
       if (
-        ["all", "features", "sections", "marketplaces", "branches", "reviews", "store"].includes(tab)
+        ["all", "branding", "features", "sections", "marketplaces", "branches", "reviews", "store"].includes(tab)
       ) {
         setActiveSettingsTab(tab as typeof activeSettingsTab);
         if (shouldScroll) {
           setTimeout(() => {
-            if (tab === "features") {
+            if (tab === "branding") {
+              const el = document.getElementById("storefront-branding-section") || document.getElementById("storefront-settings-tabs");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            } else if (tab === "features") {
               const el = document.getElementById("storefront-features-section") || document.getElementById("storefront-settings-tabs");
               if (el) {
                 el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -328,6 +351,66 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
   const updateCatalogPageSize = (value: number) =>
     setSettings((current) => ({ ...current, admin: { ...current.admin, catalogPageSize: value } }));
+
+  const uploadLogo = async (file: File, isForAdmin = false) => {
+    try {
+      setBusyUpload(true);
+      setError("");
+      const prepared = await prepareImageUpload(file);
+      const formData = new FormData();
+      formData.set("file", prepared);
+      formData.set("bucket", "brands");
+      const res = await uploadAdminImageAction(formData);
+      if (isForAdmin) {
+        updateStore("admin_logo_url", res.url);
+      } else {
+        updateStore("logo_url", res.url);
+      }
+      setNotice(
+        isForAdmin
+          ? "Logo khusus admin berhasil diunggah! Tekan tombol 'Simpan Logo & Identitas' untuk menyimpan."
+          : "Logo toko berhasil diunggah! Tekan tombol 'Simpan Logo & Identitas' untuk menyimpan."
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengupload logo.");
+    } finally {
+      setBusyUpload(false);
+    }
+  };
+
+  const saveAdminAvatar = async () => {
+    try {
+      setBusyAvatar(true);
+      setError("");
+      await updateAdminAvatarAction(adminAvatarUrl);
+      setNotice("Foto profil admin berhasil diperbarui dan diterapkan ke header!");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memperbarui foto profil.");
+    } finally {
+      setBusyAvatar(false);
+    }
+  };
+
+  const uploadAdminAvatar = async (file: File) => {
+    try {
+      setBusyAvatar(true);
+      setError("");
+      const prepared = await prepareImageUpload(file);
+      const formData = new FormData();
+      formData.set("file", prepared);
+      formData.set("bucket", "banners");
+      const res = await uploadAdminImageAction(formData);
+      setAdminAvatarUrl(res.url);
+      await updateAdminAvatarAction(res.url);
+      setNotice("Foto profil admin berhasil diupload dan langsung disimpan!");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengupload foto profil.");
+    } finally {
+      setBusyAvatar(false);
+    }
+  };
 
   // Branch CRUD
   const updateBranch = <K extends keyof StoreBranch>(id: string, field: K, value: StoreBranch[K]) =>
@@ -548,6 +631,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       <div id="storefront-settings-tabs" className="flex items-center gap-1.5 overflow-x-auto pb-1 text-sm border-b border-border/80 scroll-mt-20">
         {[
           { id: "all", label: "Semua Pengaturan", icon: Layers },
+          { id: "branding", label: "Logo & Identitas", icon: ImageIcon },
           { id: "features", label: "Fitur & Sistem Toko", icon: SlidersHorizontal },
           { id: "sections", label: "Section Beranda", icon: Compass },
           { id: "marketplaces", label: "Marketplace & Channel", icon: Share2 },
@@ -582,6 +666,288 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           );
         })}
       </div>
+
+      {/* Bagian Logo, Identitas Toko & Foto Profil Admin */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "branding") && (
+        <div id="storefront-branding-section" className="space-y-6 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                <ImageIcon className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">
+                  Identitas Toko, Logo &amp; Foto Profil Admin
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Sesuaikan nama toko, logo header, mode tampilan (logo + tulisan, logo saja, atau teks saja), serta foto profil akun admin.
+                </p>
+              </div>
+            </div>
+            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+              <Save className="size-3.5" />
+              {busy ? "Menyimpan..." : "Simpan Logo & Identitas"}
+            </Button>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Kolom 1: Pengaturan Logo & Nama Toko */}
+            <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+              <div className="flex items-center gap-2">
+                <Store className="size-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Logo &amp; Nama Toko</h3>
+              </div>
+
+              <label className="block space-y-1 text-xs font-medium">
+                Nama Toko / Brand
+                <Input
+                  value={settings.store.name ?? "Next Solution"}
+                  onChange={(e) => updateStore("name", e.target.value)}
+                  placeholder="Next Solution"
+                  maxLength={60}
+                />
+              </label>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium">URL Gambar Logo Toko</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    value={settings.store.logo_url ?? ""}
+                    onChange={(e) => updateStore("logo_url", e.target.value)}
+                    placeholder="https://... atau upload file"
+                    className="text-xs"
+                  />
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted shadow-2xs">
+                    {busyUpload ? <RefreshCw className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5 text-primary" />}
+                    Upload Logo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
+                      className="sr-only"
+                      disabled={busyUpload}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadLogo(file, false);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Format disarankan: PNG transparan, WebP, atau SVG.
+                </p>
+              </div>
+
+              {/* Pilihan Mode Tampilan: Tulisan + Logo atau Pilih Salah Satu */}
+              <div className="space-y-2 pt-2 border-t border-border/60">
+                <span className="block text-xs font-semibold text-foreground">
+                  Mode Tampilan di Header &amp; Navbar:
+                </span>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    { value: "both", label: "Logo + Tulisan", desc: "Tampilkan logo dan nama berdampingan" },
+                    { value: "logo_only", label: "Hanya Logo", desc: "Hanya gambar logo tanpa teks nama" },
+                    { value: "text_only", label: "Hanya Tulisan", desc: "Hanya teks nama tanpa gambar logo" },
+                  ].map((mode) => {
+                    const isChecked = (settings.store.logo_display_mode || "both") === mode.value;
+                    return (
+                      <label
+                        key={mode.value}
+                        className={cn(
+                          "flex flex-col gap-1 rounded-xl border p-2.5 cursor-pointer text-xs transition-colors",
+                          isChecked
+                            ? "border-primary bg-primary/5 text-foreground ring-1 ring-primary"
+                            : "border-border/60 bg-card hover:bg-muted/50 text-muted-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="logo_display_mode"
+                            value={mode.value}
+                            checked={isChecked}
+                            onChange={() => updateStore("logo_display_mode", mode.value as "both" | "logo_only" | "text_only")}
+                            className="size-3.5 text-primary"
+                          />
+                          <span className="font-semibold text-foreground">{mode.label}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground pl-5.5">{mode.desc}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Opsional Logo Khusus Admin */}
+              <div className="space-y-1.5 pt-2 border-t border-border/60">
+                <label className="block text-xs font-medium">
+                  URL Logo Khusus Admin Panel (Opsional)
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    type="url"
+                    value={settings.store.admin_logo_url ?? ""}
+                    onChange={(e) => updateStore("admin_logo_url", e.target.value)}
+                    placeholder="Biarkan kosong untuk menyamakan dengan logo toko"
+                    className="text-xs"
+                  />
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted shadow-2xs">
+                    {busyUpload ? <RefreshCw className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5 text-primary" />}
+                    Upload
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
+                      className="sr-only"
+                      disabled={busyUpload}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadLogo(file, true);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Kolom 2: Pengaturan Foto Profil Admin + Live Preview */}
+            <div className="space-y-4">
+              {/* Foto Profil Admin */}
+              <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserRound className="size-4 text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Foto Profil Akun Admin</h3>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={saveAdminAvatar}
+                    disabled={busyAvatar}
+                    className="h-7 text-xs gap-1"
+                  >
+                    {busyAvatar ? <RefreshCw className="size-3 animate-spin" /> : <Save className="size-3" />}
+                    Simpan Foto
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Avatar className="size-16 border-2 border-primary/20 shadow-sm overflow-hidden shrink-0">
+                    {adminAvatarUrl ? (
+                      <AvatarImage src={adminAvatarUrl} alt="Foto Profil Admin" className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className="text-lg font-bold bg-primary/10 text-primary">
+                      {(settings.store.name || "AD").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-1.5">
+                    <label className="block text-xs font-medium">URL Foto Profil</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="url"
+                        value={adminAvatarUrl}
+                        onChange={(e) => setAdminAvatarUrl(e.target.value)}
+                        placeholder="https://... URL foto profil"
+                        className="text-xs"
+                      />
+                      <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted shadow-2xs">
+                        {busyAvatar ? <RefreshCw className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5 text-primary" />}
+                        Upload Foto
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          className="sr-only"
+                          disabled={busyAvatar}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void uploadAdminAvatar(file);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Foto ini akan langsung tampil di pojok kanan atas Admin Header dan profil akun Anda.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Kotak Live Preview */}
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-amber-500" />
+                  Pratinjau Langsung Tampilan Logo &amp; Header
+                </span>
+
+                {/* Preview Storefront Navbar */}
+                <div className="rounded-lg border bg-background p-3 space-y-1 shadow-2xs">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                    Header Toko (Storefront Navbar):
+                  </span>
+                  <div className="flex items-center gap-2.5 h-10 px-2 rounded-md bg-muted/30 border border-border/40">
+                    {settings.store.logo_url &&
+                    (settings.store.logo_display_mode === "both" || settings.store.logo_display_mode === "logo_only") && (
+                      <img
+                        src={settings.store.logo_url}
+                        alt="Logo Preview"
+                        className="h-7 max-w-[120px] object-contain"
+                      />
+                    )}
+                    {(!settings.store.logo_url ||
+                      settings.store.logo_display_mode === "both" ||
+                      settings.store.logo_display_mode === "text_only") && (
+                      <span className="text-base font-bold tracking-tight text-primary">
+                        {settings.store.name || "Next Solution"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Admin Sidebar */}
+                <div className="rounded-lg border bg-background p-3 space-y-1 shadow-2xs">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
+                    Header Admin (Sidebar &amp; Header):
+                  </span>
+                  <div className="flex items-center justify-between h-10 px-3 rounded-md bg-muted/30 border border-border/40">
+                    <div className="flex items-center gap-2">
+                      {(settings.store.admin_logo_url || settings.store.logo_url) &&
+                      (settings.store.logo_display_mode === "both" || settings.store.logo_display_mode === "logo_only") ? (
+                        <img
+                          src={settings.store.admin_logo_url || settings.store.logo_url}
+                          alt="Admin Logo Preview"
+                          className="size-7 rounded-lg object-contain bg-background"
+                        />
+                      ) : (
+                        <div className="size-7 bg-primary rounded-lg flex items-center justify-center">
+                          <span className="text-primary-foreground font-bold text-xs">
+                            {(settings.store.name || "N").slice(0, 1).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {(settings.store.logo_display_mode === "both" || settings.store.logo_display_mode === "text_only") && (
+                        <span className="text-sm font-bold tracking-tight text-primary">Admin</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground">moan</span>
+                      <Avatar className="size-7 border overflow-hidden">
+                        {adminAvatarUrl ? (
+                          <AvatarImage src={adminAvatarUrl} alt="moan" className="object-cover" />
+                        ) : null}
+                        <AvatarFallback className="text-[10px]">MO</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Pembayaran, Fitur Pelanggan, dsb.) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "features") && (

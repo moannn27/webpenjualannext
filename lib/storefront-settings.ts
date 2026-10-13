@@ -153,6 +153,10 @@ export function extractCoordinatesFromLocation(
 export type StorefrontSettings = {
   sections: Record<string, StoreSectionSetting>;
   store: {
+    name?: string;
+    logo_url?: string;
+    logo_display_mode?: "both" | "logo_only" | "text_only";
+    admin_logo_url?: string;
     description: string;
     address: string;
     city?: string;
@@ -418,6 +422,10 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     faq: { visible: true, title: "Pertanyaan Umum", subtitle: "Butuh bantuan? Kami siap membantu." },
   },
   store: {
+    name: "Next Solution",
+    logo_url: "",
+    logo_display_mode: "both",
+    admin_logo_url: "",
     description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.",
     address: "Jl. Kartini No. 9",
     city: "Bandung",
@@ -667,11 +675,23 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
 
   const finalStoreCity = storeCity && storeCity !== "Pusat" ? storeCity : (extractedStoreCoords.detectedCity || "Bandung");
 
+  const rawLogoMode = String(input.store?.logo_display_mode ?? "").trim();
+  const logo_display_mode: "both" | "logo_only" | "text_only" =
+    rawLogoMode === "logo_only" || rawLogoMode === "text_only" || rawLogoMode === "both"
+      ? (rawLogoMode as "both" | "logo_only" | "text_only")
+      : "both";
+
   return {
     sections,
     store: {
       ...DEFAULT_STOREFRONT_SETTINGS.store,
       ...(input.store ?? {}),
+      name:
+        String(input.store?.name ?? DEFAULT_STOREFRONT_SETTINGS.store.name).trim() ||
+        DEFAULT_STOREFRONT_SETTINGS.store.name,
+      logo_url: String(input.store?.logo_url ?? "").trim(),
+      logo_display_mode,
+      admin_logo_url: String(input.store?.admin_logo_url ?? "").trim(),
       address: storeAddress,
       city: finalStoreCity,
       latitude: storeLat,

@@ -8,7 +8,7 @@ export async function getAdminAccess() {
 
   const { data: profile, error } = await supabase
     .from("users")
-    .select("role, full_name")
+    .select("role, full_name, avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -18,10 +18,16 @@ export async function getAdminAccess() {
     user.email?.split("@")[0] ||
     "Admin";
 
+  const avatarUrl =
+    profile?.avatar_url ||
+    user.user_metadata?.avatar_url ||
+    "";
+
   return {
     user,
     isAdmin: !error && (profile?.role === "admin" || profile?.role === "super_admin"),
     role: error ? null : profile?.role ?? null,
     adminName,
+    avatarUrl,
   };
 }

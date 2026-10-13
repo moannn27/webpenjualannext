@@ -37,6 +37,7 @@ const groups = [
 ];
 
 type FooterStoreSettings = {
+  name?: string;
   description: string;
   address: string;
   maps_url?: string;
@@ -240,7 +241,7 @@ export function Footer({
         )}
 
         <p className="pt-6 text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} Next Solution Store. {store.copyright}
+          &copy; {new Date().getFullYear()} {store.name || "Next Solution Store"}. {store.copyright}
         </p>
       </div>
 

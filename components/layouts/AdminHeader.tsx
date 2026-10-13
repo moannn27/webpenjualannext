@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { logout } from "@/actions/auth";
 import {
@@ -29,7 +29,13 @@ import {
   type AdminNotificationItem,
 } from "@/actions/admin";
 
-export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
+export function AdminHeader({
+  adminName = "Admin",
+  avatarUrl = "",
+}: {
+  adminName?: string;
+  avatarUrl?: string;
+}) {
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -447,7 +453,10 @@ export function AdminHeader({ adminName = "Admin" }: { adminName?: string }) {
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">Admin</span>
             </span>
-            <Avatar className="h-9 w-9 border">
+            <Avatar className="h-9 w-9 border overflow-hidden">
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={adminName} className="object-cover" />
+              ) : null}
               <AvatarFallback>{adminName.slice(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <ChevronDown

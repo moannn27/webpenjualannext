@@ -4,6 +4,7 @@ import { AdminService } from '@/services/admin.service'
 import { getAdminAccess } from '@/lib/auth/admin'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createSupabaseAdminClient, type User } from '@supabase/supabase-js'
+import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
@@ -1342,6 +1343,52 @@ export async function getAdminAllNotificationsAction(): Promise<{
   return {
     notifications: notifs,
     counts,
+  }
+}
+
+export async function updateAdminAvatarAction(avatarUrl: string) {
+  const { user } = await requireAdmin()
+  const cleanUrl = avatarUrl.trim()
+  if (cleanUrl && !/^https?:\/\//i.test(cleanUrl) && !cleanUrl.startsWith('/')) {
+    throw new Error('URL foto tidak valid. Gunakan format URL HTTPS atau upload gambar.')
+  }
+
+  // Update auth metadata
+  const supabase = await createClient()
+  await supabase.auth.updateUser({
+    data: { avatar_url: cleanUrl || null },
+  })
+
+  // Update public.users table with admin client (bypasses RLS/restricted columns)
+  try {
+    const adminClient = getSupabaseAdminClient()
+    await adminClient
+      .from('users')
+      .update({ avatar_url: cleanUrl || null })
+      .eq('id', user.id)
+  } catch {
+    await supabase
+      .from('users')
+      .update({ avatar_url: cleanUrl || null })
+      .eq('id', user.id)
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/profile')
+  return { success: true, avatarUrl: cleanUrl }
+}
+
+export async function getCurrentAdminAvatarAction() {
+  const { user } = await requireAdmin()
+  const supabase = await createClient()
+  const { data: profile } = await supabase
+    .from('users')
+    .select('avatar_url')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  return {
+    avatarUrl: profile?.avatar_url || (user.user_metadata?.avatar_url as string) || '',
   }
 }
 

@@ -124,24 +124,37 @@ describe('Security & Authorization Suite', () => {
 
     it('grants full access to super_admin for any module without restriction', async () => {
       const { createClient } = await import('@/lib/supabase/server');
-      vi.mocked(createClient).mockResolvedValueOnce({
-        auth: {
-          getUser: vi.fn().mockResolvedValueOnce({
-            data: { user: { id: 'super-123' } },
-            error: null,
-          }),
-        },
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValueOnce({
-                data: { role: 'super_admin' },
-                error: null,
+      vi.mocked(createClient)
+        .mockResolvedValueOnce({
+          auth: {
+            getUser: vi.fn().mockResolvedValueOnce({
+              data: { user: { id: 'super-123' } },
+              error: null,
+            }),
+          },
+          from: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValueOnce({
+                  data: { role: 'super_admin' },
+                  error: null,
+                }),
               }),
             }),
           }),
-        }),
-      } as any);
+        } as any)
+        .mockResolvedValueOnce({
+          from: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValueOnce({
+                  data: { settings: {} },
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        } as any);
 
       const { requireModulePermission } = await import('@/lib/auth/permissions');
       const auth = await requireModulePermission('vouchers');

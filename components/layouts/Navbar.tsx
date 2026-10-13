@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { getStoreSearchHref } from "@/lib/search-intent";
 import { CART_UPDATED_EVENT } from "@/lib/cart-events";
+import type { StorefrontSettings } from "@/lib/storefront-settings";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -51,7 +52,19 @@ const components: { title: string; href: string; description: string }[] = [
   },
 ];
 
-export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
+export function Navbar({
+  cartCount = 0,
+  settings,
+}: {
+  cartCount?: number;
+  settings?: StorefrontSettings;
+}) {
+  const storeName = settings?.store?.name || "Next Solution";
+  const logoUrl = settings?.store?.logo_url || "";
+  const displayMode = settings?.store?.logo_display_mode || "both";
+  const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
+  const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
+
   const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
   const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
   const [isScrolled, setIsScrolled] = React.useState(false);
@@ -127,7 +140,7 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
               </SheetTrigger>
               <SheetContent side="left" className="w-[300px] sm:w-[400px]">
                 <SheetHeader>
-                  <SheetTitle className="text-left">Next Solution</SheetTitle>
+                  <SheetTitle className="text-left">{storeName}</SheetTitle>
                 </SheetHeader>
                 <div className="grid gap-4 py-4">
                   <Link href="/products" className="text-lg font-medium">
@@ -148,18 +161,36 @@ export function Navbar({ cartCount = 0 }: { cartCount?: number }) {
             
             {/* Logo Mobile */}
             <Link href="/" className="flex items-center gap-2">
-              <span className="text-xl font-bold tracking-tight text-primary">
-                Next Solution
-              </span>
+              {showLogo && (
+                <img
+                  src={logoUrl}
+                  alt={storeName}
+                  className="h-8 max-w-[120px] object-contain"
+                />
+              )}
+              {showText && (
+                <span className="text-xl font-bold tracking-tight text-primary">
+                  {storeName}
+                </span>
+              )}
             </Link>
           </div>
 
           {/* Logo Desktop */}
           <div className="hidden lg:flex lg:items-center lg:gap-8">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl font-bold tracking-tight text-primary">
-                Next Solution
-              </span>
+            <Link href="/" className="flex items-center gap-2.5">
+              {showLogo && (
+                <img
+                  src={logoUrl}
+                  alt={storeName}
+                  className="h-9 max-w-[160px] object-contain"
+                />
+              )}
+              {showText && (
+                <span className="text-2xl font-bold tracking-tight text-primary">
+                  {storeName}
+                </span>
+              )}
             </Link>
 
             <NavigationMenu className="hidden lg:flex">
