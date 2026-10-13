@@ -18,9 +18,28 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(4);
+  const [isInView, setIsInView] = useState(false);
 
+  const sectionRef = useRef<HTMLElement>(null);
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef<number>(0);
+
+  // Intersection observer: only animate when visible on screen to save CPU/GPU
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setIsInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Detect responsive items per page
   useEffect(() => {
@@ -35,7 +54,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
       }
     };
     updateItemsPerPage();
-    window.addEventListener("resize", updateItemsPerPage);
+    window.addEventListener("resize", updateItemsPerPage, { passive: true });
     return () => window.removeEventListener("resize", updateItemsPerPage);
   }, []);
 
@@ -60,14 +79,14 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
     setCurrentIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
   }, [canSlide, maxIndex]);
 
-  // Auto rotation
+  // Auto rotation: runs only when in view and user is not hovering
   useEffect(() => {
-    if (!canSlide || isPaused) return;
+    if (!canSlide || isPaused || !isInView) return;
     const timer = setInterval(() => {
       goToNext();
-    }, 4500);
+    }, 5000);
     return () => clearInterval(timer);
-  }, [canSlide, isPaused, goToNext]);
+  }, [canSlide, isPaused, isInView, goToNext]);
 
   // Touch gesture handlers
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -95,7 +114,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
   };
 
   return (
-    <section className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section ref={sectionRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:mb-10 md:flex-row md:items-end">
         <div>
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 text-foreground">
@@ -153,7 +172,8 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
             <div
               className="flex transition-transform duration-500 ease-out"
               style={{
-                transform: `translateX(-${currentIndex * (100 / itemsPerPage)}%)`,
+                transform: `translate3d(-${currentIndex * (100 / itemsPerPage)}%, 0, 0)`,
+                willChange: "transform",
               }}
             >
               {products.map((product) => (
