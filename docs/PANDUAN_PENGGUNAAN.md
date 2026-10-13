@@ -46,7 +46,8 @@ Keluar dan masuk lagi setelah role diubah. `admin` mengelola katalog dan pesanan
 ### Produk, foto, kategori, dan brand
 
 - Produk memiliki SKU, harga normal/promo, stok, status draft/terbit/arsip, kategori, brand, deskripsi, penanda terlaris/terbaru, spesifikasi, varian warna/RAM/storage dengan stok dan SKU masing-masing, serta galeri hingga 8 foto.
-- Admin dapat memakai **Upload produk massal** dengan satu template CSV yang sama untuk Excel `.xlsx`, CSV, Word `.docx`, atau PDF. Isi satu baris untuk produk tanpa varian, atau ulangi data produk per kombinasi varian. SKU produk yang sama menggabungkan beberapa baris. Kategori dan brand harus sudah ada. Preview memvalidasi semua baris sebelum impor transaksional; foto diimpor melalui URL HTTPS.
+- Admin dapat memakai **Upload produk massal** dengan template resmi untuk Excel `.xlsx` (semua worksheet), CSV, Word `.docx`, atau PDF. Fitur ini dilengkapi deteksi otomatis pricelist Lenovo, pemilihan skema harga fleksibel (Harga Normal Saja vs Promo Aktif), isolasi segmen produk, auto-konfirmasi harga, serta pembuatan otomatis master kategori dan brand baru saat diimpor. Panduan lengkap tersedia di [Panduan Mass Upload & Branding](PANDUAN_MASS_UPLOAD_DAN_BRANDING.md).
+- Logo toko, mode tampilan (logo + tulisan, hanya logo, hanya tulisan), dan foto profil akun admin dapat diatur langsung di panel admin (`/admin/content?tab=branding`).
 - Word dan PDF harus berisi tabel dengan header template yang diunduh dari panel. PDF harus memiliki teks yang dapat dibaca dan tabel bergaris, bukan hasil scan. Format `.doc` lama tidak didukung.
 - Foto yang diunggah dikompres di browser menjadi WebP maksimal 800 KB dan sisi terpanjang maksimal 1440 px. Foto pertama di galeri menjadi foto utama.
 - File sumber upload maksimal 15 MB. Storage memakai bucket publik `products`, `brands`, dan `banners`; upload dibatasi ke admin melalui policy Supabase.

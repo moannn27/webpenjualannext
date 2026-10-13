@@ -19,6 +19,7 @@ Isi URL dan publishable key Supabase di `.env.local`, lalu buka <http://localhos
 
 - [Setup di PC baru, database hosted, fitur admin, dan publish](docs/SETUP_PC_BARU.md)
 - [Panduan aktivasi dan penggunaan toko](docs/PANDUAN_PENGGUNAAN.md)
+- [Panduan Mass Upload produk, skema harga & pengaturan branding](docs/PANDUAN_MASS_UPLOAD_DAN_BRANDING.md)
 
 ## Validasi lokal
 
