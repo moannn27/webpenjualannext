@@ -198,8 +198,17 @@ export type StoreFeaturesSettings = {
   announcement_bar_text?: string;
   store_maintenance_mode: boolean;
   store_maintenance_message?: string;
+
+  // Fitur Belanja & Interaksi
   reviews_enabled: boolean;
+  compare_enabled: boolean;
+  wishlist_enabled: boolean;
+  stock_badge_enabled: boolean;
+  product_guarantee_badges: boolean;
+
+  // CS & Asisten AI
   whatsapp_chat_button: boolean;
+  ai_recommendation_chat: boolean;
 };
 
 export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
@@ -216,7 +225,12 @@ export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
   store_maintenance_mode: false,
   store_maintenance_message: "Toko sedang libur operasional sementara. Pesanan tetap dapat dibuat dan akan diproses pada hari kerja berikutnya.",
   reviews_enabled: true,
+  compare_enabled: true,
+  wishlist_enabled: true,
+  stock_badge_enabled: true,
+  product_guarantee_badges: true,
   whatsapp_chat_button: true,
+  ai_recommendation_chat: true,
 };
 
 export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
@@ -238,7 +252,12 @@ export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
     store_maintenance_mode: Boolean(item.store_maintenance_mode),
     store_maintenance_message: String(item.store_maintenance_message ?? DEFAULT_STORE_FEATURES.store_maintenance_message).trim(),
     reviews_enabled: item.reviews_enabled !== false,
+    compare_enabled: item.compare_enabled !== false,
+    wishlist_enabled: item.wishlist_enabled !== false,
+    stock_badge_enabled: item.stock_badge_enabled !== false,
+    product_guarantee_badges: item.product_guarantee_badges !== false,
     whatsapp_chat_button: item.whatsapp_chat_button !== false,
+    ai_recommendation_chat: item.ai_recommendation_chat !== false,
   };
 }
 

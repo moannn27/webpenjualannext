@@ -5,11 +5,59 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { register, loginWithGoogle } from "@/actions/auth";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { cn } from "@/lib/utils";
+import { isValidIndonesianPhone } from "@/lib/phone";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateFullName(val: string): string {
+  const trimmed = val.trim();
+  if (!trimmed) return "Nama lengkap wajib diisi.";
+  if (trimmed.length < 2) return "Nama lengkap minimal 2 karakter.";
+  return "";
+}
+
+function validatePhone(val: string): string {
+  const trimmed = val.trim();
+  if (!trimmed) return "Nomor WhatsApp / HP wajib diisi.";
+  if (!isValidIndonesianPhone(trimmed)) {
+    return "Masukkan nomor HP / WhatsApp Indonesia yang valid (contoh: 08123456789).";
+  }
+  return "";
+}
+
+function validateEmail(val: string): string {
+  const trimmed = val.trim();
+  if (!trimmed) return "Email wajib diisi.";
+  if (!EMAIL_REGEX.test(trimmed)) return "Format email tidak valid (contoh: nama@email.com).";
+  return "";
+}
+
+function validatePassword(val: string): string {
+  if (!val) return "Kata sandi wajib diisi.";
+  if (val.length < 6) return "Kata sandi minimal 6 karakter.";
+  return "";
+}
+
+function validateConfirmPassword(confirmVal: string, passwordVal: string): string {
+  if (!confirmVal) return "Konfirmasi kata sandi wajib diisi.";
+  if (confirmVal !== passwordVal) return "Kata sandi dan konfirmasi kata sandi tidak cocok.";
+  return "";
+}
 
 export default function RegisterPage() {
+  const [formValues, setFormValues] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    agreed: false,
+  });
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -30,12 +78,42 @@ export default function RegisterPage() {
       .catch(() => {});
   }, []);
 
+  const fullNameError = touched.full_name ? validateFullName(formValues.full_name) : "";
+  const phoneError = touched.phone ? validatePhone(formValues.phone) : "";
+  const emailError = touched.email ? validateEmail(formValues.email) : "";
+  const passwordError = touched.password ? validatePassword(formValues.password) : "";
+  const confirmPasswordError = touched.confirmPassword
+    ? validateConfirmPassword(formValues.confirmPassword, formValues.password)
+    : "";
+
   const handleRegister = async (formData: FormData) => {
     setError("");
-    
-    const password = formData.get("password") as string;
-    const confirmPassword = formData.get("confirmPassword") as string;
-    
+
+    setTouched({
+      full_name: true,
+      phone: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+      agreed: true,
+    });
+
+    const fullName = String(formData.get("full_name") ?? "").trim();
+    const phone = String(formData.get("phone") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+    const nameErr = validateFullName(fullName);
+    const phErr = validatePhone(phone);
+    const emErr = validateEmail(email);
+    const passErr = validatePassword(password);
+    const confErr = validateConfirmPassword(confirmPassword, password);
+
+    if (nameErr || phErr || emErr || passErr || confErr || !formValues.agreed) {
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Kata sandi dan konfirmasi kata sandi tidak cocok.");
       return;
@@ -81,59 +159,244 @@ export default function RegisterPage() {
           <p className="text-muted-foreground">Bergabung dengan Next Solution Store hari ini</p>
         </div>
 
-        <form action={handleRegister} className="space-y-4">
+        <form action={handleRegister} noValidate className="space-y-4">
           {error && (
-            <div className="text-destructive text-sm text-center bg-destructive/10 p-3 rounded-xl border border-destructive/20" role="alert">
-              {error}
+            <div className="text-destructive text-sm text-center bg-destructive/10 p-3 rounded-xl border border-destructive/20 flex items-center justify-center gap-2" role="alert">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Nama Lengkap</label>
-            <Input name="full_name" placeholder="Nama Lengkap Anda" required className="bg-muted/30 h-12 rounded-xl" />
+            <Input
+              name="full_name"
+              value={formValues.full_name}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormValues((prev) => ({ ...prev, full_name: val }));
+              }}
+              onBlur={() => setTouched((prev) => ({ ...prev, full_name: true }))}
+              placeholder="Nama Lengkap Anda"
+              autoComplete="name"
+              required
+              className={cn(
+                "bg-muted/30 h-12 rounded-xl transition-colors",
+                fullNameError && "border-destructive focus-visible:ring-destructive"
+              )}
+            />
+            {fullNameError && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{fullNameError}</span>
+              </p>
+            )}
           </div>
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Nomor WhatsApp / HP</label>
             <Input
               name="phone"
               type="tel"
+              value={formValues.phone}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormValues((prev) => ({ ...prev, phone: val }));
+              }}
+              onBlur={() => setTouched((prev) => ({ ...prev, phone: true }))}
               placeholder="08123456789"
+              autoComplete="tel"
               required
-              className="bg-muted/30 h-12 rounded-xl"
+              className={cn(
+                "bg-muted/30 h-12 rounded-xl transition-colors",
+                phoneError && "border-destructive focus-visible:ring-destructive"
+              )}
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              Wajib & unik untuk konfirmasi pesanan dan perlindungan akun.
-            </p>
+            {phoneError ? (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{phoneError}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Wajib &amp; unik untuk konfirmasi pesanan dan perlindungan akun.
+              </p>
+            )}
           </div>
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
-            <Input name="email" type="email" placeholder="nama@email.com" required className="bg-muted/30 h-12 rounded-xl" />
+            <Input
+              name="email"
+              type="email"
+              value={formValues.email}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFormValues((prev) => ({ ...prev, email: val }));
+              }}
+              onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+              placeholder="nama@email.com"
+              autoComplete="email"
+              required
+              className={cn(
+                "bg-muted/30 h-12 rounded-xl transition-colors",
+                emailError && "border-destructive focus-visible:ring-destructive"
+              )}
+            />
+            {emailError && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{emailError}</span>
+              </p>
+            )}
           </div>
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Kata Sandi</label>
             <div className="relative">
-              <Input name="password" type={showPassword ? "text" : "password"} placeholder="Minimal 6 karakter" required minLength={6} className="bg-muted/30 h-12 rounded-xl pr-12" />
-              <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+              <Input
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={formValues.password}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormValues((prev) => ({ ...prev, password: val }));
+                }}
+                onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+                placeholder="Minimal 6 karakter"
+                autoComplete="new-password"
+                required
+                minLength={6}
+                className={cn(
+                  "bg-muted/30 h-12 rounded-xl pr-12 transition-colors",
+                  passwordError && "border-destructive focus-visible:ring-destructive"
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+              >
                 {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
               </button>
             </div>
+            {/* Checklist Aturan Kata Sandi: Minimal 6 Karakter */}
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <div
+                className={cn(
+                  "flex size-4 items-center justify-center rounded-full transition-colors",
+                  formValues.password.length >= 6
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                <Check className="size-2.5 stroke-[3]" />
+              </div>
+              <span
+                className={cn(
+                  "text-[11px] transition-colors",
+                  formValues.password.length >= 6
+                    ? "text-emerald-600 dark:text-emerald-400 font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                Minimal 6 karakter
+              </span>
+            </div>
+            {passwordError && touched.password && formValues.password.length === 0 && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{passwordError}</span>
+              </p>
+            )}
           </div>
+
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Konfirmasi Kata Sandi</label>
             <div className="relative">
-              <Input name="confirmPassword" type={showConfirmPassword ? "text" : "password"} placeholder="Ulangi kata sandi" required minLength={6} className="bg-muted/30 h-12 rounded-xl pr-12" />
-              <button type="button" onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"} aria-pressed={showConfirmPassword} className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+              <Input
+                name="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                value={formValues.confirmPassword}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormValues((prev) => ({ ...prev, confirmPassword: val }));
+                }}
+                onBlur={() => setTouched((prev) => ({ ...prev, confirmPassword: true }))}
+                placeholder="Ulangi kata sandi"
+                autoComplete="new-password"
+                required
+                minLength={6}
+                className={cn(
+                  "bg-muted/30 h-12 rounded-xl pr-12 transition-colors",
+                  confirmPasswordError && "border-destructive focus-visible:ring-destructive"
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((visible) => !visible)}
+                aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+                aria-pressed={showConfirmPassword}
+                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+              >
                 {showConfirmPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
               </button>
             </div>
+            {/* Indikator Kecocokan Konfirmasi */}
+            {formValues.confirmPassword.length > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                {formValues.confirmPassword === formValues.password ? (
+                  <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
+                    <div className="flex size-4 items-center justify-center rounded-full bg-emerald-500/15">
+                      <Check className="size-2.5 stroke-[3]" />
+                    </div>
+                    <span>Kata sandi cocok</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-destructive font-medium text-[11px]">
+                    <div className="flex size-4 items-center justify-center rounded-full bg-destructive/15">
+                      <X className="size-2.5 stroke-[3]" />
+                    </div>
+                    <span>Kata sandi belum cocok</span>
+                  </div>
+                )}
+              </div>
+            )}
+            {confirmPasswordError && touched.confirmPassword && formValues.confirmPassword.length === 0 && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>{confirmPasswordError}</span>
+              </p>
+            )}
           </div>
-          
-          <label className="flex items-start gap-2 cursor-pointer text-xs pt-1">
-            <input type="checkbox" required className="accent-primary w-4 h-4 mt-0.5 rounded" />
-            <span className="text-muted-foreground leading-snug">
-              Saya menyetujui <Link href="/terms" className="text-primary hover:underline">Syarat &amp; Ketentuan</Link> serta{" "}
-              <Link href="/privacy" className="text-primary hover:underline">Kebijakan Privasi</Link>.
-            </span>
-          </label>
+
+          <div className="pt-1">
+            <label className="flex items-start gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                name="agreed"
+                checked={formValues.agreed}
+                onChange={(e) => {
+                  setFormValues((prev) => ({ ...prev, agreed: e.target.checked }));
+                  setTouched((prev) => ({ ...prev, agreed: true }));
+                }}
+                required
+                className="accent-primary w-4 h-4 mt-0.5 rounded cursor-pointer"
+              />
+              <span className="text-muted-foreground leading-snug">
+                Saya menyetujui <Link href="/terms" className="text-primary hover:underline">Syarat &amp; Ketentuan</Link> serta{" "}
+                <Link href="/privacy" className="text-primary hover:underline">Kebijakan Privasi</Link>.
+              </span>
+            </label>
+            {touched.agreed && !formValues.agreed && (
+              <p className="mt-1 text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                <span>Anda harus menyetujui Syarat &amp; Ketentuan serta Kebijakan Privasi.</span>
+              </p>
+            )}
+          </div>
 
           <Button type="submit" disabled={loading || googleLoading} size="lg" className="w-full rounded-full h-12 text-base mt-2">
             {loading ? "Mendaftarkan..." : "Daftar Akun"}

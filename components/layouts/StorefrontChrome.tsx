@@ -48,9 +48,9 @@ export function StorefrontChrome({
         marketplaces={settings.official_marketplaces}
         channels={settings.official_channels}
       />
-      <ProductCompareBar />
-      {features?.whatsapp_chat_button !== false && (
-        <RecommendationChat whatsappNumber={settings.store.whatsapp} />
+      {features?.compare_enabled !== false && <ProductCompareBar />}
+      {features?.ai_recommendation_chat !== false && (
+        <RecommendationChat whatsappNumber={settings.store.whatsapp || ""} />
       )}
       <ToastNotification />
     </>

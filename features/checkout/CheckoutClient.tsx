@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type FormEvent } from "react";
+import { Fragment, useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -16,6 +16,7 @@ import {
   MessageCircle,
   PackageCheck,
   ShieldCheck,
+  ShoppingCart,
   Sparkles,
   Store,
   Tag,
@@ -91,6 +92,31 @@ export function CheckoutClient({
     courier: string;
     recipientName: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem("checkout_placed_order");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.orderId && parsed?.orderNumber) {
+            queueMicrotask(() => {
+              setPlacedOrder(parsed);
+            });
+          }
+        }
+      } catch {}
+    }
+  }, []);
+
+  const clearPlacedOrderStorage = () => {
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("checkout_placed_order");
+      } catch {}
+    }
+  };
+
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string, key: string) => {
@@ -254,17 +280,25 @@ export function CheckoutClient({
       const result = await proceedToCheckoutAction(new FormData(event.currentTarget));
       if (result && result.success) {
         emitCartUpdated(0);
-        setPlacedOrder({
+        const orderData = {
           orderId: result.orderId,
           orderNumber: result.orderNumber,
           grandTotal: result.grandTotal,
           courier: result.courier,
           recipientName: result.recipientName,
-        });
+        };
+        setPlacedOrder(orderData);
+        if (typeof window !== "undefined") {
+          try {
+            sessionStorage.setItem("checkout_placed_order", JSON.stringify(orderData));
+          } catch {}
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (error) {
-      if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+      if (error instanceof Error && error.message === "NEXT_REDIRECT") {
+        return;
+      }
       setErrorMessage(
         error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi."
       );
@@ -484,7 +518,7 @@ export function CheckoutClient({
               {/* Navigation Actions: "kalo mau lanjut baru lanjut" */}
               <div className="pt-3 border-t border-border space-y-2.5">
                 <Button
-                  render={<Link href={`/checkout/success?order_id=${placedOrder.orderId}`} />}
+                  render={<Link href={`/checkout/success?order_id=${placedOrder.orderId}`} onClick={clearPlacedOrderStorage} />}
                   className="w-full h-11 rounded-xl font-semibold gap-2 shadow-xs"
                 >
                   <FileText className="size-4" />
@@ -492,7 +526,7 @@ export function CheckoutClient({
                 </Button>
 
                 <Button
-                  render={<Link href="/profile" />}
+                  render={<Link href="/profile" onClick={clearPlacedOrderStorage} />}
                   variant="outline"
                   className="w-full h-10 rounded-xl text-xs font-medium"
                 >
@@ -500,7 +534,7 @@ export function CheckoutClient({
                 </Button>
 
                 <Button
-                  render={<Link href="/" />}
+                  render={<Link href="/" onClick={clearPlacedOrderStorage} />}
                   variant="ghost"
                   className="w-full h-9 rounded-xl text-xs text-muted-foreground hover:text-foreground"
                 >
@@ -508,6 +542,30 @@ export function CheckoutClient({
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!placedOrder && (!initialCart?.cart_items || initialCart.cart_items.length === 0)) {
+    return (
+      <main className="mx-auto w-full max-w-lg px-4 py-20 text-center animate-in fade-in duration-300">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-xs space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <ShoppingCart className="size-6" />
+          </div>
+          <h1 className="text-xl font-bold">Keranjang Belanja Kosong</h1>
+          <p className="text-sm text-muted-foreground">
+            Tidak ada produk yang siap di-checkout. Silakan pilih produk dari katalog terlebih dahulu.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <Button render={<Link href="/products" />} className="w-full">
+              Lihat Katalog Produk
+            </Button>
+            <Button render={<Link href="/cart" />} variant="outline" className="w-full">
+              Buka Keranjang
+            </Button>
           </div>
         </div>
       </main>

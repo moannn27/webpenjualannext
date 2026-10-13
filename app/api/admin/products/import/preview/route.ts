@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
-import ExcelJS from 'exceljs'
 import mammoth from 'mammoth'
 import * as cheerio from 'cheerio'
 import { PDFParse } from 'pdf-parse'
 import { getAdminAccess } from '@/lib/auth/admin'
-import { importTablesFromWorkbook, markImportSkuConflicts, normalizeImportTables, type ImportTable } from '@/lib/admin-product-import'
+import {
+  analyzeAndNormalizeImportTables,
+  importTablesFromWorkbook,
+  loadExcelWorkbook,
+  markImportSkuConflicts,
+  type ImportTable,
+} from '@/lib/admin-product-import'
 import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
@@ -40,8 +45,7 @@ export async function POST(request: Request) {
     let tables: ImportTable[] = []
     if (extension === 'csv') tables = [{ rows: parseCsv(new TextDecoder('utf-8', { fatal: true }).decode(buffer)), source: 'CSV' }]
     else if (extension === 'xlsx') {
-      const workbook = new ExcelJS.Workbook()
-      await workbook.xlsx.load(buffer as never)
+      const workbook = await loadExcelWorkbook(buffer)
       tables = importTablesFromWorkbook(workbook)
     } else if (extension === 'docx') {
       const { value } = await mammoth.convertToHtml({ buffer })
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
     }
     const rowCount = tables.reduce((sum, table) => sum + table.rows.length, 0)
     if (rowCount > MAX_ROWS + 1) return NextResponse.json({ error: `Maksimal ${MAX_ROWS} baris data per file.` }, { status: 413 })
-    const products = normalizeImportTables(tables)
+    const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables)
     const supabase = await createClient()
     const existingBySku = new Map<string, string>()
     const skuList = [...new Set(products.flatMap((product) => [product.sku, ...product.variants.map((variant) => variant.sku)]).filter(Boolean))]
@@ -75,6 +79,8 @@ export async function POST(request: Request) {
             supabase.from('products').select('id, sku').in('sku', skuList),
             supabase.from('product_variants').select('product_id, sku').in('sku', skuList),
           ])
+          if (prods.error) throw new Error(`SKU database tidak dapat diverifikasi: ${prods.error.message}`)
+          if (vars.error) throw new Error(`SKU varian database tidak dapat diverifikasi: ${vars.error.message}`)
           const fromProds = (prods.data ?? []).map((p) => ({ sku: p.sku, product_id: p.id, match_type: 'product' }))
           const fromVars = (vars.data ?? []).map((v) => ({ sku: v.sku, product_id: v.product_id, match_type: 'variant' }))
           lookupData = [...fromProds, ...fromVars]
@@ -102,7 +108,14 @@ export async function POST(request: Request) {
       }
     }
     markImportSkuConflicts(products, existingBySku)
-    return NextResponse.json({ products, summary: { productCount: products.length, variantCount: products.reduce((count, product) => count + product.variants.length, 0) } })
+    return NextResponse.json({
+      products,
+      summary: {
+        productCount: products.length,
+        variantCount: products.reduce((count, product) => count + product.variants.length, 0),
+        sheetSummary,
+      },
+    })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'File tidak dapat dibaca. Pastikan dokumen memiliki tabel dengan teks yang dapat diekstrak.' }, { status: 400 })
   }

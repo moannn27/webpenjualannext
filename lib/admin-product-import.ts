@@ -1,4 +1,5 @@
-import type ExcelJS from 'exceljs'
+import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 import { normalizeLaptopSpecKey } from '@/lib/product-specifications'
 
 export type ImportedVariant = { sku: string; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }
@@ -24,8 +25,8 @@ const aliases: Record<string, string> = {
   color:'color', warna:'color', ram:'ram', storage:'storage', penyimpanan:'storage', variant_sku:'variant_sku', sku_varian:'variant_sku',
   variant_price:'variant_price', harga_varian:'variant_price', variant_discount_price:'variant_discount_price', harga_diskon_varian:'variant_discount_price',
   variant_stock:'variant_stock', stok_varian:'variant_stock', type:'product_name', mtm:'sku', keterangan:'remarks',
-  old_price:'ignored_price', old_price_user:'ignored_price', old_price_dealer:'ignored_price', harga_lama:'ignored_price',
-  new_price_user:'new_price_user', new_user_price:'new_price_user', user_price:'user_price', srp:'srp', harga_user:'user_price', user_srp:'srp',
+  old_price:'ignored_price', old_price_user:'ignored_price', old_price_dealer:'ignored_price', harga_lama:'ignored_price', old_user_price:'ignored_price',
+  new_price_user:'new_price_user', new_user_price:'new_price_user', user_price:'user_price', srp:'srp', harga_user:'user_price', user_srp:'srp', new_price_user_srp:'new_price_user', srp_user:'new_price_user',
   new_price:'unclassified_price', harga_jual:'promo_price',
   processor:'processor', prosesor:'processor', cpu:'processor', processor_type:'processor', cpu_model:'processor', graphics:'graphics', graphics_card:'graphics', gpu:'graphics', gpu_model:'graphics', vga:'graphics', memory:'ram', memory_size:'ram', ram_size:'ram', display:'display', display_size:'display', screen_size:'display', layar:'display', os:'os', operating_system:'os', warranty:'warranty', warranty_period:'warranty', garansi:'warranty', storage_type:'storage', storage_capacity:'storage',
 }
@@ -79,6 +80,137 @@ export function importTablesFromWorkbook(workbook: ExcelJS.Workbook): ImportTabl
     return { rows, source: `XLSX/${sheet.name}` }
   })
 }
+
+/**
+ * Safely loads an XLSX buffer into an ExcelJS.Workbook, handling:
+ * - Empty or truncated files
+ * - SpreadsheetML XML namespace prefixes (e.g. <x:workbook>, <x:sheets>, <x:sheet>)
+ * - Absolute worksheet relationship targets (e.g. Target="/xl/tables/table1.xml")
+ */
+export async function loadExcelWorkbook(buffer: Buffer): Promise<ExcelJS.Workbook> {
+  if (!buffer || buffer.length === 0) {
+    throw new Error('File Excel kosong atau tidak memiliki data.')
+  }
+
+  // Attempt standard ExcelJS load first
+  try {
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(buffer as never)
+    if (wb.worksheets.length > 0) {
+      return wb
+    }
+  } catch {
+    // If standard load fails, proceed to OpenXML namespace / path normalization
+  }
+
+  // Preprocess and normalize OpenXML zip package
+  let zip: JSZip
+  try {
+    zip = await JSZip.loadAsync(buffer)
+  } catch {
+    throw new Error('File Excel (XLSX) rusak atau tidak valid.')
+  }
+
+  const entries = Object.keys(zip.files)
+  if (!entries.some((name) => name.includes('xl/'))) {
+    throw new Error('File bukan merupakan dokumen Excel XLSX yang valid.')
+  }
+
+  let modified = false
+  for (const [filename, file] of Object.entries(zip.files)) {
+    if (filename.endsWith('.xml') || filename.endsWith('.rels')) {
+      const xml = await file.async('string')
+      let cleaned = xml
+
+      // 1. Strip XML namespace prefixes for spreadsheetml (e.g. <x: or </x:)
+      if (cleaned.includes('<x:') || cleaned.includes('</x:')) {
+        cleaned = cleaned.replace(/<x:/g, '<').replace(/<\/x:/g, '</')
+        modified = true
+      }
+
+      // 2. In worksheet rels, table targets must be relative (e.g. Target="../tables/table1.xml")
+      if (filename.includes('worksheets/_rels/')) {
+        if (cleaned.includes('Target="/xl/tables/')) {
+          cleaned = cleaned.replace(/Target="\/xl\/tables\//g, 'Target="../tables/')
+          modified = true
+        }
+      }
+
+      // 3. In workbook.xml.rels, ensure targets are clean relative to xl/
+      if (filename.includes('workbook.xml.rels')) {
+        if (cleaned.includes('Target="/xl/')) {
+          cleaned = cleaned.replace(/Target="\/xl\//g, 'Target="')
+          modified = true
+        }
+      }
+
+      if (cleaned !== xml) {
+        zip.file(filename, cleaned)
+      }
+    }
+  }
+
+  const cleanBuf = modified ? await zip.generateAsync({ type: 'nodebuffer' }) : buffer
+  const normalizedWb = new ExcelJS.Workbook()
+  try {
+    await normalizedWb.xlsx.load(cleanBuf as never)
+  } catch (err) {
+    throw new Error(
+      `File Excel gagal dibaca: ${err instanceof Error ? err.message : 'Struktur workbook tidak didukung.'}`
+    )
+  }
+
+  if (normalizedWb.worksheets.length === 0) {
+    throw new Error('File Excel tidak memiliki worksheet yang berisi data.')
+  }
+
+  return normalizedWb
+}
+
+export async function generateProductImportExcelTemplate(): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'Next Solution Store'
+  const sheet = workbook.addWorksheet('Data Produk', {
+    views: [{ state: 'frozen', ySplit: 1 }]
+  })
+
+  sheet.columns = [
+    { header: 'product_name', key: 'product_name', width: 32 },
+    { header: 'sku', key: 'sku', width: 20 },
+    { header: 'description', key: 'description', width: 45 },
+    { header: 'price', key: 'price', width: 16, style: { numFmt: '#,##0' } },
+    { header: 'discount_price', key: 'discount_price', width: 16, style: { numFmt: '#,##0' } },
+    { header: 'stock', key: 'stock', width: 12, style: { numFmt: '0' } },
+    { header: 'category', key: 'category', width: 18 },
+    { header: 'brand', key: 'brand', width: 18 },
+    { header: 'status', key: 'status', width: 14 },
+    { header: 'is_best_seller', key: 'is_best_seller', width: 14 },
+    { header: 'is_new_arrival', key: 'is_new_arrival', width: 14 },
+    { header: 'image_url', key: 'image_url', width: 35 },
+    { header: 'specifications', key: 'specifications', width: 50 },
+    { header: 'color', key: 'color', width: 15 },
+    { header: 'ram', key: 'ram', width: 15 },
+    { header: 'storage', key: 'storage', width: 18 },
+    { header: 'variant_sku', key: 'variant_sku', width: 20 },
+    { header: 'variant_price', key: 'variant_price', width: 16, style: { numFmt: '#,##0' } },
+    { header: 'variant_discount_price', key: 'variant_discount_price', width: 16, style: { numFmt: '#,##0' } },
+    { header: 'variant_stock', key: 'variant_stock', width: 14, style: { numFmt: '0' } },
+  ]
+
+  const headerRow = sheet.getRow(1)
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E293B' }
+  }
+  headerRow.height = 24
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' }
+
+  const rawBuffer = await workbook.xlsx.writeBuffer()
+  return Buffer.isBuffer(rawBuffer) ? rawBuffer : Buffer.from(rawBuffer)
+}
+
 export function markImportSkuConflicts(products: ImportedProduct[], existingBySku: Map<string, string>): ImportedProduct[] {
   const first = new Set<string>()
   const fileSkuOccurrences = new Map<string, ImportedProduct[]>()
@@ -124,14 +256,48 @@ function detectHeader(rows: string[][]): { index: number; columns: string[]; ven
   return null
 }
 
-export function normalizeImportTables(tables: ImportTable[]): ImportedProduct[] {
+export type ImportSheetSummary = {
+  totalTables: number
+  detectedSheets: { name: string; productCount: number; vendor: 'lenovo' | 'legacy' }[]
+  skippedSheets: { name: string; reason: string }[]
+}
+
+export type ImportNormalizationResult = {
+  products: ImportedProduct[]
+  sheetSummary: ImportSheetSummary
+}
+
+export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNormalizationResult {
   const totalRows = tables.reduce((sum, table) => sum + table.rows.length, 0)
   if (totalRows > 2001) throw new Error('File terlalu banyak baris. Maksimal 2.000 baris data.')
   const result = new Map<string, ImportedProduct>()
   let productRows = 0
+  const detectedSheets: { name: string; productCount: number; vendor: 'lenovo' | 'legacy' }[] = []
+  const skippedSheets: { name: string; reason: string }[] = []
+
   for (const table of tables) {
+    const rawSheetName = table.source.replace(/^XLSX\//, '').replace(/^DOCX\//, '').replace(/^PDF\//, '')
+    if (table.rows.length === 0) {
+      skippedSheets.push({ name: rawSheetName, reason: 'Worksheet kosong tanpa data baris.' })
+      continue
+    }
+
     const header = detectHeader(table.rows)
-    if (!header) continue
+    if (!header) {
+      const lower = rawSheetName.toLowerCase()
+      let reason = 'Header produk tidak ditemukan (kolom SKU/MTM, harga, atau nama produk tidak teridentifikasi).'
+      if (lower.includes('petunjuk') || lower.includes('panduan')) {
+        reason = 'Worksheet petunjuk atau panduan penggunaan (bukan data produk).'
+      } else if (lower.includes('audit') || lower.includes('sumber')) {
+        reason = 'Worksheet audit sumber atau log data (bukan format produk yang dapat diimpor).'
+      } else if (lower.includes('review') || lower.includes('perlu')) {
+        reason = 'Worksheet daftar produk yang perlu ditinjau (kolom review internal, bukan format impor produk).'
+      }
+      skippedSheets.push({ name: rawSheetName, reason })
+      continue
+    }
+
+    const initialCount = result.size
     if (header.vendor === 'legacy') {
       const legacyProducts = normalizeProductRows(table.rows)
       productRows += table.rows.slice(header.index + 1).filter((row) => row.some((cell) => text(cell))).length
@@ -143,8 +309,12 @@ export function normalizeImportTables(tables: ImportTable[]): ImportedProduct[] 
           existing.warnings = [...(existing.warnings ?? []), `SKU produk muncul pada beberapa tabel (${table.source}); baris tambahan dilewati.`]
         } else result.set(key, product)
       }
+      const added = result.size - initialCount
+      detectedSheets.push({ name: rawSheetName, productCount: added, vendor: 'legacy' })
       continue
     }
+
+    let lenovoSheetAdded = 0
     for (let index = header.index + 1; index < table.rows.length; index++) {
       const values = table.rows[index]
       const r: Record<string, string> = {}
@@ -204,12 +374,27 @@ export function normalizeImportTables(tables: ImportTable[]): ImportedProduct[] 
         importAction: 'create',
       }
       result.set(key, product)
+      lenovoSheetAdded++
     }
+    detectedSheets.push({ name: rawSheetName, productCount: lenovoSheetAdded, vendor: 'lenovo' })
   }
-  if (!productRows || !result.size) throw new Error('Header produk tidak ditemukan. Gunakan template lama, atau tabel Lenovo dengan TYPE, MTM, dan kolom harga.')
+
+  if (!productRows || !result.size) throw new Error('Header produk tidak ditemukan. Gunakan template resmi (.xlsx/.csv), atau tabel Lenovo dengan TYPE, MTM, dan kolom harga.')
   if (productRows > 2000) throw new Error('Maksimal 2.000 baris data per file.')
   if (result.size > 500) throw new Error('Maksimal 500 produk per impor.')
-  return [...result.values()]
+
+  return {
+    products: [...result.values()],
+    sheetSummary: {
+      totalTables: tables.length,
+      detectedSheets,
+      skippedSheets,
+    },
+  }
+}
+
+export function normalizeImportTables(tables: ImportTable[]): ImportedProduct[] {
+  return analyzeAndNormalizeImportTables(tables).products
 }
 
 /** Backward-compatible entry point for callers and tests using the original flat template. */

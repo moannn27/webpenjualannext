@@ -44,6 +44,15 @@ import {
   SlidersHorizontal,
   Truck,
   Store,
+  Banknote,
+  QrCode,
+  CreditCard,
+  Scale,
+  Heart,
+  ShieldCheck,
+  Tag,
+  Bot,
+  Building2,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
@@ -574,9 +583,9 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         })}
       </div>
 
-      {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Google Login, dsb.) */}
+      {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Pembayaran, Fitur Pelanggan, dsb.) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "features") && (
-        <div id="storefront-features-section" className="space-y-5 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
+        <div id="storefront-features-section" className="space-y-6 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
           <div className="border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
@@ -587,253 +596,558 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   Pengaturan Fitur &amp; Sistem Toko
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Aktifkan atau nonaktifkan fitur toko (pengiriman, ambil di tempat, login Google, dsb.) dengan 1 klik tanpa perlu ubah kode.
+                  Kelola dan sesuaikan seluruh fitur website (checkout, metode bayar, akun, komparasi, chat, banner, dsb.) secara instan tanpa perlu coding.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* 1. LAYANAN PENGIRIMAN KURIR */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
-                    <Truck className="size-4" />
+          {/* GRUP 1: PENGIRIMAN & PENGAMBILAN */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Truck className="size-3.5 text-primary" />
+              <span>1. Layanan Pengiriman &amp; Pengambilan Barang</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Kurir */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+                      <Truck className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Pengiriman Kurir ke Alamat</h3>
+                      <p className="text-xs text-muted-foreground">Opsi kirim paket via kurir (JNE/SiCepat) saat checkout</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Pengiriman Kurir ke Alamat</h3>
-                    <p className="text-xs text-muted-foreground">Opsi kirim paket via kurir saat checkout</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.delivery_enabled}
-                    onChange={(e) => updateFeatures("delivery_enabled", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
-              </div>
-
-              <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/60">
-                {settings.features.delivery_enabled ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="size-3.5" /> Aktif: Pelanggan dapat memilih opsi pengiriman saat checkout.
-                  </span>
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
-                    <AlertCircle className="size-3.5" /> Nonaktif: Opsi kurir dinonaktifkan. Pelanggan diarahkan ambil di toko.
-                  </span>
-                )}
-              </div>
-
-              {!settings.features.delivery_enabled && (
-                <div className="space-y-1 pt-1">
-                  <label className="text-xs font-medium text-foreground">
-                    Pemberitahuan saat opsi pengiriman ditutup:
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.delivery_enabled}
+                      onChange={(e) => updateFeatures("delivery_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
-                  <Input
-                    value={settings.features.delivery_notice ?? ""}
-                    onChange={(e) => updateFeatures("delivery_notice", e.target.value)}
-                    placeholder="Contoh: Pengiriman kurir sedang libur operasional."
-                    className="text-xs h-9"
-                  />
                 </div>
-              )}
-            </div>
-
-            {/* 2. LAYANAN AMBIL DI TEMPAT / PICKUP */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
-                    <Store className="size-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Ambil di Tempat / Toko (Pickup)</h3>
-                    <p className="text-xs text-muted-foreground">Pelanggan ambil langsung pesanan di toko</p>
-                  </div>
+                <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                  {settings.features.delivery_enabled ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="size-3.5" /> Aktif: Pelanggan dapat memilih opsi pengiriman saat checkout.
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                      <AlertCircle className="size-3.5" /> Nonaktif: Opsi kurir dinonaktifkan. Pelanggan diarahkan ambil di toko.
+                    </span>
+                  )}
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.pickup_enabled}
-                    onChange={(e) => updateFeatures("pickup_enabled", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
-              </div>
-
-              <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/60">
-                {settings.features.pickup_enabled ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="size-3.5" /> Aktif: Pelanggan dapat memilih opsi ambil di cabang toko terdekat.
-                  </span>
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
-                    <AlertCircle className="size-3.5" /> Nonaktif: Opsi ambil di toko ditutup. Pelanggan hanya bisa kirim kurir.
-                  </span>
+                {!settings.features.delivery_enabled && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-xs font-medium text-foreground">Pemberitahuan saat kurir ditutup:</label>
+                    <Input
+                      value={settings.features.delivery_notice ?? ""}
+                      onChange={(e) => updateFeatures("delivery_notice", e.target.value)}
+                      placeholder="Contoh: Pengiriman kurir sedang libur operasional."
+                      className="text-xs h-9"
+                    />
+                  </div>
                 )}
               </div>
 
-              {!settings.features.pickup_enabled && (
-                <div className="space-y-1 pt-1">
-                  <label className="text-xs font-medium text-foreground">
-                    Pemberitahuan saat opsi ambil di toko ditutup:
+              {/* Pickup */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <Store className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Ambil di Tempat / Toko (Pickup)</h3>
+                      <p className="text-xs text-muted-foreground">Pelanggan ambil langsung pesanan di cabang toko</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.pickup_enabled}
+                      onChange={(e) => updateFeatures("pickup_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
-                  <Input
-                    value={settings.features.pickup_notice ?? ""}
-                    onChange={(e) => updateFeatures("pickup_notice", e.target.value)}
-                    placeholder="Contoh: Layanan ambil di toko sementara tutup."
-                    className="text-xs h-9"
-                  />
                 </div>
-              )}
-            </div>
-
-            {/* 3. LOGIN DENGAN AKUN GOOGLE */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-red-500/10 text-red-600">
-                    <svg className="size-4" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Login / Daftar dengan Google</h3>
-                    <p className="text-xs text-muted-foreground">Tombol Google OAuth di halaman login &amp; register</p>
-                  </div>
+                <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                  {settings.features.pickup_enabled ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="size-3.5" /> Aktif: Pelanggan dapat memilih opsi ambil di cabang toko terdekat.
+                    </span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                      <AlertCircle className="size-3.5" /> Nonaktif: Opsi ambil di toko ditutup. Pelanggan hanya bisa kirim kurir.
+                    </span>
+                  )}
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.google_login_enabled}
-                    onChange={(e) => updateFeatures("google_login_enabled", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
-              </div>
-
-              <div className="text-xs text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/60">
-                {settings.features.google_login_enabled ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5">
-                    <CheckCircle2 className="size-3.5" /> Aktif: Tombol Google tampil di halaman Login &amp; Register.
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                    <AlertCircle className="size-3.5" /> Nonaktif: Tombol Google disembunyikan. Masuk hanya via Email &amp; Password.
-                  </span>
+                {!settings.features.pickup_enabled && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-xs font-medium text-foreground">Pemberitahuan saat pickup ditutup:</label>
+                    <Input
+                      value={settings.features.pickup_notice ?? ""}
+                      onChange={(e) => updateFeatures("pickup_notice", e.target.value)}
+                      placeholder="Contoh: Layanan ambil di toko sementara tutup."
+                      className="text-xs h-9"
+                    />
+                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* 4. BAR PENGUMUMAN ATAS WEBSITE */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600">
-                    <Sparkles className="size-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Bar Pengumuman Atas (Top Banner)</h3>
-                    <p className="text-xs text-muted-foreground">Pita teks pengumuman di bagian paling atas website</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.announcement_bar_enabled}
-                    onChange={(e) => updateFeatures("announcement_bar_enabled", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
-              </div>
-
-              {settings.features.announcement_bar_enabled && (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">Teks Pengumuman Promo:</label>
-                  <Input
-                    value={settings.features.announcement_bar_text ?? ""}
-                    onChange={(e) => updateFeatures("announcement_bar_text", e.target.value)}
-                    placeholder="Contoh: 🔥 Diskon 20% Laptop Lenovo & Free Mouse Wireless!"
-                    className="text-xs h-9"
-                  />
-                </div>
-              )}
+          {/* GRUP 2: METODE PEMBAYARAN CHECKOUT */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Banknote className="size-3.5 text-primary" />
+              <span>2. Metode Pembayaran Saat Checkout</span>
             </div>
-
-            {/* 5. MODE TOKO LIBUR / MAINTENANCE */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600">
-                    <Clock className="size-4" />
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Transfer Bank */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+                      <Building2 className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Transfer Bank Manual</h3>
+                      <p className="text-xs text-muted-foreground">BCA, Mandiri, BRI, dsb.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Mode Toko Libur / Pemeliharaan</h3>
-                    <p className="text-xs text-muted-foreground">Banner pengumuman jika toko sedang libur</p>
-                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.bank_transfer_enabled}
+                      onChange={(e) => updateFeatures("bank_transfer_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.store_maintenance_mode}
-                    onChange={(e) => updateFeatures("store_maintenance_mode", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.bank_transfer_enabled
+                    ? "Aktif: Menampilkan opsi transfer ke rekening bank resmi toko."
+                    : "Nonaktif: Metode transfer bank disembunyikan."}
+                </p>
               </div>
 
-              {settings.features.store_maintenance_mode && (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">Pesan Pengumuman Toko Libur:</label>
-                  <Input
-                    value={settings.features.store_maintenance_message ?? ""}
-                    onChange={(e) => updateFeatures("store_maintenance_message", e.target.value)}
-                    placeholder="Contoh: Toko sedang libur hari raya. Pesanan akan dikirim tanggal berikutnya."
-                    className="text-xs h-9"
-                  />
+              {/* Bayar Tunai di Kasir */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <CreditCard className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Bayar Tunai di Kasir</h3>
+                      <p className="text-xs text-muted-foreground">Cash on Pickup</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.cash_payment_enabled}
+                      onChange={(e) => updateFeatures("cash_payment_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
                 </div>
-              )}
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.cash_payment_enabled
+                    ? "Aktif: Pelanggan yang ambil di toko bisa bayar tunai di tempat."
+                    : "Nonaktif: Pelanggan wajib bayar sebelum ambil pesanan."}
+                </p>
+              </div>
+
+              {/* QRIS */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600">
+                      <QrCode className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Pembayaran QRIS</h3>
+                      <p className="text-xs text-muted-foreground">Scan QR digital</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.qris_enabled}
+                      onChange={(e) => updateFeatures("qris_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.qris_enabled
+                    ? "Aktif: Opsi pembayaran scan QRIS tampil saat checkout."
+                    : "Nonaktif: Opsi QRIS disembunyikan."}
+                </p>
+              </div>
             </div>
+          </div>
 
-            {/* 6. TOMBOL WHATSAPP CS MELAYANG */}
-            <div className="rounded-xl border border-border bg-background p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
-                    <MessageCircle className="size-4" />
+          {/* GRUP 3: AUTENTIKASI & AKUN */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="size-3.5 text-primary" />
+              <span>3. Autentikasi &amp; Akses Pengguna</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-red-500/10 text-red-600">
+                      <svg className="size-4" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Login / Daftar Cepat dengan Google</h3>
+                      <p className="text-xs text-muted-foreground">Tombol Google OAuth di halaman login &amp; register</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-foreground">Tombol WhatsApp CS Melayang</h3>
-                    <p className="text-xs text-muted-foreground">Widget chat pojok kanan bawah website</p>
-                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.google_login_enabled}
+                      onChange={(e) => updateFeatures("google_login_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.features.whatsapp_chat_button}
-                    onChange={(e) => updateFeatures("whatsapp_chat_button", e.target.checked)}
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.google_login_enabled
+                    ? "Aktif: Pelanggan bisa masuk dengan 1-klik akun Google."
+                    : "Nonaktif: Tombol Google disembunyikan; masuk hanya via email & password."}
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {settings.features.whatsapp_chat_button
-                  ? "Aktif: Pengunjung dapat chat langsung dengan nomor WhatsApp CS toko."
-                  : "Nonaktif: Widget chat WhatsApp disembunyikan."}
-              </p>
+            </div>
+          </div>
+
+          {/* GRUP 4: FITUR BELANJA & HALAMAN PRODUK */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Star className="size-3.5 text-primary" />
+              <span>4. Fitur Interaksi Belanja &amp; Halaman Produk</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Reviews */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600">
+                      <Star className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Ulasan &amp; Rating Produk</h3>
+                      <p className="text-xs text-muted-foreground">Form ulasan bintang pembeli</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.reviews_enabled}
+                      onChange={(e) => updateFeatures("reviews_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.reviews_enabled
+                    ? "Aktif: Pembeli dapat memberi rating bintang dan komentar ulasan."
+                    : "Nonaktif: Tab ulasan disembunyikan dari halaman produk."}
+                </p>
+              </div>
+
+              {/* Compare */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-600">
+                      <Scale className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Fitur Bandingkan Produk</h3>
+                      <p className="text-xs text-muted-foreground">Bar komparasi spesifikasi laptop</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.compare_enabled}
+                      onChange={(e) => updateFeatures("compare_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.compare_enabled
+                    ? "Aktif: Pengunjung dapat membandingkan hingga 4 laptop secara head-to-head."
+                    : "Nonaktif: Tombol dan bar perbandingan disembunyikan."}
+                </p>
+              </div>
+
+              {/* Wishlist */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-rose-500/10 text-rose-600">
+                      <Heart className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Fitur Wishlist / Favorit</h3>
+                      <p className="text-xs text-muted-foreground">Simpan produk impian pelanggan</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.wishlist_enabled}
+                      onChange={(e) => updateFeatures("wishlist_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.wishlist_enabled
+                    ? "Aktif: Ikon love dan halaman daftar favorit aktif."
+                    : "Nonaktif: Fitur wishlist dinonaktifkan."}
+                </p>
+              </div>
+
+              {/* Badge Stok */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-teal-500/10 text-teal-600">
+                      <Tag className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Badge Sisa Stok di Katalog</h3>
+                      <p className="text-xs text-muted-foreground">Label stok menipis / tersedia</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.stock_badge_enabled}
+                      onChange={(e) => updateFeatures("stock_badge_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.stock_badge_enabled
+                    ? "Aktif: Menampilkan label sisa unit fisik pada kartu produk."
+                    : "Nonaktif: Label jumlah sisa stok disembunyikan."}
+                </p>
+              </div>
+
+              {/* Badge Jaminan */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3 md:col-span-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <ShieldCheck className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Badge Jaminan Garansi Resmi &amp; Original</h3>
+                      <p className="text-xs text-muted-foreground">Kotak info keamanan belanja di halaman detail produk</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.product_guarantee_badges}
+                      onChange={(e) => updateFeatures("product_guarantee_badges", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.product_guarantee_badges
+                    ? "Aktif: Menampilkan jaminan Garansi Resmi Distributor, 100% Produk Original, dan Gratis Konsultasi di setiap halaman produk."
+                    : "Nonaktif: Kotak jaminan garansi disembunyikan."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* GRUP 5: CS & ASISTEN CHAT */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <MessageCircle className="size-3.5 text-primary" />
+              <span>5. Layanan Customer Service &amp; Chatbot AI</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* WhatsApp Melayang */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <MessageCircle className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Tombol WhatsApp CS Melayang</h3>
+                      <p className="text-xs text-muted-foreground">Widget chat langsung di pojok kanan bawah</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.whatsapp_chat_button}
+                      onChange={(e) => updateFeatures("whatsapp_chat_button", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.whatsapp_chat_button
+                    ? "Aktif: Pengunjung dapat chat langsung dengan nomor WhatsApp CS toko dari seluruh halaman."
+                    : "Nonaktif: Tombol WhatsApp CS disembunyikan."}
+                </p>
+              </div>
+
+              {/* Asisten AI Rekomendasi */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600">
+                      <Bot className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Asisten AI Rekomendasi Laptop</h3>
+                      <p className="text-xs text-muted-foreground">Chatbot rekomendasi spesifikasi laptop</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.ai_recommendation_chat}
+                      onChange={(e) => updateFeatures("ai_recommendation_chat", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.ai_recommendation_chat
+                    ? "Aktif: Pengunjung dapat berkonsultasi dengan asisten AI pintar untuk memilih laptop sesuai kebutuhan."
+                    : "Nonaktif: Fitur asisten AI disembunyikan."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* GRUP 6: PROMOSI & OPERASIONAL TOKO */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="size-3.5 text-primary" />
+              <span>6. Pengumuman Promosi &amp; Operasional Toko</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Top Banner */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600">
+                      <Sparkles className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Bar Pengumuman Atas (Top Banner)</h3>
+                      <p className="text-xs text-muted-foreground">Pita teks pengumuman promo di bagian paling atas website</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.announcement_bar_enabled}
+                      onChange={(e) => updateFeatures("announcement_bar_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                {settings.features.announcement_bar_enabled && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-foreground">Teks Pengumuman Promo:</label>
+                    <Input
+                      value={settings.features.announcement_bar_text ?? ""}
+                      onChange={(e) => updateFeatures("announcement_bar_text", e.target.value)}
+                      placeholder="Contoh: 🔥 Diskon 20% Laptop Lenovo & Free Mouse Wireless!"
+                      className="text-xs h-9"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.announcement_bar_enabled
+                    ? "Aktif: Pita promo tampil di atas navbar utama."
+                    : "Nonaktif: Pita promo disembunyikan."}
+                </p>
+              </div>
+
+              {/* Mode Libur */}
+              <div className="rounded-xl border border-border bg-background p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-orange-500/10 text-orange-600">
+                      <Clock className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Mode Toko Libur / Pemeliharaan</h3>
+                      <p className="text-xs text-muted-foreground">Banner pengumuman jika toko sedang libur operasional</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.features.store_maintenance_mode}
+                      onChange={(e) => updateFeatures("store_maintenance_mode", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                {settings.features.store_maintenance_mode && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-foreground">Pesan Pengumuman Toko Libur:</label>
+                    <Input
+                      value={settings.features.store_maintenance_message ?? ""}
+                      onChange={(e) => updateFeatures("store_maintenance_message", e.target.value)}
+                      placeholder="Contoh: Toko sedang libur hari raya. Pesanan akan dikirim tanggal berikutnya."
+                      className="text-xs h-9"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.store_maintenance_mode
+                    ? "Aktif: Banner toko libur tampil di atas navbar."
+                    : "Nonaktif: Banner toko libur dinonaktifkan."}
+                </p>
+              </div>
             </div>
           </div>
         </div>

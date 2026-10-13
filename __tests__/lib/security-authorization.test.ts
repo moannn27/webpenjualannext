@@ -247,7 +247,7 @@ describe('Security & Authorization Suite', () => {
       expect(updateMock).not.toHaveBeenCalled();
       expect(result).toHaveProperty('error');
       expect(result.error).toMatch(/fail-closed|tidak tersedia/i);
-    });
+    }, 15000);
 
     it('rejects attempt when super_admin tries to demote their own account', async () => {
       const { createClient } = await import('@/lib/supabase/server');

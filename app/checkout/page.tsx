@@ -13,7 +13,6 @@ export default async function CheckoutPage() {
   if (!user) redirect("/login?redirect=/checkout");
 
   const cart = await getCartAction();
-  if (!cart?.cart_items?.length) redirect("/cart");
 
   const [{ data: shippingRows, error: shippingError }, { data: savedAddress }, { data: sfRow }] = await Promise.all([
     supabase

@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import ExcelJS from 'exceljs'
-import { hasConfirmedImportPriceMapping, importTablesFromWorkbook, isValidImportPrices, markImportSkuConflicts, normalizeImportTables, normalizeProductRows, parseImportMoney, productImportHeaders } from '@/lib/admin-product-import'
+import JSZip from 'jszip'
+import {
+  analyzeAndNormalizeImportTables,
+  generateProductImportExcelTemplate,
+  hasConfirmedImportPriceMapping,
+  importTablesFromWorkbook,
+  isValidImportPrices,
+  loadExcelWorkbook,
+  markImportSkuConflicts,
+  normalizeImportTables,
+  normalizeProductRows,
+  parseImportMoney,
+  productImportHeaders,
+} from '@/lib/admin-product-import'
 
 const baseRow = [
   'Laptop Contoh', 'LP-01', 'Deskripsi contoh produk', '10.000.000', '', '0',
@@ -109,5 +122,194 @@ describe('multi-vendor product import', () => {
     parentVariantConflict[0].variants.push({ sku: 'ABC-3', color: '', ram: '16 GB', storage: '', price: null, discount_price: null, stock: 1 })
     markImportSkuConflicts(parentVariantConflict, new Map())
     expect(parentVariantConflict[0].duplicateInFile).toBe(true)
+  })
+})
+
+describe('loadExcelWorkbook & Excel XML namespace compatibility', () => {
+  it('loads normal ExcelJS workbooks without errors', async () => {
+    const wb = new ExcelJS.Workbook()
+    const sheet = wb.addWorksheet('Produk')
+    sheet.addRow([...productImportHeaders])
+    sheet.addRow(baseRow)
+    const buf = Buffer.from(await wb.xlsx.writeBuffer())
+    const loaded = await loadExcelWorkbook(buf)
+    expect(loaded.worksheets).toHaveLength(1)
+    expect(loaded.worksheets[0].name).toBe('Produk')
+  })
+
+  it('normalizes workbooks with <x: namespace prefixes that crash default ExcelJS parser', async () => {
+    const wb = new ExcelJS.Workbook()
+    const sheet = wb.addWorksheet('Data')
+    sheet.addRow([...productImportHeaders])
+    sheet.addRow(baseRow)
+    const originalBuf = Buffer.from(await wb.xlsx.writeBuffer())
+
+    const zip = await JSZip.loadAsync(originalBuf)
+    const wbXml = await zip.file('xl/workbook.xml')?.async('string')
+    if (wbXml) {
+      const prefixed = wbXml
+        .replace(/<workbook/g, '<x:workbook')
+        .replace(/<\/workbook>/g, '</x:workbook>')
+        .replace(/<sheets>/g, '<x:sheets>')
+        .replace(/<\/sheets>/g, '</x:sheets>')
+        .replace(/<sheet /g, '<x:sheet ')
+      zip.file('xl/workbook.xml', prefixed)
+    }
+    const modifiedBuf = await zip.generateAsync({ type: 'nodebuffer' })
+
+    const plainWb = new ExcelJS.Workbook()
+    await expect(plainWb.xlsx.load(modifiedBuf as never)).rejects.toThrow()
+
+    const loaded = await loadExcelWorkbook(modifiedBuf)
+    expect(loaded.worksheets).toHaveLength(1)
+    expect(loaded.worksheets[0].name).toBe('Data')
+  })
+
+  it('rejects empty or corrupt buffers with clear Indonesian error messages', async () => {
+    await expect(loadExcelWorkbook(Buffer.alloc(0))).rejects.toThrow(/file excel kosong/i)
+    await expect(loadExcelWorkbook(Buffer.from('bukan file zip atau excel'))).rejects.toThrow(/rusak atau tidak valid/i)
+  })
+
+  it('rejects workbooks with zero worksheets', async () => {
+    const wb = new ExcelJS.Workbook()
+    const buf = Buffer.from(await wb.xlsx.writeBuffer())
+    await expect(loadExcelWorkbook(buf)).rejects.toThrow(/tidak memiliki worksheet/i)
+  })
+})
+
+describe('generateProductImportExcelTemplate', () => {
+  it('generates a valid, readable .xlsx template with official headers and frozen header row', async () => {
+    const buffer = await generateProductImportExcelTemplate()
+    expect(buffer).toBeInstanceOf(Buffer)
+    expect(buffer.length).toBeGreaterThan(1000)
+
+    const wb = await loadExcelWorkbook(buffer)
+    expect(wb.worksheets).toHaveLength(1)
+    const sheet = wb.worksheets[0]
+    expect(sheet.name).toBe('Data Produk')
+
+    const firstRowValues = (sheet.getRow(1).values as string[]).slice(1)
+    expect(firstRowValues).toEqual(productImportHeaders)
+    expect(sheet.views?.[0]?.state).toBe('frozen')
+    expect((sheet.views?.[0] as { ySplit?: number })?.ySplit).toBe(1)
+    expect(sheet.getColumn(4).numFmt).toBe('#,##0')
+    expect(sheet.rowCount).toBe(1)
+  })
+
+  it('allows filling the official template and importing it cleanly without errors', async () => {
+    const buffer = await generateProductImportExcelTemplate()
+    const wb = await loadExcelWorkbook(buffer)
+    const sheet = wb.worksheets[0]
+    sheet.addRow([
+      'Lenovo ThinkBook 14 Gen 6', '21KG000FID', 'Laptop bisnis Intel Core i5', 12500000, 11900000, 10,
+      'Laptop', 'Lenovo', 'published', true, false, 'https://example.com/tb14.jpg',
+      'Processor: Intel Core i5-1335U; RAM: 16GB', 'Arctic Grey', '16GB', '512GB SSD', '21KG000FID-GRY', 12500000, null, 10,
+    ])
+    const filledBuffer = Buffer.from(await wb.xlsx.writeBuffer())
+
+    const reloadedWb = await loadExcelWorkbook(filledBuffer)
+    const tables = importTablesFromWorkbook(reloadedWb)
+    const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables)
+
+    expect(products).toHaveLength(1)
+    expect(products[0].name).toBe('Lenovo ThinkBook 14 Gen 6')
+    expect(products[0].sku).toBe('21KG000FID')
+    expect(products[0].price).toBe(12500000)
+    expect(products[0].discount_price).toBe(11900000)
+    expect(products[0].category).toBe('Laptop')
+    expect(products[0].brand).toBe('Lenovo')
+    expect(sheetSummary.detectedSheets[0].name).toBe('Data Produk')
+  })
+})
+
+describe('analyzeAndNormalizeImportTables and multi-sheet handling', () => {
+  it('correctly categorizes product sheets and skips informational sheets with clear reasons', () => {
+    const tables = [
+      {
+        source: 'XLSX/Import',
+        rows: [
+          ['TYPE', 'MTM', 'NEW PRICE USER/SRP', 'HARGA JUAL'],
+          ['AIO 24IRH9', 'F0HN00Q3ID', '12.799.000', '10.800.000'],
+        ],
+      },
+      {
+        source: 'XLSX/Petunjuk',
+        rows: [
+          ['Panduan Penggunaan', 'Keterangan'],
+          ['1. Silakan baca petunjuk', 'Harap perhatikan ketentuan'],
+        ],
+      },
+      {
+        source: 'XLSX/Audit Sumber',
+        rows: [
+          ['Tanggal Ekstrak', 'Operator', 'Status'],
+          ['2026-10-10', 'Admin', 'Verified'],
+        ],
+      },
+      {
+        source: 'XLSX/Perlu Review',
+        rows: [
+          ['Catatan Internal', 'Tindakan'],
+          ['Cek kembali stok', 'Menunggu konfirmasi distributor'],
+        ],
+      },
+    ]
+
+    const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables)
+    expect(products).toHaveLength(1)
+    expect(products[0].sku).toBe('F0HN00Q3ID')
+    expect(products[0].name).toBe('AIO 24IRH9')
+
+    expect(sheetSummary.totalTables).toBe(4)
+    expect(sheetSummary.detectedSheets).toHaveLength(1)
+    expect(sheetSummary.detectedSheets[0]).toEqual({
+      name: 'Import',
+      productCount: 1,
+      vendor: 'lenovo',
+    })
+
+    expect(sheetSummary.skippedSheets).toHaveLength(3)
+    expect(sheetSummary.skippedSheets.map((s) => s.name)).toEqual(['Petunjuk', 'Audit Sumber', 'Perlu Review'])
+    expect(sheetSummary.skippedSheets[0].reason).toContain('petunjuk atau panduan')
+    expect(sheetSummary.skippedSheets[1].reason).toContain('audit sumber')
+    expect(sheetSummary.skippedSheets[2].reason).toContain('perlu ditinjau')
+  })
+
+  it('correctly maps Lenovo header alias new_price_user_srp and srp_user to main price', () => {
+    const tables = [
+      {
+        source: 'XLSX/LenovoPricelist',
+        rows: [
+          ['TYPE', 'MTM', 'NEW PRICE USER/SRP', 'KETERANGAN'],
+          ['ThinkCentre Neo 50s', '11SX002XID', '11.500.000', 'Core i5-12400'],
+        ],
+      },
+    ]
+
+    const { products } = analyzeAndNormalizeImportTables(tables)
+    expect(products).toHaveLength(1)
+    expect(products[0].price).toBe(11500000)
+    expect(products[0].priceCandidates?.[0].column).toBe('NEW PRICE USER')
+  })
+
+  it('runs against real Lenovo pricelist file if present on local machine', async () => {
+    const fs = await import('fs')
+    const filePath = 'C:/Users/Admin/Downloads/lenovo_pricelist_massupload_next_solution.xlsx'
+    if (!fs.existsSync(filePath)) return
+
+    const buf = fs.readFileSync(filePath)
+    const wb = await loadExcelWorkbook(buf)
+    expect(wb.worksheets.length).toBeGreaterThanOrEqual(1)
+
+    const tables = importTablesFromWorkbook(wb)
+    const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables)
+    expect(products.length).toBe(102)
+    expect(products[0].sku).toBe('91CF001VID')
+    const f0hn = products.find((p) => p.sku === 'F0HN00Q3ID')
+    expect(f0hn).toBeDefined()
+    expect(f0hn?.name).toContain('AIO 24IRH9')
+    expect(f0hn?.price).toBe(12799000)
+    expect(sheetSummary.detectedSheets[0].name).toBe('Import')
+    expect(sheetSummary.skippedSheets.map((s) => s.name)).toEqual(['Perlu Review', 'Audit Sumber', 'Petunjuk'])
   })
 })

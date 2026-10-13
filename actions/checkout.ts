@@ -47,7 +47,9 @@ export async function proceedToCheckoutAction(formData: FormData) {
     .eq('id', order.id)
     .single()
 
-  revalidatePath('/', 'layout')
+  revalidatePath('/cart')
+  revalidatePath('/profile')
+  revalidatePath('/admin/orders')
   return {
     success: true,
     orderId: order.id,

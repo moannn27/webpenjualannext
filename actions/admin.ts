@@ -664,6 +664,32 @@ export async function saveAdminProductAction(formData: FormData) {
   return { success: true }
 }
 
+function generateTaxonomySlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return base || `item-${crypto.randomUUID().slice(0, 6)}`
+}
+
+export async function getMissingImportTaxonomiesAction(categories: string[], brands: string[]) {
+  await requireModulePermission('products')
+  const supabase = await createClient()
+  const [{ data: existingCats }, { data: existingBrands }] = await Promise.all([
+    supabase.from('categories').select('id, name'),
+    supabase.from('brands').select('id, name'),
+  ])
+  const missingCategories = [...new Set(categories.map((c) => c?.trim()).filter(Boolean))].filter(
+    (name) => !existingCats?.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())
+  )
+  const missingBrands = [...new Set(brands.map((b) => b?.trim()).filter(Boolean))].filter(
+    (name) => !existingBrands?.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())
+  )
+  return { missingCategories, missingBrands }
+}
+
 export async function bulkImportAdminProductsAction(products: unknown) {
   const { user, adminName, role } = await requireModulePermission('products')
   if (!Array.isArray(products) || products.length < 1 || products.length > 500) throw new Error('Impor dapat memuat 1 sampai 500 produk sekaligus.')
@@ -673,6 +699,64 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     if (product.importAction === 'update' && !product.targetProductId) throw new Error('Pilih produk database yang cocok sebelum update.')
   }
   const supabase = await createClient()
+
+  // Ensure any missing categories and brands are auto-created before invoking bulk import RPC
+  const activeProducts = products.filter((p: { importAction?: string }) => p.importAction !== 'skip')
+  const targetCategories = [...new Set(activeProducts.map((p: { category?: string }) => p.category?.trim()).filter(Boolean) as string[])]
+  const targetBrands = [...new Set(activeProducts.map((p: { brand?: string }) => p.brand?.trim()).filter(Boolean) as string[])]
+
+  if (targetCategories.length || targetBrands.length) {
+    const [{ data: existingCats }, { data: existingBrands }] = await Promise.all([
+      supabase.from('categories').select('id, name, slug'),
+      supabase.from('brands').select('id, name, slug'),
+    ])
+
+    const missingCategories = targetCategories.filter(
+      (name) => !existingCats?.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())
+    )
+    const missingBrands = targetBrands.filter(
+      (name) => !existingBrands?.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())
+    )
+
+    if (missingCategories.length) {
+      for (const catName of missingCategories) {
+        const baseSlug = generateTaxonomySlug(catName)
+        let slug = baseSlug
+        let count = 1
+        while (existingCats?.some((c) => c.slug === slug)) {
+          slug = `${baseSlug}-${count++}`
+        }
+        await supabase.from('categories').insert({
+          name: catName,
+          slug,
+          description: `Kategori ${catName} (dibuat otomatis dari impor katalog)`,
+        })
+      }
+    }
+
+    if (missingBrands.length) {
+      for (const brandName of missingBrands) {
+        const baseSlug = generateTaxonomySlug(brandName)
+        let slug = baseSlug
+        let count = 1
+        while (existingBrands?.some((b) => b.slug === slug)) {
+          slug = `${baseSlug}-${count++}`
+        }
+        await supabase.from('brands').insert({
+          name: brandName,
+          slug,
+        })
+      }
+    }
+
+    if (missingCategories.length || missingBrands.length) {
+      revalidatePath('/admin/categories')
+      revalidatePath('/admin/brands')
+      revalidatePath('/categories')
+      revalidatePath('/brands')
+    }
+  }
+
   let { data, error } = await supabase.rpc('bulk_import_products_v2', { p_products: products })
   if (error && (error.code === 'PGRST202' || error.message?.includes('bulk_import_products_v2'))) {
     const onlyCreates = products.every((p: { importAction?: string }) => !p.importAction || p.importAction === 'create')
