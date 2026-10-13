@@ -54,6 +54,16 @@ export default async function Home() {
     return ids.length ? ids.map((id) => selectedProducts.find((product) => product.id === id)).filter((product): product is (typeof selectedProducts)[number] => Boolean(product)) : fallback;
   };
 
+  // Gabungkan produk promo, best seller, dan produk baru untuk spotlight PromoBanner
+  const spotlightCandidateRows = [
+    ...(promoProducts ?? []),
+    ...(bestSellers ?? []),
+    ...(newArrivals ?? []),
+  ];
+  const uniqueSpotlightProducts = Array.from(
+    new Map(spotlightCandidateRows.map((product) => [product.id, product])).values()
+  ).map((product) => toStorefrontProduct(product as StoreProduct));
+
   const featuredReviews = await getStorefrontFeaturedReviewsAction(
     settings.featured_reviews,
     settings.selected_review_ids
@@ -75,7 +85,7 @@ export default async function Home() {
           banner={(banners ?? []).find((banner) => banner.placement === "promo")}
           sectionTitle={sections.promo.title}
           sectionSubtitle={sections.promo.subtitle}
-          products={selected("promo", promoProducts.map((product) => toStorefrontProduct(product as StoreProduct)))}
+          products={selected("promo", uniqueSpotlightProducts)}
         />
       )}
       {sections.newArrivals.visible && <FeaturedProducts title={sections.newArrivals.title} subtitle={sections.newArrivals.subtitle} type="new" initialData={selected("newArrivals", (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}

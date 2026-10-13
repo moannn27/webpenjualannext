@@ -808,6 +808,128 @@ export async function deleteAdminProductAction(productId: string) {
   return { success: true }
 }
 
+export async function bulkUpdateAdminProductsStatusAction(
+  productIds: string[],
+  status: 'published' | 'draft' | 'archived'
+) {
+  const { user, adminName, role } = await requireModulePermission('products')
+  if (!productIds || productIds.length === 0) throw new Error('Pilih minimal satu produk.')
+  if (!['published', 'draft', 'archived'].includes(status)) throw new Error('Status tidak valid.')
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('products')
+    .update({ status })
+    .in('id', productIds)
+
+  if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'status_change',
+    entity_type: 'product',
+    entity_name: `${productIds.length} produk`,
+    details: `Mengubah status ${productIds.length} produk menjadi "${status}"`,
+  })
+
+  revalidatePath('/admin/products')
+  revalidatePath('/products')
+  revalidatePath('/')
+  return { success: true, count: productIds.length }
+}
+
+export async function bulkUpdateAdminProductsAction(
+  productIds: string[],
+  updates: {
+    status?: 'published' | 'draft' | 'archived';
+    categoryId?: string;
+    brandId?: string;
+    stock?: number;
+    isBestSeller?: boolean;
+    isNewArrival?: boolean;
+  }
+) {
+  const { user, adminName, role } = await requireModulePermission('products')
+  if (!productIds || productIds.length === 0) throw new Error('Pilih minimal satu produk.')
+
+  const payload: Record<string, unknown> = {}
+  if (updates.status && ['published', 'draft', 'archived'].includes(updates.status)) {
+    payload.status = updates.status
+  }
+  if (updates.categoryId && updates.categoryId.trim() !== '') {
+    payload.category_id = updates.categoryId
+  }
+  if (updates.brandId && updates.brandId.trim() !== '') {
+    payload.brand_id = updates.brandId
+  }
+  if (typeof updates.stock === 'number' && Number.isInteger(updates.stock) && updates.stock >= 0) {
+    payload.stock = updates.stock
+  }
+  if (typeof updates.isBestSeller === 'boolean') {
+    payload.is_best_seller = updates.isBestSeller
+  }
+  if (typeof updates.isNewArrival === 'boolean') {
+    payload.is_new_arrival = updates.isNewArrival
+  }
+
+  if (Object.keys(payload).length === 0) {
+    throw new Error('Tidak ada perubahan yang dipilih.')
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('products')
+    .update(payload)
+    .in('id', productIds)
+
+  if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'update',
+    entity_type: 'product',
+    entity_name: `${productIds.length} produk`,
+    details: `Memperbarui ${productIds.length} produk sekaligus (${Object.keys(payload).join(', ')})`,
+  })
+
+  revalidatePath('/admin/products')
+  revalidatePath('/products')
+  revalidatePath('/')
+  return { success: true, count: productIds.length }
+}
+
+export async function bulkDeleteAdminProductsAction(productIds: string[]) {
+  const { user, adminName, role } = await requireModulePermission('products')
+  if (!productIds || productIds.length === 0) throw new Error('Pilih minimal satu produk.')
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .in('id', productIds)
+
+  if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role,
+    action: 'delete',
+    entity_type: 'product',
+    entity_name: `${productIds.length} produk`,
+    details: `Menghapus massal ${productIds.length} produk`,
+  })
+
+  revalidatePath('/admin/products')
+  revalidatePath('/products')
+  revalidatePath('/')
+  return { success: true, count: productIds.length }
+}
+
 export async function getAdminCategoriesAction() {
   await requireAdmin()
   const supabase = await createClient()

@@ -14,6 +14,23 @@ describe('storefront product pricing', () => {
     expect(product.price).toBe(12000000)
     expect(product.discountPrice).toBeNull()
   })
+
+  it('correctly maps is_best_seller and is_new_arrival with appropriate badges', () => {
+    const product = toStorefrontProduct({
+      id: 'p3',
+      name: 'Best Laptop',
+      price: 20000000,
+      discount_price: 18000000,
+      stock: 5,
+      is_best_seller: true,
+      is_new_arrival: true,
+    })
+    expect(product.isBestSeller).toBe(true)
+    expect(product.isNewArrival).toBe(true)
+    expect(product.badges).toContain('Best Seller')
+    expect(product.badges).toContain('Baru')
+    expect(product.badges).toContain('Sale')
+  })
 })
 
 describe('product search matching (matchesProductSearch)', () => {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Star, ShieldCheck, Truck, ArrowLeft, Heart, Share2, Plus, Minus } from "lucide-react";
+import { Star, ShieldCheck, Truck, ArrowLeft, Heart, Share2, Plus, Minus, Store, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -302,19 +302,44 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             {quantity} unit berhasil ditambahkan. Total isi keranjang {cartCountAfterAdd} unit. <Link href="/cart" className="font-semibold underline underline-offset-2">Lihat keranjang</Link>
           </p>}
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-8">
-            <div className="flex items-start gap-3">
-              <Truck className="h-6 w-6 text-primary shrink-0" />
-              <div>
-                <h4 className="font-medium text-foreground">Pengiriman Cepat</h4>
-                <p className="text-sm text-muted-foreground mt-1">Bisa diantar kurir atau ambil langsung di toko</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 border-t border-border/80 pt-6">
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3.5 transition-colors hover:bg-muted/50">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Store className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">Bisa Ambil di Tempat</h4>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Pesan online, ambil langsung di toko fisik tanpa antre</p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
-              <div>
-                <h4 className="font-medium text-foreground">Jaminan Produk</h4>
-                <p className="text-sm text-muted-foreground mt-1">Produk original dengan garansi resmi dan layanan terpercaya</p>
+
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3.5 transition-colors hover:bg-muted/50">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">100% Original & Garansi Resmi</h4>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Barang segel asli dengan jaminan garansi resmi distributor</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3.5 transition-colors hover:bg-muted/50">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Truck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">Pengiriman Cepat & Aman</h4>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Packing aman dengan bubble wrap ekstra & opsi asuransi</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-3.5 transition-colors hover:bg-muted/50">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Headphones className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm font-semibold text-foreground">Bantuan Teknisi & CS</h4>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Konsultasi spek atau bantuan klaim dibantu ramah via CS</p>
               </div>
             </div>
           </div>
@@ -346,13 +371,33 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
 
         <div className="min-h-[300px]">
           {activeTab === "specs" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-12 max-w-4xl">
-              {product.product_specifications?.length ? [...product.product_specifications].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)).map((spec) => (
-                <div key={spec.id} className="flex justify-between py-3 border-b border-border/50">
-                  <span className="text-muted-foreground">{spec.key}</span>
-                  <span className="font-medium text-foreground">{spec.value}</span>
-                </div>
-              )) : <p className="text-muted-foreground">Spesifikasi belum tersedia.</p>}
+            <div className="max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xs">
+              <dl className="divide-y divide-border/60">
+                {product.product_specifications?.length ? (
+                  [...product.product_specifications]
+                    .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                    .map((spec, index) => (
+                      <div
+                        key={spec.id}
+                        className={cn(
+                          "grid grid-cols-1 sm:grid-cols-12 gap-1 sm:gap-4 px-5 py-3.5 text-sm transition-colors",
+                          index % 2 === 0 ? "bg-muted/25" : "bg-card hover:bg-muted/10"
+                        )}
+                      >
+                        <dt className="sm:col-span-4 font-medium text-muted-foreground flex items-center">
+                          {spec.key}
+                        </dt>
+                        <dd className="sm:col-span-8 font-semibold text-foreground break-words flex items-center">
+                          {spec.value}
+                        </dd>
+                      </div>
+                    ))
+                ) : (
+                  <div className="p-8 text-center text-muted-foreground">
+                    Spesifikasi belum tersedia untuk produk ini.
+                  </div>
+                )}
+              </dl>
             </div>
           ) : (
             <div className="space-y-6 max-w-4xl">

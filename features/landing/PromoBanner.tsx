@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -58,6 +58,12 @@ export function PromoBanner({
   const [savedProducts, setSavedProducts] = useState<Record<string, boolean>>({});
   const [fadeState, setFadeState] = useState<"visible" | "fading">("visible");
 
+  // Touch and wheel swipe state
+  const touchStartX = useRef<number | null>(null);
+  const touchDeltaX = useRef<number>(0);
+  const lastWheelTime = useRef<number>(0);
+  const pillTrackRef = useRef<HTMLDivElement>(null);
+
   const title = banner?.headline || "Temukan promo pilihan";
   const description =
     banner?.description ||
@@ -98,8 +104,58 @@ export function PromoBanner({
     return () => clearInterval(timer);
   }, [products.length, isPaused, goToNext]);
 
-  // Current active product
-  const activeProduct = products[currentIndex];
+  // Keep scrollable pill in view
+  useEffect(() => {
+    if (!pillTrackRef.current) return;
+    const activePill = pillTrackRef.current.querySelector(`[data-index="${currentIndex}"]`) as HTMLElement | null;
+    if (activePill) {
+      activePill.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+  }, [currentIndex]);
+
+  // Touch gesture handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsPaused(true);
+    touchStartX.current = e.touches[0].clientX;
+    touchDeltaX.current = 0;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current !== null) {
+      if (touchDeltaX.current < -40) {
+        goToNext();
+      } else if (touchDeltaX.current > 40) {
+        goToPrev();
+      }
+    }
+    touchStartX.current = null;
+    touchDeltaX.current = 0;
+    setIsPaused(false);
+  };
+
+  // Horizontal wheel scroll handler
+  const handleWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaX) > 25 || (e.shiftKey && Math.abs(e.deltaY) > 25)) {
+      const now = Date.now();
+      if (now - lastWheelTime.current > 380) {
+        lastWheelTime.current = now;
+        if (e.deltaX > 0 || (e.shiftKey && e.deltaY > 0)) {
+          goToNext();
+        } else {
+          goToPrev();
+        }
+      }
+    }
+  };
+
+  // Safe active product index
+  const safeIndex = products.length ? (currentIndex % products.length + products.length) % products.length : 0;
+  const activeProduct = products[safeIndex];
 
   const payablePrice = activeProduct
     ? activeProduct.discountPrice ?? activeProduct.price
@@ -190,6 +246,10 @@ export function PromoBanner({
                 className="w-full max-w-sm sm:max-w-md lg:max-w-[360px] xl:max-w-[380px]"
                 onMouseEnter={() => setIsPaused(true)}
                 onMouseLeave={() => setIsPaused(false)}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onWheel={handleWheel}
               >
                 {/* Spotlight Card */}
                 <div
@@ -199,13 +259,32 @@ export function PromoBanner({
                 >
                   {/* Top Bar of the Card: Badges & Carousel Controls */}
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-destructive px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs">
-                        Sale
-                      </span>
-                      {discountPct && (
-                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                          Hemat {discountPct}%
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {discountPct ? (
+                        <>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs">
+                            Sale
+                          </span>
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                            Hemat {discountPct}%
+                          </span>
+                        </>
+                      ) : null}
+                      {activeProduct.isBestSeller && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs">
+                          <Star className="size-3 fill-white" />
+                          Best Seller
+                        </span>
+                      )}
+                      {activeProduct.isNewArrival && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs">
+                          <Sparkles className="size-3" />
+                          Terbaru
+                        </span>
+                      )}
+                      {!discountPct && !activeProduct.isBestSeller && !activeProduct.isNewArrival && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white shadow-xs">
+                          Pilihan
                         </span>
                       )}
                     </div>
@@ -214,13 +293,13 @@ export function PromoBanner({
                     {hasMultiple && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
-                          {currentIndex + 1} / {products.length}
+                          {safeIndex + 1} / {products.length}
                         </span>
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={goToPrev}
-                            aria-label="Produk promo sebelumnya"
+                            aria-label="Produk spotlight sebelumnya"
                             className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs"
                           >
                             <ChevronLeft className="size-3.5" />
@@ -228,7 +307,7 @@ export function PromoBanner({
                           <button
                             type="button"
                             onClick={goToNext}
-                            aria-label="Produk promo berikutnya"
+                            aria-label="Produk spotlight berikutnya"
                             className="inline-flex size-6 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted shadow-2xs"
                           >
                             <ChevronRight className="size-3.5" />
@@ -344,22 +423,52 @@ export function PromoBanner({
                   </div>
                 </div>
 
-                {/* Dot Pagination Below Card */}
+                {/* Horizontal Scrollable Product Selector Pills & Dot Pagination */}
                 {hasMultiple && (
-                  <div className="mt-3.5 flex items-center justify-center gap-1.5">
-                    {products.map((p, idx) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => changeIndex(idx)}
-                        aria-label={`Tampilkan produk promo ke-${idx + 1}`}
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          currentIndex === idx
-                            ? "w-6 bg-white shadow-xs"
-                            : "w-2 bg-white/40 hover:bg-white/70"
-                        }`}
-                      />
-                    ))}
+                  <div className="mt-3.5 flex flex-col items-center gap-2.5">
+                    {/* Horizontal scrollable pills */}
+                    <div 
+                      ref={pillTrackRef}
+                      className="flex w-full items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none snap-x"
+                    >
+                      {products.map((p, idx) => {
+                        const isCurrent = safeIndex === idx;
+                        return (
+                          <button
+                            key={p.id}
+                            data-index={idx}
+                            type="button"
+                            onClick={() => changeIndex(idx)}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-all snap-center ${
+                              isCurrent
+                                ? "bg-white text-primary font-bold shadow-md scale-105"
+                                : "bg-white/20 text-white/90 hover:bg-white/35 backdrop-blur-xs font-medium"
+                            }`}
+                          >
+                            {p.isBestSeller && <Star className="size-2.5 fill-amber-300 text-amber-300 shrink-0" />}
+                            {!p.isBestSeller && p.discountPrice != null && <Tag className="size-2.5 text-rose-300 shrink-0" />}
+                            <span className="max-w-[85px] truncate">{p.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Dot Pagination */}
+                    <div className="flex items-center justify-center gap-1.5">
+                      {products.map((p, idx) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => changeIndex(idx)}
+                          aria-label={`Tampilkan produk spotlight ke-${idx + 1}`}
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            safeIndex === idx
+                              ? "w-5 bg-white shadow-xs"
+                              : "w-1.5 bg-white/40 hover:bg-white/70"
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
