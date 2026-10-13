@@ -464,6 +464,7 @@ export function OrderInvoice({
                         <td className="py-2.5 px-2.5 print:py-1.5">
                           <div className="size-12 rounded-lg border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-10">
                             {imgUrl ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={imgUrl}
                                 alt={item.product_name}

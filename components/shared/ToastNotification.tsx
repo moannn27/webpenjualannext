@@ -1,6 +1,6 @@
 "use client";
 
-import { useToastStore, type ToastItem } from "@/store/useToastStore";
+import { useToastStore } from "@/store/useToastStore";
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 

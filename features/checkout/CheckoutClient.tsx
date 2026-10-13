@@ -10,7 +10,6 @@ import {
   CheckCheck,
   Clock3,
   Copy,
-  ExternalLink,
   FileText,
   LoaderCircle,
   MapPin,

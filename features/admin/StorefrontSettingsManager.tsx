@@ -44,7 +44,6 @@ import {
   SlidersHorizontal,
   Truck,
   Store,
-  ShieldCheck,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
