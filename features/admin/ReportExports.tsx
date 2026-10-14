@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Download, FileSpreadsheet, FileText, Printer, ChevronDown, Check } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Printer, ChevronDown } from "lucide-react";
 import type { EcommerceReport } from "@/lib/admin-reports";
 import { Button } from "@/components/ui/button";
 
@@ -22,7 +22,6 @@ const esc = (value: unknown) =>
 
 export function ReportExports({ report }: { report: EcommerceReport }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [copiedSuccess, setCopiedSuccess] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside

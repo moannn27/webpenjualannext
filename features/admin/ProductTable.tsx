@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, CheckSquare, Square, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import {
   deleteAdminProductAction,
