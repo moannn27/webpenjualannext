@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useId, useMemo, useEffect, useTransition } from "react";
+import { useState, useId, useMemo, useEffect, useRef, useTransition } from "react";
 import {
   TrendingUp,
   ShoppingBag,
@@ -19,6 +19,10 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  ChevronDown,
+  FileSpreadsheet,
+  FileText,
+  Printer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,14 @@ import {
   type AdminSaleItemDetail,
   type AdminSalesChartData,
 } from "@/actions/admin";
+import {
+  generateSalesCsv,
+  generateSalesExcel,
+  generateSalesWord,
+  openSalesPrintPdf,
+  triggerBlobDownload,
+  type SalesExportFormat,
+} from "@/lib/export-sales";
 
 export type SalesChartPoint = {
   day: string;
@@ -40,6 +52,8 @@ interface SalesChartProps {
   points: SalesChartPoint[];
   days?: number;
 }
+
+type ChartMetricMode = "combined" | "revenue" | "orders";
 
 function getCubicBezierPath(pts: { x: number; y: number }[]): string {
   if (pts.length === 0) return "";
@@ -62,51 +76,136 @@ function getCubicBezierPath(pts: { x: number; y: number }[]): string {
   return path;
 }
 
-function exportDaySalesCsv(day: string, details: AdminSaleItemDetail[]) {
-  if (!details || details.length === 0) return;
-  const headers = [
-    "No Pesanan",
-    "Tanggal",
-    "Jam",
-    "Nama Pelanggan",
-    "No Telepon",
-    "Nama Produk",
-    "Varian",
-    "Brand",
-    "Kategori",
-    "Jumlah",
-    "Harga Satuan",
-    "Subtotal",
-    "Total Pesanan",
-    "Status",
-  ];
-  const rows = details.map((d) => [
-    `"${d.orderNumber}"`,
-    `"${d.day}"`,
-    `"${d.time}"`,
-    `"${d.customerName.replace(/"/g, '""')}"`,
-    `"${d.customerPhone}"`,
-    `"${d.productName.replace(/"/g, '""')}"`,
-    `"${(d.variantDetails || "").replace(/"/g, '""')}"`,
-    `"${(d.brandName || "").replace(/"/g, '""')}"`,
-    `"${(d.categoryName || "").replace(/"/g, '""')}"`,
-    d.quantity,
-    d.price,
-    d.subtotal,
-    d.grandTotal,
-    `"${d.orderStatus}"`,
-  ]);
+/**
+ * Dropdown Menu Ekspor Multi-Format (Excel, Word, PDF, CSV)
+ */
+function SalesExportDropdown({
+  title,
+  details,
+  buttonLabel = "Opsi Ekspor",
+  variant = "outline",
+}: {
+  title: string;
+  details: AdminSaleItemDetail[];
+  buttonLabel?: string;
+  variant?: "outline" | "default";
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const csvContent =
-    "data:text/csv;charset=utf-8,\uFEFF" +
-    [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `laporan-penjualan-${day}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleExport = async (format: SalesExportFormat) => {
+    if (!details || details.length === 0) return;
+    setIsExporting(true);
+    setIsOpen(false);
+    try {
+      const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, "_");
+      if (format === "xlsx") {
+        const blob = await generateSalesExcel(title, details);
+        triggerBlobDownload(blob, `laporan-penjualan-${sanitizedTitle}.xlsx`);
+      } else if (format === "doc") {
+        const blob = generateSalesWord(title, details);
+        triggerBlobDownload(blob, `laporan-penjualan-${sanitizedTitle}.doc`);
+      } else if (format === "pdf") {
+        openSalesPrintPdf(title, details);
+      } else if (format === "csv") {
+        const blob = generateSalesCsv(title, details);
+        triggerBlobDownload(blob, `laporan-penjualan-${sanitizedTitle}.csv`);
+      }
+    } catch (err) {
+      console.error("Gagal mengekspor data penjualan:", err);
+      alert("Terjadi kendala saat mengekspor laporan.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="relative inline-block" ref={dropdownRef}>
+      <Button
+        type="button"
+        variant={variant}
+        size="sm"
+        disabled={isExporting || details.length === 0}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="gap-1.5 text-xs font-semibold"
+      >
+        <Download className="size-3.5" />
+        <span>{isExporting ? "Mengekspor..." : buttonLabel}</span>
+        <ChevronDown
+          className={`size-3 text-muted-foreground transition-transform duration-200 ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </Button>
+
+      {isOpen && (
+        <div className="absolute left-0 bottom-full sm:bottom-auto sm:top-full mb-1 sm:mb-0 sm:mt-1 z-50 w-56 rounded-xl border bg-popover p-1.5 shadow-xl text-popover-foreground animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Pilih Format Ekspor:
+          </div>
+          <button
+            type="button"
+            onClick={() => handleExport("xlsx")}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted font-medium transition-colors text-left"
+          >
+            <FileSpreadsheet className="size-4 text-emerald-600" />
+            <div>
+              <span className="font-semibold block">Excel (.xlsx)</span>
+              <span className="text-[10px] text-muted-foreground">Spreadsheet resmi terformat</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport("doc")}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted font-medium transition-colors text-left"
+          >
+            <FileText className="size-4 text-blue-600" />
+            <div>
+              <span className="font-semibold block">Word (.doc)</span>
+              <span className="text-[10px] text-muted-foreground">Dokumen laporan &amp; tabel</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport("pdf")}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted font-medium transition-colors text-left"
+          >
+            <Printer className="size-4 text-rose-600" />
+            <div>
+              <span className="font-semibold block">Cetak / Simpan PDF</span>
+              <span className="text-[10px] text-muted-foreground">Format cetak A4 rapi</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExport("csv")}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs text-foreground hover:bg-muted font-medium transition-colors text-left"
+          >
+            <Download className="size-4 text-slate-600" />
+            <div>
+              <span className="font-semibold block">CSV (.csv)</span>
+              <span className="text-[10px] text-muted-foreground">Data mentah UTF-8</span>
+            </div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
@@ -116,6 +215,9 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
   const [isCustomRange, setIsCustomRange] = useState(false);
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
+
+  // Chart Metric Mode: Gabungan, Omset Saja, Pesanan Saja
+  const [chartMetric, setChartMetric] = useState<ChartMetricMode>("combined");
 
   // Filters
   const [selectedBrand, setSelectedBrand] = useState("all");
@@ -225,6 +327,11 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
     return rawPoints.slice(-selectedPeriod);
   }, [detailedData, rawPoints, selectedPeriod, selectedBrand, selectedCategory, searchProduct]);
 
+  // All filtered details across the active points (for full period export)
+  const allFilteredDetails = useMemo(() => {
+    return activePoints.flatMap((p) => p.details || []);
+  }, [activePoints]);
+
   // Compute key sales metrics for the active period
   const metrics = useMemo(() => {
     const totalRev = activePoints.reduce((acc, p) => acc + p.revenue, 0);
@@ -259,12 +366,18 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
 
   const width = 900;
   const height = 260;
-  const inset = { x: 55, y: 24, bottom: 40 };
+  const inset = { x: 55, y: 26, bottom: 40 };
   const plotWidth = width - inset.x - 20;
   const plotHeight = height - inset.y - inset.bottom;
 
   const maxRevenue = Math.max(1, ...activePoints.map((p) => p.revenue));
   const maxOrders = Math.max(1, ...activePoints.map((p) => p.orders));
+
+  // Determine bar width for order volume pillars
+  const barWidth = useMemo(() => {
+    if (activePoints.length === 0) return 12;
+    return Math.max(6, Math.min(22, (plotWidth / activePoints.length) * 0.45));
+  }, [activePoints.length, plotWidth]);
 
   const coordinates = useMemo(() => {
     return activePoints.map((p, idx) => {
@@ -275,13 +388,20 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
           : (idx * plotWidth) / (activePoints.length - 1));
       const revY =
         inset.y + plotHeight - (p.revenue / maxRevenue) * plotHeight;
-      const orderY =
+      // In dedicated orders mode: full height scale
+      const orderOnlyY =
         inset.y + plotHeight - (p.orders / maxOrders) * plotHeight;
+      // In combined mode: order bar height is proportional and capped at 40% of plotHeight
+      const orderBarHeight =
+        p.orders > 0 && maxOrders > 0
+          ? Math.max(6, (p.orders / maxOrders) * (plotHeight * 0.40))
+          : 0;
       return {
         ...p,
         x,
         y: revY,
-        orderY,
+        orderOnlyY,
+        orderBarHeight,
       };
     });
   }, [activePoints, inset.x, inset.y, plotWidth, plotHeight, maxRevenue, maxOrders]);
@@ -290,12 +410,13 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
     () => getCubicBezierPath(coordinates),
     [coordinates]
   );
+
   const ordersSpline = useMemo(
     () =>
       getCubicBezierPath(
         coordinates.map((c) => ({
           x: c.x,
-          y: c.orderY,
+          y: c.orderOnlyY,
         }))
       ),
     [coordinates]
@@ -310,12 +431,41 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
     ).toFixed(1)} L ${first.x.toFixed(1)} ${(inset.y + plotHeight).toFixed(1)} Z`;
   }, [coordinates, revenueSpline, inset.y, plotHeight]);
 
-  const tickValues = [maxRevenue, maxRevenue * 0.66, maxRevenue * 0.33, 0];
+  const ordersAreaSpline = useMemo(() => {
+    if (coordinates.length <= 1) return "";
+    const first = coordinates[0];
+    const last = coordinates[coordinates.length - 1];
+    return `${ordersSpline} L ${last.x.toFixed(1)} ${(
+      inset.y + plotHeight
+    ).toFixed(1)} L ${first.x.toFixed(1)} ${(inset.y + plotHeight).toFixed(1)} Z`;
+  }, [coordinates, ordersSpline, inset.y, plotHeight]);
+
   const compactMoney = (val: number) => {
     if (val >= 1_000_000_000) return `${(val / 1_000_000_000).toFixed(1)}M`;
     if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}jt`;
     if (val >= 1_000) return `${Math.round(val / 1_000)}rb`;
     return Math.round(val).toLocaleString("id-ID");
+  };
+
+  // Dynamic Y-Axis Ticks depending on active metric mode
+  const tickValues = useMemo(() => {
+    if (chartMetric === "orders") {
+      const top = Math.max(1, maxOrders);
+      return [
+        top,
+        Math.max(1, Math.round(top * 0.66)),
+        Math.max(1, Math.round(top * 0.33)),
+        0,
+      ];
+    }
+    return [maxRevenue, maxRevenue * 0.66, maxRevenue * 0.33, 0];
+  }, [chartMetric, maxOrders, maxRevenue]);
+
+  const formatTickLabel = (val: number) => {
+    if (chartMetric === "orders") {
+      return `${val} trx`;
+    }
+    return compactMoney(val);
   };
 
   // Fixed Non-overlapping X-Axis Label Distribution
@@ -338,7 +488,6 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
       const prevIdx = indices[indices.length - 1];
       const prevX = coordinates[prevIdx]?.x ?? 0;
       const lastX = coordinates[lastIdx]?.x ?? 0;
-      // If the penultimate label is within 55px of the final date label, replace it to prevent overlap
       if (lastX - prevX < 55) {
         indices[indices.length - 1] = lastIdx;
       } else {
@@ -358,25 +507,44 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
     <div className="space-y-4">
       <style>{`
         @keyframes drawLineAnimation {
-          from { stroke-dashoffset: 1400; }
-          to { stroke-dashoffset: 0; }
+          0% {
+            stroke-dashoffset: 1200;
+            opacity: 0.2;
+          }
+          100% {
+            stroke-dashoffset: 0;
+            opacity: 1;
+          }
         }
-        @keyframes areaFadeIn {
-          from { opacity: 0; transform: scaleY(0.92); }
-          to { opacity: 1; transform: scaleY(1); }
+        @keyframes fillAreaAnimation {
+          0% {
+            opacity: 0;
+            transform: scaleY(0.9);
+          }
+          100% {
+            opacity: 1;
+            transform: scaleY(1);
+          }
         }
         @keyframes pointScale {
-          from { transform: scale(0); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+          0% {
+            transform: scale(0);
+          }
+          70% {
+            transform: scale(1.3);
+          }
+          100% {
+            transform: scale(1);
+          }
         }
         .chart-path-animated {
-          stroke-dasharray: 1400;
-          stroke-dashoffset: 0;
+          stroke-dasharray: 1200;
+          stroke-dashoffset: 1200;
           animation: drawLineAnimation 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         .chart-area-animated {
           transform-origin: bottom;
-          animation: areaFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          animation: fillAreaAnimation 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         .chart-point-pop {
           transform-box: fill-box;
@@ -402,41 +570,54 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
             )}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Visualisasi kurva penjualan selesai dan volume transaksi per hari. Klik titik kurva untuk melihat rincian produk &amp; pembeli.
+            Grafik penjualan selesai dan volume transaksi per hari. Klik titik kurva untuk melihat &amp; ekspor rincian pesanan.
           </p>
         </div>
 
-        {/* Period Selector Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-muted/40 p-1 self-start sm:self-auto shadow-2xs">
-          {([7, 14, 30, 90] as const).map((p) => (
+        {/* Actions & Period Selector */}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Export Full Filtered Period */}
+          {allFilteredDetails.length > 0 && (
+            <SalesExportDropdown
+              title={`Periode-${isCustomRange ? "Kustom" : `${selectedPeriod}H`}`}
+              details={allFilteredDetails}
+              buttonLabel={`Ekspor Periode (${allFilteredDetails.length})`}
+              variant="outline"
+            />
+          )}
+
+          {/* Period Selector Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-muted/40 p-1 shadow-2xs">
+            {([7, 14, 30, 90] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setIsCustomRange(false);
+                  setSelectedPeriod(p);
+                  setHoverIndex(null);
+                }}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  !isCustomRange && selectedPeriod === p
+                    ? "bg-background text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p} Hari
+              </button>
+            ))}
             <button
-              key={p}
               type="button"
-              onClick={() => {
-                setIsCustomRange(false);
-                setSelectedPeriod(p);
-                setHoverIndex(null);
-              }}
+              onClick={() => setIsCustomRange(true)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                !isCustomRange && selectedPeriod === p
+                isCustomRange
                   ? "bg-background text-foreground shadow-xs font-bold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {p} Hari
+              Kustom
             </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setIsCustomRange(true)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-              isCustomRange
-                ? "bg-background text-foreground shadow-xs font-bold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Kustom
-          </button>
+          </div>
         </div>
       </div>
 
@@ -627,19 +808,68 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
         </div>
       )}
 
-      {/* Legend & Hover Info Banner */}
+      {/* Legend, Metric Selector & Hover Info Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
-        <div className="flex items-center gap-4">
-          <span className="inline-flex items-center gap-2 font-medium">
-            <span className="size-2.5 rounded-full bg-primary ring-2 ring-primary/20" />
-            Pendapatan Omset (Rp)
-          </span>
-          <span className="inline-flex items-center gap-2 font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
-            Pesanan Selesai (Klik titik untuk rincian)
-          </span>
+        {/* Metric Mode Switcher Buttons */}
+        <div className="flex items-center gap-1 rounded-xl border bg-muted/40 p-1 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setChartMetric("combined")}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+              chartMetric === "combined"
+                ? "bg-background text-foreground shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📊 Gabungan
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartMetric("revenue")}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+              chartMetric === "revenue"
+                ? "bg-background text-primary shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            💰 Omset (Rp)
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartMetric("orders")}
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+              chartMetric === "orders"
+                ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            📦 Pesanan (Trx)
+          </button>
         </div>
 
+        {/* Legend */}
+        <div className="flex items-center gap-3.5">
+          {(chartMetric === "combined" || chartMetric === "revenue") && (
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <span className="size-2.5 rounded-full bg-primary ring-2 ring-primary/20" />
+              Pendapatan Omset (Rp)
+            </span>
+          )}
+          {chartMetric === "combined" && (
+            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="h-3 w-2 rounded-xs bg-emerald-500/80 ring-1 ring-emerald-500/30" />
+              Pilar Volume Pesanan (Trx)
+            </span>
+          )}
+          {chartMetric === "orders" && (
+            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+              Volume Pesanan Selesai (Trx)
+            </span>
+          )}
+        </div>
+
+        {/* Active Hover / Info Banner */}
         {activeHoverItem ? (
           <div className="rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary animate-in fade-in duration-150">
             {new Intl.DateTimeFormat("id-ID", {
@@ -648,7 +878,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
               month: "short",
               timeZone: "Asia/Jakarta",
             }).format(new Date(`${activeHoverItem.day}T12:00:00+07:00`))}
-            : <span className="font-mono font-bold">Rp {activeHoverItem.revenue.toLocaleString("id-ID")}</span> ({activeHoverItem.orders} pesanan) • <span className="underline cursor-pointer">Klik untuk buka rincian</span>
+            : <span className="font-mono font-bold">Rp {activeHoverItem.revenue.toLocaleString("id-ID")}</span> ({activeHoverItem.orders} pesanan selesai) • <span className="underline cursor-pointer">Klik untuk buka rincian</span>
           </div>
         ) : (
           <span className="text-muted-foreground text-[11px]">
@@ -660,26 +890,37 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
       {/* Animated SVG Chart */}
       <div
         role="img"
-        aria-label={`Grafik pendapatan harian pesanan selesai`}
+        aria-label={`Grafik analitik penjualan selesai`}
         className="relative w-full overflow-hidden rounded-xl border bg-card/60 p-2 sm:p-3"
       >
         <svg
-          key={`${animationKey}-${selectedBrand}-${selectedCategory}-${searchProduct}`}
+          key={`${animationKey}-${chartMetric}-${selectedBrand}-${selectedCategory}-${searchProduct}`}
           viewBox={`0 0 ${width} ${height}`}
           className="h-auto w-full select-none"
           preserveAspectRatio="none"
           onMouseLeave={() => setHoverIndex(null)}
         >
           <defs>
+            {/* Revenue Area Gradient */}
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.28" />
               <stop offset="85%" stopColor="var(--primary)" stopOpacity="0.02" />
               <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.00" />
             </linearGradient>
-            <linearGradient id={`${gradientId}-orders`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
+
+            {/* Orders Area Gradient (when orders only mode is active) */}
+            <linearGradient id={`${gradientId}-orders-area`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
+              <stop offset="85%" stopColor="#10b981" stopOpacity="0.03" />
               <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
             </linearGradient>
+
+            {/* Volume Pillar Gradient (Combined Mode) */}
+            <linearGradient id={`${gradientId}-pillar`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.10" />
+            </linearGradient>
+
             <filter id={`${gradientId}-glow`} x1="-20%" y1="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--primary)" floodOpacity="0.3" />
             </filter>
@@ -704,18 +945,57 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                   y={y + 4}
                   textAnchor="end"
                   fill="currentColor"
-                  opacity=".6"
+                  opacity=".65"
                   fontSize="11"
                   className="font-mono font-medium"
                 >
-                  {compactMoney(val)}
+                  {formatTickLabel(val)}
                 </text>
               </g>
             );
           })}
 
-          {/* Area Gradient under Revenue Spline */}
-          {areaSpline && (
+          {/* Combined Mode: Right side subtle volume hint */}
+          {chartMetric === "combined" && (
+            <text
+              x={width - 20}
+              y={inset.y - 8}
+              textAnchor="end"
+              fill="#10b981"
+              fontSize="10"
+              fontWeight="600"
+              className="font-mono opacity-85"
+            >
+              Maks Volume: {maxOrders} pesanan
+            </text>
+          )}
+
+          {/* 1. ORDERS ONLY MODE: Area & Curve */}
+          {chartMetric === "orders" && (
+            <>
+              {ordersAreaSpline && (
+                <path
+                  d={ordersAreaSpline}
+                  fill={`url(#${gradientId}-orders-area)`}
+                  className="chart-area-animated transition-all duration-300 ease-out"
+                />
+              )}
+              {coordinates.length > 1 && (
+                <path
+                  d={ordersSpline}
+                  fill="none"
+                  stroke="#10b981"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  className="chart-path-animated transition-all duration-300 ease-out"
+                />
+              )}
+            </>
+          )}
+
+          {/* 2. COMBINED & REVENUE MODE: Revenue Area Gradient */}
+          {(chartMetric === "combined" || chartMetric === "revenue") && areaSpline && (
             <path
               d={areaSpline}
               fill={`url(#${gradientId})`}
@@ -723,23 +1003,51 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
             />
           )}
 
-          {/* Smooth Orders Curve (Dashed Green) */}
-          {coordinates.length > 1 && (
-            <path
-              d={ordersSpline}
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="2.2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              strokeDasharray="6 4"
-              opacity="0.85"
-              className="chart-path-animated transition-all duration-300 ease-out"
-            />
+          {/* 3. COMBINED MODE: Order Volume Pillars at base of chart */}
+          {chartMetric === "combined" && (
+            <g className="chart-area-animated transition-all duration-300">
+              {coordinates.map((point, idx) => {
+                if (point.orders <= 0) return null;
+                const isHovered = hoverIndex === idx;
+                const pillarX = point.x - barWidth / 2;
+                const pillarY = inset.y + plotHeight - point.orderBarHeight;
+
+                return (
+                  <g key={`pillar-${point.day}`} className="transition-all duration-150">
+                    <rect
+                      x={pillarX}
+                      y={pillarY}
+                      width={barWidth}
+                      height={point.orderBarHeight}
+                      rx="3"
+                      ry="3"
+                      fill={`url(#${gradientId}-pillar)`}
+                      stroke="#10b981"
+                      strokeWidth={isHovered ? 2 : 1.2}
+                      className="transition-all duration-150"
+                    />
+                    {/* Floating label above pillar when hovered or few days */}
+                    {(isHovered || activePoints.length <= 14) && (
+                      <text
+                        x={point.x}
+                        y={pillarY - 4}
+                        textAnchor="middle"
+                        fill="#059669"
+                        fontSize="9"
+                        fontWeight="bold"
+                        className="font-mono"
+                      >
+                        {point.orders} trx
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
           )}
 
-          {/* Smooth Revenue Curve (Solid Primary Line) */}
-          {coordinates.length > 1 && (
+          {/* 4. COMBINED & REVENUE MODE: Revenue Spline Curve */}
+          {(chartMetric === "combined" || chartMetric === "revenue") && coordinates.length > 1 && (
             <path
               d={revenueSpline}
               fill="none"
@@ -760,30 +1068,34 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                 y1={inset.y}
                 x2={activeHoverItem.x}
                 y2={inset.y + plotHeight}
-                stroke="var(--primary)"
+                stroke={chartMetric === "orders" ? "#10b981" : "var(--primary)"}
                 strokeOpacity="0.45"
                 strokeWidth="1.5"
                 strokeDasharray="3 3"
               />
-              {/* Order point halo */}
-              <circle
-                cx={activeHoverItem.x}
-                cy={activeHoverItem.orderY}
-                r="5.5"
-                fill="#10b981"
-                stroke="#ffffff"
-                strokeWidth="2"
-              />
-              {/* Revenue point pulsing halo */}
-              <circle
-                cx={activeHoverItem.x}
-                cy={activeHoverItem.y}
-                r="7.5"
-                fill="var(--primary)"
-                stroke="#ffffff"
-                strokeWidth="2.5"
-                className="animate-pulse"
-              />
+
+              {/* Pulsing Dot Marker on active curve */}
+              {chartMetric === "orders" ? (
+                <circle
+                  cx={activeHoverItem.x}
+                  cy={activeHoverItem.orderOnlyY}
+                  r="7.5"
+                  fill="#10b981"
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  className="animate-pulse"
+                />
+              ) : (
+                <circle
+                  cx={activeHoverItem.x}
+                  cy={activeHoverItem.y}
+                  r="7.5"
+                  fill="var(--primary)"
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  className="animate-pulse"
+                />
+              )}
             </g>
           )}
 
@@ -796,32 +1108,34 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                   <g key={`selected-${pt.day}`}>
                     <circle
                       cx={pt.x}
-                      cy={pt.y}
-                      r="10"
+                      cy={chartMetric === "orders" ? pt.orderOnlyY : pt.y}
+                      r="11"
                       fill="none"
-                      stroke="var(--primary)"
+                      stroke={chartMetric === "orders" ? "#10b981" : "var(--primary)"}
                       strokeWidth="2"
                       strokeDasharray="3 2"
                       className="animate-spin"
-                    />
-                    <circle
-                      cx={pt.x}
-                      cy={pt.orderY}
-                      r="8"
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="2"
-                      className="animate-pulse"
                     />
                   </g>
                 ))}
             </g>
           )}
 
-          {/* Interactive touch/mouse targets for every data point */}
+          {/* Interactive touch/mouse targets & clean static markers (ONLY on active days) */}
           {coordinates.map((point, idx) => {
             const isHovered = hoverIndex === idx;
-            const hasSales = point.revenue > 0 || point.orders > 0;
+            const isSelected = selectedDayItem?.day === point.day;
+            const hasRevenue = point.revenue > 0;
+            const hasOrders = point.orders > 0;
+
+            const showRevenueMarker =
+              (chartMetric === "combined" || chartMetric === "revenue") &&
+              (hasRevenue || isHovered || isSelected);
+
+            const showOrdersMarker =
+              chartMetric === "orders" &&
+              (hasOrders || isHovered || isSelected);
+
             return (
               <g
                 key={point.day}
@@ -830,27 +1144,31 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                 onTouchStart={() => setHoverIndex(idx)}
                 onClick={() => setSelectedDayItem(point)}
               >
-                {/* Visual Dot on Revenue Curve */}
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={isHovered ? 6.5 : hasSales ? 4.5 : 3}
-                  fill="var(--primary)"
-                  stroke="#ffffff"
-                  strokeWidth={isHovered ? 2.5 : 1}
-                  className="chart-point-pop transition-all duration-150"
-                />
+                {/* Visual Dot on Revenue Curve (Clean: only when revenue > 0 or hovered) */}
+                {showRevenueMarker && (
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={isHovered || isSelected ? 6.5 : 4.5}
+                    fill="var(--primary)"
+                    stroke="#ffffff"
+                    strokeWidth={isHovered || isSelected ? 2.5 : 1.5}
+                    className="chart-point-pop transition-all duration-150"
+                  />
+                )}
 
-                {/* Visual Dot on Order Curve (Green Circle) */}
-                <circle
-                  cx={point.x}
-                  cy={point.orderY}
-                  r={isHovered ? 5.5 : hasSales ? 4 : 2.5}
-                  fill="#10b981"
-                  stroke="#ffffff"
-                  strokeWidth={isHovered ? 2 : hasSales ? 1.5 : 0.8}
-                  className="chart-point-pop transition-all duration-150"
-                />
+                {/* Visual Dot on Orders Curve (Only in orders mode when orders > 0 or hovered) */}
+                {showOrdersMarker && (
+                  <circle
+                    cx={point.x}
+                    cy={point.orderOnlyY}
+                    r={isHovered || isSelected ? 6.5 : 4.5}
+                    fill="#10b981"
+                    stroke="#ffffff"
+                    strokeWidth={isHovered || isSelected ? 2.5 : 1.5}
+                    className="chart-point-pop transition-all duration-150"
+                  />
+                )}
 
                 {/* Broad transparent hit area for easy hover/tap */}
                 <rect
@@ -881,7 +1199,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                     : "middle"
                 }
                 fill="currentColor"
-                opacity={hoverIndex === idx ? "1" : "0.6"}
+                opacity={hoverIndex === idx ? "1" : "0.65"}
                 fontSize="11"
                 className={`font-sans ${
                   hoverIndex === idx ? "font-bold fill-primary" : "font-normal"
@@ -949,54 +1267,50 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setSelectedDayItem(null)}
-                className="text-muted-foreground hover:text-foreground"
+                className="size-8 rounded-full"
+                aria-label="Tutup rincian"
               >
                 <X className="size-4" />
               </Button>
             </div>
 
-            {/* Stat Summary Strip */}
-            <div className="grid grid-cols-2 gap-3 p-4 px-5 border-b bg-background">
-              <div className="rounded-xl border bg-muted/20 p-2.5">
-                <span className="text-[11px] text-muted-foreground block">
+            {/* Daily KPI Badges */}
+            <div className="grid grid-cols-2 gap-3 p-4 px-5 border-b bg-muted/5">
+              <div className="rounded-xl border bg-card p-3 shadow-2xs">
+                <span className="text-[11px] font-semibold text-muted-foreground block">
                   Total Omset Hari Ini
                 </span>
-                <span className="font-mono text-base font-black text-foreground">
+                <span className="font-mono text-base font-black text-foreground mt-0.5 block">
                   Rp {selectedDayItem.revenue.toLocaleString("id-ID")}
                 </span>
               </div>
-              <div className="rounded-xl border bg-muted/20 p-2.5">
-                <span className="text-[11px] text-muted-foreground block">
+              <div className="rounded-xl border bg-card p-3 shadow-2xs">
+                <span className="text-[11px] font-semibold text-muted-foreground block">
                   Volume Transaksi Selesai
                 </span>
-                <span className="font-mono text-base font-black text-foreground">
+                <span className="font-mono text-base font-black text-foreground mt-0.5 block">
                   {selectedDayItem.orders} Pesanan
                 </span>
               </div>
             </div>
 
-            {/* List of Items Sold on That Day */}
-            <div className="p-5 space-y-3.5 overflow-y-auto">
+            {/* List of Sales Items for this Day */}
+            <div className="p-4 px-5 overflow-y-auto space-y-3 divide-y divide-border/60">
               {selectedDayItem.details && selectedDayItem.details.length > 0 ? (
-                selectedDayItem.details.map((item, idx) => (
-                  <div
-                    key={`${item.id}-${idx}`}
-                    className="rounded-xl border bg-card p-3.5 shadow-2xs space-y-2 hover:border-primary/40 transition-colors"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                selectedDayItem.details.map((item) => (
+                  <div key={item.id} className="pt-3 first:pt-0 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-foreground">
+                        <span className="font-mono text-xs font-bold text-primary">
                           Pesanan #{item.orderNumber}
                         </span>
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                        >
-                          <CheckCircle2 className="mr-1 size-3" /> Selesai
-                        </Badge>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                          <CheckCircle2 className="size-2.5" /> Selesai
+                        </span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground flex items-center gap-1 font-mono">
-                        <Clock className="size-3" /> {item.time}
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="size-3" />
+                        {item.time || "-"}
                       </span>
                     </div>
 
@@ -1066,24 +1380,15 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
               )}
             </div>
 
-            {/* Footer Modal */}
+            {/* Footer Modal: Multi-Format Export Options */}
             <div className="flex items-center justify-between p-4 px-5 border-t bg-muted/10 shrink-0">
               {selectedDayItem.details && selectedDayItem.details.length > 0 ? (
-                <Button
-                  type="button"
+                <SalesExportDropdown
+                  title={`Harian-${selectedDayItem.day}`}
+                  details={selectedDayItem.details || []}
+                  buttonLabel="Ekspor Laporan Hari Ini"
                   variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    exportDaySalesCsv(
-                      selectedDayItem.day,
-                      selectedDayItem.details || []
-                    )
-                  }
-                  className="text-xs"
-                >
-                  <Download className="mr-1.5 size-3.5" />
-                  Ekspor CSV Hari Ini
-                </Button>
+                />
               ) : (
                 <div />
               )}
