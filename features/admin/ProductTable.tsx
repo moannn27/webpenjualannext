@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import {
   deleteAdminProductAction,
@@ -65,6 +65,63 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [bulkBestSeller, setBulkBestSeller] = useState<"keep" | "yes" | "no">("keep");
   const [bulkNewArrival, setBulkNewArrival] = useState<"keep" | "yes" | "no">("keep");
 
+  // Filters state
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "out_of_stock" | "low_stock" | "in_stock" | "custom">("all");
+  const [customStockMin, setCustomStockMin] = useState<string>("");
+  const [customStockMax, setCustomStockMax] = useState<string>("");
+  const [pricePreset, setPricePreset] = useState<"all" | "under_5m" | "5m_10m" | "10m_20m" | "above_20m" | "custom">("all");
+  const [customPriceMin, setCustomPriceMin] = useState<string>("");
+  const [customPriceMax, setCustomPriceMax] = useState<string>("");
+
+  // Scroll to Top state
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 250);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Quick inline stock edit state
+  const [quickStockEditingId, setQuickStockEditingId] = useState<string | null>(null);
+  const [quickStockValue, setQuickStockValue] = useState<number>(0);
+  const [quickStockSaving, setQuickStockSaving] = useState(false);
+
+  const startQuickStockEdit = (product: AdminProduct) => {
+    setQuickStockEditingId(product.id);
+    setQuickStockValue(product.stock ?? 0);
+  };
+
+  const cancelQuickStockEdit = () => {
+    setQuickStockEditingId(null);
+  };
+
+  const saveQuickStock = async (product: AdminProduct) => {
+    if (quickStockValue < 0 || isNaN(quickStockValue)) return;
+    setQuickStockSaving(true);
+    try {
+      await bulkUpdateAdminProductsAction([product.id], { stock: Math.max(0, quickStockValue) });
+      setProducts((current) =>
+        current.map((p) => (p.id === product.id ? { ...p, stock: Math.max(0, quickStockValue) } : p))
+      );
+      setBulkSuccess(`Stok "${product.name}" berhasil diubah menjadi ${quickStockValue}.`);
+      setQuickStockEditingId(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Gagal memperbarui stok.");
+    } finally {
+      setQuickStockSaving(false);
+    }
+  };
+
   const updateVariantStock = (index: number, delta: number) => {
     setVariants((current) =>
       current.map((item, itemIndex) =>
@@ -107,7 +164,103 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     });
   };
 
-  const visible = products.filter((product) => `${product.name} ${product.sku ?? ""} ${product.brands?.name ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+  const visible = products.filter((product) => {
+    // 1. Text Search (name, SKU, brand, category, description, specs, variants)
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const specText = (product.product_specifications ?? [])
+        .map((s) => `${s.key} ${s.value}`)
+        .join(" ");
+      const varText = (product.product_variants ?? [])
+        .map((v) => `${v.sku ?? ""} ${v.color} ${v.ram} ${v.storage}`)
+        .join(" ");
+      const searchContent = `${product.name} ${product.sku ?? ""} ${product.brands?.name ?? ""} ${product.categories?.name ?? ""} ${product.description ?? ""} ${specText} ${varText}`.toLowerCase();
+      if (!searchContent.includes(q)) return false;
+    }
+
+    // 2. Brand filter
+    if (selectedBrand !== "all") {
+      if ((product.brands?.name ?? "").toLowerCase() !== selectedBrand.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // 3. Category / Type filter
+    if (selectedCategory !== "all") {
+      if ((product.categories?.name ?? "").toLowerCase() !== selectedCategory.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // 4. Status filter
+    if (selectedStatus !== "all") {
+      if (product.status !== selectedStatus) return false;
+    }
+
+    // 5. Stock filter
+    const stock = Number(product.stock) || 0;
+    if (stockFilter === "out_of_stock") {
+      if (stock > 0) return false;
+    } else if (stockFilter === "low_stock") {
+      if (stock <= 0 || stock > 5) return false;
+    } else if (stockFilter === "in_stock") {
+      if (stock <= 0) return false;
+    } else if (stockFilter === "custom") {
+      const minS = customStockMin !== "" ? Number(customStockMin) : null;
+      const maxS = customStockMax !== "" ? Number(customStockMax) : null;
+      if (minS !== null && !isNaN(minS) && stock < minS) return false;
+      if (maxS !== null && !isNaN(maxS) && stock > maxS) return false;
+    }
+
+    // 6. Price filter
+    const effectivePrice = Number(product.discount_price ?? product.price) || 0;
+    if (pricePreset === "under_5m") {
+      if (effectivePrice >= 5_000_000) return false;
+    } else if (pricePreset === "5m_10m") {
+      if (effectivePrice < 5_000_000 || effectivePrice > 10_000_000) return false;
+    } else if (pricePreset === "10m_20m") {
+      if (effectivePrice < 10_000_000 || effectivePrice > 20_000_000) return false;
+    } else if (pricePreset === "above_20m") {
+      if (effectivePrice <= 20_000_000) return false;
+    } else if (pricePreset === "custom") {
+      const minP = customPriceMin !== "" ? Number(customPriceMin) : null;
+      const maxP = customPriceMax !== "" ? Number(customPriceMax) : null;
+      if (minP !== null && !isNaN(minP) && effectivePrice < minP) return false;
+      if (maxP !== null && !isNaN(maxP) && effectivePrice > maxP) return false;
+    }
+
+    return true;
+  });
+
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    selectedBrand !== "all" ||
+    selectedCategory !== "all" ||
+    selectedStatus !== "all" ||
+    stockFilter !== "all" ||
+    pricePreset !== "all" ||
+    customStockMin ||
+    customStockMax ||
+    customPriceMin ||
+    customPriceMax
+  );
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setSelectedBrand("all");
+    setSelectedCategory("all");
+    setSelectedStatus("all");
+    setStockFilter("all");
+    setCustomStockMin("");
+    setCustomStockMax("");
+    setPricePreset("all");
+    setCustomPriceMin("");
+    setCustomPriceMax("");
+  };
+
+  const outOfStockCount = products.filter((p) => (p.stock || 0) === 0).length;
+  const lowStockCount = products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
+  const inStockCount = products.filter((p) => (p.stock || 0) > 0).length;
 
   const isAllSelected = visible.length > 0 && visible.every((p) => selectedIds.has(p.id));
   const isSomeSelected = visible.some((p) => selectedIds.has(p.id)) && !isAllSelected;
@@ -205,8 +358,215 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
 
   return <div className="space-y-4">
     <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-      <div className="relative w-full max-w-sm"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} type="search" placeholder="Cari produk..." className="w-full bg-background pl-9" /></div>
+      <div className="relative w-full max-w-sm"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} type="search" placeholder="Cari nama, SKU, tipe, spek..." className="w-full bg-background pl-9" /></div>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><ProductBulkImporter onImported={refresh} /><Button className="w-full sm:w-auto" onClick={() => { setError(""); setSpecifications([]); setVariants([]); setDiscountEnabled(false); setDirectStock(0); setEditing(null); }}><Plus className="mr-2 size-4" />Tambah produk</Button></div>
+    </div>
+
+    {/* Filter Toolbar Card */}
+    <div className="rounded-xl border bg-card p-3.5 shadow-xs space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Quick Stock Filter Badges */}
+          <button
+            type="button"
+            onClick={() => setStockFilter("all")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+              stockFilter === "all"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            }`}
+          >
+            Semua ({products.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter(stockFilter === "out_of_stock" ? "all" : "out_of_stock")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+              stockFilter === "out_of_stock"
+                ? "bg-rose-600 text-white shadow-xs"
+                : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60"
+            }`}
+          >
+            ⚠️ Stok Kosong ({outOfStockCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter(stockFilter === "low_stock" ? "all" : "low_stock")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+              stockFilter === "low_stock"
+                ? "bg-amber-600 text-white shadow-xs"
+                : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+            }`}
+          >
+            ⚡ Stok Menipis ({lowStockCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter(stockFilter === "in_stock" ? "all" : "in_stock")}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+              stockFilter === "in_stock"
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60"
+            }`}
+          >
+            ✓ Stok Tersedia ({inStockCount})
+          </button>
+        </div>
+
+        {hasActiveFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetAllFilters}
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Reset Filter
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 pt-2 border-t border-border/50">
+        {/* Brand Filter */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold text-muted-foreground block">Brand</label>
+          <select
+            value={selectedBrand}
+            onChange={(e) => setSelectedBrand(e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Semua Brand</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.name}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Category / Type Filter */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold text-muted-foreground block">Kategori / Type</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Semua Kategori</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Stock Filter Dropdown */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold text-muted-foreground block">Filter Stok</label>
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value as any)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Semua Stok</option>
+            <option value="out_of_stock">⚠️ Stok Kosong (0)</option>
+            <option value="low_stock">⚡ Stok Menipis (1 - 5)</option>
+            <option value="in_stock">✓ Stok Tersedia (&gt; 0)</option>
+            <option value="custom">⚙️ Kustom Stok...</option>
+          </select>
+        </div>
+
+        {/* Price Preset Dropdown */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold text-muted-foreground block">Filter Harga</label>
+          <select
+            value={pricePreset}
+            onChange={(e) => setPricePreset(e.target.value as any)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Semua Harga</option>
+            <option value="under_5m">&lt; Rp 5 Juta</option>
+            <option value="5m_10m">Rp 5 Jt - 10 Jt</option>
+            <option value="10m_20m">Rp 10 Jt - 20 Jt</option>
+            <option value="above_20m">&gt; Rp 20 Juta</option>
+            <option value="custom">⚙️ Kustom Harga...</option>
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div className="space-y-1">
+          <label className="text-[11px] font-semibold text-muted-foreground block">Status</label>
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Semua Status</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+
+        {/* Counter Info */}
+        <div className="flex flex-col justify-end">
+          <span className="text-[11px] text-muted-foreground">
+            Menampilkan:
+          </span>
+          <span className="text-xs font-bold text-foreground">
+            {visible.length} <span className="text-muted-foreground font-normal">dari {products.length} produk</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Custom Inputs row when custom stock or price is selected */}
+      {(stockFilter === "custom" || pricePreset === "custom") && (
+        <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-dashed border-border/60 text-xs">
+          {stockFilter === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-muted-foreground">Rentang Stok:</span>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Min stok"
+                value={customStockMin}
+                onChange={(e) => setCustomStockMin(e.target.value)}
+                className="h-8 w-24 text-xs"
+              />
+              <span>-</span>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Max stok"
+                value={customStockMax}
+                onChange={(e) => setCustomStockMax(e.target.value)}
+                className="h-8 w-24 text-xs"
+              />
+            </div>
+          )}
+
+          {pricePreset === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-muted-foreground">Rentang Harga (Rp):</span>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Min Rp"
+                value={customPriceMin}
+                onChange={(e) => setCustomPriceMin(e.target.value)}
+                className="h-8 w-28 text-xs"
+              />
+              <span>-</span>
+              <Input
+                type="number"
+                min={0}
+                placeholder="Max Rp"
+                value={customPriceMax}
+                onChange={(e) => setCustomPriceMax(e.target.value)}
+                className="h-8 w-28 text-xs"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
 
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -363,9 +723,80 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                 <TableCell className="font-mono text-xs">{product.sku || "—"}</TableCell>
                 <TableCell>{product.categories?.name || "—"}</TableCell>
                 <TableCell>
-                  <span className={`font-mono font-semibold ${product.stock <= 3 ? "text-rose-600 font-bold" : ""}`}>
-                    {product.stock}
-                  </span>
+                  {quickStockEditingId === product.id ? (
+                    product.product_variants && product.product_variants.length > 0 ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-semibold">{product.stock}</span>
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400">Atur via Edit (Varian)</span>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={cancelQuickStockEdit}
+                          className="size-5 text-muted-foreground"
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          value={quickStockValue}
+                          onChange={(e) => setQuickStockValue(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          className="w-16 rounded border bg-background px-1.5 py-0.5 text-center font-mono text-xs font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void saveQuickStock(product);
+                            if (e.key === "Escape") cancelQuickStockEdit();
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          disabled={quickStockSaving}
+                          onClick={() => void saveQuickStock(product)}
+                          className="size-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                          title="Simpan stok (Enter)"
+                        >
+                          <Check className="size-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          onClick={cancelQuickStockEdit}
+                          className="size-6 text-muted-foreground hover:bg-muted"
+                          title="Batal (Esc)"
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    )
+                  ) : product.product_variants && product.product_variants.length > 0 ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-mono font-semibold ${product.stock <= 3 ? "text-rose-600 font-bold" : ""}`}>
+                        {product.stock}
+                      </span>
+                      <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] text-muted-foreground font-medium" title={`${product.product_variants.length} varian`}>
+                        {product.product_variants.length} var
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startQuickStockEdit(product)}
+                      className="group flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-muted/60 transition-colors cursor-pointer text-left"
+                      title="Klik untuk ubah stok langsung"
+                    >
+                      <span className={`font-mono font-semibold ${product.stock <= 3 ? "text-rose-600 font-bold" : ""}`}>
+                        {product.stock}
+                      </span>
+                      <Edit className="size-3 text-muted-foreground/40 group-hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  )}
                 </TableCell>
                 <TableCell className="font-mono font-semibold">
                   Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}
@@ -993,5 +1424,18 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
         </section>
       </div>
     )}
+
+    {/* Scroll to Top Floating Button */}
+    <button
+      type="button"
+      onClick={scrollToTop}
+      aria-label="Kembali ke atas"
+      className={`fixed bottom-6 right-6 z-40 flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer ${
+        showScrollTop ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+      }`}
+      title="Kembali ke atas"
+    >
+      <ArrowUp className="size-5" />
+    </button>
   </div>;
 }

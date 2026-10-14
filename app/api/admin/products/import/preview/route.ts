@@ -5,6 +5,7 @@ import { PDFParse } from 'pdf-parse'
 import { getAdminAccess } from '@/lib/auth/admin'
 import {
   analyzeAndNormalizeImportTables,
+  applyStockPolicyToProduct,
   importTablesFromWorkbook,
   loadExcelWorkbook,
   markImportSkuConflicts,
@@ -67,57 +68,157 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const existingBySku = new Map<string, string>()
     const skuList = [...new Set(products.flatMap((product) => [product.sku, ...product.variants.map((variant) => variant.sku)]).filter(Boolean))]
+
     if (skuList.length) {
-      let lookupData: { sku: string; product_id: string; match_type: string }[] = []
-      const { data, error } = await supabase.rpc('lookup_admin_import_skus', { p_skus: skuList })
-      if (!error && Array.isArray(data)) {
-        lookupData = data
-      } else {
-        const isMissingRpc = error?.code === 'PGRST202' || error?.code === '42883' || error?.message?.includes('lookup_admin_import_skus')
-        if (isMissingRpc) {
-          const [prods, vars] = await Promise.all([
-            supabase.from('products').select('id, sku').in('sku', skuList),
-            supabase.from('product_variants').select('product_id, sku').in('sku', skuList),
-          ])
-          if (prods.error) throw new Error(`SKU database tidak dapat diverifikasi: ${prods.error.message}`)
-          if (vars.error) throw new Error(`SKU varian database tidak dapat diverifikasi: ${vars.error.message}`)
-          const fromProds = (prods.data ?? []).map((p) => ({ sku: p.sku, product_id: p.id, match_type: 'product' }))
-          const fromVars = (vars.data ?? []).map((v) => ({ sku: v.sku, product_id: v.product_id, match_type: 'variant' }))
-          lookupData = [...fromProds, ...fromVars]
-        } else if (error) {
-          throw new Error(`SKU database tidak dapat diverifikasi: ${error.message}`)
-        }
+      const [prodsRes, varsRes] = await Promise.all([
+        supabase.from('products').select('id, sku, name, stock').in('sku', skuList),
+        supabase.from('product_variants').select('id, product_id, sku, color, ram, storage, stock').in('sku', skuList),
+      ])
+
+      if (prodsRes.error) throw new Error(`SKU database tidak dapat diverifikasi: ${prodsRes.error.message}`)
+      if (varsRes.error) throw new Error(`SKU varian database tidak dapat diverifikasi: ${varsRes.error.message}`)
+
+      const prodsData = prodsRes.data ?? []
+      const varsData = varsRes.data ?? []
+
+      const matchedProdIds = prodsData.map((p) => p.id)
+      const { data: targetVariants } = matchedProdIds.length > 0
+        ? await supabase.from('product_variants').select('id, product_id, sku, color, ram, storage, stock').in('product_id', matchedProdIds)
+        : { data: [] }
+
+      const prodsMap = new Map<string, { id: string; sku: string; name: string; stock: number }>()
+      for (const p of prodsData) {
+        if (p.sku) prodsMap.set(p.sku.trim().toLowerCase(), p)
+        existingBySku.set(p.sku.trim().toLowerCase(), p.id)
       }
-      const matches = new Map<string, { productId: string; type: string }[]>()
-      for (const item of lookupData) if (item.sku) {
-        const key = item.sku.trim().toLowerCase()
-        matches.set(key, [...(matches.get(key) ?? []), { productId: item.product_id, type: item.match_type }])
-        if (item.match_type === 'product') existingBySku.set(key, item.product_id)
+
+      const varsMap = new Map<string, { id: string; product_id: string; sku: string; color: string; ram: string; storage: string; stock: number }>()
+      for (const v of varsData) {
+        if (v.sku) varsMap.set(v.sku.trim().toLowerCase(), v)
       }
+
+      const prodVariantsMap = new Map<string, typeof targetVariants>()
+      for (const tv of (targetVariants ?? [])) {
+        prodVariantsMap.set(tv.product_id, [...(prodVariantsMap.get(tv.product_id) ?? []), tv])
+      }
+
+      // Mark file-level SKU collisions first
+      markImportSkuConflicts(products, existingBySku)
+
       for (const product of products) {
         const prodSkuKey = product.sku.trim().toLowerCase()
-        const ownSkuMatches = matches.get(prodSkuKey) ?? []
-        const targetId = existingBySku.get(prodSkuKey)
-        if (!existingBySku.has(prodSkuKey) && ownSkuMatches.length) {
+        const targetProduct = prodsMap.get(prodSkuKey)
+        const targetId = targetProduct?.id
+
+        // 1. Re-import / Update: Parent SKU matches an existing product in DB
+        if (targetProduct) {
+          product.targetProductId = targetProduct.id
+          product.duplicateInDatabase = true
+          product.currentStock = targetProduct.stock
+          product.importAction = 'update'
+          product.warnings = [
+            ...(product.warnings ?? []),
+            `Produk terdeteksi di database (stok saat ini: ${targetProduct.stock}). Tindakan: Update dengan mempertahankan stok.`,
+          ]
+
+          const existingVariants = prodVariantsMap.get(targetProduct.id) ?? []
+          for (const v of product.variants) {
+            const vSku = v.sku.trim().toLowerCase()
+            const matchedVar = existingVariants.find((ev) =>
+              (vSku && ev.sku && ev.sku.trim().toLowerCase() === vSku) ||
+              (ev.color.trim().toLowerCase() === v.color.trim().toLowerCase() &&
+               ev.ram.trim().toLowerCase() === v.ram.trim().toLowerCase() &&
+               ev.storage.trim().toLowerCase() === v.storage.trim().toLowerCase())
+            )
+            if (matchedVar) {
+              v.id = matchedVar.id
+              v.currentStock = matchedVar.stock
+              v.isNewVariant = false
+            } else {
+              v.isNewVariant = true
+              v.currentStock = null
+              if (v.fileStock === null || v.fileStock === undefined) {
+                v.warnings = [...(v.warnings ?? []), 'Varian baru tanpa stok dalam file; default 0.']
+              }
+            }
+          }
+
+          continue
+        }
+
+        // 2. Consolidation: Multiple variants match separate products in DB
+        const separateMatchedProducts: { id: string; sku: string; name: string; stock: number }[] = []
+        for (const v of product.variants) {
+          const vSku = v.sku.trim().toLowerCase()
+          const sepProd = prodsMap.get(vSku)
+          if (sepProd && !separateMatchedProducts.some((p) => p.id === sepProd.id)) {
+            separateMatchedProducts.push(sepProd)
+          }
+        }
+
+        if (separateMatchedProducts.length > 0) {
+          product.consolidationTargetIds = separateMatchedProducts.map((p) => p.id)
+          product.consolidationInfo = {
+            separateProductCount: separateMatchedProducts.length,
+            matchedProducts: separateMatchedProducts,
+          }
+          product.importAction = 'consolidate'
+          product.currentStock = separateMatchedProducts.reduce((sum, p) => sum + (p.stock || 0), 0)
+          product.warnings = [
+            ...(product.warnings ?? []),
+            `Terdeteksi ${separateMatchedProducts.length} produk lama tersimpan terpisah di database (SKU: ${separateMatchedProducts.map((p) => p.sku).join(', ')}). Opsi konsolidasi tersedia.`,
+          ]
+
+          for (const v of product.variants) {
+            const vSku = v.sku.trim().toLowerCase()
+            const sepProd = prodsMap.get(vSku)
+            if (sepProd) {
+              v.currentStock = sepProd.stock
+              v.isNewVariant = false
+            } else {
+              v.isNewVariant = true
+              v.currentStock = null
+            }
+          }
+
+          continue
+        }
+
+        // 3. Check for SKU clashes that are NOT consolidation
+        if (varsMap.has(prodSkuKey)) {
           product.errors = [...(product.errors ?? []), 'SKU/MTM ini sudah dipakai sebagai SKU varian di database.']
           product.importAction = 'skip'
         }
+
         const variantConflict = product.variants.some((variant) => {
-          const vMatches = matches.get(variant.sku.trim().toLowerCase()) ?? []
-          return vMatches.some((m) => m.productId !== targetId)
+          const vSku = variant.sku.trim().toLowerCase()
+          const vVar = varsMap.get(vSku)
+          return Boolean(vVar && vVar.product_id !== targetId)
         })
+
         if (variantConflict) {
           product.errors = [...(product.errors ?? []), 'Salah satu SKU varian sudah digunakan oleh produk lain di database.']
           product.importAction = 'skip'
         }
+
+        if (!product.importAction) {
+          product.importAction = 'create'
+        }
       }
     }
-    markImportSkuConflicts(products, existingBySku)
+
+    const processedProducts = products.map((product) => {
+      if (!product.importAction) {
+        product.importAction = 'create'
+      }
+      return applyStockPolicyToProduct(product, 'keep_existing')
+    })
+
     return NextResponse.json({
-      products,
+      products: processedProducts,
       summary: {
-        productCount: products.length,
-        variantCount: products.reduce((count, product) => count + product.variants.length, 0),
+        productCount: processedProducts.length,
+        variantCount: processedProducts.reduce((count, product) => count + product.variants.length, 0),
         sheetSummary,
       },
     })

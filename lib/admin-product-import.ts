@@ -2,16 +2,66 @@ import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { normalizeLaptopSpecKey } from '@/lib/product-specifications'
 
-export type ImportedVariant = { sku: string; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }
+export type StockPolicy = 'keep_existing' | 'replace_with_file' | 'adjustment' | 'manual'
+
+export type ImportedVariant = {
+  id?: string
+  sku: string
+  color: string
+  ram: string
+  storage: string
+  price: number | null
+  discount_price: number | null
+  stock: number
+  currentStock?: number | null
+  fileStock?: number | null
+  stockDelta?: number
+  stockChangeReason?: string
+  isNewVariant?: boolean
+  warnings?: string[]
+}
+
 export type PriceCandidate = { column: string; raw: string; amount: number | null }
 export const MAX_IMPORT_PRICE = 9999999999.99
+
 export type ImportedProduct = {
-  name: string; sku: string; description: string; price: number; discount_price: number | null; stock: number
-  category: string; brand: string; status: 'published' | 'draft' | 'archived'; is_best_seller: boolean; is_new_arrival: boolean
-  image_url: string; specifications: { key: string; value: string; display_order: number }[]; variants: ImportedVariant[]
-  sourceRow?: number; warnings?: string[]; errors?: string[]; priceCandidates?: PriceCandidate[]; discountCandidates?: PriceCandidate[]
-  priceConfirmed?: boolean; discountPriceConfirmed?: boolean; selectedPriceColumn?: string; selectedDiscountColumn?: string | 'none'
-  importAction?: 'create' | 'update' | 'skip'; targetProductId?: string; duplicateInFile?: boolean; duplicateInDatabase?: boolean
+  name: string
+  sku: string
+  description: string
+  price: number
+  discount_price: number | null
+  stock: number
+  category: string
+  brand: string
+  status: 'published' | 'draft' | 'archived'
+  is_best_seller: boolean
+  is_new_arrival: boolean
+  image_url: string
+  specifications: { key: string; value: string; display_order: number }[]
+  variants: ImportedVariant[]
+  sourceRow?: number
+  warnings?: string[]
+  errors?: string[]
+  priceCandidates?: PriceCandidate[]
+  discountCandidates?: PriceCandidate[]
+  priceConfirmed?: boolean
+  discountPriceConfirmed?: boolean
+  selectedPriceColumn?: string
+  selectedDiscountColumn?: string | 'none'
+  importAction?: 'create' | 'update' | 'skip' | 'consolidate'
+  targetProductId?: string
+  duplicateInFile?: boolean
+  duplicateInDatabase?: boolean
+  currentStock?: number | null
+  fileStock?: number | null
+  stockDelta?: number
+  stockPolicy?: StockPolicy
+  stockChangeReason?: string
+  consolidationTargetIds?: string[]
+  consolidationInfo?: {
+    separateProductCount: number
+    matchedProducts: { id: string; sku: string; name: string; stock: number }[]
+  }
 }
 
 const headers = ['product_name','sku','description','price','discount_price','stock','category','brand','status','is_best_seller','is_new_arrival','image_url','specifications','color','ram','storage','variant_sku','variant_price','variant_discount_price','variant_stock'] as const
@@ -131,6 +181,162 @@ export function hasConfirmedImportPriceMapping(product: Pick<ImportedProduct, 'p
     : Boolean(product.selectedDiscountColumn) && product.discountCandidates?.some((candidate) => candidate.column === product.selectedDiscountColumn && candidate.amount === product.discount_price))
   return Boolean(mainConfirmed && promoConfirmed)
 }
+
+export function calculateProductTotalStock(product: Pick<ImportedProduct, 'stock' | 'variants'>): number {
+  if (Array.isArray(product.variants) && product.variants.length > 0) {
+    return product.variants.reduce((sum, v) => sum + Math.max(0, Number(v.stock) || 0), 0)
+  }
+  return Math.max(0, Number(product.stock) || 0)
+}
+
+export function applyStockPolicyToProduct(
+  product: ImportedProduct,
+  policy: StockPolicy,
+  delta: number = 0
+): ImportedProduct {
+  const p = { ...product, stockPolicy: policy }
+  const hasVariants = Array.isArray(p.variants) && p.variants.length > 0
+
+  if (policy === 'keep_existing') {
+    if (hasVariants) {
+      p.variants = p.variants.map((v) => {
+        if (v.currentStock !== null && v.currentStock !== undefined) {
+          return {
+            ...v,
+            stock: Math.max(0, v.currentStock),
+            stockChangeReason: `Stok dipertahankan (saat ini: ${v.currentStock})`,
+          }
+        }
+        const initial = v.fileStock !== null && v.fileStock !== undefined ? Math.max(0, v.fileStock) : 0
+        const warnings = [...(v.warnings ?? [])]
+        if (v.fileStock === null || v.fileStock === undefined) {
+          warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+        }
+        return {
+          ...v,
+          stock: initial,
+          warnings,
+          stockChangeReason: v.fileStock !== null && v.fileStock !== undefined
+            ? `Varian baru (dari file: ${v.fileStock})`
+            : `Varian baru tanpa stok di file (0)`,
+        }
+      })
+      p.stock = calculateProductTotalStock(p)
+      p.stockChangeReason = p.currentStock !== null && p.currentStock !== undefined
+        ? `Stok dipertahankan (${p.currentStock})`
+        : `Stok total dari varian (${p.stock})`
+    } else {
+      if (p.currentStock !== null && p.currentStock !== undefined) {
+        p.stock = Math.max(0, p.currentStock)
+        p.stockChangeReason = `Stok dipertahankan (saat ini: ${p.currentStock})`
+      } else {
+        p.stock = p.fileStock !== null && p.fileStock !== undefined ? Math.max(0, p.fileStock) : 0
+        p.stockChangeReason = p.fileStock !== null && p.fileStock !== undefined
+          ? `Produk baru (dari file: ${p.fileStock})`
+          : `Produk baru tanpa stok di file (0)`
+      }
+    }
+  } else if (policy === 'replace_with_file') {
+    if (hasVariants) {
+      p.variants = p.variants.map((v) => {
+        if (v.fileStock !== null && v.fileStock !== undefined) {
+          const newStock = Math.max(0, v.fileStock)
+          const oldStock = v.currentStock ?? 0
+          return {
+            ...v,
+            stock: newStock,
+            stockChangeReason: `Diperbarui dari file (${oldStock} → ${newStock})`,
+          }
+        }
+        if (v.currentStock !== null && v.currentStock !== undefined) {
+          return {
+            ...v,
+            stock: Math.max(0, v.currentStock),
+            stockChangeReason: `Stok tidak ada di file, tetap (${v.currentStock})`,
+          }
+        }
+        const warnings = [...(v.warnings ?? [])]
+        warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+        return {
+          ...v,
+          stock: 0,
+          warnings,
+          stockChangeReason: `Varian baru tanpa stok di file (0)`,
+        }
+      })
+      p.stock = calculateProductTotalStock(p)
+      p.stockChangeReason = `Diperbarui dari varian file (${p.currentStock ?? 0} → ${p.stock})`
+    } else {
+      if (p.fileStock !== null && p.fileStock !== undefined) {
+        const newStock = Math.max(0, p.fileStock)
+        const oldStock = p.currentStock ?? 0
+        p.stock = newStock
+        p.stockChangeReason = `Diperbarui dari file (${oldStock} → ${newStock})`
+      } else if (p.currentStock !== null && p.currentStock !== undefined) {
+        p.stock = Math.max(0, p.currentStock)
+        p.stockChangeReason = `Stok tidak ada di file, tetap (${p.currentStock})`
+      } else {
+        p.stock = 0
+        p.stockChangeReason = `Produk baru tanpa stok di file (0)`
+      }
+    }
+  } else if (policy === 'adjustment') {
+    const adj = Number.isInteger(delta) ? delta : 0
+    p.stockDelta = adj
+    if (hasVariants) {
+      p.variants = p.variants.map((v) => {
+        const base = v.currentStock !== null && v.currentStock !== undefined
+          ? v.currentStock
+          : (v.fileStock ?? 0)
+        const next = Math.max(0, base + adj)
+        return {
+          ...v,
+          stock: next,
+          stockDelta: adj,
+          stockChangeReason: `Penyesuaian stok (${base} ${adj >= 0 ? '+' : ''}${adj} → ${next})`,
+        }
+      })
+      p.stock = calculateProductTotalStock(p)
+      p.stockChangeReason = `Penyesuaian stok varian (${p.currentStock ?? 0} → ${p.stock})`
+    } else {
+      const base = p.currentStock !== null && p.currentStock !== undefined
+        ? p.currentStock
+        : (p.fileStock ?? 0)
+      const next = Math.max(0, base + adj)
+      p.stock = next
+      p.stockChangeReason = `Penyesuaian stok (${base} ${adj >= 0 ? '+' : ''}${adj} → ${next})`
+    }
+  } else if (policy === 'manual') {
+    if (hasVariants) {
+      p.variants = p.variants.map((v) => ({
+        ...v,
+        stock: Math.max(0, Number(v.stock) || 0),
+        stockChangeReason: v.stockChangeReason || `Diedit manual (${v.currentStock ?? v.fileStock ?? 0} → ${Math.max(0, Number(v.stock) || 0)})`,
+      }))
+      p.stock = calculateProductTotalStock(p)
+      p.stockChangeReason = `Total varian diedit manual (${p.stock})`
+    } else {
+      p.stock = Math.max(0, Number(p.stock) || 0)
+      p.stockChangeReason = p.stockChangeReason || `Diedit manual (${p.currentStock ?? p.fileStock ?? 0} → ${p.stock})`
+    }
+  }
+
+  if (hasVariants) {
+    const hasAnyFileStock = p.variants.some((v) => v.fileStock !== null && v.fileStock !== undefined)
+    p.fileStock = hasAnyFileStock ? p.variants.reduce((sum, v) => sum + (v.fileStock ?? 0), 0) : null
+  }
+
+  return p
+}
+
+export function applyStockPolicyToProducts(
+  products: ImportedProduct[],
+  policy: StockPolicy,
+  delta: number = 0
+): ImportedProduct[] {
+  return products.map((product) => applyStockPolicyToProduct(product, policy, delta))
+}
+
 function money(value: string, label: string, row: number, optional = false): number | null {
   if (!value && optional) return null
   const n = parseImportMoney(value)
@@ -293,14 +499,23 @@ export function markImportSkuConflicts(products: ImportedProduct[], existingBySk
       const normalized = importedSku.trim().toLowerCase()
       if (normalized) fileSkuOccurrences.set(normalized, [...(fileSkuOccurrences.get(normalized) ?? []), product])
     }
-    if (existingBySku.has(key)) { product.duplicateInDatabase = true; product.targetProductId = existingBySku.get(key); product.importAction = 'skip'; product.warnings = [...(product.warnings ?? []), 'SKU sudah ada di database; pilih update atau skip secara eksplisit.'] }
+    if (existingBySku.has(key)) {
+      product.duplicateInDatabase = true
+      product.targetProductId = existingBySku.get(key)
+      if (!product.importAction || product.importAction === 'create') {
+        product.importAction = 'skip'
+      }
+      product.warnings = [...(product.warnings ?? []), 'SKU sudah ada di database; pilih update atau skip secara eksplisit.']
+    }
     for (const variant of product.variants) {
       const varKey = variant.sku.trim().toLowerCase()
       if (varKey && existingBySku.has(varKey)) {
         const ownerId = existingBySku.get(varKey)
-        if (!product.targetProductId || ownerId !== product.targetProductId) {
+        if (product.importAction !== 'consolidate' && (!product.targetProductId || ownerId !== product.targetProductId)) {
           product.duplicateInDatabase = true
-          product.importAction = 'skip'
+          if (!product.importAction || product.importAction === 'create') {
+            product.importAction = 'skip'
+          }
           product.warnings = [...(product.warnings ?? []), `SKU varian ${variant.sku} sudah ada di database.`]
         }
       }
@@ -425,6 +640,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       price: number
       discountPrice: number | null
       stock: number
+      fileStock: number | null
       candidates: PriceCandidate[]
       discountCandidates: PriceCandidate[]
       warnings: string[]
@@ -432,8 +648,6 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
     }
 
     const rawRows: RawVendorRow[] = []
-    // temporary debug
-
 
     for (let index = header.index + 1; index < table.rows.length; index++) {
       const values = table.rows[index]
@@ -479,6 +693,8 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       const specDisp = specs.find((s) => s.key.toLowerCase().includes('display') || s.key.toLowerCase().includes('layar'))?.value || ''
       const specOs = specs.find((s) => s.key.toLowerCase().includes('os'))?.value || ''
 
+      const parsedFileStock = r.stock !== undefined && r.stock !== '' ? integer(r.stock, 'Stok', rowNumber) : null
+
       rawRows.push({
         rowNumber,
         rawName: name,
@@ -500,7 +716,8 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
         os: specOs,
         price: chosen?.amount ?? 0,
         discountPrice: discountCandidates[0]?.amount && chosen?.amount && discountCandidates[0].amount < chosen.amount ? discountCandidates[0].amount : null,
-        stock: integer(r.stock ?? '0', 'Stok', rowNumber) ?? 0,
+        stock: parsedFileStock ?? 0,
+        fileStock: parsedFileStock,
         candidates,
         discountCandidates,
         warnings,
@@ -538,6 +755,10 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
           price: item.price,
           discount_price: null,
           stock: item.stock,
+          fileStock: item.fileStock,
+          currentStock: null,
+          stockPolicy: 'keep_existing',
+          stockChangeReason: item.fileStock !== null ? `Dari file (${item.fileStock})` : 'Stok tidak ada di file (0)',
           category: item.category,
           brand: item.brand,
           status: item.status,
@@ -581,6 +802,8 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
 
         const minPrice = Math.min(...group.map((g) => g.price))
         const totalStock = group.reduce((sum, g) => sum + g.stock, 0)
+        const hasAnyFileStock = group.some((g) => g.fileStock !== null)
+        const totalFileStock = hasAnyFileStock ? group.reduce((sum, g) => sum + (g.fileStock ?? 0), 0) : null
 
         const variants: ImportedVariant[] = []
         const usedOptions = new Set<string>()
@@ -619,6 +842,9 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
             price: g.price,
             discount_price: g.discountPrice,
             stock: g.stock,
+            fileStock: g.fileStock,
+            currentStock: null,
+            stockChangeReason: g.fileStock !== null ? `Dari file (${g.fileStock})` : 'Stok tidak ada di file (0)',
           })
         }
 
@@ -638,6 +864,10 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
           price: minPrice,
           discount_price: null,
           stock: totalStock,
+          fileStock: totalFileStock,
+          currentStock: null,
+          stockPolicy: 'keep_existing',
+          stockChangeReason: totalFileStock !== null ? `Total varian file (${totalFileStock})` : 'Stok tidak ada di file (0)',
           category: first.category,
           brand: first.brand,
           status: first.status,
@@ -774,8 +1004,14 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
         price: p.price,
         discount_price: p.discount_price,
         stock: p.stock,
+        fileStock: p.fileStock ?? null,
+        currentStock: p.currentStock ?? null,
+        stockChangeReason: p.stockChangeReason,
       })
     }
+
+    const hasAnyFileStock = group.some((p) => p.fileStock !== null && p.fileStock !== undefined)
+    const totalFileStock = hasAnyFileStock ? group.reduce((sum, p) => sum + (p.fileStock ?? 0), 0) : null
 
     groupWarnings.push(`Digabungkan menjadi 1 produk induk dengan ${variants.length} varian konfigurasi/warna.`)
 
@@ -786,6 +1022,10 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
       price: minPrice,
       discount_price: group.some((p) => p.discount_price !== null) ? Math.min(...group.map((p) => p.discount_price ?? p.price)) : null,
       stock: totalStock,
+      fileStock: totalFileStock,
+      currentStock: null,
+      stockPolicy: 'keep_existing',
+      stockChangeReason: totalFileStock !== null ? `Total varian file (${totalFileStock})` : 'Stok tidak ada di file (0)',
       variants,
       warnings: [...new Set(groupWarnings)],
       duplicateInFile: hasDuplicateSkuInGroup || first.duplicateInFile,
@@ -830,6 +1070,7 @@ export function normalizeProductRows(rows: string[][]): ImportedProduct[] {
       if (product.variants.some((variant) => variant.color.toLowerCase() === color.toLowerCase() && variant.ram.toLowerCase() === ram.toLowerCase() && variant.storage.toLowerCase() === storage.toLowerCase())) throw new Error(`Baris ${row}: kombinasi varian produk ganda.`)
       const varPrice = money(record.variant_price ?? '', 'Harga varian', row, true) ?? (price > 0 ? price : null)
       const varDiscount = money(record.variant_discount_price ?? '', 'Harga diskon varian', row, true) ?? discount
+      const parsedVarStock = (record.variant_stock ?? record.stock) !== undefined && (record.variant_stock ?? record.stock) !== '' ? integer(record.variant_stock ?? record.stock, 'Stok varian', row)! : null
       product.variants.push({
         sku: record.variant_sku ?? '',
         color,
@@ -837,13 +1078,29 @@ export function normalizeProductRows(rows: string[][]): ImportedProduct[] {
         storage,
         price: varPrice,
         discount_price: varDiscount,
-        stock: integer(record.variant_stock ?? record.stock ?? '0', 'Stok varian', row)!
+        stock: parsedVarStock ?? 0,
+        fileStock: parsedVarStock,
+        currentStock: null,
+        stockChangeReason: parsedVarStock !== null ? `Dari file (${parsedVarStock})` : 'Stok tidak ada di file (0)',
       })
       if (varPrice !== null && varPrice > 0) product.price = Math.min(product.price, varPrice)
     } else {
-      product.stock = integer(record.stock ?? '0', 'Stok', row)!
+      const parsedFileStock = record.stock !== undefined && record.stock !== '' ? integer(record.stock, 'Stok', row)! : null
+      product.stock = parsedFileStock ?? 0
+      product.fileStock = parsedFileStock
+      product.currentStock = null
+      product.stockPolicy = 'keep_existing'
+      product.stockChangeReason = parsedFileStock !== null ? `Dari file (${parsedFileStock})` : 'Stok tidak ada di file (0)'
     }
     if (!found) products.set(key, product)
+  }
+  for (const p of products.values()) {
+    if (p.variants.length > 0) {
+      p.stock = p.variants.reduce((sum, v) => sum + (v.stock ?? 0), 0)
+      const hasAnyFileStock = p.variants.some((v) => v.fileStock !== null && v.fileStock !== undefined)
+      p.fileStock = hasAnyFileStock ? p.variants.reduce((sum, v) => sum + (v.fileStock ?? 0), 0) : null
+      p.stockChangeReason = p.fileStock !== null ? `Total varian file (${p.fileStock})` : 'Stok tidak ada di file (0)'
+    }
   }
   const consolidated = consolidateVariantProducts([...products.values()])
   if (consolidated.length > 500) throw new Error('Maksimal 500 produk per impor.')

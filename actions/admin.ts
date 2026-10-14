@@ -30,6 +30,241 @@ export async function getAdminEcommerceReportAction(days: number): Promise<Ecomm
   return data as EcommerceReport
 }
 
+export type AdminSaleItemDetail = {
+  id: string
+  orderId: string
+  orderNumber: string
+  orderCreatedAt: string
+  day: string
+  time: string
+  orderStatus: string
+  customerName: string
+  customerPhone: string
+  productId: string
+  productName: string
+  variantDetails?: string
+  brandId?: string
+  brandName?: string
+  categoryId?: string
+  categoryName?: string
+  price: number
+  quantity: number
+  subtotal: number
+  grandTotal: number
+}
+
+export type AdminSalesChartData = {
+  points: {
+    day: string
+    orders: number
+    revenue: number
+    details: AdminSaleItemDetail[]
+  }[]
+  filterOptions: {
+    brands: { id: string; name: string }[]
+    categories: { id: string; name: string }[]
+    products: { id: string; name: string }[]
+  }
+}
+
+export async function getAdminSalesChartDetailsAction(params?: {
+  days?: number
+  startDate?: string
+  endDate?: string
+}): Promise<AdminSalesChartData> {
+  await requireAdmin()
+  const supabase = await createClient()
+
+  const requestedDays = params?.days && [7, 14, 30, 90].includes(params.days) ? params.days : 30
+  const now = new Date()
+  let startIso: string
+  let endIso: string
+
+  if (params?.startDate && params?.endDate) {
+    startIso = `${params.startDate}T00:00:00+07:00`
+    endIso = `${params.endDate}T23:59:59+07:00`
+  } else {
+    const cutoff = new Date(now.getTime() - (requestedDays - 1) * 24 * 60 * 60 * 1000)
+    cutoff.setHours(0, 0, 0, 0)
+    startIso = cutoff.toISOString()
+    endIso = now.toISOString()
+  }
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      order_number,
+      status,
+      grand_total,
+      created_at,
+      shipping_address,
+      users(full_name, phone),
+      order_items(
+        id,
+        product_id,
+        product_name,
+        price,
+        quantity,
+        variant_details,
+        products(
+          id,
+          name,
+          brand_id,
+          category_id,
+          brands(id, name),
+          categories(id, name)
+        )
+      )
+    `)
+    .eq('status', 'delivered')
+    .gte('created_at', startIso)
+    .lte('created_at', endIso)
+    .order('created_at', { ascending: true })
+
+  if (error) throw new Error(error.message)
+
+  const getWibDateStr = (date: Date): string => {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(date)
+  }
+
+  const dayMap = new Map<string, { ordersSet: Set<string>; revenue: number; details: AdminSaleItemDetail[] }>()
+
+  const startDateObj = new Date(startIso)
+  const endDateObj = new Date(endIso)
+  const iterDate = new Date(startDateObj)
+  while (iterDate <= endDateObj) {
+    const dayStr = getWibDateStr(iterDate)
+    if (!dayMap.has(dayStr)) {
+      dayMap.set(dayStr, { ordersSet: new Set(), revenue: 0, details: [] })
+    }
+    iterDate.setDate(iterDate.getDate() + 1)
+  }
+
+  const brandsMap = new Map<string, { id: string; name: string }>()
+  const categoriesMap = new Map<string, { id: string; name: string }>()
+  const productsMap = new Map<string, { id: string; name: string }>()
+
+  for (const order of (orders ?? [])) {
+    const orderCreatedAt = order.created_at
+    const orderDate = new Date(orderCreatedAt)
+    const dayStr = getWibDateStr(orderDate)
+
+    const userObj = Array.isArray(order.users) ? order.users[0] : order.users
+    const addressObj = order.shipping_address && typeof order.shipping_address === 'object' ? (order.shipping_address as Record<string, unknown>) : {}
+    const customerName = String(userObj?.full_name || addressObj.recipient_name || 'Pelanggan')
+    const customerPhone = String(userObj?.phone || addressObj.phone || '-')
+
+    const timeFormatter = new Intl.DateTimeFormat('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+    })
+    const timeStr = `${timeFormatter.format(orderDate)} WIB`
+
+    const items = Array.isArray(order.order_items) ? order.order_items : []
+
+    let entry = dayMap.get(dayStr)
+    if (!entry) {
+      entry = { ordersSet: new Set(), revenue: 0, details: [] }
+      dayMap.set(dayStr, entry)
+    }
+
+    entry.ordersSet.add(order.id)
+    entry.revenue += Number(order.grand_total) || 0
+
+    for (const item of items) {
+      type OrderItemProduct = {
+        id?: string
+        name?: string
+        brand_id?: string
+        category_id?: string
+        brands?: { id?: string; name?: string } | { id?: string; name?: string }[] | null
+        categories?: { id?: string; name?: string } | { id?: string; name?: string }[] | null
+      }
+      const prodObj = (Array.isArray(item.products) ? item.products[0] : item.products) as OrderItemProduct | null
+      const brandObj = prodObj ? (Array.isArray(prodObj.brands) ? prodObj.brands[0] : prodObj.brands) : null
+      const catObj = prodObj ? (Array.isArray(prodObj.categories) ? prodObj.categories[0] : prodObj.categories) : null
+
+      const brandId = String(brandObj?.id || prodObj?.brand_id || '')
+      const brandName = String(brandObj?.name || '')
+      const categoryId = String(catObj?.id || prodObj?.category_id || '')
+      const categoryName = String(catObj?.name || '')
+      const productId = String(item.product_id || prodObj?.id || '')
+      const productName = String(item.product_name || prodObj?.name || 'Produk')
+
+      if (brandId && brandName) brandsMap.set(brandId, { id: brandId, name: brandName })
+      if (categoryId && categoryName) categoriesMap.set(categoryId, { id: categoryId, name: categoryName })
+      if (productId && productName) productsMap.set(productId, { id: productId, name: productName })
+
+      let variantText = ''
+      if (item.variant_details) {
+        if (typeof item.variant_details === 'string') {
+          variantText = item.variant_details
+        } else if (typeof item.variant_details === 'object') {
+          const vd = item.variant_details as Record<string, unknown>
+          variantText = [vd.color, vd.ram, vd.storage].filter(Boolean).join(' / ') || ''
+        }
+      }
+
+      const itemPrice = Number(item.price) || 0
+      const itemQty = Number(item.quantity) || 1
+      const itemSubtotal = itemPrice * itemQty
+
+      entry.details.push({
+        id: String(item.id),
+        orderId: String(order.id),
+        orderNumber: String(order.order_number),
+        orderCreatedAt,
+        day: dayStr,
+        time: timeStr,
+        orderStatus: String(order.status),
+        customerName,
+        customerPhone,
+        productId,
+        productName,
+        variantDetails: variantText,
+        brandId,
+        brandName,
+        categoryId,
+        categoryName,
+        price: itemPrice,
+        quantity: itemQty,
+        subtotal: itemSubtotal,
+        grandTotal: Number(order.grand_total) || 0,
+      })
+    }
+  }
+
+  const [{ data: allBrands }, { data: allCats }] = await Promise.all([
+    supabase.from('brands').select('id, name').order('name'),
+    supabase.from('categories').select('id, name').order('name'),
+  ])
+
+  for (const b of (allBrands ?? [])) brandsMap.set(b.id, { id: b.id, name: b.name })
+  for (const c of (allCats ?? [])) categoriesMap.set(c.id, { id: c.id, name: c.name })
+
+  const sortedDays = Array.from(dayMap.keys()).sort()
+  const points = sortedDays.map((day) => {
+    const data = dayMap.get(day)!
+    return {
+      day,
+      orders: data.ordersSet.size,
+      revenue: data.revenue,
+      details: data.details,
+    }
+  })
+
+  return {
+    points,
+    filterOptions: {
+      brands: Array.from(brandsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      categories: Array.from(categoriesMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+      products: Array.from(productsMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  }
+}
+
 async function requireAdmin() {
   const { user, isAdmin, adminName, role } = await getAdminAccess()
   if (!user || !isAdmin) throw new Error('Forbidden')
@@ -695,9 +930,14 @@ export async function bulkImportAdminProductsAction(products: unknown) {
   const { user, adminName, role } = await requireModulePermission('products')
   if (!Array.isArray(products) || products.length < 1 || products.length > 500) throw new Error('Impor dapat memuat 1 sampai 500 produk sekaligus.')
   for (const product of products) {
-    if (!product || typeof product !== 'object' || typeof product.name !== 'string' || !product.name.trim() || typeof product.sku !== 'string' || typeof product.description !== 'string' || !product.description.trim() || typeof product.category !== 'string' || !product.category.trim() || typeof product.brand !== 'string' || !product.brand.trim() || !isValidImportPrices(product.price, product.discount_price ?? null) || !hasConfirmedImportPriceMapping(product) || !Array.isArray(product.variants) || !Array.isArray(product.specifications) || !['create', 'update'].includes(product.importAction)) throw new Error('Data impor tidak valid, harga promo tidak valid, atau konfirmasi harga belum lengkap. Periksa setiap baris preview.')
+    if (!product || typeof product !== 'object' || typeof product.name !== 'string' || !product.name.trim() || typeof product.sku !== 'string' || typeof product.description !== 'string' || !product.description.trim() || typeof product.category !== 'string' || !product.category.trim() || typeof product.brand !== 'string' || !product.brand.trim() || !isValidImportPrices(product.price, product.discount_price ?? null) || !hasConfirmedImportPriceMapping(product) || !Array.isArray(product.variants) || !Array.isArray(product.specifications) || !['create', 'update', 'consolidate'].includes(product.importAction)) throw new Error('Data impor tidak valid, harga promo tidak valid, atau konfirmasi harga belum lengkap. Periksa setiap baris preview.')
     if (product.errors?.length || product.variants.length > 50 || product.specifications.length > 50) throw new Error('Data memiliki error atau jumlah varian/spesifikasi melewati batas.')
     if (product.importAction === 'update' && !product.targetProductId) throw new Error('Pilih produk database yang cocok sebelum update.')
+    if (product.importAction === 'consolidate' && (!Array.isArray(product.consolidationTargetIds) || product.consolidationTargetIds.length === 0)) throw new Error('Konsolidasi memerlukan produk database target yang teridentifikasi.')
+    if (typeof product.stock === 'number' && product.stock < 0) throw new Error('Stok produk tidak boleh negatif.')
+    for (const v of product.variants) {
+      if (typeof v.stock === 'number' && v.stock < 0) throw new Error('Stok varian tidak boleh negatif.')
+    }
   }
   const supabase = await createClient()
 
@@ -758,21 +998,24 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     }
   }
 
-  let { data, error } = await supabase.rpc('bulk_import_products_v2', { p_products: products })
-  if (error && (error.code === 'PGRST202' || error.message?.includes('bulk_import_products_v2'))) {
-    const onlyCreates = products.every((p: { importAction?: string }) => !p.importAction || p.importAction === 'create')
-    if (onlyCreates) {
-      const v1Result = await supabase.rpc('bulk_import_products', { p_products: products })
-      data = v1Result.data
-      error = v1Result.error
-    }
-  }
-  if (error) throw new Error(error.message)
-
-  // Ensure variants are upserted for any updated products with variants
-  const updatedProductsWithVariants = (products as Array<{
+  type ImportItem = {
+    name: string
+    sku: string
+    description?: string
+    price: number
+    discount_price?: number | null
+    stock?: number
+    category?: string
+    brand?: string
+    status?: string
+    is_best_seller?: boolean
+    is_new_arrival?: boolean
+    specifications?: Array<{ key: string; value: string; display_order?: number }>
     importAction?: string
     targetProductId?: string
+    consolidationTargetIds?: string[]
+    currentStock?: number | null
+    stockChangeReason?: string
     variants?: Array<{
       id?: string
       sku?: string
@@ -783,94 +1026,73 @@ export async function bulkImportAdminProductsAction(products: unknown) {
       discount_price: number | null
       stock: number
     }>
-  }>).filter((p) => p.importAction === 'update' && p.targetProductId && Array.isArray(p.variants) && p.variants.length > 0)
+  }
 
-  if (updatedProductsWithVariants.length > 0) {
-    for (const prod of updatedProductsWithVariants) {
-      const targetId = prod.targetProductId!
-      const { data: currentVariants } = await supabase
-        .from('product_variants')
-        .select('id, sku, color, ram, storage')
-        .eq('product_id', targetId)
+  const typedProducts = products as ImportItem[]
 
-      const existingVars = currentVariants ?? []
+  // 1. Attempt bulk_import_products_v3 first (supports create, update, and consolidate atomically)
+  const v3Result = await supabase.rpc('bulk_import_products_v3', { p_products: products })
+  let importedCount = Number(v3Result.data) || 0
 
-      for (const v of prod.variants!) {
-        const vSku = v.sku?.trim() || null
-        const vColor = v.color?.trim() || ''
-        const vRam = v.ram?.trim() || ''
-        const vStorage = v.storage?.trim() || ''
-        const vPrice = v.price != null && Number.isFinite(v.price) ? v.price : null
-        const vDiscount = v.discount_price != null && Number.isFinite(v.discount_price) ? v.discount_price : null
-        const vStock = Number.isInteger(v.stock) && v.stock >= 0 ? v.stock : 0
+  if (v3Result.error) {
+    const isMissingV3Rpc = v3Result.error.code === 'PGRST202' || v3Result.error.code === '42883'
+    if (!isMissingV3Rpc) {
+      // Real database / business validation error: fail immediately and roll back completely
+      throw new Error(v3Result.error.message)
+    }
 
-        const match = existingVars.find((ev) =>
-          (vSku && ev.sku && ev.sku.toLowerCase() === vSku.toLowerCase()) ||
-          (ev.color.toLowerCase() === vColor.toLowerCase() &&
-           ev.ram.toLowerCase() === vRam.toLowerCase() &&
-           ev.storage.toLowerCase() === vStorage.toLowerCase())
+    // Fail closed if batch contains consolidation: consolidation REQUIRES bulk_import_products_v3 transaction
+    const hasConsolidation = typedProducts.some((p) => p.importAction === 'consolidate')
+    if (hasConsolidation) {
+      throw new Error(
+        'Fitur konsolidasi varian dan kebijakan stok membutuhkan fungsi database bulk_import_products_v3. Harap terapkan migration 20261031000000_bulk_import_v3_stock_and_consolidation.sql terlebih dahulu.'
+      )
+    }
+
+    // Fallback only for legacy create/update when v3 RPC is not yet migrated to database
+    const v2Result = await supabase.rpc('bulk_import_products_v2', { p_products: products })
+    if (v2Result.error) {
+      const isMissingV2Rpc = v2Result.error.code === 'PGRST202' || v2Result.error.code === '42883'
+      if (!isMissingV2Rpc) throw new Error(v2Result.error.message)
+
+      const onlyCreates = typedProducts.every((p) => !p.importAction || p.importAction === 'create')
+      if (onlyCreates) {
+        const v1Result = await supabase.rpc('bulk_import_products', { p_products: products })
+        if (v1Result.error) throw new Error(v1Result.error.message)
+        importedCount = Number(v1Result.data) || 0
+      } else {
+        throw new Error(
+          'Fitur update produk dan varian membutuhkan fungsi database bulk_import_products_v2 atau bulk_import_products_v3. Harap jalankan migration database terlebih dahulu.'
         )
-
-        if (match) {
-          await supabase
-            .from('product_variants')
-            .update({
-              sku: vSku,
-              color: vColor,
-              ram: vRam,
-              storage: vStorage,
-              price: vPrice,
-              discount_price: vDiscount,
-              stock: vStock,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', match.id)
-            .eq('product_id', targetId)
-        } else {
-          await supabase
-            .from('product_variants')
-            .insert({
-              product_id: targetId,
-              sku: vSku,
-              color: vColor,
-              ram: vRam,
-              storage: vStorage,
-              price: vPrice,
-              discount_price: vDiscount,
-              stock: vStock,
-            })
-        }
       }
-
-      const { data: allVars } = await supabase
-        .from('product_variants')
-        .select('stock')
-        .eq('product_id', targetId)
-
-      if (allVars && allVars.length > 0) {
-        const totalStock = allVars.reduce((sum, item) => sum + (item.stock || 0), 0)
-        await supabase
-          .from('products')
-          .update({ stock: totalStock })
-          .eq('id', targetId)
-      }
+    } else {
+      importedCount = Number(v2Result.data) || 0
     }
   }
+
+  // Audit activity log: record stock updates and mass import details
+  const stockChanges = typedProducts
+    .filter((p) => p.importAction !== 'skip')
+    .map((p) => {
+      const oldStock = p.currentStock !== null && p.currentStock !== undefined ? p.currentStock : 'baru'
+      return `${p.name} (${p.sku}): ${oldStock} -> ${p.stock ?? 0} [${p.stockChangeReason || p.importAction}]`
+    })
+    .slice(0, 10)
 
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
     admin_role: role,
-    action: 'create',
+    action: 'update',
     entity_type: 'product',
     entity_name: 'Impor Katalog',
-    details: `Mengimpor ${products.length} produk katalog sekaligus`,
+    details: `Mengimpor ${typedProducts.length} produk katalog (${typedProducts.filter((p) => p.importAction === 'update').length} update, ${typedProducts.filter((p) => p.importAction === 'consolidate').length} konsolidasi, ${typedProducts.filter((p) => p.importAction === 'create').length} baru). Rincian stok: ${stockChanges.join('; ')}`,
   })
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/')
-  return { success: true, count: Number(data) }
+  return { success: true, count: importedCount }
 }
 
 export async function deleteAdminProductAction(productId: string) {

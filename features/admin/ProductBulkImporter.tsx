@@ -31,8 +31,11 @@ import { bulkImportAdminProductsAction, getMissingImportTaxonomiesAction } from 
 import {
   hasConfirmedImportPriceMapping,
   isValidImportPrices,
+  applyStockPolicyToProduct,
+  calculateProductTotalStock,
   type ImportedProduct,
   type ImportSheetSummary,
+  type StockPolicy,
 } from "@/lib/admin-product-import";
 
 type ActiveTab = "upload" | "guide" | "columns" | "faq";
@@ -85,8 +88,80 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   const [confirmModalConfig, setConfirmModalConfig] = useState<ConfirmModalConfig | null>(null);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
 
+  // Import Summary modal state before saving
+  type ImportSummaryModalConfig = {
+    targetToImport: ImportedProduct[];
+    createCount: number;
+    updateCount: number;
+    consolidateCount: number;
+    skipCount: number;
+    totalUnits: number;
+    stockPolicy: StockPolicy;
+  };
+  const [importSummaryModal, setImportSummaryModal] = useState<ImportSummaryModalConfig | null>(null);
+
+  // Global Stock Policy state
+  const [globalStockPolicy, setGlobalStockPolicy] = useState<StockPolicy>("keep_existing");
+  const [stockAdjustmentDelta, setStockAdjustmentDelta] = useState<number>(0);
+
+  const applyStockPolicy = (policy: StockPolicy, delta: number = 0) => {
+    setGlobalStockPolicy(policy);
+    setStockAdjustmentDelta(delta);
+    setProducts((current) =>
+      current.map((product) => applyStockPolicyToProduct(product, policy, delta))
+    );
+    setNotice(
+      policy === "keep_existing"
+        ? "Kebijakan stok: Pertahankan stok saat ini pada produk & varian yang sudah ada."
+        : policy === "replace_with_file"
+        ? "Kebijakan stok: Perbarui stok sesuai angka pada file Excel."
+        : `Kebijakan stok: Penyesuaian stok (${delta >= 0 ? `+${delta}` : delta}) diterapkan ke semua produk.`
+    );
+  };
+
   const update = (index: number, patch: Partial<ImportedProduct>) =>
     setProducts((current) => current.map((product, row) => (row === index ? { ...product, ...patch } : product)));
+
+  const updateVariantStock = (productIndex: number, variantIndex: number, newStock: number) => {
+    setProducts((current) =>
+      current.map((product, pIdx) => {
+        if (pIdx !== productIndex) return product;
+        const variants = (product.variants || []).map((v, vIdx) => {
+          if (vIdx !== variantIndex) return v;
+          const validStock = Math.max(0, Number.isFinite(newStock) ? Math.floor(newStock) : 0);
+          return {
+            ...v,
+            stock: validStock,
+            stockPolicy: "manual" as StockPolicy,
+            stockChangeReason: `Diedit manual (${v.currentStock != null ? `DB: ${v.currentStock}` : "baru"} -> ${validStock})`,
+          };
+        });
+        const totalStock = calculateProductTotalStock({ stock: product.stock, variants });
+        return {
+          ...product,
+          variants,
+          stock: totalStock,
+          stockPolicy: "manual" as StockPolicy,
+          stockChangeReason: `Total dari ${variants.length} varian (${totalStock} unit)`,
+        };
+      })
+    );
+  };
+
+  const updateProductStock = (productIndex: number, newStock: number) => {
+    setProducts((current) =>
+      current.map((product, pIdx) => {
+        if (pIdx !== productIndex) return product;
+        const validStock = Math.max(0, Number.isFinite(newStock) ? Math.floor(newStock) : 0);
+        return {
+          ...product,
+          stock: validStock,
+          stockPolicy: "manual" as StockPolicy,
+          stockChangeReason: `Diedit manual (${product.currentStock != null ? `DB: ${product.currentStock}` : "baru"} -> ${validStock})`,
+        };
+      })
+    );
+  };
 
   // Detection helper functions
   const isDesktopProduct = (category = "", name = "") => {
@@ -568,8 +643,11 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   const hasMissingBasics = targetProductsToImport.some(
     (product) => !product.name || !product.sku || !product.description || !product.category || !product.brand
   );
-  const ready = targetProductsToImport.length > 0 && !hasFatalErrors && !hasUnconfirmedPrices && !hasMissingBasics;
-  const canInitiateImport = targetProductsToImport.length > 0 && !hasFatalErrors && !hasMissingBasics;
+  const hasNegativeStock = targetProductsToImport.some(
+    (product) => product.stock < 0 || (product.variants?.some((v) => v.stock < 0) ?? false)
+  );
+  const ready = targetProductsToImport.length > 0 && !hasFatalErrors && !hasUnconfirmedPrices && !hasMissingBasics && !hasNegativeStock;
+  const canInitiateImport = targetProductsToImport.length > 0 && !hasFatalErrors && !hasMissingBasics && !hasNegativeStock;
 
   const downloadTemplate = async (format: "xlsx" | "csv") => {
     try {
@@ -636,13 +714,18 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
           selDiscount = validPromo ? validPromo.column : "none";
         }
 
-        return {
-          ...p,
-          selectedPriceColumn: selPrice,
-          selectedDiscountColumn: selDiscount,
-        };
+        return applyStockPolicyToProduct(
+          {
+            ...p,
+            selectedPriceColumn: selPrice,
+            selectedDiscountColumn: selDiscount,
+          },
+          p.stockPolicy || "keep_existing"
+        );
       });
       setProducts(initialized);
+      setGlobalStockPolicy("keep_existing");
+      setStockAdjustmentDelta(0);
       setSheetSummary(result.summary?.sheetSummary || null);
       setNotice(
         `Preview berhasil: ${result.summary.productCount} produk ditemukan. Silakan periksa pemetaan kolom, konfirmasi harga, dan tindakan produk sebelum impor.`
@@ -696,6 +779,24 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     }
   };
 
+  const showImportSummary = (targetToImport: ImportedProduct[]) => {
+    const createCount = targetToImport.filter((p) => p.importAction === "create").length;
+    const updateCount = targetToImport.filter((p) => p.importAction === "update").length;
+    const consolidateCount = targetToImport.filter((p) => p.importAction === "consolidate").length;
+    const skipCount = products.filter((p) => p.importAction === "skip").length;
+    const totalUnits = targetToImport.reduce((sum, p) => sum + (p.stock || 0), 0);
+
+    setImportSummaryModal({
+      targetToImport,
+      createCount,
+      updateCount,
+      consolidateCount,
+      skipCount,
+      totalUnits,
+      stockPolicy: globalStockPolicy,
+    });
+  };
+
   const initiateImport = async () => {
     if (!canInitiateImport || busy) return;
     setError("");
@@ -718,7 +819,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
       return;
     }
 
-    await checkTaxonomiesAndExecute(targetToImport);
+    showImportSummary(targetToImport);
   };
 
   const handleApplyPricingSchemeAndImport = (mode: "normal" | "promo") => {
@@ -742,11 +843,11 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
 
     setNotice(
       mode === "normal"
-        ? `Skema Harga Normal Saja diterapkan untuk ${updatedTargetToImport.length} produk. Memulai impor...`
-        : `Skema Promo (+ Harga Normal) diterapkan untuk ${updatedTargetToImport.length} produk. Memulai impor...`
+        ? `Skema Harga Normal Saja diterapkan untuk ${updatedTargetToImport.length} produk.`
+        : `Skema Promo (+ Harga Normal) diterapkan untuk ${updatedTargetToImport.length} produk.`
     );
 
-    void checkTaxonomiesAndExecute(updatedTargetToImport);
+    showImportSummary(updatedTargetToImport);
   };
 
   return (
@@ -1434,6 +1535,81 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                       )}
                     </div>
 
+                    {/* Baris Kebijakan Stok Sebelum Import */}
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Layers className="size-4 text-primary" />
+                          <span className="text-xs font-bold text-foreground">Kebijakan Stok Sebelum Import</span>
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            {products.filter((p) => p.duplicateInDatabase || p.currentStock !== null).length} Produk Database
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex rounded-lg border bg-background p-0.5 text-xs shadow-sm">
+                            <button
+                              type="button"
+                              onClick={() => applyStockPolicy("keep_existing")}
+                              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                                globalStockPolicy === "keep_existing"
+                                  ? "bg-primary text-primary-foreground shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Stok lama tidak berubah (Pilihan default untuk re-import)"
+                            >
+                              Pertahankan Stok Saat Ini
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyStockPolicy("replace_with_file")}
+                              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                                globalStockPolicy === "replace_with_file"
+                                  ? "bg-primary text-primary-foreground shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Stok diganti sesuai nilai yang tertera pada file"
+                            >
+                              Perbarui Sesuai Excel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyStockPolicy("adjustment", stockAdjustmentDelta || 0)}
+                              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                                globalStockPolicy === "adjustment"
+                                  ? "bg-primary text-primary-foreground shadow-xs"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                              title="Tambah atau kurangi stok dengan angka tertentu"
+                            >
+                              Penyesuaian (+ / -)
+                            </button>
+                          </div>
+                          {globalStockPolicy === "adjustment" && (
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-[11px] font-medium text-muted-foreground">Delta:</label>
+                              <input
+                                type="number"
+                                className="w-16 rounded border bg-background px-1.5 py-0.5 text-xs text-right font-semibold"
+                                placeholder="0"
+                                value={stockAdjustmentDelta}
+                                onChange={(e) => {
+                                  const delta = parseInt(e.target.value, 10) || 0;
+                                  setStockAdjustmentDelta(delta);
+                                  applyStockPolicy("adjustment", delta);
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {globalStockPolicy === "keep_existing" && "ℹ️ Stok produk/varian yang sudah ada di database dipertahankan (tidak berubah). Varian baru menggunakan nilai file atau 0."}
+                        {globalStockPolicy === "replace_with_file" && "⚠️ Stok diperbarui sesuai angka kolom stok di file. Jika baris produk lama kosong di file, stok lama tetap dipertahankan."}
+                        {globalStockPolicy === "adjustment" && `🔄 Seluruh stok produk dan varian disesuaikan sebesar ${stockAdjustmentDelta >= 0 ? `+${stockAdjustmentDelta}` : stockAdjustmentDelta}. Stok akhir divalidasi tidak negatif.`}
+                        {globalStockPolicy === "manual" && "✏️ Mode edit manual: Anda dapat mengedit stok tiap produk atau varian langsung di tabel preview di bawah."}
+                      </p>
+                    </div>
+
                     {/* Scrollable Cards Container */}
                     <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
                       {filteredProductItems.length === 0 ? (
@@ -1480,6 +1656,23 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                       · {product.sku || <span className="text-destructive">SKU kosong</span>}
                                     </span>
                                   </p>
+                                  {product.importAction === "consolidate" ? (
+                                    <Badge className="bg-amber-600 hover:bg-amber-700 text-white text-[10px]">
+                                      Konsolidasi
+                                    </Badge>
+                                  ) : product.importAction === "update" ? (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      Update
+                                    </Badge>
+                                  ) : product.importAction === "skip" ? (
+                                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                      Lewati
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]">
+                                      Baru
+                                    </Badge>
+                                  )}
                                   {product.variants?.length > 0 && (
                                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                       {product.variants.length} Varian
@@ -1502,16 +1695,39 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                     })
                                   }
                                 >
-                                  <option value="create" disabled={product.duplicateInDatabase}>
+                                  <option value="create" disabled={Boolean(product.duplicateInDatabase && !product.consolidationInfo)}>
                                     Produk baru
                                   </option>
                                   <option value="update" disabled={!product.targetProductId}>
                                     Update produk cocok
                                   </option>
+                                  {product.consolidationInfo && (
+                                    <option value="consolidate">
+                                      Konsolidasi ({product.consolidationInfo.separateProductCount} produk lama)
+                                    </option>
+                                  )}
                                   <option value="skip">Lewati</option>
                                 </select>
                               </label>
                             </div>
+
+                            {/* Banner Opsi Konsolidasi */}
+                            {product.consolidationInfo && (
+                              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-semibold flex items-center gap-1.5">
+                                    <FolderPlus className="size-4 text-amber-600" />
+                                    Opsi Konsolidasi Tersedia
+                                  </span>
+                                  <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300 font-semibold text-[10px]">
+                                    {product.consolidationInfo.separateProductCount} Produk Terpisah
+                                  </Badge>
+                                </div>
+                                <p className="mt-1">
+                                  {product.consolidationInfo.separateProductCount} produk lama di database (SKU: {product.consolidationInfo.matchedProducts.map((p) => p.sku).join(", ")}) terdeteksi cocok dengan varian produk ini. Memilih tindakan <b>Konsolidasi</b> akan menyatukannya ke dalam produk induk ini tanpa menghapus histori pesanan.
+                                </p>
+                              </div>
+                            )}
 
                             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                               <label className="text-xs">
@@ -1702,7 +1918,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                             </div>
 
                             {/* Product Variants Table */}
-                            {product.variants && product.variants.length > 0 && (
+                            {product.variants && product.variants.length > 0 ? (
                               <div className="rounded-lg border bg-card/60 p-2.5 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-1.5">
                                   <div className="flex items-center gap-2">
@@ -1710,11 +1926,19 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                       Daftar Varian Produk ({product.variants.length})
                                     </span>
                                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                      Total Stok: {product.variants.reduce((sum, v) => sum + (v.stock || 0), 0)}
+                                      Total Stok Induk: {product.stock}
                                     </span>
+                                    <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                                      Stok di File: {product.fileStock != null ? `${product.fileStock} unit` : "Tidak ada di file"}
+                                    </span>
+                                    {product.currentStock != null && (
+                                      <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                                        Stok DB: {product.currentStock} unit
+                                      </span>
+                                    )}
                                   </div>
                                   <span className="text-[11px] text-muted-foreground">
-                                    Setiap varian memiliki MTM/SKU, harga, dan stok mandiri
+                                    Setiap varian memiliki MTM/SKU, harga, dan stok mandiri (Stok Induk = total stok varian)
                                   </span>
                                 </div>
 
@@ -1727,7 +1951,10 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                         <th className="p-1.5 font-medium">SKU / MTM Varian</th>
                                         <th className="p-1.5 font-medium text-right">Harga Varian</th>
                                         <th className="p-1.5 font-medium text-right">Promo Varian</th>
-                                        <th className="p-1.5 font-medium text-right">Stok</th>
+                                        <th className="p-1.5 font-medium text-center">Stok DB</th>
+                                        <th className="p-1.5 font-medium text-center">Stok File</th>
+                                        <th className="p-1.5 font-medium text-center">Stok Akhir</th>
+                                        <th className="p-1.5 font-medium">Keterangan</th>
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/40">
@@ -1737,27 +1964,88 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                             {v.color || <span className="text-muted-foreground italic">Standar</span>}
                                           </td>
                                           <td className="p-1.5 text-muted-foreground">
-                                            {[v.ram, v.storage].filter(Boolean).join(' / ') || '-'}
+                                            {[v.ram, v.storage].filter(Boolean).join(" / ") || "-"}
                                           </td>
                                           <td className="p-1.5 font-mono text-[11px] text-foreground font-semibold">
                                             {v.sku || <span className="text-muted-foreground italic">Auto</span>}
                                           </td>
                                           <td className="p-1.5 text-right font-medium">
                                             {v.price != null
-                                              ? `Rp ${Number(v.price).toLocaleString('id-ID')}`
-                                              : `Rp ${Number(product.price).toLocaleString('id-ID')}`}
+                                              ? `Rp ${Number(v.price).toLocaleString("id-ID")}`
+                                              : `Rp ${Number(product.price).toLocaleString("id-ID")}`}
                                           </td>
                                           <td className="p-1.5 text-right text-emerald-600 dark:text-emerald-400 font-medium">
-                                            {v.discount_price != null ? `Rp ${Number(v.discount_price).toLocaleString('id-ID')}` : '-'}
+                                            {v.discount_price != null ? `Rp ${Number(v.discount_price).toLocaleString("id-ID")}` : "-"}
                                           </td>
-                                          <td className="p-1.5 text-right font-semibold">
-                                            {v.stock}
+                                          <td className="p-1.5 text-center text-muted-foreground font-mono text-xs">
+                                            {v.currentStock != null ? v.currentStock : <Badge variant="outline" className="text-[9px] text-emerald-600 border-emerald-500/30">Baru</Badge>}
+                                          </td>
+                                          <td className="p-1.5 text-center text-muted-foreground font-mono text-xs">
+                                            {v.fileStock != null ? v.fileStock : <span className="text-amber-600 dark:text-amber-400 italic text-[10px]">Tidak ada di file</span>}
+                                          </td>
+                                          <td className="p-1.5 text-center">
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              value={v.stock}
+                                              onChange={(e) => updateVariantStock(originalIndex, vIdx, Number(e.target.value))}
+                                              className="w-16 rounded border bg-background px-1.5 py-0.5 text-center text-xs font-semibold"
+                                            />
+                                          </td>
+                                          <td className="p-1.5 text-[11px] text-muted-foreground">
+                                            {v.isNewVariant && (
+                                              <span className="inline-block mr-1 rounded bg-emerald-500/10 px-1 py-0.2 text-[9px] font-semibold text-emerald-600">
+                                                Varian Baru
+                                              </span>
+                                            )}
+                                            <span>{v.stockChangeReason || (v.currentStock != null && v.stock === v.currentStock ? "Tetap" : "Disesuaikan")}</span>
+                                            {v.warnings?.map((w, wi) => (
+                                              <span key={wi} className="text-amber-600 dark:text-amber-400 block text-[10px]">⚠️ {w}</span>
+                                            ))}
                                           </td>
                                         </tr>
                                       ))}
                                     </tbody>
                                   </table>
                                 </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border bg-muted/20 p-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                                  <div className="flex items-center gap-4">
+                                    <div>
+                                      <span className="text-muted-foreground block text-[11px]">Stok Database:</span>
+                                      <span className="font-semibold text-foreground font-mono">
+                                        {product.currentStock != null ? `${product.currentStock} unit` : <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">Produk Baru</Badge>}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground block text-[11px]">Stok di File:</span>
+                                      <span className="font-semibold text-foreground font-mono">
+                                        {product.fileStock != null ? `${product.fileStock} unit` : <span className="text-muted-foreground italic">Tidak ada di file</span>}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-[11px] font-medium text-foreground">
+                                      Stok Akhir:
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={product.stock}
+                                      onChange={(e) => updateProductStock(originalIndex, Number(e.target.value))}
+                                      className="w-20 rounded border bg-background px-2 py-1 text-center font-bold text-xs"
+                                    />
+                                    <span className="text-xs text-muted-foreground">unit</span>
+                                  </div>
+                                </div>
+                                {product.stockChangeReason && (
+                                  <p className="mt-1.5 text-[11px] text-muted-foreground border-t pt-1">
+                                    Status Stok: {product.stockChangeReason}
+                                  </p>
+                                )}
                               </div>
                             )}
 
@@ -2302,6 +2590,121 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     >
                       <CheckCheck className="mr-1.5 size-4" />
                       Terapkan &amp; Lanjutkan
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Ringkasan & Konfirmasi Sebelum Simpan ke Katalog */}
+            {importSummaryModal && (
+              <div
+                className="fixed inset-0 z-[125] grid place-items-center bg-black/60 p-4 animate-in fade-in duration-200"
+                role="presentation"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setImportSummaryModal(null);
+                }}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="summary-modal-title"
+                  className="w-full max-w-xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
+                >
+                  <div className="flex items-start gap-3 p-5 sm:p-6 pb-4 border-b bg-muted/10">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="size-5" />
+                    </div>
+                    <div>
+                      <h3 id="summary-modal-title" className="text-lg font-bold text-foreground">
+                        Ringkasan Konfirmasi Impor Produk
+                      </h3>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Periksa rincian data dan kebijakan stok sebelum dieksekusi ke katalog toko.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+                    {/* Ringkasan Tindakan */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="rounded-xl border bg-muted/20 p-2.5 text-center">
+                        <span className="text-[11px] text-muted-foreground block">Produk Baru</span>
+                        <span className="text-lg font-bold text-emerald-600">{importSummaryModal.createCount}</span>
+                      </div>
+                      <div className="rounded-xl border bg-muted/20 p-2.5 text-center">
+                        <span className="text-[11px] text-muted-foreground block">Update Cocok</span>
+                        <span className="text-lg font-bold text-blue-600">{importSummaryModal.updateCount}</span>
+                      </div>
+                      <div className="rounded-xl border bg-muted/20 p-2.5 text-center">
+                        <span className="text-[11px] text-muted-foreground block">Konsolidasi</span>
+                        <span className="text-lg font-bold text-amber-600">{importSummaryModal.consolidateCount}</span>
+                      </div>
+                      <div className="rounded-xl border bg-muted/20 p-2.5 text-center">
+                        <span className="text-[11px] text-muted-foreground block">Dilewati</span>
+                        <span className="text-lg font-bold text-muted-foreground">{importSummaryModal.skipCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Kebijakan Stok yang Berlaku */}
+                    <div className="rounded-xl border p-3.5 bg-background space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground">Kebijakan Stok:</span>
+                        <Badge variant="secondary" className="font-semibold text-[11px]">
+                          {importSummaryModal.stockPolicy === "keep_existing" && "Pertahankan Stok Database (Aman)"}
+                          {importSummaryModal.stockPolicy === "replace_with_file" && "Perbarui Sesuai Excel"}
+                          {importSummaryModal.stockPolicy === "adjustment" && `Penyesuaian Stok (${stockAdjustmentDelta >= 0 ? `+${stockAdjustmentDelta}` : stockAdjustmentDelta})`}
+                          {importSummaryModal.stockPolicy === "manual" && "Edit Manual"}
+                        </Badge>
+                      </div>
+                      <p className="text-muted-foreground text-[11px] leading-relaxed">
+                        {importSummaryModal.stockPolicy === "keep_existing" &&
+                          "Stok produk & varian yang sudah ada di database TIDAK akan berubah. Varian baru menggunakan nilai file atau 0."}
+                        {importSummaryModal.stockPolicy === "replace_with_file" &&
+                          "Stok produk & varian diganti dengan nilai kolom file Excel. Kolom kosong tidak men-nol-kan produk lama."}
+                        {importSummaryModal.stockPolicy === "adjustment" &&
+                          `Semua stok disesuaikan sebesar ${stockAdjustmentDelta >= 0 ? `+${stockAdjustmentDelta}` : stockAdjustmentDelta} unit.`}
+                        {importSummaryModal.stockPolicy === "manual" &&
+                          "Nilai stok yang disimpan adalah hasil kustomisasi langsung Anda di tabel preview."}
+                      </p>
+                      <div className="flex items-center justify-between border-t pt-2 text-muted-foreground font-mono">
+                        <span>Total Stok Disimpan:</span>
+                        <span className="font-bold text-foreground">{importSummaryModal.totalUnits} unit</span>
+                      </div>
+                    </div>
+
+                    {/* Jaminan Keamanan Sistem */}
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3.5 text-xs text-emerald-950 dark:text-emerald-200 space-y-1">
+                      <p className="font-semibold flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                        <CheckCheck className="size-3.5" /> Jaminan Keamanan Database:
+                      </p>
+                      <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground text-[11px]">
+                        <li>Histori transaksi, keranjang pelanggan, dan pesanan lama tetap utuh.</li>
+                        <li>Produk tidak akan terduplikasi pada proses re-import file yang sama.</li>
+                        <li>Stok induk otomatis disinkronkan dengan total stok varian tanpa double count.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5 p-4 px-5 sm:px-6 border-t bg-muted/20 shrink-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setImportSummaryModal(null)}
+                    >
+                      Batal / Periksa Lagi
+                    </Button>
+                    <Button
+                      type="button"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
+                      onClick={() => {
+                        const target = importSummaryModal.targetToImport;
+                        setImportSummaryModal(null);
+                        void checkTaxonomiesAndExecute(target);
+                      }}
+                    >
+                      <CheckCheck className="mr-1.5 size-4" />
+                      Proses Impor Sekarang ({importSummaryModal.targetToImport.length} Produk)
                     </Button>
                   </div>
                 </div>
