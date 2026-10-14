@@ -39,7 +39,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
       minimumFractionDigits: 0,
@@ -52,14 +52,18 @@ export function ProductCard({ product }: ProductCardProps) {
       
       {/* Badges */}
       <div className="absolute top-3.5 left-3.5 z-10 flex flex-wrap gap-1.5 items-center max-w-[calc(100%-3.5rem)] pointer-events-none">
-        {isOutOfStock && (
+        {isOutOfStock ? (
           <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-full bg-rose-600 text-white shadow-xs tracking-wide">
             Stok Habis
+          </span>
+        ) : (
+          <span className="px-2.5 py-0.5 text-[10.5px] font-medium rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 backdrop-blur-xs">
+            Stok: {product.stock}
           </span>
         )}
         {product.badges
           ?.filter((badge) => !(isOutOfStock && badge === "Sale"))
-          .slice(0, isOutOfStock ? 1 : 2)
+          .slice(0, 1)
           .map((badge) => {
             const badgeColor =
               badge === "Sale"
@@ -90,13 +94,13 @@ export function ProductCard({ product }: ProductCardProps) {
       </button>
 
       {/* Image */}
-      <Link href={`/product/${product.id}`} className="relative aspect-square mb-6 overflow-hidden rounded-[16px] bg-white flex items-center justify-center">
+      <Link href={`/product/${product.id}`} className="relative aspect-square mb-6 overflow-hidden rounded-xl bg-white flex items-center justify-center">
         <Image
           src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
           alt={product.name}
           fill
           sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className="object-contain p-4 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+          className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
         />
       </Link>
 

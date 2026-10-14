@@ -58,60 +58,21 @@ export const CATEGORIES = [
   }
 ];
 
-export const PRODUCTS = [
-  {
-    id: "p1",
-    name: "MacBook Pro 16\" M3 Max",
-    brand: "Apple",
-    category: "Laptops",
-    price: 3499,
-    originalPrice: 3699,
-    rating: 4.9,
-    reviews: 128,
-    image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=800&auto=format&fit=crop",
-    badges: ["New", "Best Seller"],
-    stock: 15
-  },
-  {
-    id: "p2",
-    name: "Galaxy S24 Ultra 512GB",
-    brand: "Samsung",
-    category: "Smartphones",
-    price: 1299,
-    originalPrice: null,
-    rating: 4.8,
-    reviews: 256,
-    image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=800&auto=format&fit=crop",
-    badges: ["Pre-order"],
-    stock: 50
-  },
-  {
-    id: "p3",
-    name: "iPad Pro 12.9\" M2",
-    brand: "Apple",
-    category: "Tablets",
-    price: 1099,
-    originalPrice: 1199,
-    rating: 4.9,
-    reviews: 89,
-    image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?q=80&w=800&auto=format&fit=crop",
-    badges: ["Sale"],
-    stock: 22
-  },
-  {
-    id: "p4",
-    name: "Sony WH-1000XM5",
-    brand: "Sony",
-    category: "Audio",
-    price: 398,
-    originalPrice: null,
-    rating: 4.7,
-    reviews: 412,
-    image: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?q=80&w=800&auto=format&fit=crop",
-    badges: [],
-    stock: 110
-  }
-];
+import { MASTER_PRODUCTS } from "./products";
+
+export const PRODUCTS = MASTER_PRODUCTS.map((p) => ({
+  id: `p${p.id}`,
+  name: p.name,
+  brand: p.brand ?? "Brand",
+  category: p.category,
+  price: p.price,
+  originalPrice: p.originalPrice ?? null,
+  rating: p.rating ?? 4.8,
+  reviews: p.reviews ?? 100,
+  image: p.image,
+  badges: p.badges ?? [],
+  stock: p.stock,
+}));
 
 export const BRANDS = [
   { id: "b1", name: "Apple", logo: "🍎" },

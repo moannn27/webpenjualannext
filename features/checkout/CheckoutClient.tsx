@@ -40,14 +40,75 @@ import {
 } from "@/types/checkout";
 
 import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
+import { getMasterProductById } from "@/constants/products";
+import { toast } from "@/components/Toast";
 
-const getItemPrice = (item: CartData["cart_items"][number]) =>
-  Number(
+/**
+ * Strict sanitization on customer inputs:
+ * Trims whitespace and strips < and > characters to prevent XSS.
+ */
+function sanitizeInput(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().replace(/[<>]/g, "");
+}
+
+/**
+ * Validates customer phone number: digits and optional leading + only, 10-15 chars.
+ */
+function validateCustomerPhone(phone: string): { valid: boolean; error?: string } {
+  const sanitized = phone.trim();
+  const phoneRegex = /^\+?[0-9]{10,15}$/;
+  if (!phoneRegex.test(sanitized)) {
+    return {
+      valid: false,
+      error: "Nomor WhatsApp/telepon harus terdiri dari 10-15 digit angka (hanya angka dan opsional awalan +).",
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Re-verify item price strictly against constants/products.ts (never trust client price state).
+ */
+const getItemPrice = (item: CartData["cart_items"][number]): number => {
+  const lookupId = item.products?.id || item.product_id;
+  const master = getMasterProductById(lookupId);
+  if (master) {
+    return Number(master.discountPrice ?? master.price);
+  }
+  return Number(
     item.product_variants?.discount_price ??
     item.product_variants?.price ??
     item.products.discount_price ??
-    item.products.price
+    item.products.price ??
+    0
   );
+};
+
+/**
+ * Re-verify stock strictly against constants/products.ts.
+ */
+function verifyStockAgainstMaster(items: CartData["cart_items"]): { valid: boolean; error?: string } {
+  for (const item of items) {
+    const lookupId = item.products?.id || item.product_id;
+    const master = getMasterProductById(lookupId);
+    if (master) {
+      if (master.stock <= 0) {
+        return {
+          valid: false,
+          error: `Stok produk "${master.name}" sedang habis / tidak tersedia.`,
+        };
+      }
+      if (item.quantity > master.stock) {
+        return {
+          valid: false,
+          error: `Jumlah pesanan "${master.name}" (${item.quantity} unit) melebihi stok yang tersedia (${master.stock} unit).`,
+        };
+      }
+    }
+  }
+  return { valid: true };
+}
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -96,6 +157,10 @@ export function CheckoutClient({
     grandTotal: number;
     courier: string;
     recipientName: string;
+    customerPhone?: string;
+    customerAddress?: string;
+    customerNotes?: string;
+    items?: { name: string; quantity: number; subtotal: number }[];
   } | null>(null);
 
   useEffect(() => {
@@ -105,9 +170,10 @@ export function CheckoutClient({
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed?.orderId && parsed?.orderNumber) {
-            queueMicrotask(() => {
+            const timer = setTimeout(() => {
               setPlacedOrder(parsed);
-            });
+            }, 0);
+            return () => clearTimeout(timer);
           }
         }
       } catch {}
@@ -250,24 +316,63 @@ export function CheckoutClient({
     const form = document.getElementById("checkout-form") as HTMLFormElement | null;
     if (!form) return;
 
-    const requiredFields =
-      currentStep === 1
-        ? ["recipientName", "phone", ...(fulfillmentMode === "delivery" ? ["postalCode", "streetAddress", "city", "province"] : [])]
-        : [];
+    if (currentStep === 1) {
+      const formData = new FormData(form);
+      const recipientName = sanitizeInput(formData.get("recipientName"));
+      const phone = sanitizeInput(formData.get("phone"));
+      const streetAddress = sanitizeInput(formData.get("streetAddress"));
+      const city = sanitizeInput(formData.get("city"));
+      const province = sanitizeInput(formData.get("province"));
+      const postalCode = sanitizeInput(formData.get("postalCode"));
 
-    for (const name of requiredFields) {
-      const field = form.elements.namedItem(name);
-      if (field instanceof HTMLInputElement && !field.reportValidity()) return;
+      if (!recipientName) {
+        setErrorMessage("Nama pemesan / penerima wajib diisi.");
+        toast.error("Validasi Gagal", "Nama pemesan / penerima wajib diisi.");
+        return;
+      }
+
+      if (!phone) {
+        setErrorMessage("Nomor WhatsApp / telepon wajib diisi.");
+        toast.error("Validasi Gagal", "Nomor WhatsApp / telepon wajib diisi.");
+        return;
+      }
+
+      const phoneValidation = validateCustomerPhone(phone);
+      if (!phoneValidation.valid) {
+        setErrorMessage(phoneValidation.error || "Nomor telepon tidak valid.");
+        toast.error("Validasi Gagal", phoneValidation.error || "Nomor telepon harus 10-15 digit angka.");
+        return;
+      }
+
+      if (fulfillmentMode === "delivery") {
+        if (!streetAddress || !city || !province || !postalCode) {
+          const errMsg = "Lengkapi seluruh informasi alamat pengiriman (alamat, kota, provinsi, kode pos).";
+          setErrorMessage(errMsg);
+          toast.error("Validasi Gagal", errMsg);
+          return;
+        }
+      }
+
+      // Re-verify all checkout item prices and stock strictly against constants/products.ts
+      const stockCheck = verifyStockAgainstMaster(initialCart.cart_items);
+      if (!stockCheck.valid) {
+        setErrorMessage(stockCheck.error || "Validasi stok gagal.");
+        toast.error("Stok Tidak Cukup", stockCheck.error || "Stok tidak mencukupi.");
+        return;
+      }
     }
 
     if (currentStep === 2 && fulfillmentMode === "delivery" && !selectedShipping) {
       setErrorMessage("Pilih jasa pengiriman terlebih dahulu.");
+      toast.warning("Pilih Pengiriman", "Silakan pilih salah satu opsi jasa pengiriman.");
       return;
     }
 
     if (currentStep === 2 && fulfillmentMode === "pickup") {
       if (!activePickup?.address?.trim()) {
-        setErrorMessage("Alamat pickup belum diatur oleh admin. Silakan hubungi admin atau pilih pengiriman ke alamat.");
+        const errMsg = "Alamat pickup belum diatur oleh admin. Silakan hubungi admin atau pilih pengiriman ke alamat.";
+        setErrorMessage(errMsg);
+        toast.warning("Alamat Belum Diatur", errMsg);
         return;
       }
     }
@@ -282,31 +387,126 @@ export function CheckoutClient({
     setErrorMessage("");
 
     try {
-      const result = await proceedToCheckoutAction(new FormData(event.currentTarget));
+      const rawFormData = new FormData(event.currentTarget);
+
+      // 1. Strict sanitization on customer inputs (strip < and >, trim whitespace)
+      const recipientName = sanitizeInput(rawFormData.get("recipientName"));
+      const phone = sanitizeInput(rawFormData.get("phone"));
+      const postalCode = sanitizeInput(rawFormData.get("postalCode"));
+      const streetAddress = sanitizeInput(rawFormData.get("streetAddress"));
+      const city = sanitizeInput(rawFormData.get("city"));
+      const province = sanitizeInput(rawFormData.get("province"));
+      const notes = sanitizeInput(rawFormData.get("notes"));
+
+      // 2. Block empty required fields with clear error feedback/toast
+      if (!recipientName) {
+        setErrorMessage("Nama pemesan / penerima wajib diisi.");
+        toast.error("Validasi Gagal", "Nama pemesan / penerima tidak boleh kosong.");
+        setLoading(false);
+        return;
+      }
+
+      if (!phone) {
+        setErrorMessage("Nomor WhatsApp / telepon wajib diisi.");
+        toast.error("Validasi Gagal", "Nomor telepon tidak boleh kosong.");
+        setLoading(false);
+        return;
+      }
+
+      const phoneValidation = validateCustomerPhone(phone);
+      if (!phoneValidation.valid) {
+        setErrorMessage(phoneValidation.error || "Nomor telepon tidak valid.");
+        toast.error("Validasi Gagal", phoneValidation.error || "Nomor telepon harus 10-15 digit angka.");
+        setLoading(false);
+        return;
+      }
+
+      if (fulfillmentMode === "delivery") {
+        if (!streetAddress || !city || !province || !postalCode) {
+          const errMsg = "Alamat pengiriman lengkap wajib diisi.";
+          setErrorMessage(errMsg);
+          toast.error("Validasi Gagal", errMsg);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3. Re-verify all checkout item prices and stock strictly against constants/products.ts
+      const stockCheck = verifyStockAgainstMaster(initialCart.cart_items);
+      if (!stockCheck.valid) {
+        setErrorMessage(stockCheck.error || "Validasi stok gagal.");
+        toast.error("Stok Tidak Cukup", stockCheck.error || "Stok produk tidak mencukupi.");
+        setLoading(false);
+        return;
+      }
+
+      // Build sanitized form data
+      const sanitizedFormData = new FormData();
+      for (const [key, val] of rawFormData.entries()) {
+        if (typeof val === "string") {
+          sanitizedFormData.append(key, sanitizeInput(val));
+        } else {
+          sanitizedFormData.append(key, val);
+        }
+      }
+      sanitizedFormData.set("recipientName", recipientName);
+      sanitizedFormData.set("phone", phone);
+      if (notes) sanitizedFormData.set("notes", notes);
+      if (fulfillmentMode === "delivery") {
+        sanitizedFormData.set("streetAddress", streetAddress);
+        sanitizedFormData.set("city", city);
+        sanitizedFormData.set("province", province);
+        sanitizedFormData.set("postalCode", postalCode);
+      }
+
+      const result = await proceedToCheckoutAction(sanitizedFormData);
       if (result && result.success) {
         emitCartUpdated(0);
+
+        // Itemized product list with quantities and IDR subtotals
+        const itemizedProducts = initialCart.cart_items.map((it) => {
+          const verifiedUnitPrice = getItemPrice(it);
+          return {
+            name: it.products.name,
+            quantity: it.quantity,
+            subtotal: verifiedUnitPrice * it.quantity,
+          };
+        });
+
+        const addressText = fulfillmentMode === "pickup"
+          ? `Ambil di Toko (${activePickup?.name || "Toko"}: ${activePickup?.address || "-"})`
+          : `${streetAddress}, ${city}, ${province} ${postalCode}`;
+
+        const uniqueOrderId = result.orderNumber || `ORD-${Date.now()}`;
+
         const orderData = {
           orderId: result.orderId,
-          orderNumber: result.orderNumber,
+          orderNumber: uniqueOrderId,
           grandTotal: result.grandTotal,
           courier: result.courier,
-          recipientName: result.recipientName,
+          recipientName,
+          customerPhone: phone,
+          customerAddress: addressText,
+          customerNotes: notes || "-",
+          items: itemizedProducts,
         };
+
         setPlacedOrder(orderData);
         if (typeof window !== "undefined") {
           try {
             sessionStorage.setItem("checkout_placed_order", JSON.stringify(orderData));
           } catch {}
         }
+        toast.success("Pesanan Dibuat!", `Nomor pesanan: ${uniqueOrderId}`);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (error) {
       if (error instanceof Error && error.message === "NEXT_REDIRECT") {
         return;
       }
-      setErrorMessage(
-        error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi."
-      );
+      const msg = error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi.";
+      setErrorMessage(msg);
+      toast.error("Gagal Checkout", msg);
     } finally {
       setLoading(false);
     }
@@ -314,17 +514,41 @@ export function CheckoutClient({
 
   if (placedOrder) {
     const rawWa = (storeWhatsapp || "6281234567890").replace(/\D/g, "");
-    const waNumber = rawWa.startsWith("0") ? "62" + rawWa.slice(1) : rawWa;
+    const waNumber = rawWa.startsWith("0") ? "62" + rawWa.slice(1) : rawWa || "6281234567890";
     const sName = storeName || "Next Solution Store";
-    const waText =
-      `Halo Admin ${sName},\n` +
-      `Saya ingin konfirmasi pembayaran pesanan saya:\n` +
-      `• No. Pesanan: *${placedOrder.orderNumber}*\n` +
-      `• Nama Pemesan: *${placedOrder.recipientName}*\n` +
-      `• Total Transfer: *${formatCurrency(placedOrder.grandTotal)}*\n` +
-      `• Metode Pengiriman: ${placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : `Kurir (${placedOrder.courier})`}\n\n` +
-      `Berikut saya lampirkan bukti transfer pembayarannya. Mohon diverifikasi agar pesanan segera diproses. Terima kasih!`;
-    const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waText)}`;
+
+    // Itemized product list with quantities and IDR subtotals
+    const itemRows = (placedOrder.items || initialCart.cart_items.map((it) => {
+      const price = getItemPrice(it);
+      return {
+        name: it.products.name,
+        quantity: it.quantity,
+        subtotal: price * it.quantity,
+      };
+    })).map(
+      (it, idx) => `${idx + 1}. ${it.name} (${it.quantity}x) = ${formatCurrency(it.subtotal)}`
+    ).join("\n");
+
+    const orderId = placedOrder.orderNumber || `ORD-${Date.now()}`;
+    const addressInfo = placedOrder.customerAddress || (placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : "-");
+
+    const waInvoiceText =
+      `*INVOICE PESANAN - ${sName.toUpperCase()}*\n` +
+      `=========================================\n` +
+      `*ID Pesanan:* ${orderId}\n` +
+      `*Nama Pelanggan:* ${placedOrder.recipientName}\n` +
+      `*No. Telepon:* ${placedOrder.customerPhone || "-"}\n` +
+      `*Alamat:* ${addressInfo}\n` +
+      `*Catatan:* ${placedOrder.customerNotes || "-"}\n` +
+      `=========================================\n` +
+      `*DAFTAR PRODUK:*\n` +
+      `${itemRows}\n` +
+      `=========================================\n` +
+      `*GRAND TOTAL:* *${formatCurrency(placedOrder.grandTotal)}*\n` +
+      `*Metode Pengiriman:* ${placedOrder.courier === "pickup" ? "Ambil di Toko" : `Kurir (${placedOrder.courier})`}\n\n` +
+      `Halo Admin ${sName}, saya telah membuat pesanan di atas dan mengonfirmasi bukti transfer pembayaran. Mohon pesanan segera diproses. Terima kasih!`;
+
+    const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waInvoiceText)}`;
 
     return (
       <main className="mx-auto w-full max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-8 animate-in fade-in duration-300">
@@ -730,6 +954,15 @@ export function CheckoutClient({
                   </label>
                 </>
               )}
+              <label className="space-y-2 text-sm font-medium sm:col-span-2" htmlFor="notes">
+                Catatan pesanan (opsional)
+                <Input
+                  id="notes"
+                  name="notes"
+                  placeholder="Catatan tambahan untuk pesanan atau kurir pengiriman..."
+                  maxLength={255}
+                />
+              </label>
             </div>
           </section>
 

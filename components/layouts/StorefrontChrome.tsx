@@ -6,6 +6,7 @@ import { Footer } from "@/components/layouts/Footer";
 import { RecommendationChat } from "@/features/chat/RecommendationChat";
 import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import { ToastNotification } from "@/components/shared/ToastNotification";
+import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { AlertTriangle, Sparkles } from "lucide-react";
 
@@ -53,6 +54,7 @@ export function StorefrontChrome({
         <RecommendationChat whatsappNumber={settings.store.whatsapp || ""} />
       )}
       <ToastNotification />
+      <MobileStickyCartBar />
     </>
   );
 }

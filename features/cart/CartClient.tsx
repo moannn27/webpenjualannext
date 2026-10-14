@@ -1,18 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Trash2, Plus, Minus, ArrowRight, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { updateCartQuantityAction, removeFromCartAction } from "@/actions/cart";
 import { type CartData, type CartItem } from "@/types/cart";
+import { getMasterProductById } from "@/constants/products";
+import { toast } from "@/store/useToastStore";
 
 export function CartClient({ initialCart }: { initialCart: CartData | null }) {
   const [cartItems, setCartItems] = useState<CartItem[]>(initialCart?.cart_items ?? []);
+  const [mounted, setMounted] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const formatPrice = (price: number) => `Rp ${price.toLocaleString("id-ID")}`;
+
+  // MUST use a mounted state inside useEffect before reading localStorage to prevent Next.js Hydration Mismatch errors
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true);
+      try {
+        const stored = localStorage.getItem("next_solution_cart_items");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setCartItems((current) => (current.length === 0 ? parsed : current));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to read cart from localStorage", e);
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Save cart to localStorage only after component has mounted on the client
+  useEffect(() => {
+    if (mounted) {
+      try {
+        localStorage.setItem("next_solution_cart_items", JSON.stringify(cartItems));
+      } catch (e) {
+        console.error("Failed to save cart to localStorage", e);
+      }
+    }
+  }, [cartItems, mounted]);
 
   const updateQuantity = async (itemId: string, productId: string, currentQ: number, delta: number) => {
     const newQ = currentQ + delta;
@@ -32,19 +66,42 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
   const removeItem = async (itemId: string) => {
     setLoadingId(itemId);
     try {
+      const itemToRemove = cartItems.find((item) => item.id === itemId);
+      const itemName = itemToRemove?.products?.name || "Produk";
       await removeFromCartAction(itemId);
       setCartItems((prev) => prev.filter(item => item.id !== itemId));
+      toast.info("Produk Dihapus", `"${itemName}" berhasil dihapus dari keranjang.`);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Gagal menghapus produk.");
+      const msg = error instanceof Error ? error.message : "Gagal menghapus produk.";
+      setError(msg);
+      toast.error("Gagal Menghapus", msg);
     } finally {
       setLoadingId(null);
     }
   };
 
+  // Security fix: When calculating cart subtotal/total, NEVER trust price values saved in localStorage.
+  // Always re-lookup the item's id from the master product data to get the real price.
+  const getVerifiedItemPrice = (item: CartItem): number => {
+    const lookupId = item.products?.id || item.product_id || item.id;
+    const masterProduct = getMasterProductById(lookupId);
+    if (masterProduct) {
+      return Number(masterProduct.discountPrice ?? masterProduct.price);
+    }
+    return Number(
+      item.product_variants?.discount_price ??
+      item.product_variants?.price ??
+      item.products?.discount_price ??
+      item.products?.price ??
+      0
+    );
+  };
+
   const subtotal = cartItems.reduce((acc, item) => {
-    const price = item.product_variants?.discount_price ?? item.product_variants?.price ?? item.products.discount_price ?? item.products.price;
-    return acc + price * item.quantity;
+    const verifiedPrice = getVerifiedItemPrice(item);
+    return acc + verifiedPrice * item.quantity;
   }, 0);
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-24">
       <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-12">
@@ -66,7 +123,8 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
             {cartItems.map((item) => {
               const product = item.products;
               const variant = item.product_variants;
-              const price = variant?.discount_price ?? variant?.price ?? product.discount_price ?? product.price;
+              // Security fix: Always re-lookup real price from master product data
+              const price = getVerifiedItemPrice(item);
               const itemStock = variant?.stock ?? product.stock ?? Infinity;
               const variantLabel = variant ? [variant.color, variant.ram && `RAM ${variant.ram}`, variant.storage].filter(Boolean).join(" · ") : "";
               const isUpdating = loadingId === item.id;

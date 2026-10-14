@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { getStoreSearchHref } from "@/lib/search-intent";
 import { CART_UPDATED_EVENT } from "@/lib/cart-events";
+import { useCartStore } from "@/store/useCartStore";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import {
   NavigationMenu,
@@ -111,8 +112,15 @@ export function Navbar({
       if (Number.isInteger(nextCount) && nextCount >= 0) setDisplayCartCount(nextCount);
     };
     window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
+
+    // Sync with client-side persistent cart on mount if server rendered 0
+    const localCount = useCartStore.getState().getTotalItems();
+    if (localCount > 0 && cartCount === 0) {
+      setDisplayCartCount(localCount);
+    }
+
     return () => window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
-  }, []);
+  }, [cartCount]);
 
   const resetAccountTimer = React.useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);

@@ -144,7 +144,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     }
   };
 
-  const formatPrice = (price: number) => `Rp ${Number(price).toLocaleString("id-ID")}`;
+  const formatPrice = (price: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price);
   const variantOptions = (key: "color" | "ram" | "storage") => [...new Set(variants.map((variant) => variant[key]).filter(Boolean))];
   const chooseVariant = (key: "color" | "ram" | "storage", value: string) => {
     const current = selectedVariant;

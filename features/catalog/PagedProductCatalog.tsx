@@ -126,8 +126,8 @@ export function PagedProductCatalog({
               >
                 <option value="newest">Terbaru</option>
                 <option value="popular">Terpopuler</option>
-                <option value="price-low">Harga terendah</option>
-                <option value="price-high">Harga tertinggi</option>
+                <option value="price-low">Termurah</option>
+                <option value="price-high">Termahal</option>
               </select>
             </div>
           </div>
@@ -344,8 +344,15 @@ export function PagedProductCatalog({
             ))}
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed py-16 text-center text-muted-foreground">
-            Produk tidak ditemukan. Ubah filter atau kata kunci.
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-16 px-4 text-center text-muted-foreground gap-3">
+            <p className="text-sm font-medium">Produk tidak ditemukan. Ubah filter atau kata kunci.</p>
+            <Link
+              href={basePath}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
+            >
+              <RotateCcw className="size-3.5" />
+              <span>Reset Filter</span>
+            </Link>
           </div>
         )}
 

@@ -52,55 +52,15 @@ export const RECENT_ORDERS = [
   },
 ];
 
-export const ADMIN_PRODUCTS = [
-  {
-    id: "1",
-    name: "MacBook Pro M3 Max",
-    sku: "MBP-M3M-16",
-    price: 3499,
-    stock: 12,
-    status: "Active",
-    category: "Laptops",
-    image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=2000&auto=format&fit=crop",
-  },
-  {
-    id: "2",
-    name: "iPhone 15 Pro Titanium",
-    sku: "IP15P-TI-256",
-    price: 999,
-    stock: 45,
-    status: "Active",
-    category: "Smartphones",
-    image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: "3",
-    name: "iPad Air 5th Gen",
-    sku: "IPAD-A5-64",
-    price: 599,
-    stock: 5,
-    status: "Low Stock",
-    category: "Tablets",
-    image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: "4",
-    name: "Sony WH-1000XM5",
-    sku: "SNY-WH5-BLK",
-    price: 399,
-    stock: 0,
-    status: "Out of Stock",
-    category: "Accessories",
-    image: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?q=80&w=800&auto=format&fit=crop",
-  },
-  {
-    id: "5",
-    name: "Samsung Galaxy S24 Ultra",
-    sku: "SGS24U-512",
-    price: 1299,
-    stock: 23,
-    status: "Active",
-    category: "Smartphones",
-    image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=800&auto=format&fit=crop",
-  },
-];
+import { MASTER_PRODUCTS } from "./products";
+
+export const ADMIN_PRODUCTS = MASTER_PRODUCTS.map((p) => ({
+  id: p.id,
+  name: p.name,
+  sku: p.sku ?? `SKU-${p.id}`,
+  price: p.price,
+  stock: p.stock,
+  status: p.status ?? "Active",
+  category: p.category,
+  image: p.image,
+}));

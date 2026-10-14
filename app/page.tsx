@@ -1,5 +1,6 @@
 import { HeroSection } from "@/features/landing/HeroSection";
 import { CategorySection } from "@/features/landing/CategorySection";
+import { ProductDiscovery } from "@/features/catalog/ProductDiscovery";
 import { FeaturedProducts } from "@/features/landing/FeaturedProducts";
 import { PromoBanner } from "@/features/landing/PromoBanner";
 import { BrandShowcase } from "@/features/landing/BrandShowcase";
@@ -79,6 +80,10 @@ export default async function Home() {
       />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
       {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
+      <ProductDiscovery
+        title="Pilihan Produk Unggulan"
+        subtitle="Cari langsung, saring kategori pilihan, dan urutkan harga terbaik."
+      />
       {sections.bestsellers.visible && <FeaturedProducts title={sections.bestsellers.title} subtitle={sections.bestsellers.subtitle} type="bestseller" initialData={selected("bestsellers", (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.promo.visible && (
         <PromoBanner
