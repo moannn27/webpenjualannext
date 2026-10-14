@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, ShoppingCart, Heart, User, Menu, ChevronDown } from "lucide-react";
+import { Search, ShoppingCart, Heart, User, Menu, ChevronDown, LayoutGrid, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -29,11 +29,21 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-const components: { title: string; href: string; description: string }[] = [
+const productCategories: { title: string; href: string; description: string }[] = [
   {
     title: "Laptop",
     href: "/category/laptops",
-    description: "Laptop bisnis, kerja, dan gaming performa tinggi.",
+    description: "Laptop produktivitas, kerja, dan komputasi harian.",
+  },
+  {
+    title: "Gaming Laptop",
+    href: "/category/gaming-laptops",
+    description: "Laptop gaming performa tinggi & grafis dedicated (LOQ, Legion, ROG).",
+  },
+  {
+    title: "All-in-One PC & Desktop",
+    href: "/category/all-in-one-pcs",
+    description: "PC All-in-One hemat tempat dan komputer desktop.",
   },
   {
     title: "Smartphone",
@@ -48,7 +58,7 @@ const components: { title: string; href: string; description: string }[] = [
   {
     title: "Aksesoris",
     href: "/category/accessories",
-    description: "Periferal, memori, dan perlengkapan komputer lengkap.",
+    description: "Periferal, memori, tas, dan perlengkapan komputer lengkap.",
   },
 ];
 
@@ -142,17 +152,37 @@ export function Navbar({
                 <SheetHeader>
                   <SheetTitle className="text-left">{storeName}</SheetTitle>
                 </SheetHeader>
-                <div className="grid gap-4 py-4">
-                  <Link href="/products" className="text-lg font-medium">
-                    Produk
-                  </Link>
-                  <Link href="/brands" className="text-lg font-medium">
+                <div className="grid gap-3 py-4">
+                  <div className="space-y-1">
+                    <Link
+                      href="/products"
+                      className="flex items-center justify-between rounded-lg px-3 py-2 text-base font-semibold transition-colors hover:bg-muted hover:text-primary"
+                    >
+                      <span className="flex items-center gap-2">
+                        <LayoutGrid className="size-4 text-primary" />
+                        Semua Produk
+                      </span>
+                      <span className="text-xs font-normal text-muted-foreground">Katalog Lengkap &rarr;</span>
+                    </Link>
+                    <div className="ml-3 border-l-2 border-border/60 pl-3 space-y-0.5">
+                      {productCategories.map((cat) => (
+                        <Link
+                          key={cat.title}
+                          href={cat.href}
+                          className="block rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {cat.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                  <Link href="/brands" className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-muted">
                     Brand
                   </Link>
-                  <Link href="/promo" className="text-lg font-medium">
+                  <Link href="/promo" className="rounded-lg px-3 py-2 text-base font-semibold text-destructive hover:bg-muted">
                     Promo
                   </Link>
-                  <Link href="/compare" className="text-lg font-medium">
+                  <Link href="/compare" className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-muted">
                     Bandingkan
                   </Link>
                 </div>
@@ -198,17 +228,59 @@ export function Navbar({
                 <NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent">Produk</NavigationMenuTrigger>
                   <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px] ">
-                      {components.map((component) => (
-                        <ListItem
-                          key={component.title}
-                          title={component.title}
-                          href={component.href}
+                    <div className="w-[450px] p-4 md:w-[540px] lg:w-[620px]">
+                      {/* Opsi Semua Produk (All Products) */}
+                      <div className="mb-3">
+                        <NavigationMenuLink
+                          render={<Link href="/products" />}
+                          className="group flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-3 transition-all duration-150 hover:border-primary/40 hover:bg-primary/10"
                         >
-                          {component.description}
-                        </ListItem>
-                      ))}
-                    </ul>
+                          <div className="flex items-center gap-3">
+                            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
+                              <LayoutGrid className="size-4.5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
+                                Semua Produk
+                                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                  Katalog Lengkap
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground transition-colors group-hover:text-foreground/80">
+                                Jelajahi seluruh koleksi laptop, PC desktop, smartphone, dan aksesoris.
+                              </p>
+                            </div>
+                          </div>
+                          <ArrowRight className="size-4 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1 group-hover:text-primary" />
+                        </NavigationMenuLink>
+                      </div>
+
+                      {/* Header Kategori */}
+                      <div className="mb-2 flex items-center justify-between px-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Pilih Berdasarkan Kategori
+                        </span>
+                        <Link
+                          href="/products"
+                          className="text-[11px] font-medium text-primary hover:underline"
+                        >
+                          Lihat semua &rarr;
+                        </Link>
+                      </div>
+
+                      {/* Grid Kategori */}
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {productCategories.map((component) => (
+                          <ListItem
+                            key={component.title}
+                            title={component.title}
+                            href={component.href}
+                          >
+                            {component.description}
+                          </ListItem>
+                        ))}
+                      </ul>
+                    </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
@@ -296,12 +368,14 @@ const ListItem = React.forwardRef<
       <NavigationMenuLink
         render={<Link href={href} ref={ref} {...props} />}
         className={cn(
-          "block select-none space-y-1 rounded-xl p-3 leading-none no-underline outline-none transition-colors hover:bg-muted/50 hover:text-accent-foreground focus:bg-muted focus:text-accent-foreground",
+          "group block select-none space-y-1 rounded-xl p-3 leading-none no-underline outline-none transition-all duration-150 hover:bg-muted focus:bg-muted",
           className
         )}
       >
-        <div className="text-sm font-medium leading-none">{title}</div>
-        <p className="line-clamp-2 text-sm leading-snug text-muted-foreground mt-1.5">
+        <div className="text-sm font-semibold leading-none text-foreground transition-colors group-hover:text-primary">
+          {title}
+        </div>
+        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground/85 mt-1">
           {children}
         </p>
       </NavigationMenuLink>

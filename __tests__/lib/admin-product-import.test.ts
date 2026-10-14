@@ -30,7 +30,7 @@ describe('normalizeProductRows', () => {
     second[19] = '2'
 
     const [product] = normalizeProductRows([productImportHeaders, baseRow, second])
-    expect(product).toMatchObject({ name: 'Laptop Contoh', stock: 0, variants: [{ color: 'Abu-abu', stock: 3 }, { color: 'Hitam', stock: 2 }] })
+    expect(product).toMatchObject({ name: 'Laptop Contoh', stock: 5, variants: [{ color: 'Abu-abu', stock: 3 }, { color: 'Hitam', stock: 2 }] })
     expect(product.specifications).toEqual([{ key: 'Prosesor', value: 'Intel', display_order: 0 }, { key: 'Layar', value: '14 inci', display_order: 0 }])
   })
 

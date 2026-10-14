@@ -1,6 +1,7 @@
 import { BaseRepository } from './base'
 import type { CatalogFilterParams } from '@/lib/catalog-filters'
 import { normalizeLaptopSpecKey } from '@/lib/product-specifications'
+import { rankRelatedProducts, type ProductCandidate } from '@/lib/product-recommendations'
 
 export function matchesProductSearch(
   product: {
@@ -306,5 +307,22 @@ export class ProductRepository extends BaseRepository {
       .order('created_at', { ascending: false })
     if (error) throw error
     return (data ?? []).filter((product) => matchesProductSearch(product, queryStr))
+  }
+
+  async findRelated(productId: string, limit = 8, preloadedProduct?: unknown) {
+    const supabase = await this.getClient()
+    const target = (preloadedProduct ?? (await this.findById(productId))) as ProductCandidate | null
+    if (!target) return []
+
+    const { data: candidates, error } = await supabase
+      .from('products')
+      .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+      .eq('status', 'published')
+      .neq('id', productId)
+      .limit(100)
+
+    if (error) throw error
+
+    return rankRelatedProducts(target, (candidates ?? []) as ProductCandidate[], limit)
   }
 }

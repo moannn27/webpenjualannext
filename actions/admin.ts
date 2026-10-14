@@ -8,7 +8,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
-import { requireModulePermission } from '@/lib/auth/permissions'
+import { requireModulePermission, getCurrentAdminPermissions } from '@/lib/auth/permissions'
 import { recordAdminActivity } from '@/lib/audit-log'
 
 const adminService = new AdminService()
@@ -277,6 +277,16 @@ async function requireSuperAdmin() {
   return { user, adminName, role: 'super_admin' }
 }
 
+async function requireUserManagementAccess() {
+  const { user, isSuperAdmin, isAdmin, permissions, adminName, role } = await getCurrentAdminPermissions()
+  if (!user || !isAdmin) throw new Error('Forbidden')
+  if (isSuperAdmin) return { user, adminName, isSuperAdmin: true, role: 'super_admin' }
+  if (permissions.includes('customers')) {
+    return { user, adminName, isSuperAdmin: false, role: role || 'admin' }
+  }
+  throw new Error('Akses ditolak: Anda tidak memiliki izin kelola akun pengguna.')
+}
+
 export async function getAdminProductsAction() {
   await requireAdmin()
   const supabase = await createClient()
@@ -529,7 +539,7 @@ export async function createAdminManagedAccountAction(input: {
   role: string
   password?: string
 }) {
-  const { user, adminName } = await requireSuperAdmin()
+  const { user, adminName, isSuperAdmin } = await requireUserManagementAccess()
   const fullName = input.fullName.trim()
   const email = input.email.trim().toLowerCase()
   const phone = input.phone.trim()
@@ -537,6 +547,9 @@ export async function createAdminManagedAccountAction(input: {
   const password = input.password?.trim()
   if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !['customer', 'admin', 'super_admin'].includes(role)) {
     return { error: 'Periksa nama, email, dan role yang dipilih.' }
+  }
+  if (role === 'super_admin' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak membuat akun dengan role Super Admin.' }
   }
   if (password && password.length < 6) {
     return { error: 'Password minimal 6 karakter jika ingin dibuatkan langsung.' }
@@ -569,7 +582,7 @@ export async function createAdminManagedAccountAction(input: {
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
-    admin_role: 'super_admin',
+    admin_role: isSuperAdmin ? 'super_admin' : 'admin',
     action: 'create',
     entity_type: 'account',
     entity_name: fullName,
@@ -586,7 +599,7 @@ export async function setAdminManagedAccountPasswordAction(input: {
   userId: string
   newPassword: string
 }) {
-  const { user, adminName } = await requireSuperAdmin()
+  const { user, adminName, isSuperAdmin } = await requireUserManagementAccess()
   const userId = input.userId.trim()
   const newPassword = input.newPassword.trim()
   if (!userId || newPassword.length < 6) {
@@ -596,6 +609,11 @@ export async function setAdminManagedAccountPasswordAction(input: {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  const { data: targetProfile } = await adminClient.from('users').select('role, full_name').eq('id', userId).maybeSingle()
+  if (targetProfile?.role === 'super_admin' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak menyetel password Super Admin.' }
+  }
 
   const { data: targetUser } = await adminClient.auth.admin.getUserById(userId)
   const currentMeta = targetUser?.user?.user_metadata || {}
@@ -617,7 +635,7 @@ export async function setAdminManagedAccountPasswordAction(input: {
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
-    admin_role: 'super_admin',
+    admin_role: isSuperAdmin ? 'super_admin' : 'admin',
     action: 'update',
     entity_type: 'account',
     entity_name: updatedUser.user?.email || userId,
@@ -630,7 +648,7 @@ export async function setAdminManagedAccountPasswordAction(input: {
 }
 
 export async function unlockAdminManagedAccountAction(userId: string) {
-  const { user, adminName } = await requireSuperAdmin()
+  const { user, adminName, isSuperAdmin } = await requireUserManagementAccess()
   const targetId = userId.trim()
   if (!targetId) return { error: 'User ID tidak valid.' }
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -656,7 +674,7 @@ export async function unlockAdminManagedAccountAction(userId: string) {
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
-    admin_role: 'super_admin',
+    admin_role: isSuperAdmin ? 'super_admin' : 'admin',
     action: 'update',
     entity_type: 'account',
     entity_name: updatedUser.user?.email || targetId,
@@ -666,6 +684,140 @@ export async function unlockAdminManagedAccountAction(userId: string) {
   revalidatePath('/admin/customers')
   revalidatePath('/profile')
   return { success: true }
+}
+
+export async function deleteAdminManagedAccountAction(userId: string) {
+  const { user, adminName, isSuperAdmin } = await requireUserManagementAccess()
+  const targetId = userId.trim()
+  if (!targetId) return { error: 'ID akun tidak valid.' }
+
+  if (targetId === user.id) {
+    return { error: 'Anda tidak dapat menghapus akun Anda sendiri.' }
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
+  const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+  const { data: targetProfile } = await adminClient
+    .from('users')
+    .select('id, full_name, role, email')
+    .eq('id', targetId)
+    .maybeSingle()
+
+  if (!targetProfile) {
+    return { error: 'Akun tidak ditemukan atau sudah dihapus.' }
+  }
+
+  if (targetProfile.role === 'super_admin' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak menghapus akun Super Admin.' }
+  }
+
+  if (targetProfile.role === 'super_admin') {
+    const { count: superAdminCount } = await adminClient
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'super_admin')
+
+    if ((superAdminCount ?? 0) <= 1) {
+      return { error: 'Tidak dapat menghapus Super Admin terakhir di sistem toko.' }
+    }
+  }
+
+  const targetName = targetProfile.full_name || targetProfile.email || 'Pengguna'
+
+  // Cek apakah ada riwayat pesanan (foreign key ON DELETE RESTRICT)
+  const { count: orderCount } = await adminClient
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', targetId)
+
+  if (orderCount && orderCount > 0) {
+    await adminClient.auth.admin.deleteUser(targetId).catch(() => null)
+    await adminClient.from('users').update({
+      role: 'customer',
+      full_name: `[Dinonaktifkan] ${targetName}`,
+      phone: null,
+    }).eq('id', targetId)
+
+    await recordAdminActivity({
+      admin_id: user.id,
+      admin_name: adminName,
+      admin_role: isSuperAdmin ? 'super_admin' : 'admin',
+      action: 'delete',
+      entity_type: 'account',
+      entity_name: targetName,
+      details: `Menonaktifkan akun "${targetName}" (${targetProfile.role}) dan mencabut akses login karena memiliki ${orderCount} riwayat pesanan.`,
+    })
+
+    revalidatePath('/admin/customers')
+    return {
+      success: true,
+      message: `Akun "${targetName}" dinonaktifkan & akses login dicabut (memiliki ${orderCount} transaksi pesanan).`,
+    }
+  }
+
+  // Jika tidak memiliki pesanan, hapus bersih dari auth & users
+  const { error: authError } = await adminClient.auth.admin.deleteUser(targetId)
+  if (authError) {
+    return { error: `Gagal menghapus akun: ${authError.message}` }
+  }
+
+  try {
+    await adminClient.from('users').delete().eq('id', targetId)
+  } catch {
+    // Ignore users row deletion error if cascade deleted or already removed
+  }
+
+  try {
+    const { data: sfData } = await adminClient
+      .from('storefront_settings')
+      .select('settings')
+      .eq('id', 'main')
+      .maybeSingle()
+
+    if (sfData?.settings?.admin_permissions?.[targetId]) {
+      const updatedSettings = { ...sfData.settings }
+      delete updatedSettings.admin_permissions[targetId]
+      await adminClient
+        .from('storefront_settings')
+        .update({ settings: updatedSettings })
+        .eq('id', 'main')
+    }
+  } catch {
+    // Ignore permissions cleanup failure
+  }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: isSuperAdmin ? 'super_admin' : 'admin',
+    action: 'delete',
+    entity_type: 'account',
+    entity_name: targetName,
+    details: `Menghapus akun "${targetName}" (${targetProfile.role}) secara permanen.`,
+  })
+
+  revalidatePath('/admin/customers')
+  return { success: true }
+}
+
+export async function getAdminCustomerReportsAction() {
+  await requireAdmin()
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_admin_customers_report', { p_offset: 0, p_limit: 1000 })
+  if (error) throw error
+  return (data ?? []) as {
+    id: string
+    full_name: string | null
+    phone: string | null
+    created_at: string
+    total_orders: number
+    completed_orders: number
+    completed_spend: number
+    last_order_at: string | null
+  }[]
 }
 
 export async function getAdminLockedAccountsNotificationAction() {

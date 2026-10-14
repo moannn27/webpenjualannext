@@ -1,9 +1,10 @@
 import { ProductDetail } from "@/features/product/ProductDetail";
 import { FeaturedProducts } from "@/features/landing/FeaturedProducts";
-import { getProductByIdAction, getBestSellerAction } from "@/actions/product";
+import { getProductByIdAction, getRelatedProductsAction } from "@/actions/product";
 import { getProductReviewsAction } from "@/actions/review";
 import { getProductCartQuantitiesAction } from "@/actions/cart";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
+import { getRecommendationSubtitle } from "@/lib/product-recommendations";
 import { notFound } from "next/navigation";
 import { buildProductJsonLd } from "@/lib/seo";
 
@@ -40,18 +41,21 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, bestSellers, reviews, cartQuantities] = await Promise.all([
-    getProductByIdAction(id),
-    getBestSellerAction().catch(() => []),
-    getProductReviewsAction(id).catch(() => []),
-    getProductCartQuantitiesAction(id).catch(() => []),
-  ]);
+  const product = await getProductByIdAction(id);
 
   if (!product) {
     notFound();
   }
 
+  const [relatedProducts, reviews, cartQuantities] = await Promise.all([
+    getRelatedProductsAction(id, 8, product).catch(() => []),
+    getProductReviewsAction(id).catch(() => []),
+    getProductCartQuantitiesAction(id).catch(() => []),
+  ]);
+
   const productJsonLd = buildProductJsonLd(product, reviews ?? []);
+  const subtitle = getRecommendationSubtitle(product as any);
+  const categoryLink = product.categories?.id ? `/products?category=${product.categories.id}` : undefined;
 
   return (
     <div className="pt-8 pb-24">
@@ -60,14 +64,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
       />
       <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} />
-      <div className="mt-24">
-        <FeaturedProducts
-          title="Produk Terkait & Terpopuler"
-          subtitle="Pilihan laptop dan perangkat elektronik populer lainnya untukmu."
-          type="bestseller"
-          initialData={(bestSellers || []).filter((item) => item.id !== product.id).map((item) => toStorefrontProduct(item as StoreProduct))}
-        />
-      </div>
+      {relatedProducts.length > 0 && (
+        <div className="mt-24">
+          <FeaturedProducts
+            title="Produk Serupa yang Mungkin Kamu Suka"
+            subtitle={subtitle}
+            type="bestseller"
+            viewAllHref={categoryLink}
+            initialData={relatedProducts.map((item) => toStorefrontProduct(item as StoreProduct))}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -4,27 +4,43 @@ import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   createAdminManagedAccountAction,
+  deleteAdminManagedAccountAction,
+  getAdminCustomerReportsAction,
   setAdminManagedAccountPasswordAction,
   unlockAdminManagedAccountAction,
   updateAdminManagedAccountRoleAction,
 } from "@/actions/admin";
 import { saveAdminPermissionsAction } from "@/actions/admin-permissions";
 import { ALL_ADMIN_MODULES, type AdminModuleKey, DEFAULT_ADMIN_PERMISSIONS } from "@/types/admin-permissions";
+import {
+  generateCustomersCsv,
+  generateCustomersExcel,
+  generateCustomersWord,
+  triggerBlobDownload,
+  type ExportCustomerRow,
+  type ExportFormat,
+  type ExportScope,
+} from "@/lib/export-customers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  AlertTriangle,
   Check,
   Download,
   Eye,
   EyeOff,
+  FileCode,
+  FileSpreadsheet,
+  FileText,
   KeyRound,
   LoaderCircle,
   Plus,
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 type Account = {
@@ -42,12 +58,16 @@ type Account = {
 interface CustomerAccountsManagerProps {
   customers: Account[];
   canManageAccounts: boolean;
+  isSuperAdmin?: boolean;
+  currentUserId?: string;
   adminPermissions?: Record<string, string[]>;
 }
 
 export function CustomerAccountsManager({
   customers,
   canManageAccounts,
+  isSuperAdmin = false,
+  currentUserId,
   adminPermissions = {},
 }: CustomerAccountsManagerProps) {
   const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -61,6 +81,18 @@ export function CustomerAccountsManager({
   const [error, setError] = useState("");
   const [busy, startTransition] = useTransition();
   const router = useRouter();
+
+  // Export state
+  const [openExportModal, setOpenExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>("customers_only");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  // Delete user state
+  const [deleteTargetUser, setDeleteTargetUser] = useState<Account | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const createAccount = (formData: FormData) => {
     setError("");
@@ -196,6 +228,84 @@ export function CustomerAccountsManager({
     });
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetUser) return;
+    setDeleteError("");
+    setIsDeleting(true);
+    try {
+      const res = await deleteAdminManagedAccountAction(deleteTargetUser.id);
+      if (res.error) {
+        setDeleteError(res.error);
+        setIsDeleting(false);
+        return;
+      }
+      setDeleteTargetUser(null);
+      setIsDeleting(false);
+      router.refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Gagal menghapus akun.");
+      setIsDeleting(false);
+    }
+  };
+
+  const handleExecuteExport = async () => {
+    setExportError("");
+    setIsExporting(true);
+    try {
+      let rows: ExportCustomerRow[] = [];
+
+      if (exportScope === "customers_with_orders") {
+        const reports = await getAdminCustomerReportsAction();
+        const reportMap = new Map(reports.map((r) => [r.id, r]));
+
+        rows = customers.map((c) => {
+          const rep = reportMap.get(c.id);
+          return {
+            id: c.id,
+            fullName: c.full_name || "Tanpa Nama",
+            email: c.email || "-",
+            phone: c.phone || "-",
+            role: c.role,
+            createdAt: c.created_at,
+            totalOrders: rep ? Number(rep.total_orders ?? 0) : 0,
+            completedOrders: rep ? Number(rep.completed_orders ?? 0) : 0,
+            completedSpend: rep ? Number(rep.completed_spend ?? 0) : 0,
+            lastOrderAt: rep?.last_order_at ?? null,
+          };
+        });
+      } else {
+        rows = customers.map((c) => ({
+          id: c.id,
+          fullName: c.full_name || "Tanpa Nama",
+          email: c.email || "-",
+          phone: c.phone || "-",
+          role: c.role,
+          createdAt: c.created_at,
+        }));
+      }
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const scopeLabel = exportScope === "customers_with_orders" ? "pelanggan_dan_pembelian" : "pelanggan";
+
+      if (exportFormat === "xlsx") {
+        const blob = await generateCustomersExcel(rows, exportScope);
+        triggerBlobDownload(blob, `laporan_${scopeLabel}_${timestamp}.xlsx`);
+      } else if (exportFormat === "csv") {
+        const blob = generateCustomersCsv(rows, exportScope);
+        triggerBlobDownload(blob, `laporan_${scopeLabel}_${timestamp}.csv`);
+      } else if (exportFormat === "doc") {
+        const blob = generateCustomersWord(rows, exportScope);
+        triggerBlobDownload(blob, `laporan_${scopeLabel}_${timestamp}.doc`);
+      }
+
+      setOpenExportModal(false);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Gagal mengekspor data.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <section className="space-y-6">
       {/* Header */}
@@ -207,13 +317,17 @@ export function CustomerAccountsManager({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href="/api/admin/reports/customers"
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-input bg-background px-4 text-sm font-medium hover:bg-muted"
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setExportError("");
+              setOpenExportModal(true);
+            }}
           >
             <Download className="mr-2 size-4" />
-            Ekspor pelanggan + pembelian CSV
-          </a>
+            Ekspor Data Pengguna
+          </Button>
           {canManageAccounts && (
             <Button
               onClick={() => {
@@ -462,6 +576,36 @@ export function CustomerAccountsManager({
                             Simpan
                           </Button>
                         </form>
+                        {customer.id === currentUserId ? (
+                          <span
+                            className="text-[11px] text-muted-foreground italic px-1"
+                            title="Akun Anda yang sedang aktif digunakan saat ini"
+                          >
+                            (Anda)
+                          </span>
+                        ) : customer.role === "super_admin" && !isSuperAdmin ? (
+                          <span
+                            className="text-[11px] text-muted-foreground px-1"
+                            title="Hanya Super Admin yang berhak menghapus akun Super Admin"
+                          >
+                            —
+                          </span>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            title={`Hapus akun ${customer.full_name || customer.email || "ini"}`}
+                            onClick={() => {
+                              setDeleteError("");
+                              setDeleteTargetUser(customer);
+                            }}
+                          >
+                            <Trash2 className="size-3.5" />
+                            <span className="sr-only sm:not-sr-only sm:ml-1">Hapus</span>
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   )}
@@ -743,6 +887,248 @@ export function CustomerAccountsManager({
                 </Button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {/* Modal Opsi Ekspor Terpadu */}
+      {openExportModal && (
+        <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/60 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="export-dialog-title"
+            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-2xl bg-card p-6 shadow-xl"
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <Download className="size-5 text-primary" />
+                <h2 id="export-dialog-title" className="text-xl font-bold">
+                  Ekspor Data Pengguna
+                </h2>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Pilih cakupan data dan format berkas yang ingin diunduh.
+              </p>
+            </div>
+
+            {/* Pilihan Cakupan Data */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                1. Pilih Cakupan Data
+              </label>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <label
+                  className={`flex cursor-pointer flex-col rounded-xl border p-3.5 transition-all ${
+                    exportScope === "customers_only"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                      : "border-border hover:border-foreground/30 bg-card"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <input
+                      type="radio"
+                      name="exportScope"
+                      checked={exportScope === "customers_only"}
+                      onChange={() => setExportScope("customers_only")}
+                      className="accent-primary"
+                    />
+                    <span>Data Pelanggan Saja</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed pl-5">
+                    Hanya data profil: Nama, Email, Telepon, Role, & Tanggal Terdaftar.
+                  </p>
+                </label>
+
+                <label
+                  className={`flex cursor-pointer flex-col rounded-xl border p-3.5 transition-all ${
+                    exportScope === "customers_with_orders"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                      : "border-border hover:border-foreground/30 bg-card"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-semibold text-sm">
+                    <input
+                      type="radio"
+                      name="exportScope"
+                      checked={exportScope === "customers_with_orders"}
+                      onChange={() => setExportScope("customers_with_orders")}
+                      className="accent-primary"
+                    />
+                    <span>Pelanggan + Pembelian</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed pl-5">
+                    Termasuk statistik: Total Pesanan, Selesai, Total Belanja (Rp), & Pesanan Terakhir.
+                  </p>
+                </label>
+              </div>
+            </div>
+
+            {/* Pilihan Format Berkas */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                2. Pilih Format Berkas
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("xlsx")}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                    exportFormat === "xlsx"
+                      ? "border-emerald-500 bg-emerald-500/10 font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/30"
+                      : "border-border hover:border-foreground/30 text-muted-foreground"
+                  }`}
+                >
+                  <FileSpreadsheet className="size-6 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-xs font-semibold">Excel (.xlsx)</span>
+                  <span className="text-[10px] text-muted-foreground">Spreadsheet</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("csv")}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                    exportFormat === "csv"
+                      ? "border-blue-500 bg-blue-500/10 font-bold text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/30"
+                      : "border-border hover:border-foreground/30 text-muted-foreground"
+                  }`}
+                >
+                  <FileCode className="size-6 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs font-semibold">CSV (.csv)</span>
+                  <span className="text-[10px] text-muted-foreground">Tabel Teks</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("doc")}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                    exportFormat === "doc"
+                      ? "border-indigo-500 bg-indigo-500/10 font-bold text-indigo-700 dark:text-indigo-400 ring-1 ring-indigo-500/30"
+                      : "border-border hover:border-foreground/30 text-muted-foreground"
+                  }`}
+                >
+                  <FileText className="size-6 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-semibold">Word (.doc)</span>
+                  <span className="text-[10px] text-muted-foreground">Dokumen Resmi</span>
+                </button>
+              </div>
+            </div>
+
+            {exportError && (
+              <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive font-medium">
+                {exportError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpenExportModal(false)}
+                disabled={isExporting}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleExecuteExport}
+                disabled={isExporting}
+                className="gap-2"
+              >
+                {isExporting ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Menyiapkan Berkas...
+                  </>
+                ) : (
+                  <>
+                    <Download className="size-4" />
+                    Unduh Berkas
+                  </>
+                )}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Hapus Akun */}
+      {deleteTargetUser && (
+        <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/60 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl bg-card p-6 shadow-xl"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-destructive/15 text-destructive">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div className="space-y-1">
+                <h2 id="delete-dialog-title" className="text-lg font-bold text-foreground">
+                  Hapus Akun Pengguna?
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Tindakan ini akan memverifikasi riwayat transaksi pengguna terlebih dahulu.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-xs text-foreground space-y-2">
+              <p>
+                Anda akan menghapus akun:
+              </p>
+              <p className="font-semibold text-sm">
+                {deleteTargetUser.full_name || "Tanpa Nama"}
+                {deleteTargetUser.email ? ` (${deleteTargetUser.email})` : ""}
+              </p>
+              <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
+                <span>Role: <strong className="capitalize text-foreground">{deleteTargetUser.role}</strong></span>
+                <span>•</span>
+                <span>Bergabung: {new Date(deleteTargetUser.created_at).toLocaleDateString("id-ID")}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/60 p-3 text-[11px] text-muted-foreground leading-relaxed">
+              <strong className="text-foreground">Catatan Keamanan & Pembukuan:</strong> Jika pengguna sudah memiliki riwayat transaksi/pesanan, akses login akan dicabut dan profil dinonaktifkan demi menjaga keutuhan laporan keuangan toko. Jika tidak memiliki transaksi, akun akan dihapus bersih secara permanen.
+            </div>
+
+            {deleteError && (
+              <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-xs text-destructive font-medium">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 border-t pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteTargetUser(null)}
+                disabled={isDeleting}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" />
+                    Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-4" />
+                    Ya, Hapus Akun
+                  </>
+                )}
+              </Button>
+            </div>
           </section>
         </div>
       )}

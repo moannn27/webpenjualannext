@@ -39,3 +39,7 @@ export async function getBestSellerAction() {
 export async function getNewArrivalAction() {
   return await productService.getNewArrival()
 }
+
+export async function getRelatedProductsAction(productId: string, limit = 8, preloadedProduct?: unknown) {
+  return await productService.getRelatedProducts(productId, limit, preloadedProduct)
+}

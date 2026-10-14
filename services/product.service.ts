@@ -38,4 +38,8 @@ export class ProductService {
   async getNewArrival() {
     return await this.repo.findAll({ isNewArrival: true, limit: 8 })
   }
+
+  async getRelatedProducts(productId: string, limit = 8, preloadedProduct?: unknown) {
+    return await this.repo.findRelated(productId, limit, preloadedProduct)
+  }
 }

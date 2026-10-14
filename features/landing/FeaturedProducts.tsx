@@ -12,9 +12,10 @@ interface FeaturedProductsProps {
   type: "bestseller" | "new" | "promo";
   initialData?: Product[];
   subtitle?: string;
+  viewAllHref?: string;
 }
 
-export function FeaturedProducts({ title, type, initialData = [], subtitle }: FeaturedProductsProps) {
+export function FeaturedProducts({ title, type, initialData = [], subtitle, viewAllHref }: FeaturedProductsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(4);
@@ -145,7 +146,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle }: Fe
             variant="outline"
             className="rounded-full shadow-2xs hover:border-primary/40"
             aria-label={`Lihat semua ${title}`}
-            render={<Link href={type === "promo" ? "/promo" : `/products?sort=${type}`} />}
+            render={<Link href={viewAllHref ?? (type === "promo" ? "/promo" : `/products?sort=${type}`)} />}
           >
             Lihat semua <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

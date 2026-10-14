@@ -3,7 +3,7 @@ import { getAdminCustomersAction } from "@/actions/admin";
 import { CustomerAccountsManager } from "@/features/admin/CustomerAccountsManager";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
-import { requireModulePermission } from "@/lib/auth/permissions";
+import { requireModulePermission, getCurrentAdminPermissions } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 
 export default async function AdminCustomersPage() {
@@ -13,10 +13,11 @@ export default async function AdminCustomersPage() {
     redirect("/admin?error=forbidden");
   }
 
-  const [customers, access, supabase] = await Promise.all([
+  const [customers, access, supabase, currentPerms] = await Promise.all([
     getAdminCustomersAction(),
     getAdminAccess(),
     createClient(),
+    getCurrentAdminPermissions(),
   ]);
 
   const { data: sfData } = await supabase
@@ -28,10 +29,15 @@ export default async function AdminCustomersPage() {
   const settings = normalizeStorefrontSettings(sfData?.settings ?? {});
   const adminPermissions = settings.admin_permissions ?? {};
 
+  const isSuperAdmin = access.role === "super_admin";
+  const canManageAccounts = isSuperAdmin || currentPerms.permissions.includes("customers");
+
   return (
     <CustomerAccountsManager
       customers={customers}
-      canManageAccounts={access.role === "super_admin"}
+      canManageAccounts={canManageAccounts}
+      isSuperAdmin={isSuperAdmin}
+      currentUserId={access.user?.id}
       adminPermissions={adminPermissions}
     />
   );
