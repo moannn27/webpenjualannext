@@ -4,7 +4,7 @@ import { getProductByIdAction, getRelatedProductsAction } from "@/actions/produc
 import { getProductReviewsAction } from "@/actions/review";
 import { getProductCartQuantitiesAction } from "@/actions/cart";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
-import { getRecommendationSubtitle } from "@/lib/product-recommendations";
+import { getRecommendationSubtitle, type ProductCandidate } from "@/lib/product-recommendations";
 import { notFound } from "next/navigation";
 import { buildProductJsonLd } from "@/lib/seo";
 
@@ -54,7 +54,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   ]);
 
   const productJsonLd = buildProductJsonLd(product, reviews ?? []);
-  const subtitle = getRecommendationSubtitle(product as any);
+  const subtitle = getRecommendationSubtitle(product as unknown as ProductCandidate);
   const categoryLink = product.categories?.id ? `/products?category=${product.categories.id}` : undefined;
 
   return (

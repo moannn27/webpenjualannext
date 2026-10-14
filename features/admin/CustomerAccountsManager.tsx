@@ -404,7 +404,7 @@ export function CustomerAccountsManager({
           <TableBody>
             {customers.map((customer) => {
               const isAdmin = customer.role === "admin";
-              const isSuperAdmin = customer.role === "super_admin";
+              const customerIsSuperAdmin = customer.role === "super_admin";
               const userPerms = adminPermissions[customer.id] || DEFAULT_ADMIN_PERMISSIONS;
 
               return (
@@ -444,9 +444,9 @@ export function CustomerAccountsManager({
                   <TableCell>
                     <Badge
                       variant={
-                        isSuperAdmin ? "default" : isAdmin ? "secondary" : "outline"
+                        customerIsSuperAdmin ? "default" : isAdmin ? "secondary" : "outline"
                       }
-                      className={isSuperAdmin ? "bg-primary" : isAdmin ? "bg-primary/20 text-primary border-primary/30" : ""}
+                      className={customerIsSuperAdmin ? "bg-primary" : isAdmin ? "bg-primary/20 text-primary border-primary/30" : ""}
                     >
                       {customer.role === "super_admin"
                         ? "Super Admin"
@@ -458,7 +458,7 @@ export function CustomerAccountsManager({
 
                   {/* Izin Akses */}
                   <TableCell>
-                    {isSuperAdmin ? (
+                    {customerIsSuperAdmin ? (
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
                         <Shield className="size-3.5" />
                         Akses Penuh (Semua Modul)

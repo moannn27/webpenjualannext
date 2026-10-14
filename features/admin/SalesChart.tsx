@@ -14,9 +14,7 @@ import {
   User,
   Phone,
   Package,
-  Layers,
   Search,
-  ExternalLink,
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -156,11 +154,6 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
       isCancelled = true;
     };
   }, [selectedPeriod, isCustomRange, customStartDate, customEndDate]);
-
-  // Trigger animation on filter changes
-  useEffect(() => {
-    setAnimationKey((k) => k + 1);
-  }, [selectedBrand, selectedCategory, searchProduct]);
 
   // Available filter options from database/sales
   const filterOptions = useMemo(() => {
@@ -671,7 +664,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
         className="relative w-full overflow-hidden rounded-xl border bg-card/60 p-2 sm:p-3"
       >
         <svg
-          key={animationKey}
+          key={`${animationKey}-${selectedBrand}-${selectedCategory}-${searchProduct}`}
           viewBox={`0 0 ${width} ${height}`}
           className="h-auto w-full select-none"
           preserveAspectRatio="none"

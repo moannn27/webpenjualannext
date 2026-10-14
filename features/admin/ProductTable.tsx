@@ -463,7 +463,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <label className="text-[11px] font-semibold text-muted-foreground block">Filter Stok</label>
           <select
             value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value as any)}
+            onChange={(e) => setStockFilter(e.target.value as "all" | "out_of_stock" | "low_stock" | "in_stock" | "custom")}
             className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <option value="all">Semua Stok</option>
@@ -479,7 +479,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <label className="text-[11px] font-semibold text-muted-foreground block">Filter Harga</label>
           <select
             value={pricePreset}
-            onChange={(e) => setPricePreset(e.target.value as any)}
+            onChange={(e) => setPricePreset(e.target.value as "all" | "under_5m" | "5m_10m" | "10m_20m" | "above_20m" | "custom")}
             className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <option value="all">Semua Harga</option>
