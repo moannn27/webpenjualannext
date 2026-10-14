@@ -47,11 +47,11 @@ export default async function Home() {
   ]);
   const settings = normalizeStorefrontSettings(rawSettings);
   const sections = settings.sections;
-  const selectedIds = ["bestsellers", "newArrivals", "promo"].flatMap((key) => sections[key].productIds ?? []);
+  const selectedIds = ["bestsellers", "newArrivals", "promo", "featuredDiscovery"].flatMap((key) => sections[key]?.productIds ?? []);
   const selectedRows = await getProductsByIdsAction(selectedIds).catch(() => []);
   const selectedProducts = selectedRows.map((product) => toStorefrontProduct(product as StoreProduct));
-  const selected = (key: "bestsellers" | "newArrivals" | "promo", fallback: typeof selectedProducts) => {
-    const ids = sections[key].productIds ?? [];
+  const selected = (key: "bestsellers" | "newArrivals" | "promo" | "featuredDiscovery", fallback: typeof selectedProducts) => {
+    const ids = sections[key]?.productIds ?? [];
     return ids.length ? ids.map((id) => selectedProducts.find((product) => product.id === id)).filter((product): product is (typeof selectedProducts)[number] => Boolean(product)) : fallback;
   };
 
@@ -80,10 +80,20 @@ export default async function Home() {
       />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
       {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
-      <ProductDiscovery
-        title="Pilihan Produk Unggulan"
-        subtitle="Cari langsung, saring kategori pilihan, dan urutkan harga terbaik."
-      />
+      {sections.featuredDiscovery?.visible !== false && (
+        <ProductDiscovery
+          title={sections.featuredDiscovery?.title || "Pilihan Produk Unggulan"}
+          subtitle={
+            sections.featuredDiscovery?.subtitle ||
+            "Cari langsung, saring kategori pilihan, dan urutkan harga terbaik."
+          }
+          initialProducts={
+            (sections.featuredDiscovery?.productIds?.length ?? 0) > 0
+              ? selected("featuredDiscovery", uniqueSpotlightProducts)
+              : (uniqueSpotlightProducts.length > 0 ? uniqueSpotlightProducts : undefined)
+          }
+        />
+      )}
       {sections.bestsellers.visible && <FeaturedProducts title={sections.bestsellers.title} subtitle={sections.bestsellers.subtitle} type="bestseller" initialData={selected("bestsellers", (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
       {sections.promo.visible && (
         <PromoBanner

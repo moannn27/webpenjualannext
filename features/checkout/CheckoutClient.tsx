@@ -42,6 +42,8 @@ import {
 import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
 import { getMasterProductById } from "@/constants/products";
 import { toast } from "@/components/Toast";
+import { useCartStore } from "@/store/useCartStore";
+import { CheckoutProgressHeader } from "@/components/checkout/CheckoutProgressHeader";
 
 /**
  * Strict sanitization on customer inputs:
@@ -492,9 +494,16 @@ export function CheckoutClient({
         };
 
         setPlacedOrder(orderData);
+        // Clear cart immediately and explicitly write [] to localStorage so checked-out items never reappear on refresh
+        useCartStore.getState().clearCart();
         if (typeof window !== "undefined") {
           try {
             sessionStorage.setItem("checkout_placed_order", JSON.stringify(orderData));
+            window.localStorage.setItem(
+              "next_solution_cart",
+              JSON.stringify({ state: { items: [] }, version: 0 })
+            );
+            window.localStorage.removeItem("next_solution_cart_items");
           } catch {}
         }
         toast.success("Pesanan Dibuat!", `Nomor pesanan: ${uniqueOrderId}`);
@@ -552,6 +561,7 @@ export function CheckoutClient({
 
     return (
       <main className="mx-auto w-full max-w-4xl px-4 pb-20 pt-8 sm:px-6 lg:px-8 animate-in fade-in duration-300">
+        <CheckoutProgressHeader currentStep={3} className="mb-8" />
         {/* Top Pending Alert Banner */}
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 sm:p-6 mb-8 text-amber-950 dark:text-amber-200">
           <div className="flex items-start gap-4">
@@ -803,6 +813,7 @@ export function CheckoutClient({
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
+      <CheckoutProgressHeader currentStep={2} className="mb-8" />
       <Link
         href="/cart"
         className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -1307,7 +1318,7 @@ export function CheckoutClient({
               (currentStep === 2 && fulfillmentMode === "delivery" && !selectedShipping) ||
               (currentStep === 2 && !shippingMethods.length && fulfillmentMode === "delivery")
             }
-            className="mt-6 h-12 w-full"
+            className="mt-6 h-12 w-full active:scale-95 transition-transform"
           >
             {loading ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
             {loading
@@ -1325,7 +1336,7 @@ export function CheckoutClient({
               variant="outline"
               onClick={() => goToStep((currentStep - 1) as 1 | 2)}
               disabled={loading}
-              className="mt-2 w-full"
+              className="mt-2 w-full active:scale-95 transition-transform"
             >
               Kembali
             </Button>

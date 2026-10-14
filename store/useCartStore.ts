@@ -20,10 +20,17 @@ export interface StoredCartItem {
 
 interface CartStoreState {
   items: StoredCartItem[];
-  addItem: (product: ProductItem, quantity?: number, variantId?: string | null, variantLabel?: string | null) => void;
+  addItem: (
+    product: ProductItem,
+    quantity?: number,
+    variantId?: string | null,
+    variantLabel?: string | null,
+    options?: { silentToast?: boolean }
+  ) => void;
   updateQuantity: (id: string, quantity: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
+  setCartItems: (items: StoredCartItem[]) => void;
   /**
    * Security calculation: Re-look up product by ID from master product data
    * to guarantee prices in localStorage are never trusted.
@@ -63,7 +70,7 @@ export const useCartStore = create<CartStoreState>()(
   persist(
     (set, get) => ({
       items: [],
-      addItem: (product, quantity = 1, variantId = null, variantLabel = null) => {
+      addItem: (product, quantity = 1, variantId = null, variantLabel = null, options) => {
         // Look up verified master product data
         const master = getMasterProductById(product.id) || product;
         const verifiedPrice = master.discountPrice ?? master.price;
@@ -110,10 +117,12 @@ export const useCartStore = create<CartStoreState>()(
           return { items: [...state.items, newItem] };
         });
 
-        toast.success(
-          "Berhasil Ditambahkan",
-          `"${master.name}" telah dimasukkan ke keranjang belanja.`
-        );
+        if (!options?.silentToast) {
+          toast.success(
+            "Berhasil Ditambahkan",
+            `"${master.name}" telah dimasukkan ke keranjang belanja.`
+          );
+        }
         emitCartUpdated(get().getTotalItems());
       },
 
@@ -154,6 +163,33 @@ export const useCartStore = create<CartStoreState>()(
 
       clearCart: () => {
         set({ items: [] });
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(
+              "next_solution_cart",
+              JSON.stringify({ state: { items: [] }, version: 0 })
+            );
+            window.localStorage.removeItem("next_solution_cart_items");
+          } catch {
+            // ignore
+          }
+        }
+        emitCartUpdated(0);
+      },
+
+      setCartItems: (items) => {
+        set({ items });
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(
+              "next_solution_cart",
+              JSON.stringify({ state: { items }, version: 0 })
+            );
+          } catch {
+            // ignore
+          }
+        }
+        emitCartUpdated(items.reduce((sum, item) => sum + item.quantity, 0));
       },
 
       getSubtotal: () => {

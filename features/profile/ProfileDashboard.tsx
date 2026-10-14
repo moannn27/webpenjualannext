@@ -960,7 +960,7 @@ export function ProfileDashboard({
                               alt={product?.name ?? "Produk wishlist"}
                               fill
                               sizes="(max-width: 640px) 80px, 96px"
-                              className="object-contain p-2 mix-blend-multiply"
+                              className="object-contain p-2"
                             />
                           ) : (
                             <Package className="size-8 text-muted-foreground" aria-hidden="true" />

@@ -62,12 +62,22 @@ export function Footer({
     description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.",
     address: "",
     maps_url: "",
-    email: "",
-    phone: "",
+    email: "support@nextsolution.id",
+    phone: "+62 812-3456-7890",
     whatsapp: "",
     copyright: "Hak cipta dilindungi.",
     branches: [],
   };
+
+  const contactEmail =
+    !store.email || store.email === "test@next.com"
+      ? "support@nextsolution.id"
+      : store.email;
+
+  const contactPhone =
+    !store.phone || store.phone === "1283017230891273"
+      ? "+62 812-3456-7890"
+      : store.phone;
 
   // Resolve active marketplaces
   const activeMarketplaces =
@@ -77,7 +87,7 @@ export function Footer({
         )
       : [];
 
-  const hasContact = Boolean(store.address || store.email || store.phone || store.whatsapp || store.maps_url);
+  const hasContact = Boolean(store.address || contactEmail || contactPhone || store.whatsapp || store.maps_url);
   const hasBranches = Boolean(store.branches?.length);
   const hasMarketplaces = activeMarketplaces.length > 0;
 
@@ -167,17 +177,17 @@ export function Footer({
                     </div>
                   </li>
                 )}
-                {store.email && (
+                {contactEmail && (
                   <li>
-                    <a className="hover:text-primary" href={`mailto:${store.email}`}>
-                      {store.email}
+                    <a className="hover:text-primary transition-colors" href={`mailto:${contactEmail}`}>
+                      {contactEmail}
                     </a>
                   </li>
                 )}
-                {store.phone && (
+                {contactPhone && (
                   <li>
-                    <a className="hover:text-primary" href={`tel:${store.phone}`}>
-                      {store.phone}
+                    <a className="hover:text-primary transition-colors" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                      {contactPhone}
                     </a>
                   </li>
                 )}

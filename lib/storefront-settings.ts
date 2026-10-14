@@ -397,6 +397,11 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     bestsellers: { visible: true, title: "Produk Terlaris", subtitle: "Pilihan favorit pelanggan." },
     promo: { visible: true, title: "Promo Pilihan", subtitle: "Penawaran khusus dari Next Solution." },
     newArrivals: { visible: true, title: "Produk Terbaru", subtitle: "Jelajahi koleksi terbaru." },
+    featuredDiscovery: {
+      visible: true,
+      title: "Pilihan Produk Unggulan",
+      subtitle: "Cari langsung, saring kategori pilihan, dan urutkan harga terbaik.",
+    },
     brands: { visible: true, title: "Brand Pilihan", subtitle: "Jelajahi brand favorit." },
     branches: {
       visible: true,
@@ -432,8 +437,8 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     latitude: -6.9185411,
     longitude: 107.6165665,
     maps_url: "",
-    email: "",
-    phone: "",
+    email: "support@nextsolution.id",
+    phone: "+62 812-3456-7890",
     whatsapp: "6281234567890",
     copyright: "Hak cipta dilindungi.",
     branches: [],

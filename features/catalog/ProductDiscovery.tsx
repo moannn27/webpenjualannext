@@ -16,16 +16,25 @@ interface ProductDiscoveryProps {
 
 export function ProductDiscovery({
   initialProducts = MASTER_PRODUCTS,
-  title = "Eksplorasi Katalog Produk",
-  subtitle = "Cari cepat dan filter produk berdasarkan kategori dan rentang harga.",
+  title = "Pilihan Produk Unggulan",
+  subtitle = "Cari langsung, saring kategori pilihan, dan urutkan harga terbaik.",
   className,
 }: ProductDiscoveryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest">("default");
 
-  // Derive categories dynamically from constants/products.ts
-  const categories = useMemo(() => ["Semua", ...MASTER_CATEGORIES], []);
+  // Derive categories dynamically from constants and products
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    MASTER_CATEGORIES.forEach((cat) => set.add(cat));
+    (initialProducts as (ProductItem & Product)[]).forEach((p) => {
+      if (p.category && p.category.trim()) {
+        set.add(p.category.trim());
+      }
+    });
+    return ["Semua", ...Array.from(set)];
+  }, [initialProducts]);
 
   // Filter and sort products live
   const filteredProducts = useMemo(() => {
@@ -177,16 +186,31 @@ export function ProductDiscovery({
       {/* Products Grid or Empty State */}
       {filteredProducts.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={{
-                ...product,
-                sku: product.sku || product.id,
-                status: product.status || "Active",
-              }}
-            />
-          ))}
+          {filteredProducts.map((product) => {
+            const mappedProduct: Product = {
+              id: product.id,
+              name: product.name,
+              sku: product.sku || product.id,
+              price: product.price,
+              stock: product.stock ?? 10,
+              status: product.status || "Active",
+              category: product.category || "Gadget",
+              image: product.image,
+              brand: product.brand || "Next Solution",
+              originalPrice: product.originalPrice ?? product.price,
+              discountPrice: product.discountPrice ?? null,
+              rating: product.rating ?? 5,
+              reviews: ("reviews" in product && typeof product.reviews === "number") ? product.reviews : 12,
+              specifications: ("specifications" in product && Array.isArray(product.specifications)) ? product.specifications : undefined,
+              badges: ("badges" in product && Array.isArray(product.badges)) ? product.badges : ("badge" in product && typeof (product as Record<string, unknown>).badge === "string" ? [String((product as Record<string, unknown>).badge)] : undefined),
+            };
+            return (
+              <ProductCard
+                key={product.id}
+                product={mappedProduct}
+              />
+            );
+          })}
         </div>
       ) : (
         /* Empty State */

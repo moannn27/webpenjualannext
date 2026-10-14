@@ -19,7 +19,7 @@ export function useAddToCart() {
       // 1. Update client cart store for instant UI reactivity
       const masterProduct = getMasterProductById(productId);
       if (masterProduct) {
-        addItemToStore(masterProduct, 1, variantId, variantLabel);
+        addItemToStore(masterProduct, 1, variantId, variantLabel, { silentToast: true });
       }
 
       // 2. Persist to server if available

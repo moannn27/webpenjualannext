@@ -70,6 +70,7 @@ const names: Record<string, string> = {
   bestsellers: "Produk terlaris",
   promo: "Banner promo",
   newArrivals: "Produk terbaru",
+  featuredDiscovery: "Pilihan Produk Unggulan (Live Search & Filter)",
   brands: "Brand",
   branches: "Cabang toko & peta interaktif",
   reviews: "Ulasan produk pelanggan (Slider Beranda)",
@@ -1579,7 +1580,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                 />
               </label>
             )}
-            {["bestsellers", "newArrivals", "promo"].includes(key) && (
+            {["bestsellers", "newArrivals", "promo", "featuredDiscovery"].includes(key) && (
               <fieldset className="space-y-3 border-t pt-3">
                 <div className="flex items-center justify-between gap-3">
                   <legend className="text-sm font-medium">Pilih produk</legend>

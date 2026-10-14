@@ -1,9 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Star, ShieldCheck, Truck, ArrowLeft, Heart, Share2, Plus, Minus, Store, Headphones } from "lucide-react";
+import {
+  Star,
+  ShieldCheck,
+  Truck,
+  ArrowLeft,
+  Heart,
+  Share2,
+  Plus,
+  Minus,
+  Store,
+  Headphones,
+  X,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -11,6 +26,7 @@ import { addToCartAction } from "@/actions/cart";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
+import { useCartStore } from "@/store/useCartStore";
 
 interface ProductDetailData {
   id: string;
@@ -61,6 +77,46 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const [cartError, setCartError] = useState("");
   const images = product.product_images?.length ? product.product_images : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
   const [activeImage, setActiveImage] = useState(images[0]?.url ?? "");
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  const openLightbox = (url?: string) => {
+    const targetUrl = url || activeImage || images[0]?.url;
+    const foundIndex = images.findIndex((img) => img.url === targetUrl);
+    setLightboxIndex(foundIndex >= 0 ? foundIndex : 0);
+    setIsLightboxOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsLightboxOpen(false);
+      } else if (e.key === "ArrowRight") {
+        setLightboxIndex((prev) => {
+          const next = (prev + 1) % images.length;
+          setActiveImage(images[next]?.url);
+          return next;
+        });
+      } else if (e.key === "ArrowLeft") {
+        setLightboxIndex((prev) => {
+          const next = (prev - 1 + images.length) % images.length;
+          setActiveImage(images[next]?.url);
+          return next;
+        });
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isLightboxOpen, images]);
+
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState("");
   const reviewCount = reviews.length;
@@ -78,6 +134,26 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       const result = await addToCartAction(product.id, quantity, selectedVariant?.id ?? null);
       setCartCountAfterAdd(result.cartCount);
       setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity }));
+      
+      const variantLabel = selectedVariant
+        ? [selectedVariant.color, selectedVariant.ram, selectedVariant.storage].filter(Boolean).join(" · ")
+        : null;
+
+      useCartStore.getState().addItem(
+        {
+          id: product.id,
+          name: product.name,
+          price: productPrice,
+          category: (product as { category?: string }).category || (product.brands?.name ? `Laptop ${product.brands.name}` : "Produk"),
+          image: activeImage || product.image || "",
+          stock: availableStock,
+        },
+        quantity,
+        selectedVariant?.id ?? null,
+        variantLabel,
+        { silentToast: true }
+      );
+
       emitCartUpdated(result.cartCount);
       toast.success(
         "Berhasil Ditambahkan",
@@ -180,22 +256,67 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         
         {/* Gallery */}
         <div className="flex flex-col gap-4">
-          <div className="relative aspect-square w-full bg-muted/30 rounded-[32px] overflow-hidden border border-border flex items-center justify-center p-8 group cursor-zoom-in">
+          <div
+            onClick={() => openLightbox()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openLightbox();
+              }
+            }}
+            aria-label="Klik untuk memperbesar gambar produk"
+            className="relative aspect-square w-full bg-white dark:bg-card/60 rounded-[32px] overflow-hidden border border-border flex items-center justify-center p-6 sm:p-8 group cursor-zoom-in shadow-xs transition-all hover:border-primary/40"
+          >
             <Image
               src={activeImage || product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
               alt={product.name}
               fill
+              priority
               sizes="(min-width: 1024px) 50vw, 100vw"
-              className="object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-125"
+              className="object-contain transition-transform duration-500 group-hover:scale-105"
             />
+
+            {/* Hover Indicator Badge */}
+            <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-md shadow-xs border border-border/80 opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none">
+              <Maximize2 className="size-3.5 text-primary" />
+              <span>Perbesar</span>
+            </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {images.map((image) => (
-              <button key={image.id} type="button" onClick={() => setActiveImage(image.url)} aria-label={`Tampilkan gambar ${image.alt_text || product.name}`} className={`relative w-24 h-24 rounded-2xl bg-muted/30 overflow-hidden border-2 ${activeImage === image.url ? "border-primary" : "border-transparent"} hover:border-primary shrink-0 focus-visible:outline-none focus-visible:border-primary transition-colors`}>
-                {image.url && <Image src={image.url} alt={image.alt_text || product.name} fill sizes="96px" className="object-cover mix-blend-multiply p-2" />}
-              </button>
-            ))}
-          </div>
+
+          {/* Thumbnails */}
+          {images.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+              {images.map((image, idx) => (
+                <button
+                  key={image.id || idx}
+                  type="button"
+                  onClick={() => {
+                    setActiveImage(image.url);
+                    setLightboxIndex(idx);
+                  }}
+                  aria-label={`Tampilkan gambar ${image.alt_text || product.name}`}
+                  className={cn(
+                    "relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white dark:bg-card/60 overflow-hidden border-2 shrink-0 transition-all p-1",
+                    activeImage === image.url
+                      ? "border-primary ring-2 ring-primary/20 scale-102"
+                      : "border-border hover:border-primary/50 opacity-75 hover:opacity-100"
+                  )}
+                >
+                  {image.url && (
+                    <Image
+                      src={image.url}
+                      alt={image.alt_text || product.name}
+                      fill
+                      sizes="96px"
+                      className="object-contain p-1.5"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -529,6 +650,119 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
           )}
         </div>
       </div>
+
+      {/* Lightbox / Modal Layar Penuh Gambar Produk */}
+      {isLightboxOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pratinjau gambar produk layar penuh"
+          className="fixed inset-0 z-50 flex flex-col justify-between bg-black/95 backdrop-blur-md p-4 sm:p-6 select-none animate-in fade-in duration-200"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          {/* Header Bar */}
+          <div
+            className="flex items-center justify-between gap-4 w-full max-w-6xl mx-auto z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-bold text-white truncate max-w-md">
+                {product.name}
+              </h3>
+              {images.length > 1 && (
+                <p className="text-xs text-white/60">
+                  Gambar {lightboxIndex + 1} dari {images.length}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsLightboxOpen(false)}
+              className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer"
+              aria-label="Tutup pratinjau"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Main Large Image Display with Prev/Next Controls */}
+          <div
+            className="relative flex-1 flex items-center justify-center w-full max-w-6xl mx-auto my-2 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextIdx = (lightboxIndex - 1 + images.length) % images.length;
+                  setLightboxIndex(nextIdx);
+                  setActiveImage(images[nextIdx]?.url);
+                }}
+                className="absolute left-2 sm:left-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 border border-white/20 active:scale-95 transition-all shadow-lg cursor-pointer"
+                aria-label="Gambar sebelumnya"
+              >
+                <ChevronLeft className="size-6" />
+              </button>
+            )}
+
+            <div className="relative w-full h-full max-h-[75vh] flex items-center justify-center p-2">
+              <img
+                src={images[lightboxIndex]?.url || activeImage || product.image || ""}
+                alt={images[lightboxIndex]?.alt_text || product.name}
+                className="max-h-[75vh] max-w-[90vw] object-contain rounded-2xl drop-shadow-2xl animate-in zoom-in-95 duration-200"
+              />
+            </div>
+
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextIdx = (lightboxIndex + 1) % images.length;
+                  setLightboxIndex(nextIdx);
+                  setActiveImage(images[nextIdx]?.url);
+                }}
+                className="absolute right-2 sm:right-4 z-20 flex size-11 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/90 border border-white/20 active:scale-95 transition-all shadow-lg cursor-pointer"
+                aria-label="Gambar berikutnya"
+              >
+                <ChevronRight className="size-6" />
+              </button>
+            )}
+          </div>
+
+          {/* Bottom Thumbnails Strip */}
+          {images.length > 1 && (
+            <div
+              className="flex items-center justify-center gap-2 overflow-x-auto py-2 z-10 max-w-xl mx-auto scrollbar-thin"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {images.map((img, idx) => (
+                <button
+                  key={img.id || idx}
+                  type="button"
+                  onClick={() => {
+                    setLightboxIndex(idx);
+                    setActiveImage(img.url);
+                  }}
+                  className={cn(
+                    "relative size-14 sm:size-16 rounded-xl overflow-hidden border-2 transition-all shrink-0 bg-white/5 cursor-pointer",
+                    idx === lightboxIndex
+                      ? "border-primary ring-2 ring-primary/40 scale-105"
+                      : "border-white/20 hover:border-white/60 opacity-60 hover:opacity-100"
+                  )}
+                  aria-label={`Pilih gambar ${idx + 1}`}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.alt_text || product.name}
+                    className="size-full object-contain p-1"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

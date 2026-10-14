@@ -76,6 +76,8 @@ export function Navbar({
   const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
   const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
 
+  const [mounted, setMounted] = React.useState(false);
+  const totalStoreItems = useCartStore((state) => state.getTotalItems());
   const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
   const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
   const [isScrolled, setIsScrolled] = React.useState(false);
@@ -101,6 +103,14 @@ export function Navbar({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  React.useEffect(() => {
+    setMounted(true);
+    const localCount = useCartStore.getState().getTotalItems();
+    if (localCount > 0) {
+      setDisplayCartCount((prev) => Math.max(prev, localCount));
+    }
+  }, []);
+
   if (cartCount !== previousCartCount) {
     setPreviousCartCount(cartCount);
     setDisplayCartCount(cartCount);
@@ -109,18 +119,18 @@ export function Navbar({
   React.useEffect(() => {
     const onCartUpdated = (event: Event) => {
       const nextCount = (event as CustomEvent<number>).detail;
-      if (Number.isInteger(nextCount) && nextCount >= 0) setDisplayCartCount(nextCount);
+      if (Number.isInteger(nextCount) && nextCount >= 0) {
+        setDisplayCartCount(nextCount);
+      }
     };
     window.addEventListener(CART_UPDATED_EVENT, onCartUpdated);
 
-    // Sync with client-side persistent cart on mount if server rendered 0
-    const localCount = useCartStore.getState().getTotalItems();
-    if (localCount > 0 && cartCount === 0) {
-      setDisplayCartCount(localCount);
-    }
-
     return () => window.removeEventListener(CART_UPDATED_EVENT, onCartUpdated);
-  }, [cartCount]);
+  }, []);
+
+  const effectiveCartCount = mounted
+    ? Math.max(displayCartCount, totalStoreItems)
+    : displayCartCount;
 
   const resetAccountTimer = React.useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
@@ -351,11 +361,14 @@ export function Navbar({
                   <p className="px-3 pb-1 text-[11px] text-muted-foreground">Menu tertutup otomatis saat tidak digunakan.</p>
                 </div>}
               </div>
-              <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={displayCartCount ? `Keranjang, ${displayCartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>
+              <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={effectiveCartCount ? `Keranjang, ${effectiveCartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>
                 <ShoppingCart className="size-5 text-foreground/80" />
-                {displayCartCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
-                    {displayCartCount > 99 ? "99+" : displayCartCount}
+                {effectiveCartCount > 0 && (
+                  <span
+                    key={effectiveCartCount}
+                    className="absolute -right-0.5 -top-0.5 z-10 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-background bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground shadow-sm animate-in zoom-in-75 duration-200"
+                  >
+                    {effectiveCartCount > 99 ? "99+" : effectiveCartCount}
                   </span>
                 )}
               </Button>

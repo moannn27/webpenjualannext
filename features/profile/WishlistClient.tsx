@@ -54,8 +54,8 @@ export function WishlistClient({ initialWishlist }: { initialWishlist: WishlistI
         .slice(0, 3);
       const extraSpecs = Math.max(0, (product.product_specifications?.length ?? 0) - specifications.length);
       return <article key={item.id} className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:gap-4 sm:p-5">
-        <Link href={`/product/${product.id}`} aria-label={`Lihat ${product.name}`} className="relative grid size-[72px] place-items-center overflow-hidden rounded-xl bg-muted sm:size-[88px]">
-          {imageUrl ? <Image src={imageUrl} alt={product.name} fill sizes="(max-width: 640px) 72px, 88px" className="object-contain p-2 mix-blend-multiply" /> : <Package className="size-7 text-muted-foreground" aria-hidden="true" />}
+        <Link href={`/product/${product.id}`} aria-label={`Lihat ${product.name}`} className="relative grid size-[72px] place-items-center overflow-hidden rounded-xl bg-muted/40 sm:size-[88px]">
+          {imageUrl ? <Image src={imageUrl} alt={product.name} fill sizes="(max-width: 640px) 72px, 88px" className="object-contain p-2" /> : <Package className="size-7 text-muted-foreground" aria-hidden="true" />}
         </Link>
         <Link href={`/product/${product.id}`} className="min-w-0 pt-0.5">
           <span className="line-clamp-2 font-semibold hover:text-primary">{product.name}</span>
