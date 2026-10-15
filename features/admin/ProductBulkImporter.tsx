@@ -24,6 +24,7 @@ import {
   X,
   XCircle,
   FolderPlus,
+  FileArchive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,8 +38,9 @@ import {
   type ImportSheetSummary,
   type StockPolicy,
 } from "@/lib/admin-product-import";
+import { BulkImageUploadTab } from "./BulkImageUploadTab";
 
-type ActiveTab = "upload" | "guide" | "columns" | "faq";
+type ActiveTab = "upload" | "images" | "guide" | "columns" | "faq";
 
 export function ProductBulkImporter({ onImported }: { onImported: () => Promise<void> }) {
   const input = useRef<HTMLInputElement>(null);
@@ -940,6 +942,18 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     {products.length}
                   </Badge>
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("images")}
+                className={`flex items-center gap-2 border-b-2 px-4 py-2.5 transition-colors ${
+                  activeTab === "images"
+                    ? "border-primary text-primary font-semibold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <FileArchive className="size-4" />
+                Upload Foto (ZIP)
               </button>
               <button
                 type="button"
@@ -2094,7 +2108,12 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
               </div>
             )}
 
-            {/* TAB 2: PANDUAN & ATURAN SKU */}
+            {/* TAB: BULK UPLOAD FOTO (ZIP) */}
+            {activeTab === "images" && (
+              <BulkImageUploadTab onImagesImported={onImported} />
+            )}
+
+            {/* TAB: PANDUAN & ATURAN SKU */}
             {activeTab === "guide" && (
               <div className="space-y-5 text-sm">
                 {/* 8 Langkah */}

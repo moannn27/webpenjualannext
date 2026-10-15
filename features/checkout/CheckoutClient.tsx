@@ -538,7 +538,7 @@ export function CheckoutClient({
       (it, idx) => `${idx + 1}. ${it.name} (${it.quantity}x) = ${formatCurrency(it.subtotal)}`
     ).join("\n");
 
-    const orderId = placedOrder.orderNumber || `ORD-${Date.now()}`;
+    const orderId = placedOrder.orderNumber || "ORD-PENDING";
     const addressInfo = placedOrder.customerAddress || (placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : "-");
 
     const waInvoiceText =

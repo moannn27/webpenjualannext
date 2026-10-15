@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -42,7 +42,7 @@ interface ProductDetailData {
   description?: string | null;
   product_images?: { id: string; url: string; alt_text?: string | null; is_primary?: boolean }[];
   product_specifications?: { id: string; key: string; value: string; display_order?: number }[];
-  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }[];
+  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null }[];
 }
 
 interface ProductReview {
@@ -75,8 +75,28 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const [loading, setLoading] = useState(false);
   const [cartCountAfterAdd, setCartCountAfterAdd] = useState<number | null>(null);
   const [cartError, setCartError] = useState("");
-  const images = product.product_images?.length ? product.product_images : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
-  const [activeImage, setActiveImage] = useState(images[0]?.url ?? "");
+  const baseImages = useMemo(() => {
+    return product.product_images?.length ? product.product_images : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
+  }, [product.product_images, product.image, product.id, product.name]);
+
+  const images = useMemo(() => {
+    if (selectedVariant?.image_url && !baseImages.some((img) => img.url === selectedVariant.image_url)) {
+      const variantLabel = [selectedVariant.color, selectedVariant.ram, selectedVariant.storage].filter(Boolean).join(" ");
+      return [
+        {
+          id: `variant-${selectedVariant.id}`,
+          url: selectedVariant.image_url,
+          alt_text: `${product.name} ${variantLabel ? `- ${variantLabel}` : ""}`,
+          is_primary: true,
+        },
+        ...baseImages,
+      ];
+    }
+    return baseImages;
+  }, [baseImages, selectedVariant, product.name]);
+
+  const [activeImage, setActiveImage] = useState(() => selectedVariant?.image_url || images[0]?.url || "");
+
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
@@ -233,7 +253,15 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     const otherKeys = (["color", "ram", "storage"] as const).filter((option) => option !== key);
     const exactMatch = variants.find((variant) => variant[key] === value && otherKeys.every((option) => variant[option] === current?.[option]));
     const next = exactMatch ?? variants.find((variant) => variant[key] === value);
-    if (next) { setSelectedVariantId(next.id); setQuantity(1); setCartCountAfterAdd(null); setCartError(""); }
+    if (next) {
+      setSelectedVariantId(next.id);
+      setQuantity(1);
+      setCartCountAfterAdd(null);
+      setCartError("");
+      if (next.image_url) {
+        setActiveImage(next.image_url);
+      }
+    }
   };
   const variantFields = [
     { key: "color", label: "Warna" },

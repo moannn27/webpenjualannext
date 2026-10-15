@@ -76,7 +76,11 @@ export function Navbar({
   const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
   const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
 
-  const [mounted, setMounted] = React.useState(false);
+  const mounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const totalStoreItems = useCartStore((state) => state.getTotalItems());
   const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
   const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
@@ -101,14 +105,6 @@ export function Navbar({
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  React.useEffect(() => {
-    setMounted(true);
-    const localCount = useCartStore.getState().getTotalItems();
-    if (localCount > 0) {
-      setDisplayCartCount((prev) => Math.max(prev, localCount));
-    }
   }, []);
 
   if (cartCount !== previousCartCount) {
