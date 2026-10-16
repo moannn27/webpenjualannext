@@ -50,10 +50,10 @@ export function FaqSection({
             </button>
             <div
               className={`px-6 overflow-hidden transition-all duration-300 ease-in-out ${
-                openIndex === index ? "max-h-40 pb-6 opacity-100" : "max-h-0 opacity-0"
+                openIndex === index ? "max-h-96 pb-6 opacity-100" : "max-h-0 opacity-0"
               }`}
             >
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-line text-sm sm:text-base">
                 {faq.answer}
               </p>
             </div>

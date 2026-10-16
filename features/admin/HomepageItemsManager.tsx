@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Check, CheckCircle2, MessageSquareQuote, Package, Pencil, Plus, Search, Sparkles, Star, Trash, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { deleteHomepageItemAction, getAdminHomepageItemsAction, saveHomepageItemAction } from "@/actions/admin";
+import { deleteHomepageItemAction, getAdminHomepageItemsAction, saveHomepageItemAction, seedDefaultFaqsAction } from "@/actions/admin";
 import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/actions/review";
 
 type FAQ = {
@@ -165,6 +165,20 @@ export function HomepageItemsManager({
     });
   };
 
+  const loadDefaultFaqs = () => {
+    setError("");
+    setNotice("");
+    startTransition(async () => {
+      try {
+        await seedDefaultFaqsAction();
+        await refresh();
+        setNotice("Template FAQ bawaan berhasil dimuat ke database.");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Gagal memuat template FAQ.");
+      }
+    });
+  };
+
   // Filtered reviews for picker modal
   const filteredReviews = useMemo(() => {
     return reviewsList.filter((rev) => {
@@ -259,9 +273,15 @@ export function HomepageItemsManager({
             </article>
           ))}
           {!faqs.length && (
-            <p className="col-span-full rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Belum ada FAQ. Tambahkan FAQ baru untuk pembeli.
-            </p>
+            <div className="col-span-full rounded-xl border border-dashed p-8 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Belum ada FAQ. Tambahkan FAQ baru untuk pembeli atau muat template bawaan.
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={loadDefaultFaqs} disabled={busy}>
+                <Sparkles className="mr-2 size-3.5 text-amber-500" />
+                Muat Template FAQ Bawaan
+              </Button>
+            </div>
           )}
         </div>
       </section>

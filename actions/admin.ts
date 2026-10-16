@@ -10,6 +10,7 @@ import type { EcommerceReport } from '@/lib/admin-reports'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
 import { requireModulePermission, getCurrentAdminPermissions } from '@/lib/auth/permissions'
 import { recordAdminActivity } from '@/lib/audit-log'
+import { DEFAULT_FAQS } from '@/constants/defaultFaqs'
 
 const adminService = new AdminService()
 
@@ -1692,6 +1693,21 @@ export async function deleteHomepageItemAction(type: 'faq' | 'testimonial', id: 
   if (error) throw new Error(error.message)
   revalidatePath('/admin/content')
   revalidatePath('/')
+  return { success: true }
+}
+
+export async function seedDefaultFaqsAction() {
+  await requireSuperAdmin()
+  const supabase = await createClient()
+  const { data: existing } = await supabase.from('faqs').select('id').limit(1)
+  if (existing && existing.length > 0) {
+    return { success: false, message: 'FAQ sudah ada di database.' }
+  }
+  const { error } = await supabase.from('faqs').insert(DEFAULT_FAQS)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/content')
+  revalidatePath('/')
+  revalidatePath('/faq')
   return { success: true }
 }
 
