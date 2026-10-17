@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ProductCard } from "@/components/shared/ProductCard";
-import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { type Product } from "@/store/useProductStore";
 
@@ -15,7 +14,13 @@ interface FeaturedProductsProps {
   viewAllHref?: string;
 }
 
-export function FeaturedProducts({ title, type, initialData = [], subtitle, viewAllHref }: FeaturedProductsProps) {
+export function FeaturedProducts({
+  title,
+  type,
+  initialData = [],
+  subtitle,
+  viewAllHref,
+}: FeaturedProductsProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(4);
@@ -25,7 +30,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle, view
   const touchStartX = useRef<number | null>(null);
   const touchDeltaX = useRef<number>(0);
 
-  // Intersection observer: only animate when visible on screen to save CPU/GPU
+  // Intersection observer: only animate when visible on screen
   useEffect(() => {
     const el = sectionRef.current;
     if (!el || typeof IntersectionObserver === "undefined") {
@@ -42,7 +47,7 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle, view
     return () => observer.disconnect();
   }, []);
 
-  // Detect responsive items per page
+  // Responsive items per page
   useEffect(() => {
     const updateItemsPerPage = () => {
       if (typeof window === "undefined") return;
@@ -74,12 +79,12 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle, view
     setCurrentIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
   }, [canSlide, maxIndex]);
 
-  // Auto rotation: runs only when in view and user is not hovering
+  // Auto rotation
   useEffect(() => {
     if (!canSlide || isPaused || !isInView) return;
     const timer = setInterval(() => {
       goToNext();
-    }, 5000);
+    }, 6000);
     return () => clearInterval(timer);
   }, [canSlide, isPaused, isInView, goToNext]);
 
@@ -108,104 +113,112 @@ export function FeaturedProducts({ title, type, initialData = [], subtitle, view
     setIsPaused(false);
   };
 
+  const browseAllUrl =
+    viewAllHref ?? (type === "promo" ? "/promo" : `/products?sort=${type}`);
+
   return (
     <section ref={sectionRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:mb-10 md:flex-row md:items-end">
-        <div>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2 text-foreground">
-            {title}
-          </h2>
-          <p className="text-base text-muted-foreground sm:text-lg">
-            {subtitle ?? (type === "bestseller" ? "Pilihan terfavorit yang paling banyak dibeli pelanggan." : type === "promo" ? "Penawaran harga terbaik dan potongan spesial." : "Lini produk dan teknologi terbaru yang siap dimiliki.")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          {canSlide && (
-            <div className="flex items-center gap-1.5 mr-2">
-              <button
-                type="button"
-                onClick={goToPrev}
-                aria-label={`Lihat produk ${title} sebelumnya`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-border/80 bg-background text-foreground transition-all hover:bg-muted hover:border-primary/50 shadow-2xs active:scale-95"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={goToNext}
-                aria-label={`Lihat produk ${title} berikutnya`}
-                className="inline-flex size-9 items-center justify-center rounded-full border border-border/80 bg-background text-foreground transition-all hover:bg-muted hover:border-primary/50 shadow-2xs active:scale-95"
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          )}
-
-          <Button
-            variant="outline"
-            className="rounded-full shadow-2xs hover:border-primary/40"
-            aria-label={`Lihat semua ${title}`}
-            render={<Link href={viewAllHref ?? (type === "promo" ? "/promo" : `/products?sort=${type}`)} />}
-          >
-            Lihat semua <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {products.length ? (
-        <div
-          className="relative"
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* Slider Track Viewport */}
-          <div className="overflow-hidden py-2 -mx-2 sm:-mx-2.5">
-            <div
-              className="flex transition-transform duration-500 ease-out"
-              style={{
-                transform: `translate3d(-${safeIndex * (100 / itemsPerPage)}%, 0, 0)`,
-                willChange: "transform",
-              }}
-            >
-              {products.map((product) => (
-                <div
-                  key={product.id}
-                  className="w-full sm:w-1/2 lg:w-1/4 shrink-0 px-2 sm:px-2.5 flex flex-col"
-                >
-                  <ProductCard product={product} />
-                </div>
-              ))}
-            </div>
+      {/* Outer White Card (Screenshot Bottom Container Style: Bestsellers) */}
+      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                {subtitle}
+              </p>
+            )}
           </div>
 
-          {/* Dots Indicator */}
-          {canSlide && (
-            <div className="mt-6 flex items-center justify-center gap-1.5">
-              {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
+          <div className="flex items-center gap-3">
+            {canSlide && (
+              <div className="flex items-center gap-1.5">
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => setCurrentIndex(idx)}
-                  aria-label={`Slide ke-${idx + 1}`}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    currentIndex === idx
-                      ? "w-6 bg-primary shadow-xs"
-                      : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/60"
-                  }`}
-                />
-              ))}
+                  onClick={goToPrev}
+                  aria-label={`Lihat produk ${title} sebelumnya`}
+                  className="size-8 sm:size-9 rounded-full bg-[#F6F7F9] dark:bg-white/5 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition cursor-pointer"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={goToNext}
+                  aria-label={`Lihat produk ${title} berikutnya`}
+                  className="size-8 sm:size-9 rounded-full bg-[#F6F7F9] dark:bg-white/5 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 active:scale-95 transition cursor-pointer"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+            )}
+
+            <Link
+              href={browseAllUrl}
+              className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white hover:underline inline-flex items-center gap-1.5 shrink-0"
+            >
+              Browse all products <ArrowRight className="size-4" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Product Slider / Grid */}
+        {products.length ? (
+          <div
+            className="relative"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Slider Track Viewport */}
+            <div className="overflow-hidden py-1 -mx-2.5">
+              <div
+                className="flex transition-transform duration-500 ease-out"
+                style={{
+                  transform: `translate3d(-${safeIndex * (100 / itemsPerPage)}%, 0, 0)`,
+                  willChange: "transform",
+                }}
+              >
+                {products.map((product) => (
+                  <div
+                    key={product.id}
+                    className="w-full sm:w-1/2 lg:w-1/4 shrink-0 px-2.5 flex flex-col"
+                  >
+                    <ProductCard product={product} />
+                  </div>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed bg-card/60 px-5 py-8 text-center text-sm text-muted-foreground">
-          Produk pilihan akan segera hadir.
-        </div>
-      )}
+
+            {/* Dots Indicator */}
+            {canSlide && (
+              <div className="mt-8 flex items-center justify-center gap-1.5">
+                {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setCurrentIndex(idx)}
+                    aria-label={`Slide ke-${idx + 1}`}
+                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                      currentIndex === idx
+                        ? "w-6 bg-slate-900 dark:bg-white"
+                        : "w-1.5 bg-slate-300 dark:bg-white/20 hover:bg-slate-400"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed bg-slate-50 dark:bg-white/5 px-5 py-12 text-center text-sm text-slate-400">
+            Produk pilihan akan segera hadir.
+          </div>
+        )}
+      </div>
     </section>
   );
 }

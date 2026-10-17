@@ -881,8 +881,12 @@ export function CheckoutClient({
           )}
 
           {/* STEP 1: Identitas & Pilihan Pengantaran / Pickup */}
-          <section hidden={currentStep !== 1} aria-labelledby="fulfillment-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="mb-5 flex items-center gap-3">
+          <section
+            hidden={currentStep !== 1}
+            aria-labelledby="fulfillment-heading"
+            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            <div className="flex items-center gap-3">
               <MapPin className="size-5 text-primary" />
               <div>
                 <h2 id="fulfillment-heading" className="text-lg font-semibold">Pilih cara menerima pesanan</h2>
@@ -978,8 +982,12 @@ export function CheckoutClient({
           </section>
 
           {/* STEP 2: Pengambilan di Toko ATAU Pilihan Kurir Pengiriman */}
-          <section hidden={currentStep !== 2} aria-labelledby="shipping-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="mb-5 flex items-center gap-3">
+          <section
+            hidden={currentStep !== 2}
+            aria-labelledby="shipping-heading"
+            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            <div className="flex items-center gap-3">
               {fulfillmentMode === "pickup" ? <Store className="size-5 text-primary" /> : <Truck className="size-5 text-primary" />}
               <div>
                 <h2 id="shipping-heading" className="text-lg font-semibold">
@@ -1003,7 +1011,7 @@ export function CheckoutClient({
                       className={`flex cursor-pointer items-start gap-3.5 rounded-xl border p-4.5 transition-all duration-200 ${
                         isSelected
                           ? "border-primary bg-primary/5 shadow-xs ring-2 ring-primary/20"
-                          : "border-border hover:border-primary/50 bg-card hover:bg-muted/30"
+                          : "border-slate-200 dark:border-white/10 hover:border-primary/50 bg-[#F8F9FA] dark:bg-white/5 hover:bg-white dark:hover:bg-white/10"
                       }`}
                     >
                       <input
@@ -1045,7 +1053,7 @@ export function CheckoutClient({
                   );
                 })}
 
-                <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 text-xs text-muted-foreground flex items-center gap-2.5">
+                <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-4 text-xs text-muted-foreground flex items-center gap-2.5">
                   <PackageCheck className="size-4 text-emerald-600 shrink-0" />
                   <span>Admin akan menghubungi kamu melalui WhatsApp setelah pesanan siap untuk mengonfirmasi waktu pengambilan.</span>
                 </div>
@@ -1060,7 +1068,9 @@ export function CheckoutClient({
                     <label
                       key={method.code}
                       className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
-                        isSelected ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"
+                        isSelected
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-xs"
+                          : "border-slate-200 dark:border-white/10 hover:border-foreground/30 bg-[#F8F9FA] dark:bg-white/5 hover:bg-white"
                       }`}
                     >
                       <input
@@ -1093,8 +1103,12 @@ export function CheckoutClient({
           </section>
 
           {/* STEP 3: Pembayaran */}
-          <section hidden={currentStep !== 3} aria-labelledby="payment-heading" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="mb-5 flex items-center gap-3">
+          <section
+            hidden={currentStep !== 3}
+            aria-labelledby="payment-heading"
+            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+          >
+            <div className="flex items-center gap-3">
               <Banknote className="size-5 text-primary" />
               <div>
                 <h2 id="payment-heading" className="text-lg font-semibold">Pembayaran</h2>
@@ -1103,16 +1117,16 @@ export function CheckoutClient({
             </div>
             <input type="hidden" name="paymentMethod" value={PAYMENT_METHOD} />
             {fulfillmentMode === "pickup" && <input type="hidden" name="shippingMethod" value="pickup" />}
-            <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-4">
+            <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5">
               <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium">Transfer manual</p>
                 {bankTransfer.length > 0 ? (
-                  <ul className="mt-2 space-y-2">
+                  <ul className="mt-3 space-y-2.5">
                     {bankTransfer.map((b, i) => (
-                      <li key={i} className="rounded-lg border bg-background px-3 py-2 text-sm">
+                      <li key={i} className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card px-4 py-3 text-sm shadow-2xs">
                         <p className="font-semibold">{b.bank_name}</p>
-                        <p className="mt-0.5 font-mono text-base tracking-widest">{b.account_number}</p>
+                        <p className="mt-0.5 font-mono text-base tracking-widest text-primary">{b.account_number}</p>
                         <p className="text-xs text-muted-foreground">a.n. {b.account_holder}</p>
                       </li>
                     ))}
@@ -1120,7 +1134,7 @@ export function CheckoutClient({
                 ) : (
                   <p className="mt-1 text-sm text-muted-foreground">Rekening bank belum diatur. Hubungi admin untuk info transfer.</p>
                 )}
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
                   Setelah transfer, tekan tombol konfirmasi WhatsApp di halaman berikutnya dan kirim bukti pembayaran agar admin memproses pesananmu.
                 </p>
               </div>
@@ -1129,7 +1143,7 @@ export function CheckoutClient({
         </form>
 
         {/* SIDEBAR: Ringkasan Pesanan */}
-        <aside aria-labelledby="summary-heading" className="h-fit rounded-2xl border border-border bg-card p-6 shadow-xs lg:col-span-5">
+        <aside aria-labelledby="summary-heading" className="h-fit rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm lg:col-span-5">
           <h2 id="summary-heading" className="text-lg font-semibold">Ringkasan pesanan</h2>
 
           <div className="mt-6 max-h-72 divide-y divide-border overflow-y-auto pr-1">

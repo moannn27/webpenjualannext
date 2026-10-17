@@ -62,6 +62,17 @@ export class CartRepository extends BaseRepository {
     }
   }
 
+  async getItemById(itemId: string) {
+    const supabase = await this.getClient()
+    const { data, error } = await supabase
+      .from('cart_items')
+      .select('id, cart_id, product_id, variant_id, quantity')
+      .eq('id', itemId)
+      .maybeSingle()
+    if (error) throw error
+    return data
+  }
+
   async updateItem(itemId: string, quantity: number) {
     const supabase = await this.getClient()
     const { error } = await supabase

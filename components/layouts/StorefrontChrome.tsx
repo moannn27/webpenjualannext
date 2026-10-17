@@ -6,6 +6,7 @@ import { Footer } from "@/components/layouts/Footer";
 import { RecommendationChat } from "@/features/chat/RecommendationChat";
 import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import { ToastNotification } from "@/components/shared/ToastNotification";
+import { ScrollToTopButton } from "@/components/shared/ScrollToTopButton";
 import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { AlertTriangle, Sparkles } from "lucide-react";
@@ -53,6 +54,7 @@ export function StorefrontChrome({
       {features?.ai_recommendation_chat !== false && (
         <RecommendationChat whatsappNumber={settings.store.whatsapp || ""} />
       )}
+      <ScrollToTopButton />
       <ToastNotification />
       <MobileStickyCartBar />
     </>

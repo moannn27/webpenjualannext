@@ -84,6 +84,7 @@ export async function submitReviewAction(formData: FormData) {
 
   if (!productId) throw new Error("Produk tidak valid.")
   if (isNaN(rating) || rating < 1 || rating > 5) throw new Error("Rating harus antara 1 sampai 5 bintang.")
+  if (comment.length > 1000) throw new Error("Ulasan maksimal 1000 karakter.")
 
   await reviewService.createReview(user.id, productId, rating, comment)
   revalidatePath(`/product/${productId}`)

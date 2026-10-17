@@ -311,8 +311,8 @@ export function CustomerAccountsManager({
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Akun Pengguna & Staf</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Akun Pengguna & Staf</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Kelola profil pelanggan dan atur hak akses granular staf admin toko.
           </p>
         </div>
@@ -320,22 +320,24 @@ export function CustomerAccountsManager({
           <Button
             type="button"
             variant="outline"
+            className="rounded-full border-slate-200/90 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 text-xs px-4 font-semibold"
             onClick={() => {
               setExportError("");
               setOpenExportModal(true);
             }}
           >
-            <Download className="mr-2 size-4" />
+            <Download className="mr-2 size-3.5" />
             Ekspor Data Pengguna
           </Button>
           {canManageAccounts && (
             <Button
+              className="rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4 shadow-sm"
               onClick={() => {
                 setError("");
                 setOpenCreateModal(true);
               }}
             >
-              <Plus className="mr-2 size-4" />
+              <Plus className="mr-1.5 size-3.5" />
               Tambah akun
             </Button>
           )}
@@ -371,12 +373,12 @@ export function CustomerAccountsManager({
       )}
 
       {canManageAccounts && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+        <div className="rounded-2xl border border-blue-200/80 bg-[#EFF6FF] dark:border-blue-900/40 dark:bg-blue-950/20 p-4 text-sm text-blue-900 dark:text-blue-200">
           <p className="font-semibold flex items-center gap-2">
-            <ShieldCheck className="size-4 text-primary" />
+            <ShieldCheck className="size-4 text-[#2563EB] dark:text-blue-400" />
             Pengaturan Hak Akses Staf Admin
           </p>
-          <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
+          <p className="mt-1 text-blue-700 dark:text-blue-300/80 text-xs leading-relaxed">
             Sebagai Super Admin, Anda dapat memberikan akses spesifik ke staf (contoh: hanya Produk & Kategori untuk staf katalog). Tindakan pengubahan data oleh staf akan tercatat di menu Log Aktivitas.
           </p>
         </div>
@@ -388,73 +390,86 @@ export function CustomerAccountsManager({
         </p>
       )}
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border bg-card">
-        <Table className="min-w-[850px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nama Pengguna</TableHead>
-              <TableHead>Telepon</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Izin Akses Fitur</TableHead>
-              <TableHead>Bergabung</TableHead>
-              {canManageAccounts && <TableHead className="text-right">Aksi & Role</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {customers.map((customer) => {
-              const isAdmin = customer.role === "admin";
-              const customerIsSuperAdmin = customer.role === "super_admin";
-              const userPerms = adminPermissions[customer.id] || DEFAULT_ADMIN_PERMISSIONS;
+      {/* Table Container */}
+      <div className="rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] shadow-sm p-4 sm:p-6">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028]">
+          <Table className="min-w-[850px]">
+            <TableHeader className="bg-slate-50/75 dark:bg-white/[0.02]">
+              <TableRow>
+                <TableHead>Nama Pengguna</TableHead>
+                <TableHead>Telepon</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Izin Akses Fitur</TableHead>
+                <TableHead>Bergabung</TableHead>
+                {canManageAccounts && <TableHead className="text-right">Aksi & Role</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {customers.map((customer) => {
+                const isAdmin = customer.role === "admin";
+                const customerIsSuperAdmin = customer.role === "super_admin";
+                const userPerms = adminPermissions[customer.id] || DEFAULT_ADMIN_PERMISSIONS;
 
-              return (
-                <TableRow
-                  key={customer.id}
-                  className={
-                    customer.is_password_locked
-                      ? "bg-destructive/5 hover:bg-destructive/10 transition-colors"
-                      : undefined
-                  }
-                >
-                  {/* Nama */}
-                  <TableCell className="font-medium">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p>{customer.full_name || "Belum mengisi nama"}</p>
-                        {customer.is_password_locked && (
-                          <Badge
-                            variant="destructive"
-                            className="gap-1 text-[10px] font-semibold py-0.5 px-1.5 animate-pulse"
-                          >
-                            <ShieldAlert className="size-3" />
-                            Terkunci (3x Gagal Sandi)
-                          </Badge>
+                return (
+                  <TableRow
+                    key={customer.id}
+                    className={
+                      customer.is_password_locked
+                        ? "bg-destructive/5 hover:bg-destructive/10 transition-colors"
+                        : undefined
+                    }
+                  >
+                    {/* Nama */}
+                    <TableCell className="font-medium">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p>{customer.full_name || "Belum mengisi nama"}</p>
+                          {customer.is_password_locked && (
+                            <Badge
+                              variant="destructive"
+                              className="gap-1 text-[10px] font-semibold py-0.5 px-1.5 animate-pulse"
+                            >
+                              <ShieldAlert className="size-3" />
+                              Terkunci (3x Gagal Sandi)
+                            </Badge>
+                          )}
+                        </div>
+                        {customer.email && (
+                          <p className="text-xs text-muted-foreground font-normal">{customer.email}</p>
                         )}
                       </div>
-                      {customer.email && (
-                        <p className="text-xs text-muted-foreground font-normal">{customer.email}</p>
-                      )}
-                    </div>
-                  </TableCell>
+                    </TableCell>
 
-                  {/* Telepon */}
-                  <TableCell>{customer.phone || "—"}</TableCell>
+                    {/* Telepon */}
+                    <TableCell>{customer.phone || "—"}</TableCell>
 
-                  {/* Role */}
-                  <TableCell>
-                    <Badge
-                      variant={
-                        customerIsSuperAdmin ? "default" : isAdmin ? "secondary" : "outline"
-                      }
-                      className={customerIsSuperAdmin ? "bg-primary" : isAdmin ? "bg-primary/20 text-primary border-primary/30" : ""}
-                    >
-                      {customer.role === "super_admin"
-                        ? "Super Admin"
-                        : customer.role === "admin"
-                        ? "Admin"
-                        : "Pelanggan"}
-                    </Badge>
-                  </TableCell>
+                    {/* Role */}
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          customerIsSuperAdmin
+                            ? "bg-[#F5F3FF] text-[#7C3AED] border border-[#DDD6FE] dark:bg-purple-950/40 dark:text-purple-300"
+                            : isAdmin
+                            ? "bg-[#EFF6FF] text-[#2563EB] border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300"
+                            : "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-white/5 dark:text-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`size-1.5 rounded-full ${
+                            customerIsSuperAdmin
+                              ? "bg-purple-500"
+                              : isAdmin
+                              ? "bg-blue-500"
+                              : "bg-slate-400"
+                          }`}
+                        />
+                        {customer.role === "super_admin"
+                          ? "Super Admin"
+                          : customer.role === "admin"
+                          ? "Admin"
+                          : "Pelanggan"}
+                      </span>
+                    </TableCell>
 
                   {/* Izin Akses */}
                   <TableCell>
@@ -626,6 +641,7 @@ export function CustomerAccountsManager({
           </TableBody>
         </Table>
       </div>
+    </div>
 
       {/* Modal Atur Izin Akses Granular */}
       {permModalUser && (

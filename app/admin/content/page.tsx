@@ -23,16 +23,18 @@ export default async function LandingContentPage() {
   ]);
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Pengaturan halaman depan</h1>
-        <p className="mt-1 max-w-3xl text-muted-foreground">
-          Kelola hero, section, produk pilihan, testimoni, FAQ, dan informasi toko tanpa mengubah kode.
-        </p>
-      </div>
-      <section className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Hero dan banner</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Pengaturan Halaman Depan</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Kelola hero banner, section, produk pilihan, testimoni, FAQ, dan informasi toko tanpa mengubah kode.
+          </p>
+        </div>
+      </div>
+      <section className="space-y-4 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] shadow-sm p-5 sm:p-6">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Hero dan banner</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Gambar, headline, deskripsi, tombol, urutan, dan status tayang.
           </p>
         </div>

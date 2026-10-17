@@ -18,7 +18,10 @@ export function AdminShell({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div data-admin-shell className="min-h-screen bg-muted/30">
+    <div
+      data-admin-shell
+      className="min-h-screen bg-[#F0F2F9] dark:bg-[#18191E] text-slate-800 dark:text-slate-100 font-sans antialiased selection:bg-[#7C5CFC] selection:text-white transition-colors duration-200"
+    >
       <AdminSidebar
         isSuperAdmin={isSuperAdmin}
         permissions={permissions}

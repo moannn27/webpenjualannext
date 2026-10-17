@@ -356,24 +356,41 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     });
   };
 
-  return <div className="space-y-4">
+  return <div className="rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] shadow-sm p-4 sm:p-6 space-y-5">
     <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-      <div className="relative w-full max-w-sm"><Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} type="search" placeholder="Cari nama, SKU, tipe, spek..." className="w-full bg-background pl-9" /></div>
-      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row"><ProductBulkImporter onImported={refresh} /><Button className="w-full sm:w-auto" onClick={() => { setError(""); setSpecifications([]); setVariants([]); setDiscountEnabled(false); setDirectStock(0); setEditing(null); }}><Plus className="mr-2 size-4" />Tambah produk</Button></div>
+      <div className="relative w-full max-w-sm">
+        <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          type="search"
+          placeholder="Cari nama, SKU, tipe, spek..."
+          className="w-full rounded-full border-slate-200/90 dark:border-white/10 bg-slate-50/60 dark:bg-[#18191E] pl-9 text-xs focus-visible:ring-[#2563EB]/30"
+        />
+      </div>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <ProductBulkImporter onImported={refresh} />
+        <Button
+          className="w-full sm:w-auto rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs text-xs px-4"
+          onClick={() => { setError(""); setSpecifications([]); setVariants([]); setDiscountEnabled(false); setDirectStock(0); setEditing(null); }}
+        >
+          <Plus className="mr-1.5 size-4" />Tambah produk
+        </Button>
+      </div>
     </div>
 
     {/* Filter Toolbar Card */}
-    <div className="rounded-xl border bg-card p-3.5 shadow-xs space-y-3">
+    <div className="rounded-2xl border border-slate-200/80 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-4 space-y-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Quick Stock Filter Badges */}
           <button
             type="button"
             onClick={() => setStockFilter("all")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               stockFilter === "all"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                ? "bg-[#2563EB] text-white shadow-xs"
+                : "bg-white dark:bg-[#23252C] text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/10 hover:bg-slate-100"
             }`}
           >
             Semua ({products.length})
@@ -381,10 +398,10 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <button
             type="button"
             onClick={() => setStockFilter(stockFilter === "out_of_stock" ? "all" : "out_of_stock")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               stockFilter === "out_of_stock"
                 ? "bg-rose-600 text-white shadow-xs"
-                : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/60"
+                : "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100"
             }`}
           >
             ⚠️ Stok Kosong ({outOfStockCount})
@@ -392,10 +409,10 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <button
             type="button"
             onClick={() => setStockFilter(stockFilter === "low_stock" ? "all" : "low_stock")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               stockFilter === "low_stock"
                 ? "bg-amber-600 text-white shadow-xs"
-                : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                : "bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100"
             }`}
           >
             ⚡ Stok Menipis ({lowStockCount})
@@ -403,10 +420,10 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <button
             type="button"
             onClick={() => setStockFilter(stockFilter === "in_stock" ? "all" : "in_stock")}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               stockFilter === "in_stock"
                 ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60"
+                : "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100"
             }`}
           >
             ✓ Stok Tersedia ({inStockCount})
@@ -664,9 +681,9 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       </div>
     )}
 
-    <div className="overflow-x-auto rounded-xl border bg-card">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028]">
       <Table className="min-w-[800px]">
-        <TableHeader>
+        <TableHeader className="bg-slate-50/75 dark:bg-white/[0.02]">
           <TableRow>
             <TableHead className="w-10 text-center">
               <input
@@ -802,9 +819,30 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                   Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={product.status === "published" ? "default" : "secondary"}>
-                    {product.status}
-                  </Badge>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      product.status === "published"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40"
+                        : product.status === "draft"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40"
+                        : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        product.status === "published"
+                          ? "bg-emerald-500"
+                          : product.status === "draft"
+                          ? "bg-amber-500"
+                          : "bg-slate-400"
+                      }`}
+                    />
+                    {product.status === "published"
+                      ? "Terbit"
+                      : product.status === "draft"
+                      ? "Draf"
+                      : "Diarsipkan"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">

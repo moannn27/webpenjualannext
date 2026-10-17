@@ -139,22 +139,23 @@ export function BranchLocatorSection({
     "Temukan lokasi toko terdekat beserta informasi kontak, jam operasional, dan petunjuk arah.";
 
   return (
-    <section id="cabang" className="border-t bg-muted/20 py-14 sm:py-20">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="cabang" className="container mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Outer White Card Container (Matching Reference Aesthetic) */}
+      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Top Header */}
         <div className="mb-8 max-w-4xl">
           <span className="inline-block text-xs font-bold tracking-wider text-primary uppercase mb-2">
             {sectionTag}
           </span>
           <div className="flex flex-wrap items-baseline gap-3">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
               {sectionTitle}
             </h2>
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
+            <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs sm:text-sm font-bold text-primary">
               {badgeText}
             </span>
           </div>
-          <p className="mt-2 text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
+          <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-3xl">
             {sectionSubtitle}
           </p>
         </div>
@@ -163,7 +164,7 @@ export function BranchLocatorSection({
         <div className="mb-8 space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
@@ -180,13 +181,13 @@ export function BranchLocatorSection({
                   }
                 }}
                 placeholder="Ketik kota atau nama cabang..."
-                className="w-full rounded-xl border border-input bg-card py-3 pl-12 pr-16 text-sm sm:text-base font-medium text-foreground placeholder:text-muted-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full rounded-xl border border-slate-300 dark:border-white/20 bg-white dark:bg-slate-900 py-3 pl-12 pr-16 text-sm sm:text-base font-medium text-slate-900 dark:text-white placeholder:text-muted-foreground shadow-2xs hover:border-slate-400 dark:hover:border-white/30 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                 >
                   Reset
                 </button>
@@ -196,14 +197,14 @@ export function BranchLocatorSection({
               href={waChatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] px-6 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition hover:scale-[1.01] active:scale-95 shrink-0"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] px-6 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition hover:scale-[1.01] active:scale-95 shrink-0 cursor-pointer"
             >
               <MessageCircle className="size-5 fill-white text-[#25D366]" />
               <span>Chat WhatsApp</span>
             </a>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>
               {activeBranches.length > 0
                 ? "Ketik kota atau lokasi Anda di atas untuk mencari cabang terdekat."
@@ -212,16 +213,16 @@ export function BranchLocatorSection({
             {/* Quick City Filter Pills if multiple cities exist */}
             {availableCities.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-muted-foreground">Pilih Kota:</span>
+                <span className="text-[11px] font-semibold text-slate-400">Pilih Kota:</span>
                 {availableCities.map((city) => (
                   <button
                     key={city}
                     type="button"
                     onClick={() => handleCityPillClick(city)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition cursor-pointer ${
                       searchQuery.toLowerCase() === city.toLowerCase()
                         ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "bg-card border border-border text-foreground hover:bg-muted"
+                        : "bg-[#F8F9FA] dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-[#F2F4F7]"
                     }`}
                   >
                     {city}
@@ -235,7 +236,7 @@ export function BranchLocatorSection({
         {/* Map & Branch List Layout */}
         <div className="grid gap-6 lg:grid-cols-12 items-start">
           {/* Main Leaflet Map View */}
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-8 rounded-2xl border border-slate-200/80 dark:border-white/10 overflow-hidden shadow-2xs">
             <LeafletBranchMap
               branches={filteredBranches}
               selectedBranch={selectedBranch}
@@ -247,23 +248,23 @@ export function BranchLocatorSection({
           <div className="lg:col-span-4 flex flex-col gap-4">
             {/* Selected Branch Spotlight Card */}
             {selectedBranch ? (
-              <div className="rounded-2xl border border-primary/20 bg-card p-5 shadow-sm">
+              <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5 shadow-xs">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary uppercase tracking-wide">
                     📍 {selectedBranch.city}
                   </span>
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     {activeBranches.length > 0 ? "Cabang Terpilih" : "Toko Utama"}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
                   {selectedBranch.name}
                 </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
                   {selectedBranch.address || "Alamat toko belum diatur."}
                 </p>
 
-                <div className="space-y-1.5 text-xs text-muted-foreground border-t border-border pt-3 mb-4">
+                <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-white/10 pt-3 mb-4">
                   {selectedBranch.operating_hours && (
                     <div className="flex items-center gap-2">
                       <Clock className="size-3.5 text-primary shrink-0" />
@@ -283,7 +284,7 @@ export function BranchLocatorSection({
                     href={selectedBranch.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${selectedBranch.name} ${selectedBranch.address}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-muted/40 hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card hover:bg-slate-50 dark:hover:bg-white/10 px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 transition shadow-2xs"
                   >
                     <ExternalLink className="size-3.5" />
                     <span>Petunjuk Arah</span>
@@ -302,21 +303,21 @@ export function BranchLocatorSection({
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              <div className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6 text-center text-xs text-slate-400">
                 Belum ada lokasi toko atau cabang yang dikonfigurasi. Atur melalui Admin Panel.
               </div>
             )}
 
             {/* List of matching branches */}
             {displayBranches.length > 1 && (
-              <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-                <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-3 px-1">
+              <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-4 shadow-xs">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-900 dark:text-white mb-3 px-1">
                   <span>Daftar Cabang ({filteredBranches.length})</span>
                   {filteredBranches.length !== displayBranches.length && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
-                      className="text-primary hover:underline"
+                      className="text-primary hover:underline cursor-pointer"
                     >
                       Tampilkan Semua
                     </button>
@@ -330,37 +331,37 @@ export function BranchLocatorSection({
                         key={branch.id}
                         type="button"
                         onClick={() => handleSelectBranch(branch)}
-                        className={`w-full text-left rounded-xl p-3 transition flex items-center justify-between gap-3 border ${
+                        className={`w-full text-left rounded-xl p-3 transition flex items-center justify-between gap-3 border cursor-pointer ${
                           isCur
-                            ? "border-primary bg-primary/5 text-foreground shadow-xs font-medium"
-                            : "border-transparent bg-muted/30 hover:bg-muted/70 text-foreground"
+                            ? "border-primary/50 bg-primary/10 text-primary font-medium shadow-2xs"
+                            : "border-slate-200/70 dark:border-white/10 bg-white dark:bg-slate-900/60 hover:bg-[#F2F4F7] text-slate-800 dark:text-slate-200"
                         }`}
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span
                               className={`text-[10px] font-bold uppercase rounded px-1.5 py-0.5 ${
-                                isCur ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                                isCur ? "bg-primary text-primary-foreground" : "bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300"
                               }`}
                             >
                               {branch.city}
                             </span>
                             <span className="truncate text-xs font-bold">{branch.name}</span>
                           </div>
-                          <p className="truncate text-[11px] mt-1 text-muted-foreground">
+                          <p className="truncate text-[11px] mt-1 text-slate-500 dark:text-slate-400">
                             {branch.address}
                           </p>
                         </div>
                         <ChevronRight
                           className={`size-4 shrink-0 ${
-                            isCur ? "text-primary" : "text-muted-foreground"
+                            isCur ? "text-primary" : "text-slate-400"
                           }`}
                         />
                       </button>
                     );
                   })}
                   {!filteredBranches.length && (
-                    <div className="py-6 text-center text-xs text-muted-foreground">
+                    <div className="py-6 text-center text-xs text-slate-400">
                       Tidak ada cabang yang cocok dengan pencarian &quot;{searchQuery}&quot;.
                     </div>
                   )}

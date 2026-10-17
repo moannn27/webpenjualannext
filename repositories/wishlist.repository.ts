@@ -20,7 +20,7 @@ export class WishlistRepository extends BaseRepository {
       .select('id')
       .eq('user_id', userId)
       .eq('product_id', productId)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       // Remove

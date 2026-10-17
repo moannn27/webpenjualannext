@@ -848,22 +848,22 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-4 text-xs font-medium">
           {(chartMetric === "combined" || chartMetric === "revenue") && (
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <span className="size-2.5 rounded-full bg-primary ring-2 ring-primary/20" />
-              Pendapatan Omset (Rp)
+            <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+              <span className="size-2.5 rounded-xs bg-[#7C5CFC] ring-2 ring-[#7C5CFC]/25" />
+              Omset Selesai (Rp)
             </span>
           )}
           {chartMetric === "combined" && (
-            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
-              <span className="h-3 w-2 rounded-xs bg-emerald-500/80 ring-1 ring-emerald-500/30" />
-              Pilar Volume Pesanan (Trx)
+            <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <span className="size-2.5 rounded-xs bg-[#FFB020] ring-2 ring-[#FFB020]/25" />
+              Volume Pesanan (Trx)
             </span>
           )}
           {chartMetric === "orders" && (
-            <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
-              <span className="size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+            <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+              <span className="size-2.5 rounded-xs bg-[#FFB020] ring-2 ring-[#FFB020]/25" />
               Volume Pesanan Selesai (Trx)
             </span>
           )}
@@ -901,28 +901,28 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
           onMouseLeave={() => setHoverIndex(null)}
         >
           <defs>
-            {/* Revenue Area Gradient */}
+            {/* Revenue Area Gradient (Finly Violet) */}
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.28" />
-              <stop offset="85%" stopColor="var(--primary)" stopOpacity="0.02" />
-              <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.00" />
+              <stop offset="0%" stopColor="#7C5CFC" stopOpacity="0.25" />
+              <stop offset="85%" stopColor="#7C5CFC" stopOpacity="0.02" />
+              <stop offset="100%" stopColor="#7C5CFC" stopOpacity="0.00" />
             </linearGradient>
 
-            {/* Orders Area Gradient (when orders only mode is active) */}
+            {/* Orders Area Gradient (Finly Amber) */}
             <linearGradient id={`${gradientId}-orders-area`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.24" />
-              <stop offset="85%" stopColor="#10b981" stopOpacity="0.03" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
+              <stop offset="0%" stopColor="#FFB020" stopOpacity="0.25" />
+              <stop offset="85%" stopColor="#FFB020" stopOpacity="0.03" />
+              <stop offset="100%" stopColor="#FFB020" stopOpacity="0.00" />
             </linearGradient>
 
-            {/* Volume Pillar Gradient (Combined Mode) */}
+            {/* Volume Pillar Gradient (Finly Amber) */}
             <linearGradient id={`${gradientId}-pillar`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.45" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.10" />
+              <stop offset="0%" stopColor="#FFB020" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#FFB020" stopOpacity="0.12" />
             </linearGradient>
 
             <filter id={`${gradientId}-glow`} x1="-20%" y1="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--primary)" floodOpacity="0.3" />
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#7C5CFC" floodOpacity="0.35" />
             </filter>
           </defs>
 
@@ -984,8 +984,8 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                 <path
                   d={ordersSpline}
                   fill="none"
-                  stroke="#10b981"
-                  strokeWidth="3"
+                  stroke="#FFB020"
+                  strokeWidth="3.2"
                   strokeLinejoin="round"
                   strokeLinecap="round"
                   className="chart-path-animated transition-all duration-300 ease-out"
@@ -1022,7 +1022,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                       rx="3"
                       ry="3"
                       fill={`url(#${gradientId}-pillar)`}
-                      stroke="#10b981"
+                      stroke="#FFB020"
                       strokeWidth={isHovered ? 2 : 1.2}
                       className="transition-all duration-150"
                     />
@@ -1032,7 +1032,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                         x={point.x}
                         y={pillarY - 4}
                         textAnchor="middle"
-                        fill="#059669"
+                        fill="#D97706"
                         fontSize="9"
                         fontWeight="bold"
                         className="font-mono"
@@ -1051,8 +1051,8 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
             <path
               d={revenueSpline}
               fill="none"
-              stroke="var(--primary)"
-              strokeWidth="3.2"
+              stroke="#7C5CFC"
+              strokeWidth="3.5"
               strokeLinejoin="round"
               strokeLinecap="round"
               filter={`url(#${gradientId}-glow)`}
@@ -1068,7 +1068,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                 y1={inset.y}
                 x2={activeHoverItem.x}
                 y2={inset.y + plotHeight}
-                stroke={chartMetric === "orders" ? "#10b981" : "var(--primary)"}
+                stroke={chartMetric === "orders" ? "#FFB020" : "#7C5CFC"}
                 strokeOpacity="0.45"
                 strokeWidth="1.5"
                 strokeDasharray="3 3"
@@ -1080,7 +1080,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                   cx={activeHoverItem.x}
                   cy={activeHoverItem.orderOnlyY}
                   r="7.5"
-                  fill="#10b981"
+                  fill="#FFB020"
                   stroke="#ffffff"
                   strokeWidth="2.5"
                   className="animate-pulse"
@@ -1090,7 +1090,7 @@ export function SalesChart({ points: rawPoints, days = 30 }: SalesChartProps) {
                   cx={activeHoverItem.x}
                   cy={activeHoverItem.y}
                   r="7.5"
-                  fill="var(--primary)"
+                  fill="#7C5CFC"
                   stroke="#ffffff"
                   strokeWidth="2.5"
                   className="animate-pulse"

@@ -233,33 +233,33 @@ export function HomepageItemsManager({
       )}
 
       {/* SECTION 1: FAQ */}
-      <section className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6 shadow-sm">
+      <section className="space-y-4 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">FAQ</h2>
-            <p className="text-sm text-muted-foreground">Kelola pertanyaan umum yang tampil di halaman depan.</p>
+            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">FAQ</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Kelola pertanyaan umum yang tampil di halaman depan.</p>
           </div>
-          <Button onClick={() => setEditing({ type: "faq" })}>
-            <Plus className="mr-2 size-4" /> Tambah FAQ
+          <Button onClick={() => setEditing({ type: "faq" })} className="rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4 shadow-sm">
+            <Plus className="mr-1.5 size-3.5" /> Tambah FAQ
           </Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           {faqs.map((item) => (
-            <article key={item.id} className="min-w-0 rounded-xl border p-4 hover:border-foreground/20 transition-colors">
+            <article key={item.id} className="min-w-0 rounded-2xl border border-slate-200/80 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.02] p-4 hover:shadow-xs transition-all">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-medium text-foreground">{item.question}</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{item.question}</h3>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        item.is_active ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        item.is_active ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-400"
                       }`}
                     >
                       {item.is_active ? "Tayang" : "Disembunyikan"}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">{item.answer}</p>
+                  <p className="mt-1 line-clamp-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{item.answer}</p>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button variant="ghost" size="icon-sm" aria-label="Edit" onClick={() => setEditing({ type: "faq", item })}>
@@ -273,12 +273,12 @@ export function HomepageItemsManager({
             </article>
           ))}
           {!faqs.length && (
-            <div className="col-span-full rounded-xl border border-dashed p-8 text-center space-y-3">
-              <p className="text-sm text-muted-foreground">
+            <div className="col-span-full rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-8 text-center space-y-3">
+              <p className="text-sm text-slate-500">
                 Belum ada FAQ. Tambahkan FAQ baru untuk pembeli atau muat template bawaan.
               </p>
-              <Button type="button" variant="outline" size="sm" onClick={loadDefaultFaqs} disabled={busy}>
-                <Sparkles className="mr-2 size-3.5 text-amber-500" />
+              <Button type="button" variant="outline" size="sm" onClick={loadDefaultFaqs} disabled={busy} className="rounded-full text-xs">
+                <Sparkles className="mr-1.5 size-3.5 text-amber-500" />
                 Muat Template FAQ Bawaan
               </Button>
             </div>
@@ -287,16 +287,16 @@ export function HomepageItemsManager({
       </section>
 
       {/* SECTION 2: TESTIMONI PELANGGAN */}
-      <section className="space-y-4 rounded-2xl border bg-card p-5 sm:p-6 shadow-sm">
+      <section className="space-y-4 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-semibold">Testimoni pelanggan</h2>
-              <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Testimoni pelanggan</h2>
+              <span className="rounded-full bg-[#EFF6FF] dark:bg-blue-950/30 text-[#2563EB] dark:text-blue-400 px-2.5 py-0.5 text-xs font-semibold">
                 {testimonials.length} Testimoni
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               Kelola testimoni yang tampil di halaman depan. Ambil otomatis dari review pembeli produk atau buat manual.
             </p>
           </div>
@@ -307,16 +307,17 @@ export function HomepageItemsManager({
                 setError("");
                 setIsReviewPickerOpen(true);
               }}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              className="rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4 shadow-sm"
             >
-              <Sparkles className="mr-2 size-4 text-amber-300" />
+              <Sparkles className="mr-1.5 size-3.5 text-amber-300" />
               Ambil Dari Review Produk
             </Button>
             <Button
               variant="outline"
               onClick={() => setEditing({ type: "testimonial" })}
+              className="rounded-full border-slate-200/90 dark:border-white/10 text-xs px-4 font-semibold"
             >
-              <Plus className="mr-2 size-4" />
+              <Plus className="mr-1.5 size-3.5" />
               Tambah Manual
             </Button>
           </div>
@@ -328,7 +329,7 @@ export function HomepageItemsManager({
             return (
               <article
                 key={item.id}
-                className="min-w-0 rounded-xl border p-4.5 bg-card hover:border-foreground/20 transition-all flex flex-col justify-between"
+                className="min-w-0 rounded-2xl border border-slate-200/80 dark:border-white/5 p-4.5 bg-slate-50/50 dark:bg-white/[0.02] hover:shadow-xs transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-start justify-between gap-3">

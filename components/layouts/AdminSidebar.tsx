@@ -27,6 +27,8 @@ import {
   History,
   TicketPercent,
   SlidersHorizontal,
+  ChevronRight,
+  Plus,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -201,29 +203,36 @@ export function AdminSidebar({
                 }
               }}
               className={cn(
-                "relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-all",
-                collapsed ? "justify-center px-2 lg:px-2" : "justify-between px-3",
-                isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                "relative flex items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold transition-all",
+                collapsed ? "justify-center px-2 lg:px-2" : "justify-between px-3.5",
+                isActive
+                  ? "bg-[#2563EB] text-white shadow-md shadow-blue-500/25"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-blue-50/70 dark:hover:bg-blue-950/20 hover:text-[#2563EB] dark:hover:text-[#60A5FA]"
               )}
             >
               <span className="flex min-w-0 items-center gap-3">
-                <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-400 dark:text-slate-500 group-hover:text-[#2563EB]")} />
                 <span className={collapsed ? "lg:hidden" : "truncate"}>{link.name}</span>
               </span>
-              {link.href === "/admin/orders" && pendingOrders > 0 && (
-                <span aria-hidden="true" className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
-                  {pendingOrders > 99 ? "99+" : pendingOrders}
-                </span>
-              )}
-              {link.href === "/admin/customers" && lockedAccountsCount > 0 && (
-                <span
-                  aria-hidden="true"
-                  title={`${lockedAccountsCount} akun pelanggan terkunci & butuh reset password`}
-                  className="grid min-h-5 min-w-5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white animate-pulse"
-                >
-                  {lockedAccountsCount > 99 ? "99+" : lockedAccountsCount}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {link.href === "/admin/orders" && pendingOrders > 0 && (
+                  <span aria-hidden="true" className="grid min-h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                    {pendingOrders > 99 ? "99+" : pendingOrders}
+                  </span>
+                )}
+                {link.href === "/admin/customers" && lockedAccountsCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    title={`${lockedAccountsCount} akun pelanggan terkunci & butuh reset password`}
+                    className="grid min-h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white animate-pulse"
+                  >
+                    {lockedAccountsCount > 99 ? "99+" : lockedAccountsCount}
+                  </span>
+                )}
+                {isActive && !collapsed && (
+                  <ChevronRight className="size-4 shrink-0 text-white/90 hidden lg:block" />
+                )}
+              </div>
             </Link>
           );
         })}
@@ -252,47 +261,35 @@ export function AdminSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-all duration-200",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#23252C] shadow-xs transition-all duration-200",
           collapsed ? "lg:w-[76px]" : "lg:w-64",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className={cn("flex h-16 items-center border-b", collapsed ? "justify-between px-6 lg:justify-center lg:px-2" : "justify-between px-6")}>
-          {(() => {
-            const adminLogo = storeSettings?.store?.admin_logo_url || storeSettings?.store?.logo_url || "";
-            const displayMode = storeSettings?.store?.logo_display_mode || "both";
-            const showLogo = Boolean(adminLogo) && (displayMode === "both" || displayMode === "logo_only");
-            const showText = !adminLogo || displayMode === "both" || displayMode === "text_only";
-            const brandInitial = (storeSettings?.store?.name || "N").slice(0, 1).toUpperCase();
-
-            return (
-              <Link href="/admin" className="flex items-center gap-2">
-                {showLogo ? (
-                  <img
-                    src={adminLogo}
-                    alt={storeSettings?.store?.name || "Admin"}
-                    className="w-8 h-8 rounded-lg object-contain bg-background"
-                  />
-                ) : (
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <span className="text-primary-foreground font-bold text-lg">{brandInitial}</span>
-                  </div>
-                )}
-                {showText && (
-                  <span className={cn("text-xl font-bold tracking-tight text-primary", collapsed && "lg:hidden")}>
-                    Admin
-                  </span>
-                )}
-              </Link>
-            );
-          })()}
+        <div className={cn("flex h-18 items-center border-b border-slate-100 dark:border-white/5", collapsed ? "justify-between px-4 lg:justify-center lg:px-2" : "justify-between px-5")}>
+          <Link href="/admin" className="flex items-center gap-2.5">
+            {/* Finly brand 3 rising bars icon */}
+            <div className="flex items-end gap-1 h-6 shrink-0">
+              <span className="w-1.5 h-3 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
+              <span className="w-1.5 h-4.5 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
+              <span className="w-1.5 h-6 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
+            </div>
+            <div className={cn("flex flex-col", collapsed && "lg:hidden")}>
+              <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white leading-none">
+                Next Solution
+              </span>
+              <span className="text-[10px] font-semibold text-[#2563EB] tracking-wider uppercase mt-1">
+                Admin Panel
+              </span>
+            </div>
+          </Link>
           {!collapsed && (
             <button
               type="button"
               onClick={onToggleCollapse}
               aria-label="Ciutkan navigasi"
               title="Ciutkan navigasi"
-              className="hidden rounded-lg p-2 text-muted-foreground hover:bg-muted lg:grid"
+              className="hidden rounded-xl p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 lg:grid transition-colors"
             >
               <PanelLeftClose className="size-4" />
             </button>
@@ -303,39 +300,61 @@ export function AdminSidebar({
               onClick={onToggleCollapse}
               aria-label="Buka navigasi penuh"
               title="Buka navigasi penuh"
-              className="absolute -right-3 top-[4.5rem] hidden size-7 place-items-center rounded-full border bg-card text-muted-foreground shadow-sm hover:text-foreground lg:grid"
+              className="absolute -right-3.5 top-6 hidden size-7 place-items-center rounded-full border border-slate-200 dark:border-white/10 bg-white dark:bg-[#23252C] text-slate-500 shadow-sm hover:text-slate-900 dark:hover:text-white lg:grid"
             >
-              <PanelLeftOpen className="size-4" />
+              <PanelLeftOpen className="size-3.5" />
             </button>
           )}
         </div>
+
+        {/* Quick Action Pills like Finly '+ Add income' & '+ Add expense' */}
+        {!collapsed && (
+          <div className="px-4 pt-3.5 pb-1 flex flex-col gap-2">
+            <Link
+              href="/admin/products?action=new"
+              className="w-full rounded-full border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1E2028] hover:border-[#2563EB] dark:hover:border-[#2563EB] text-slate-700 dark:text-slate-200 hover:text-[#2563EB] font-semibold text-xs py-2 px-3 flex items-center justify-center gap-1.5 shadow-2xs transition-all"
+            >
+              <Plus className="size-3.5 text-[#2563EB]" />
+              <span>Tambah Produk</span>
+            </Link>
+            <Link
+              href="/admin/products?tab=import"
+              className="w-full rounded-full border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1E2028] hover:border-[#FFB020] dark:hover:border-[#FFB020] text-slate-700 dark:text-slate-200 hover:text-[#FFB020] font-semibold text-xs py-2 px-3 flex items-center justify-center gap-1.5 shadow-2xs transition-all"
+            >
+              <Plus className="size-3.5 text-[#FFB020]" />
+              <span>Upload Massal</span>
+            </Link>
+          </div>
+        )}
         
-        <nav aria-label="Navigasi admin" className="flex-1 overflow-y-auto px-3 py-4">
+        <nav aria-label="Navigasi admin" className="flex-1 overflow-y-auto px-3 py-3">
           {newOrderNotice && (
             <Link
               href="/admin/orders"
               role="status"
               onClick={() => setNewOrderNotice("")}
-              className="mb-3 block rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm font-medium text-primary"
+              className="mb-3 block rounded-2xl border border-blue-200 bg-blue-50 dark:border-blue-800/40 dark:bg-blue-950/30 p-3 text-sm font-semibold text-[#2563EB] dark:text-blue-300 shadow-2xs"
             >
               {newOrderNotice}
-              <span className="mt-1 block text-xs font-normal">Buka untuk periksa pesanan dan pembayaran.</span>
+              <span className="mt-1 block text-xs font-normal opacity-85">Buka untuk periksa pesanan dan pembayaran.</span>
             </Link>
           )}
-          <div className="space-y-3">{renderLinks()}</div>
+          <div className="space-y-2">{renderLinks()}</div>
         </nav>
 
-        <div className={cn("border-t", collapsed ? "p-2" : "p-4")}>
+        <div className={cn("border-t border-slate-100 dark:border-white/5", collapsed ? "p-2" : "p-3")}>
           <Link
             href="/"
-            title={collapsed ? "Back to Store" : undefined}
+            title={collapsed ? "Kembali ke Toko" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+              "flex items-center gap-3 rounded-2xl py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-400 transition-all hover:bg-blue-50/70 dark:hover:bg-blue-950/20 hover:text-[#2563EB] dark:hover:text-[#60A5FA]",
               collapsed ? "justify-center px-2" : "px-3"
             )}
           >
-            <LogOut className="h-4 w-4" />
-            <span className={collapsed ? "lg:hidden" : undefined}>Back to Store</span>
+            <div className="grid size-7 place-items-center rounded-full bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-slate-400">
+              <LogOut className="h-3.5 w-3.5" />
+            </div>
+            <span className={collapsed ? "lg:hidden" : undefined}>Kembali ke Toko</span>
           </Link>
         </div>
       </aside>

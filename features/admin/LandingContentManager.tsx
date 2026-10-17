@@ -15,6 +15,8 @@ import {
   Eye,
   CheckCircle2,
   X,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +43,7 @@ type Banner = {
 
 type Draft = Omit<Banner, "id"> & { id?: string };
 
-const emptyDraft = (placement: "hero" | "promo"): Draft => ({
+const emptyDraft = (placement: "hero" | "promo", displayOrder: number = 0): Draft => ({
   id: undefined,
   placement,
   title: "",
@@ -51,16 +53,71 @@ const emptyDraft = (placement: "hero" | "promo"): Draft => ({
   button_label: "Lihat produk",
   image_url: "",
   target_url: "/products",
-  display_order: 0,
+  display_order: displayOrder,
   is_active: true,
 });
 
 const PRESET_URLS = [
   { label: "🛍️ Semua Produk", url: "/products", defaultBtn: "Lihat Semua Produk" },
   { label: "💻 Laptop", url: "/products?category=laptops", defaultBtn: "Beli Laptop" },
+  { label: "🎮 Gaming Laptops", url: "/products?category=gaming-laptops", defaultBtn: "Cek Laptop Gaming" },
   { label: "🖥️ Komputer PC", url: "/products?category=pc", defaultBtn: "Lihat PC Desktop" },
+  { label: "🎧 Aksesoris", url: "/products?category=accessories", defaultBtn: "Pilih Aksesoris" },
   { label: "🏷️ Promo & Voucher", url: "/promo", defaultBtn: "Cek Promo Sekarang" },
   { label: "🏠 Beranda (Home)", url: "/", defaultBtn: "Mulai Belanja" },
+];
+
+const PRESET_HERO_TEMPLATES = [
+  {
+    name: "🎮 Laptop Gaming RTX",
+    title: "Slide Laptop Gaming",
+    subtitle: "LENOVO LEGION & ASUS ROG",
+    headline: "Laptop Gaming & Performa Tinggi",
+    description: "Pengalaman gaming dan kreasi konten tanpa kompromi dengan prosesor generasi terbaru dan grafis RTX berdaya tinggi.",
+    button_label: "Cek Laptop Gaming",
+    image_url: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?q=80&w=2000&auto=format&fit=crop",
+    target_url: "/products?category=gaming-laptops",
+  },
+  {
+    name: "💼 Laptop Bisnis & Kerja",
+    title: "Slide Laptop Kerja",
+    subtitle: "PRODUKTIVITAS MAKSIMAL",
+    headline: "Laptop Bisnis Ringan & Tahan Lama",
+    description: "Desain ramping, baterai awet seharian, serta performa gesit untuk menunjang segala aktivitas profesional Anda.",
+    button_label: "Lihat Laptop Bisnis",
+    image_url: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=2000&auto=format&fit=crop",
+    target_url: "/products?category=laptops",
+  },
+  {
+    name: "🖥️ PC Desktop All-in-One",
+    title: "Slide PC Desktop",
+    subtitle: "PRAKTIS & HEMAT RUANG",
+    headline: "PC All-in-One & Desktop Handal",
+    description: "Solusi ringkas, hemat daya, dan handal untuk kebutuhan kantor, kasir, belajar, hingga multitasking harian.",
+    button_label: "Lihat PC Desktop",
+    image_url: "https://images.unsplash.com/photo-1547082299-de196ea013d6?q=80&w=2000&auto=format&fit=crop",
+    target_url: "/products?category=pc",
+  },
+  {
+    name: "🎧 Aksesoris & Audio",
+    title: "Slide Aksesoris Periferal",
+    subtitle: "PERIFERAL & SETUP MEJA",
+    headline: "Aksesoris & Periferal Lengkap",
+    description: "Lengkapi setup komputermu dengan mechanical keyboard, mouse wireless presisi, monitor jernih, dan headset premium.",
+    button_label: "Pilih Aksesoris",
+    image_url: "https://images.unsplash.com/photo-1527814050087-3793815479db?q=80&w=2000&auto=format&fit=crop",
+    target_url: "/products?category=accessories",
+  },
+  {
+    name: "⚡ Promo & Flash Sale",
+    title: "Slide Promo & Flash Sale",
+    subtitle: "DISKON SPESIAL HINGGA 30%",
+    headline: "Promo Spesial & Penawaran Terbatas",
+    description: "Dapatkan potongan harga menarik dan ekstra voucher belanja khusus pembelian online hari ini.",
+    button_label: "Klaim Promo",
+    image_url: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=2000&auto=format&fit=crop",
+    target_url: "/promo",
+  },
 ];
 
 export function LandingContentManager({ initialBanners }: { initialBanners: Banner[] }) {
@@ -131,6 +188,48 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
     });
   };
 
+  const handleMoveOrder = (banner: Banner, direction: "up" | "down", list: Banner[]) => {
+    const currentIndex = list.findIndex((b) => b.id === banner.id);
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= list.length) return;
+    const targetBanner = list[targetIndex];
+
+    startTransition(async () => {
+      try {
+        const formA = new FormData();
+        formA.set("id", banner.id);
+        formA.set("placement", banner.placement);
+        formA.set("title", banner.title);
+        if (banner.subtitle) formA.set("subtitle", banner.subtitle);
+        formA.set("headline", banner.headline);
+        formA.set("description", banner.description);
+        formA.set("button_label", banner.button_label);
+        formA.set("image_url", banner.image_url);
+        if (banner.target_url) formA.set("target_url", banner.target_url);
+        formA.set("display_order", String(targetBanner.display_order));
+        if (banner.is_active) formA.set("is_active", "on");
+
+        const formB = new FormData();
+        formB.set("id", targetBanner.id);
+        formB.set("placement", targetBanner.placement);
+        formB.set("title", targetBanner.title);
+        if (targetBanner.subtitle) formB.set("subtitle", targetBanner.subtitle);
+        formB.set("headline", targetBanner.headline);
+        formB.set("description", targetBanner.description);
+        formB.set("button_label", targetBanner.button_label);
+        formB.set("image_url", targetBanner.image_url);
+        if (targetBanner.target_url) formB.set("target_url", targetBanner.target_url);
+        formB.set("display_order", String(banner.display_order));
+        if (targetBanner.is_active) formB.set("is_active", "on");
+
+        await Promise.all([saveLandingBannerAction(formA), saveLandingBannerAction(formB)]);
+        router.refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Gagal memindahkan urutan slide.");
+      }
+    });
+  };
+
   const sections: {
     key: "hero" | "promo";
     title: string;
@@ -142,7 +241,7 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
       key: "hero",
       title: "Carousel Utama (Hero Slider)",
       description:
-        "Banner geser (slider) besar di bagian paling atas halaman utama. Ini yang pertama kali dilihat pengunjung saat membuka website.",
+        "Banner geser (slider) besar di bagian paling atas halaman utama. Mendukung 10+ slide banner yang berganti otomatis.",
       icon: Layers,
       badge: "Bagian Paling Atas (Header Home)",
     },
@@ -171,18 +270,26 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
 
       {sections.map((section) => {
         const SectionIcon = section.icon;
-        const sectionBanners = banners.filter((b) => b.placement === section.key);
+        const sectionBanners = [...banners]
+          .filter((b) => b.placement === section.key)
+          .sort((a, b) => a.display_order - b.display_order);
 
         return (
-          <section key={section.key} className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
+          <section key={section.key} className="space-y-4 rounded-2xl border bg-muted/15 p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <SectionIcon className="size-5 text-primary" />
                   <h2 className="text-xl font-bold tracking-tight">{section.title}</h2>
-                  <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                    {section.badge}
-                  </span>
+                  {section.key === "hero" ? (
+                    <span className="rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/40 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                      {sectionBanners.length} Slide Terpasang · Mendukung 10+ Slide
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                      {section.badge}
+                    </span>
+                  )}
                 </div>
                 <p className="max-w-2xl text-xs sm:text-sm text-muted-foreground">
                   {section.description}
@@ -192,9 +299,13 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
               <Button
                 onClick={() => {
                   setError("");
-                  setDraft(emptyDraft(section.key));
+                  const maxOrder =
+                    sectionBanners.length > 0
+                      ? Math.max(...sectionBanners.map((b) => b.display_order))
+                      : -1;
+                  setDraft(emptyDraft(section.key, maxOrder + 1));
                 }}
-                className="gap-2 rounded-xl"
+                className="gap-2 rounded-xl cursor-pointer shadow-xs"
               >
                 <Plus className="size-4" />
                 Tambah {section.key === "hero" ? "Slide Carousel" : "Banner Promo"}
@@ -202,7 +313,7 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              {sectionBanners.map((banner) => (
+              {sectionBanners.map((banner, index) => (
                 <article
                   key={banner.id}
                   className="overflow-hidden rounded-2xl border bg-card shadow-xs transition-shadow hover:shadow-md"
@@ -223,11 +334,16 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 flex flex-col justify-end text-white">
-                      {banner.subtitle && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground/90 bg-primary/80 px-2 py-0.5 rounded w-fit mb-1">
-                          {banner.subtitle}
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="text-[10px] font-bold bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded text-white">
+                          Slide #{index + 1}
                         </span>
-                      )}
+                        {banner.subtitle && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground/90 bg-primary/80 px-2 py-0.5 rounded">
+                            {banner.subtitle}
+                          </span>
+                        )}
+                      </div>
                       <h4 className="font-bold text-sm sm:text-base leading-snug line-clamp-1">
                         {banner.headline}
                       </h4>
@@ -258,12 +374,36 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
                       </p>
                     </div>
 
-                    <div className="flex gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Pindahkan urutan ke atas"
+                        title="Pindahkan ke atas (tampil lebih dulu)"
+                        disabled={busy || index === 0}
+                        onClick={() => handleMoveOrder(banner, "up", sectionBanners)}
+                        className="size-8 cursor-pointer"
+                      >
+                        <ChevronUp className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Pindahkan urutan ke bawah"
+                        title="Pindahkan ke bawah"
+                        disabled={busy || index === sectionBanners.length - 1}
+                        onClick={() => handleMoveOrder(banner, "down", sectionBanners)}
+                        className="size-8 cursor-pointer"
+                      >
+                        <ChevronDown className="size-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
                         aria-label={`Edit ${banner.title}`}
+                        title="Edit data slide"
                         onClick={() => setDraft({ ...banner })}
+                        className="size-8 cursor-pointer"
                       >
                         <Edit className="size-4" />
                       </Button>
@@ -271,8 +411,10 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
                         variant="ghost"
                         size="icon"
                         aria-label={`Hapus ${banner.title}`}
+                        title="Hapus slide"
                         disabled={busy}
                         onClick={() => remove(banner)}
+                        className="size-8 cursor-pointer"
                       >
                         <Trash className="size-4 text-destructive" />
                       </Button>
@@ -348,6 +490,48 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
                 <p className="text-[11.5px] leading-relaxed text-amber-950/80 dark:text-amber-200/80">
                   Ini adalah banner promosi yang tampil di bagian tengah halaman beranda di antara daftar produk laptop &amp; PC. Sangat cocok untuk diskon gajian, flash sale, atau voucher belanja.
                 </p>
+              </div>
+            )}
+
+            {/* Template Pilihan Cepat untuk Slide Hero (Hingga 10+ Slide) */}
+            {draft.placement === "hero" && !draft.id && (
+              <div className="mb-5 rounded-2xl border border-blue-200/80 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                    <Sparkles className="size-3.5 text-blue-600" />
+                    Pilihan Cepat Template Slide (Isi Otomatis):
+                  </span>
+                  <span className="text-[10.5px] text-muted-foreground hidden sm:inline">
+                    Klik untuk mengisi teks &amp; gambar instan
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {PRESET_HERO_TEMPLATES.map((tmpl) => (
+                    <button
+                      key={tmpl.name}
+                      type="button"
+                      onClick={() => {
+                        setDraft((curr) =>
+                          curr
+                            ? {
+                                ...curr,
+                                title: tmpl.title,
+                                subtitle: tmpl.subtitle,
+                                headline: tmpl.headline,
+                                description: tmpl.description,
+                                button_label: tmpl.button_label,
+                                image_url: tmpl.image_url,
+                                target_url: tmpl.target_url,
+                              }
+                            : curr
+                        );
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white dark:bg-white/10 border border-slate-200/80 dark:border-white/10 hover:border-blue-500 hover:text-blue-600 transition shadow-2xs cursor-pointer"
+                    >
+                      {tmpl.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

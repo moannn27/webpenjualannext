@@ -3,28 +3,228 @@ import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 
 type Candidate = {
-  id: string; name: string; description: string; price: number; discount_price: number | null; stock: number;
-  categories: { name: string } | null; brands: { name: string } | null; product_images: { url: string; is_primary: boolean }[];
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  discount_price: number | null;
+  stock: number;
+  categories: { name: string } | null;
+  brands: { name: string } | null;
+  product_images: { url: string; is_primary: boolean }[];
 };
 
-function parseBudget(message: string) {
-  const million = message.match(/(?:rp\s*)?(\d+(?:[.,]\d+)?)\s*(?:jt|juta)(?:an)?/i);
-  if (million) return Number(million[1].replace(",", ".")) * 1_000_000;
-  const raw = message.match(/(?:rp\s*)?(\d{6,})(?:\s*(?:rupiah|rb|ribu))?/i);
-  if (raw) return Number(raw[1]);
-  const thousand = message.match(/(\d+(?:[.,]\d+)?)\s*(?:rb|ribu)(?:an)?/i);
-  return thousand ? Number(thousand[1].replace(",", ".")) * 1_000 : null;
+type CategoryIntent = "laptop" | "monitor" | "desktop" | "smartphone" | "tablet" | "accessory";
+
+const KNOWN_SERIES = [
+  "yoga",
+  "zenbook",
+  "vivobook",
+  "ideapad",
+  "thinkpad",
+  "macbook",
+  "zephyrus",
+  "legion",
+  "loq",
+  "aspire",
+  "soulmate",
+  "workmate",
+  "nitro",
+  "tuf",
+  "rog",
+  "galaxy",
+];
+
+function detectMentionedSeries(text: string): string[] {
+  const lower = text.toLowerCase();
+  return KNOWN_SERIES.filter((s) => new RegExp(`\\b${s}\\b`, "i").test(lower));
 }
 
-function fallbackAnswer(message: string, products: Candidate[], budget: number | null) {
-  if (!products.length) return "Belum ada produk yang cocok dan tersedia saat ini. Coba ubah merek, kisaran harga, atau kebutuhanmu.";
+function isPremiumIntent(text: string): boolean {
+  return /\b(premium|flagship|high[\s-]end|highend|mewah|kelas atas|spek dewa|spek tinggi|tertinggi|eksekutif|tipis mewah|ultrabook|sultan)\b/i.test(
+    text
+  );
+}
+
+function detectCategoryIntent(text: string): CategoryIntent | null {
+  const t = text.toLowerCase();
+  if (
+    /\b(laptop|laptops|notebook|notebooks|netbook|ultrabook|macbook|chromebook)\b/.test(t) ||
+    KNOWN_SERIES.some((s) => new RegExp(`\\b${s}\\b`, "i").test(t) && !["galaxy"].includes(s))
+  ) {
+    return "laptop";
+  }
+  if (/\b(monitor|monitors|layar|display)\b/.test(t)) {
+    return "monitor";
+  }
+  if (/\b(desktop|desktops|pc|all[\s-]in[\s-]one|aio|komputer)\b/.test(t)) {
+    return "desktop";
+  }
+  if (/\b(smartphone|smartphones|hp|handphone|ponsel|telepon)\b/.test(t)) {
+    return "smartphone";
+  }
+  if (/\b(tablet|tablets|tab|ipad)\b/.test(t)) {
+    return "tablet";
+  }
+  if (/\b(aksesoris|accessories|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|tas)\b/.test(t)) {
+    return "accessory";
+  }
+  return null;
+}
+
+function isItemMatchingCategory(item: Candidate, intent: CategoryIntent): boolean {
+  const cat = (item.categories?.name ?? "").toLowerCase();
+  const name = item.name.toLowerCase();
+  const desc = item.description.toLowerCase();
+
+  switch (intent) {
+    case "laptop": {
+      // If categories relation is populated and is not a laptop category, reject immediately
+      if (cat && !cat.includes("laptop")) {
+        return false;
+      }
+      // Strictly exclude monitors, desktops, accessories, phones, tablets
+      if (
+        cat.includes("monitor") ||
+        name.includes("monitor") ||
+        cat.includes("accessories") ||
+        cat.includes("smartphones") ||
+        cat.includes("tablet") ||
+        cat.includes("desktops") ||
+        cat.includes("all-in-one") ||
+        name.includes("one pc") ||
+        name.includes("aio")
+      ) {
+        return false;
+      }
+      return (
+        cat.includes("laptop") ||
+        name.includes("laptop") ||
+        name.includes("notebook") ||
+        name.includes("ideapad") ||
+        name.includes("thinkpad") ||
+        name.includes("yoga") ||
+        name.includes("aspire") ||
+        name.includes("soulmate") ||
+        name.includes("vivobook") ||
+        name.includes("zenbook") ||
+        name.includes("macbook") ||
+        desc.includes("laptop")
+      );
+    }
+
+    case "monitor": {
+      if (cat && !cat.includes("monitor")) return false;
+      return cat.includes("monitor") || name.includes("monitor") || name.includes("display") || desc.includes("monitor");
+    }
+
+    case "desktop": {
+      if (cat && !cat.includes("desktop") && !cat.includes("all-in-one")) return false;
+      if (cat.includes("laptop") || cat.includes("monitor")) return false;
+      return (
+        cat.includes("desktop") ||
+        cat.includes("all-in-one") ||
+        name.includes("tower") ||
+        name.includes("aio") ||
+        name.includes("desktop")
+      );
+    }
+
+    case "smartphone": {
+      if (cat && !cat.includes("smartphone")) return false;
+      return cat.includes("smartphone") || name.includes("phone") || name.includes("smartphone");
+    }
+
+    case "tablet": {
+      if (cat && !cat.includes("tablet")) return false;
+      return cat.includes("tablet") || name.includes("tablet") || name.includes("tab ");
+    }
+
+    case "accessory": {
+      if (cat && !cat.includes("accessori")) return false;
+      return (
+        cat.includes("accessories") ||
+        name.includes("keyboard") ||
+        name.includes("mouse") ||
+        name.includes("headset") ||
+        name.includes("earphone")
+      );
+    }
+
+    default:
+      return true;
+  }
+}
+
+function parseBudgetAndOperator(text: string) {
+  let budget: number | null = null;
+  const million = text.match(/(?:rp\s*)?(\d+(?:[.,]\d+)?)\s*(?:jt|juta)(?:an)?/i);
+  if (million) {
+    budget = Number(million[1].replace(",", ".")) * 1_000_000;
+  } else {
+    const raw = text.match(/(?:rp\s*)?(\d{6,})(?:\s*(?:rupiah|rb|ribu))?/i);
+    if (raw) {
+      budget = Number(raw[1]);
+    } else {
+      const thousand = text.match(/(\d+(?:[.,]\d+)?)\s*(?:rb|ribu)(?:an)?/i);
+      if (thousand) budget = Number(thousand[1].replace(",", ".")) * 1_000;
+    }
+  }
+
+  const isStrictUnder = /\b(dibawah|di bawah|kurang dari|maks|maksimal|max|mentok|paling mahal|dibawahnya)\b/i.test(text);
+  const isStrictAbove = /\b(diatas|di atas|lebih dari|minimal|min|paling murah|mulai dari)\b/i.test(text);
+
+  return { budget, isStrictUnder, isStrictAbove };
+}
+
+function fallbackAnswer(
+  message: string,
+  products: Candidate[],
+  budget: number | null,
+  categoryIntent: CategoryIntent | null,
+  isPremium: boolean = false,
+  mentionedSeries: string[] = []
+) {
+  const categoryLabel =
+    categoryIntent === "laptop"
+      ? "laptop"
+      : categoryIntent === "monitor"
+      ? "monitor"
+      : categoryIntent === "desktop"
+      ? "PC desktop"
+      : categoryIntent === "smartphone"
+      ? "smartphone"
+      : "produk";
+
+  if (!products.length) {
+    if (mentionedSeries.length > 0) {
+      return `Saat ini unit ready untuk seri **${mentionedSeries.map((s) => s.toUpperCase()).join(" / ")}** dengan kriteria tersebut belum tersedia di stok toko kami. Silakan cek seri lainnya atau hubungi admin WhatsApp kami untuk pemesanan khusus.`;
+    }
+    return `Saat ini belum ada pilihan ${categoryLabel} yang cocok dan ready di toko kami untuk kriteria atau budget tersebut. Coba sesuaikan rentang budget atau tanyakan pilihan ${categoryLabel} lainnya.`;
+  }
+
   const comparison = /banding|compare|versus|\bvs\b/i.test(message);
-  const lead = comparison ? "Ini perbandingan produk yang tersedia dan stoknya ready:" : budget ? `Saya menemukan ${products.length} produk ready yang paling mendekati budget sekitar Rp${budget.toLocaleString("id-ID")}:` : "Ini beberapa produk yang ready dan paling sesuai:";
-  return `${lead}\n${products.slice(0, 3).map((product) => `• ${product.name} — Rp${Number(product.discount_price ?? product.price).toLocaleString("id-ID")} (stok ${product.stock})`).join("\n")}\nMau saya bandingkan dari harga, spesifikasi, atau kebutuhan pemakaian?`;
+  const isYogaOrZenbook = mentionedSeries.includes("yoga") || mentionedSeries.includes("zenbook");
+  const lead = comparison
+    ? `Ini perbandingan ${categoryLabel} yang tersedia dan stoknya ready:`
+    : isYogaOrZenbook || isPremium
+    ? `Tentu ada! Di Next Solution kami memiliki koleksi laptop premium ready stock (seperti Lenovo Yoga & ASUS Zenbook) dengan spesifikasi tinggi dan build mewah:`
+    : budget
+    ? `Tentu ada! Untuk kategori ${categoryLabel} dengan anggaran di bawah Rp${budget.toLocaleString("id-ID")}, berikut adalah pilihan yang tersedia di Next Solution:`
+    : `Ini beberapa pilihan ${categoryLabel} yang ready dan paling sesuai di Next Solution:`;
+
+  return `${lead}\n\n${products
+    .map(
+      (p) =>
+        `• **${p.name}** - Rp${Number(p.discount_price ?? p.price).toLocaleString("id-ID")}\n  Brand: ${p.brands?.name ?? "-"} | Stok: ${p.stock} unit\n  ${p.description.slice(0, 180)}...`
+    )
+    .join("\n\n")}\n\nMau saya jelaskan spesifikasi detail, layar, atau perbandingannya?`;
 }
 
 function isProductSearch(text: string) {
-  return /\b(laptop|notebook|komputer|pc|smartphone|handphone|hp|tablet|aksesoris|produk|barang|rekomendasi|carikan|cari|bandingkan|bandingin|compare|vs|stok|ready|harga|budget|spesifikasi|spek|merek|brand)\b/i.test(text);
+  return /\b(laptop|notebook|komputer|pc|smartphone|handphone|hp|tablet|aksesoris|monitor|produk|barang|rekomendasi|carikan|cari|bandingkan|bandingin|compare|vs|stok|ready|harga|budget|spesifikasi|spek|merek|brand|premium|yoga|zenbook|macbook|vivobook|ideapad|thinkpad|loq|legion)\b/i.test(
+    text
+  );
 }
 
 function fallbackChatReply(message: string) {
@@ -36,58 +236,250 @@ function fallbackChatReply(message: string) {
 
 export async function POST(request: Request) {
   let body: { message?: unknown; history?: unknown };
-  try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 }); }
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
+  }
+
   const message = typeof body.message === "string" ? body.message.trim().slice(0, 500) : "";
   if (!message) return NextResponse.json({ error: "Tulis kebutuhan produkmu dulu." }, { status: 400 });
-  const history = Array.isArray(body.history) ? body.history.slice(-8).flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const entry = item as { role?: unknown; text?: unknown };
-    if ((entry.role !== "user" && entry.role !== "assistant") || typeof entry.text !== "string") return [];
-    return [{ role: entry.role, text: entry.text.trim().slice(0, 500) }];
-  }) : [];
+
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-8).flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const entry = item as { role?: unknown; text?: unknown };
+        if ((entry.role !== "user" && entry.role !== "assistant") || typeof entry.text !== "string") return [];
+        return [{ role: entry.role, text: entry.text.trim().slice(0, 500) }];
+      })
+    : [];
+
   const previousUserMessages = history.filter((entry) => entry.role === "user").map((entry) => entry.text);
   const conversationContext = [...previousUserMessages, message].join(" ");
   const wantsProducts = isProductSearch(conversationContext);
 
+  const mentionedSeries = detectMentionedSeries(message);
+  const isPremium = isPremiumIntent(message);
+
+  // Category Intent: Current message first, then series detected, then conversation history
+  let categoryIntent = detectCategoryIntent(message);
+  if (!categoryIntent && (mentionedSeries.length > 0 || isPremium)) {
+    categoryIntent = "laptop";
+  }
+  if (!categoryIntent) {
+    categoryIntent = detectCategoryIntent(conversationContext);
+  }
+
+  // Parse Budget & Operator from current message
+  const { budget: currentBudget, isStrictUnder, isStrictAbove } = parseBudgetAndOperator(message);
+
+  // Determine if previous budget should be cleared / ignored:
+  // If user says "premium", mentions high-end series (Yoga, Zenbook, MacBook, etc.),
+  // or uses budget pivot phrases, NEVER inherit old budget from history!
+  const isBudgetReset =
+    isPremium ||
+    mentionedSeries.length > 0 ||
+    /\b(bukan|ganti|naik|naikin|tambah|bebas|tanpa|mahal|bagus|lain|beda|itu kan|ada tuh|tapi kan)\b/i.test(message);
+
+  let effectiveBudget = currentBudget;
+  if (!effectiveBudget && !isBudgetReset) {
+    effectiveBudget = parseBudgetAndOperator(conversationContext).budget;
+  }
+
   const supabase = await createClient();
-  const { data, error } = await supabase.from("products")
+  const { data, error } = await supabase
+    .from("products")
     .select("id,name,description,price,discount_price,stock,categories(name),brands(name),product_images(url,is_primary)")
-    .eq("status", "published").gt("stock", 0).limit(200);
+    .eq("status", "published")
+    .gt("stock", 0)
+    .limit(200);
+
   if (error) return NextResponse.json({ error: "Katalog belum bisa dimuat. Coba lagi sebentar." }, { status: 503 });
+
   const all = (data ?? []) as unknown as Candidate[];
   const brands = all.map((item) => item.brands?.name).filter((name): name is string => Boolean(name));
-  const brand = [message, ...previousUserMessages.slice().reverse()].map((turn) => brands.find((name) => turn.toLowerCase().includes(name.toLowerCase()))).find(Boolean);
-  const budget = parseBudget(message) ?? [...previousUserMessages].reverse().map(parseBudget).find((value) => value !== null) ?? null;
-  let matches = wantsProducts ? all.filter((item) => !brand || item.brands?.name.toLowerCase() === brand.toLowerCase()) : [];
-  if (budget) matches = matches.filter((item) => Number(item.discount_price ?? item.price) <= budget * 1.15);
-  const stopWords = new Set(["yang", "buat", "untuk", "dengan", "dong", "bang", "berapa", "harga", "cari", "mau", "saya", "aku", "ada", "atau", "dan", "dari", "lebih", "sama", "tolong", "produk", "budget"]);
-  const queryWords = [...new Set((conversationContext.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((word) => !stopWords.has(word)))];
+
+  // Inferred brands from current message
+  const brandsInCurrent = brands.filter((name) => new RegExp(`\\b${name}\\b`, "i").test(message));
+  const inferredBrandsFromSeries = [
+    ...(mentionedSeries.some((s) => ["yoga", "ideapad", "thinkpad", "loq", "legion"].includes(s)) ? ["Lenovo"] : []),
+    ...(mentionedSeries.some((s) => ["zenbook", "vivobook", "rog", "zephyrus", "tuf"].includes(s)) ? ["Asus"] : []),
+    ...(mentionedSeries.some((s) => ["aspire", "nitro"].includes(s)) ? ["Acer"] : []),
+    ...(mentionedSeries.some((s) => ["macbook"].includes(s)) ? ["Apple"] : []),
+    ...(mentionedSeries.some((s) => ["soulmate", "workmate"].includes(s)) ? ["Advan"] : []),
+  ];
+  const targetBrands = [...new Set([...brandsInCurrent, ...inferredBrandsFromSeries])];
+
+  let matches = wantsProducts ? [...all] : [];
+
+  // 1. Strict Category Matching
+  if (categoryIntent) {
+    matches = matches.filter((item) => isItemMatchingCategory(item, categoryIntent));
+  }
+
+  // 2. Series / Model Matching (Highest Priority if user mentions specific series like Yoga, Zenbook)
+  if (mentionedSeries.length > 0) {
+    const seriesMatches = matches.filter((item) => {
+      const text = `${item.name} ${item.description}`.toLowerCase();
+      return mentionedSeries.some((s) => text.includes(s));
+    });
+    if (seriesMatches.length > 0) {
+      matches = seriesMatches;
+    }
+  } else if (isPremium) {
+    // 3. Premium Intent (If user specifically asks for premium/flagship laptops)
+    const premiumMatches = matches.filter((item) => {
+      const text = `${item.name} ${item.description}`.toLowerCase();
+      const isPremiumModel = /yoga|zenbook|macbook|zephyrus|thinkpad|legion/i.test(text);
+      const isPremiumPrice = Number(item.discount_price ?? item.price) >= 15_000_000;
+      return isPremiumModel || isPremiumPrice;
+    });
+    if (premiumMatches.length > 0) {
+      matches = premiumMatches;
+    }
+  } else if (targetBrands.length > 0) {
+    // 4. Target Brands Matching
+    const brandMatches = matches.filter((item) =>
+      targetBrands.some((b) => item.brands?.name?.toLowerCase() === b.toLowerCase())
+    );
+    if (brandMatches.length > 0) {
+      matches = brandMatches;
+    }
+  }
+
+  // 5. Budget Matching
+  if (effectiveBudget) {
+    let budgetFiltered: Candidate[] = [];
+    if (isStrictUnder) {
+      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) <= effectiveBudget);
+    } else if (isStrictAbove) {
+      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) >= effectiveBudget);
+    } else {
+      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) <= effectiveBudget * 1.15);
+    }
+
+    if (budgetFiltered.length > 0) {
+      matches = budgetFiltered;
+    } else if (currentBudget) {
+      // User explicitly typed a budget in THIS message and nothing met the criteria
+      matches = [];
+    }
+    // If budgetFiltered was empty solely due to an inherited fallback budget, ignore the stale budget
+  }
+
+  // 6. Relevance Ranking & Sorting
+  const stopWords = new Set([
+    "yang", "buat", "untuk", "dengan", "dong", "bang", "berapa", "harga", "cari", "mau",
+    "saya", "aku", "ada", "atau", "dan", "dari", "lebih", "sama", "tolong", "produk", "budget", "kalo", "apa"
+  ]);
+  const queryWords = [
+    ...new Set(
+      (conversationContext.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((word) => !stopWords.has(word))
+    ),
+  ];
+
   matches.sort((a, b) => {
-    const priceA = Number(a.discount_price ?? a.price), priceB = Number(b.discount_price ?? b.price);
+    const priceA = Number(a.discount_price ?? a.price);
+    const priceB = Number(b.discount_price ?? b.price);
     const textA = `${a.name} ${a.description} ${a.categories?.name ?? ""} ${a.brands?.name ?? ""}`.toLowerCase();
     const textB = `${b.name} ${b.description} ${b.categories?.name ?? ""} ${b.brands?.name ?? ""}`.toLowerCase();
-    const relevance = queryWords.filter((word) => textB.includes(word)).length - queryWords.filter((word) => textA.includes(word)).length;
-    return relevance || (budget ? Math.abs(priceA - budget) - Math.abs(priceB - budget) : priceA - priceB);
+
+    // If specific series requested, prioritize exact series matches
+    if (mentionedSeries.length > 0) {
+      const aMatches = mentionedSeries.some((s) => textA.includes(s)) ? 1 : 0;
+      const bMatches = mentionedSeries.some((s) => textB.includes(s)) ? 1 : 0;
+      if (bMatches !== aMatches) return bMatches - aMatches;
+    }
+
+    // If premium requested, sort higher tier first
+    if (isPremium) {
+      return priceB - priceA;
+    }
+
+    const relevance =
+      queryWords.filter((word) => textB.includes(word)).length -
+      queryWords.filter((word) => textA.includes(word)).length;
+    return (
+      relevance ||
+      (effectiveBudget ? Math.abs(priceA - effectiveBudget) - Math.abs(priceB - effectiveBudget) : priceA - priceB)
+    );
   });
+
+  // Limit to top 5 candidates
   const products = matches.slice(0, 5);
 
-  let answer = wantsProducts ? fallbackAnswer(message, products, budget) : fallbackChatReply(message);
+  let answer = wantsProducts
+    ? fallbackAnswer(message, products, effectiveBudget, categoryIntent, isPremium, mentionedSeries)
+    : fallbackChatReply(message);
   let aiGenerated = false;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (apiKey) {
     const ai = new GoogleGenAI({ apiKey });
-    const models = [...new Set([process.env.GEMINI_MODEL || "gemini-3.6-flash", "gemini-3.8-flash"] )];
+    const models = [...new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.0-flash"])];
     for (const model of models) {
       try {
         const response = await ai.models.generateContent({
           model,
-          contents: `Kamu adalah asisten AI Next Solution yang membantu pelanggan berdiskusi dan memilih perangkat elektronik. Jangan buru-buru menampilkan katalog: bila pelanggan hanya menyapa atau masih ingin diskusi, balas ramah dan tanyakan kebutuhan/peruntukannya. Kalau informasi jenis perangkat, kebutuhan, atau budget belum cukup, tanyakan satu pertanyaan lanjutan saja. Jawab ringkas dalam bahasa Indonesia yang alami dan sopan. Gunakan riwayat percakapan agar balasan nyambung. Format jawaban dengan rapi: gunakan Markdown standar secukupnya, **tebalkan** nama produk atau informasi penting, gunakan *miring* hanya bila perlu, dan buat daftar berpoin jika menyebut beberapa pilihan. Hindari tanda bintang dekoratif, tabel, heading berlebihan, dan format yang tidak perlu. Rekomendasikan hanya produk di katalog JSON; jangan mengarang spesifikasi, harga, atau ketersediaan. Produk di katalog sudah published dan stoknya tersedia. Bila katalog berisi produk dan pelanggan meminta rekomendasi, sebutkan nama produk, harga, alasan kecocokan dari data yang ada, lalu tanyakan apakah pelanggan ingin detail lain. Jangan membalas hanya satu kata. Bila katalog kosong, sampaikan belum ada yang cocok dan tanyakan apakah mau mengubah budget, merek, atau jenis produk.\nRiwayat chat: ${JSON.stringify(history)}\nPesan terbaru: ${message}\nPelanggan sedang meminta rekomendasi katalog: ${wantsProducts ? "ya" : "belum, jangan tampilkan produk dulu"}\nBudget terdeteksi: ${budget ? `Rp${budget.toLocaleString("id-ID")}` : "belum disebutkan"}\nKatalog yang cocok: ${JSON.stringify(products.map((p) => ({ name: p.name, brand: p.brands?.name, category: p.categories?.name, price: p.price, discount_price: p.discount_price, stock: p.stock, description: p.description })))}`,
-          config: { httpOptions: { timeout: 15_000 }, maxOutputTokens: 400, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
+          contents: `Kamu adalah konsultan teknologi dan asisten AI resmi toko Next Solution.
+Aturan Penting:
+1. Rekomendasikan produk dari daftar 'Katalog yang cocok'. Jelaskan spesifikasi utama, keunggulan, harga, dan ketersediaan stoknya secara ramah dan profesional.
+2. JANGAN PERNAH mengklaim bahwa toko Next Solution tidak menjual atau tidak punya stok Lenovo Yoga, ASUS Zenbook, Apple MacBook, Acer, dll jika produk tersebut ada di katalog atau ditanyakan oleh pengguna. Next Solution adalah toko resmi yang menjual produk-produk ini!
+3. Klasifikasi Kategori Laptop:
+   - Budget / Entry-Level: di bawah 8-10 juta (seperti Advan Soulmate, Acer Aspire Lite Celeron).
+   - Mainstream / Produktivitas: 10 - 18 juta (seperti ASUS Vivobook, Lenovo IdeaPad).
+   - Premium / Flagship / Ultrabook: 18 juta ke atas (seperti Lenovo Yoga 2-in-1 / Slim, ASUS Zenbook, Apple MacBook Pro, ASUS ROG Zephyrus).
+4. Jika pengguna meminta laptop premium atau menanyakan seri tertentu (seperti Yoga, Zenbook, MacBook), HANYA fokus pada lini premium/seri tersebut dari 'Katalog yang cocok'. JANGAN menyarankan laptop budget entry-level (seperti Advan / Celeron) jika pengguna mencari laptop premium.
+5. Jika pengguna sebelumnya membahas budget murah namun kemudian bertanya tentang lini premium (misal: "itu ada tuh yoga bang, kan itu premium, zenbook juga ada"), jelaskan dengan sopan dan antusias bahwa seri premium tersebut memang tersedia di toko Next Solution di rentang harga kelas atas dengan fitur-fitur flagship (layar OLED touchscreen, prosesor Intel Core Ultra / AMD Ryzen AI, build tipis premium).
+6. Format jawaban dengan rapi: gunakan Markdown standar, **tebalkan** nama produk dan harga, gunakan daftar berpoin.
+
+Riwayat chat: ${JSON.stringify(history)}
+Pesan terbaru pengguna: ${message}
+Kategori produk: ${categoryIntent ?? "laptop"}
+Intent Premium: ${isPremium ? "Ya (Laptop Flagship / Premium)" : "Biasa"}
+Seri yang ditanyakan: ${mentionedSeries.length > 0 ? mentionedSeries.join(", ") : "Umum"}
+Budget terdeteksi: ${effectiveBudget ? `Rp${effectiveBudget.toLocaleString("id-ID")}` : "tidak dibatasi"}
+Katalog yang cocok: ${JSON.stringify(
+            products.map((p) => ({
+              name: p.name,
+              brand: p.brands?.name,
+              category: p.categories?.name,
+              price: p.price,
+              discount_price: p.discount_price,
+              stock: p.stock,
+              description: p.description,
+            }))
+          )}`,
+          config: {
+            httpOptions: { timeout: 15_000 },
+            maxOutputTokens: 450,
+            temperature: 0.3,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         });
         const generatedText = response.text?.trim();
-        if (generatedText && generatedText.length >= 24) { answer = generatedText; aiGenerated = true; break; }
-      } catch { /* Try the backup Gemini model, then keep the deterministic fallback. */ }
+        if (generatedText && generatedText.length >= 24) {
+          answer = generatedText;
+          aiGenerated = true;
+          break;
+        }
+      } catch {
+        /* Try backup model or use fallback answer */
+      }
     }
   }
-  return NextResponse.json({ answer, aiGenerated, products: products.map((product) => ({ ...product, image: product.product_images?.find((item) => item.is_primary)?.url ?? product.product_images?.[0]?.url ?? null, price: Number(product.price), discount_price: product.discount_price == null ? null : Number(product.discount_price) })) });
+
+  return NextResponse.json({
+    answer,
+    aiGenerated,
+    products: products.map((product) => ({
+      ...product,
+      image:
+        product.product_images?.find((item) => item.is_primary)?.url ??
+        product.product_images?.[0]?.url ??
+        null,
+      price: Number(product.price),
+      discount_price: product.discount_price == null ? null : Number(product.discount_price),
+    })),
+  });
 }

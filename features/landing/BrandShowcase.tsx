@@ -1,36 +1,68 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 
-export function BrandShowcase({ brands = [], title = "Pilihan Brand Populer" }: { brands?: { id: string; name: string; logo_url?: string | null }[]; title?: string }) {
+export function BrandShowcase({
+  brands = [],
+  title = "Pilihan Brand Resmi",
+}: {
+  brands?: { id: string; name: string; logo_url?: string | null }[];
+  title?: string;
+}) {
   return (
-    <section className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-      <div className="mx-auto max-w-7xl rounded-[28px] bg-muted px-5 py-12 text-center sm:rounded-[36px] sm:px-10 sm:py-16 lg:px-16">
-        <h2 className="mb-8 text-2xl font-bold tracking-tight text-foreground sm:mb-12 md:text-3xl">
-          {title}
-        </h2>
-        
-        <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 lg:gap-8">
+    <section className="container mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Outer White Card (Matching Reference Clean Card Aesthetic) */}
+      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+        <div className="mb-6 sm:mb-8 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Mitra resmi brand teknologi terkemuka dengan jaminan garansi distributor terpercaya.
+            </p>
+          </div>
+
+          {brands.length > 0 && (
+            <Link
+              href="/brands"
+              className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white hover:underline inline-flex items-center gap-1.5 shrink-0"
+            >
+              Lihat semua brand <ArrowRight className="size-4" />
+            </Link>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-5">
           {brands.map((brand) => (
             <Link
               key={brand.id}
               href={`/products?brand=${brand.id}`}
               aria-label={`Lihat produk ${brand.name}`}
-              className="group flex min-h-20 min-w-40 items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card px-5 py-4 text-foreground/80 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-md"
+              className="group flex flex-col items-center justify-center p-5 rounded-2xl bg-[#F6F7F9] dark:bg-white/5 border border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm transition-all duration-300 text-center"
             >
-              <span className="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5" aria-hidden="true">
-                {brand.logo_url ? <Image src={brand.logo_url} alt={`Logo ${brand.name}`} fill sizes="40px" unoptimized className="object-contain" /> : <span className="text-sm font-bold text-primary">{brand.name.slice(0, 1).toUpperCase()}</span>}
+              <div className="relative size-12 mb-2 flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-black/30 p-2 shadow-2xs">
+                {brand.logo_url ? (
+                  <Image
+                    src={brand.logo_url}
+                    alt={`Logo ${brand.name}`}
+                    fill
+                    sizes="48px"
+                    unoptimized
+                    className="object-contain p-1"
+                  />
+                ) : (
+                  <span className="text-base font-black text-slate-900 dark:text-white">
+                    {brand.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                {brand.name}
               </span>
-              <span className="text-base font-semibold tracking-tight text-foreground sm:text-lg">{brand.name}</span>
             </Link>
           ))}
         </div>
-        {brands.length > 0 && (
-          <div className="mt-8">
-            <Link href="/brands" className="text-sm font-medium text-primary hover:underline">
-              Lihat Semua Brand <span aria-hidden="true">&rarr;</span>
-            </Link>
-          </div>
-        )}
       </div>
     </section>
   );

@@ -16,6 +16,33 @@ export const HERO_SLIDES = [
     image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?q=80&w=2000&auto=format&fit=crop",
     cta: "Lihat Promo",
     href: "/promo"
+  },
+  {
+    id: 3,
+    title: "Laptop Gaming & Performa Tinggi",
+    subtitle: "Lenovo Legion & ASUS ROG",
+    description: "Pengalaman gaming dan kreasi konten tanpa kompromi dengan prosesor generasi terbaru dan grafis RTX berdaya tinggi.",
+    image: "https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?q=80&w=2000&auto=format&fit=crop",
+    cta: "Cek Laptop Gaming",
+    href: "/products?category=gaming-laptops"
+  },
+  {
+    id: 4,
+    title: "PC Desktop & All-in-One Siap Pakai",
+    subtitle: "Produktivitas Kantor & Bisnis",
+    description: "Solusi komputasi handal, hemat ruang, dan efisien untuk kebutuhan perkantoran, kasir, belajar, dan multimedia harian.",
+    image: "https://images.unsplash.com/photo-1547082299-de196ea013d6?q=80&w=2000&auto=format&fit=crop",
+    cta: "Lihat PC Desktop",
+    href: "/products?category=pc"
+  },
+  {
+    id: 5,
+    title: "Aksesoris & Periferal Lengkap",
+    subtitle: "Periferal & Aksesoris Resmi",
+    description: "Lengkapi setup komputermu dengan mechanical keyboard, mouse wireless presisi, monitor jernih, dan headset premium.",
+    image: "https://images.unsplash.com/photo-1527814050087-3793815479db?q=80&w=2000&auto=format&fit=crop",
+    cta: "Pilih Aksesoris",
+    href: "/products?category=accessories"
   }
 ];
 

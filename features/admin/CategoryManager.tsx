@@ -50,12 +50,39 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
   };
 
   return <div className="space-y-4">
-    <div className="flex justify-end"><Button onClick={() => { setEditing(null); setImageUrl(""); setImageScale(100); setError(""); }}><Plus className="mr-2 size-4" />Tambah kategori</Button></div>
+    <div className="flex justify-end">
+      <Button
+        className="rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4 shadow-sm"
+        onClick={() => { setEditing(null); setImageUrl(""); setImageScale(100); setError(""); }}
+      >
+        <Plus className="mr-1.5 size-3.5" />Tambah kategori
+      </Button>
+    </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category) => <article key={category.id} className="overflow-hidden rounded-xl border bg-card">
-      <div className="relative h-44 bg-muted">{category.image_url && <Image src={category.image_url} alt={category.name} fill unoptimized className="object-cover" sizes="(min-width: 1024px) 33vw, 50vw" />}</div>
-      <div className="flex items-start justify-between gap-3 p-4"><div><h3 className="font-semibold">{category.name}</h3><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{category.description || "Belum ada deskripsi."}</p></div><div className="flex gap-1"><Button variant="ghost" size="icon-sm" aria-label={`Edit ${category.name}`} onClick={() => { setEditing(category); setImageUrl(category.image_url || ""); setError(""); }}><Edit className="size-4" /></Button><Button variant="ghost" size="icon-sm" aria-label={`Hapus ${category.name}`} disabled={busy} onClick={() => remove(category)}><Trash className="size-4 text-destructive" /></Button></div></div>
-    </article>)}{!categories.length && <p className="rounded-xl border border-dashed p-8 text-sm text-muted-foreground">Belum ada kategori.</p>}</div>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {categories.map((category) => (
+        <article key={category.id} className="overflow-hidden rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] shadow-xs hover:shadow-md transition-all">
+          <div className="relative h-44 bg-slate-100 dark:bg-white/5">
+            {category.image_url && <Image src={category.image_url} alt={category.name} fill unoptimized className="object-cover" sizes="(min-width: 1024px) 33vw, 50vw" />}
+          </div>
+          <div className="flex items-start justify-between gap-3 p-4">
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white text-base">{category.name}</h3>
+              <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{category.description || "Belum ada deskripsi."}</p>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button variant="ghost" size="icon-sm" aria-label={`Edit ${category.name}`} onClick={() => { setEditing(category); setImageUrl(category.image_url || ""); setError(""); }}>
+                <Edit className="size-4" />
+              </Button>
+              <Button variant="ghost" size="icon-sm" aria-label={`Hapus ${category.name}`} disabled={busy} onClick={() => remove(category)}>
+                <Trash className="size-4 text-destructive" />
+              </Button>
+            </div>
+          </div>
+        </article>
+      ))}
+      {!categories.length && <p className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-8 text-sm text-slate-500 text-center col-span-full">Belum ada kategori.</p>}
+    </div>
     {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/50 p-4" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) setEditing(false); }}><section role="dialog" aria-modal="true" aria-labelledby="category-title" onClick={(e) => e.stopPropagation()} className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl bg-card p-5 shadow-xl sm:p-6">
       <h3 id="category-title" className="mb-5 text-xl font-bold">{editing ? "Edit kategori" : "Tambah kategori"}</h3>
       <form action={save} className="space-y-4">{editing && <input type="hidden" name="id" value={editing.id} />}

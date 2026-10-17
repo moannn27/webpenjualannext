@@ -48,81 +48,81 @@ function ProductRank({
 }) {
   const max = Math.max(1, ...rows.map((row) => row.units_sold));
   return (
-    <Card className="shadow-xs">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold">{title}</CardTitle>
-        <p className="text-xs text-muted-foreground">
+    <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#1E2028] shadow-sm p-5 sm:p-6 space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">{title}</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           {low
             ? "Produk terbit dengan unit terjual paling sedikit atau belum ada penjualan."
             : "Diurutkan berdasarkan total unit yang berhasil terjual."}
         </p>
-      </CardHeader>
-      <CardContent className="space-y-3.5">
+      </div>
+      <div className="space-y-3.5">
         {rows.map((row) => (
-          <div key={row.id} className="space-y-1">
-            <div className="flex items-start justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate font-medium text-foreground">{row.name}</span>
-              <span className="shrink-0 font-semibold text-muted-foreground">{row.units_sold} unit</span>
+          <div key={row.id} className="space-y-1.5">
+            <div className="flex items-start justify-between gap-3 text-xs sm:text-sm">
+              <span className="min-w-0 truncate font-semibold text-slate-800 dark:text-slate-200">{row.name}</span>
+              <span className="shrink-0 font-bold text-slate-500 dark:text-slate-400">{row.units_sold} unit</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
               <div
                 className={`h-full rounded-full transition-all ${
-                  low ? "bg-amber-500" : "bg-primary"
+                  low ? "bg-amber-500" : "bg-blue-600"
                 }`}
                 style={{
                   width: `${Math.max(row.units_sold ? 5 : 0, (row.units_sold / max) * 100)}%`,
                 }}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-slate-400">
               {row.order_count} pesanan · {money(row.item_revenue)}
             </p>
           </div>
         ))}
         {!rows.length && (
-          <p className="py-8 text-center text-xs text-muted-foreground">
+          <p className="py-8 text-center text-xs text-slate-400">
             Belum ada data produk pada periode ini.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function CustomerSpendRank({ report }: { report: EcommerceReport }) {
   const maximum = Math.max(1, ...report.top_customers.map((c) => c.spend));
   return (
-    <Card className="shadow-xs">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base font-semibold">Distribusi Belanja Pelanggan Teratas</CardTitle>
-        <p className="text-xs text-muted-foreground">
+    <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#1E2028] shadow-sm p-5 sm:p-6 space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-slate-900 dark:text-white">Distribusi Belanja Pelanggan Teratas</h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
           Pelanggan dengan total nilai pesanan selesai tertinggi di periode ini.
         </p>
-      </CardHeader>
-      <CardContent className="space-y-3.5">
+      </div>
+      <div className="space-y-3.5">
         {report.top_customers.slice(0, 8).map((customer) => (
-          <div key={customer.id} className="space-y-1">
-            <div className="flex justify-between gap-3 text-sm">
-              <span className="truncate font-medium text-foreground">{customer.name}</span>
-              <span className="shrink-0 font-mono font-semibold text-foreground">
+          <div key={customer.id} className="space-y-1.5">
+            <div className="flex justify-between gap-3 text-xs sm:text-sm">
+              <span className="truncate font-semibold text-slate-800 dark:text-slate-200">{customer.name}</span>
+              <span className="shrink-0 font-mono font-bold text-slate-900 dark:text-white">
                 {money(customer.spend)}
               </span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
               <div
-                className="h-full rounded-full bg-violet-500 transition-all"
+                className="h-full rounded-full bg-indigo-500 transition-all"
                 style={{ width: `${Math.max(4, (customer.spend / maximum) * 100)}%` }}
               />
             </div>
           </div>
         ))}
         {!report.top_customers.length && (
-          <p className="py-8 text-center text-xs text-muted-foreground">
+          <p className="py-8 text-center text-xs text-slate-400">
             Belum ada data pelanggan pembeli pada periode ini.
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -171,62 +171,58 @@ function ReportBody({
           <DollarSign className="size-4 text-emerald-600" />
           Ringkasan Finansial &amp; Pendapatan
         </h2>
-        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
-          <Card className="border-l-4 border-l-emerald-500 shadow-xs">
-            <CardHeader className="pb-1.5 pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Total Nilai Penjualan Selesai</p>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <p className="text-2xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-                {money(summary.completed_sales)}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Dari {summary.completed_orders.toLocaleString("id-ID")} pesanan terverifikasi lunas
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-[#ECFDF5] dark:bg-emerald-950/25 p-5 shadow-2xs">
+            <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">
+              <span>Total Nilai Penjualan Selesai</span>
+              <DollarSign className="size-4" />
+            </div>
+            <p className="text-2xl font-black font-mono tracking-tight text-emerald-800 dark:text-emerald-200">
+              {money(summary.completed_sales)}
+            </p>
+            <p className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-1.5">
+              Dari {summary.completed_orders.toLocaleString("id-ID")} pesanan terverifikasi lunas
+            </p>
+          </div>
 
-          <Card className="border-l-4 border-l-blue-500 shadow-xs">
-            <CardHeader className="pb-1.5 pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Rata-rata Nilai Pesanan (AOV)</p>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <p className="text-2xl font-black font-mono tracking-tight text-foreground">
-                {money(summary.average_order_value)}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Per transaksi yang berhasil diselesaikan
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-[#EFF6FF] dark:bg-blue-950/25 p-5 shadow-2xs">
+            <div className="flex items-center justify-between text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">
+              <span>Rata-rata Nilai Pesanan (AOV)</span>
+              <TrendingUp className="size-4" />
+            </div>
+            <p className="text-2xl font-black font-mono tracking-tight text-blue-800 dark:text-blue-200">
+              {money(summary.average_order_value)}
+            </p>
+            <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 mt-1.5">
+              Per transaksi yang berhasil diselesaikan
+            </p>
+          </div>
 
-          <Card className="border-l-4 border-l-indigo-500 shadow-xs">
-            <CardHeader className="pb-1.5 pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Tingkat Penyelesaian Transaksi</p>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <p className="text-2xl font-black tracking-tight text-foreground">
-                {conversionRate}%
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {summary.completed_orders} selesai dari {summary.total_orders} total pesanan
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-purple-100 dark:border-purple-900/40 bg-[#F5F3FF] dark:bg-purple-950/25 p-5 shadow-2xs">
+            <div className="flex items-center justify-between text-xs font-semibold text-purple-700 dark:text-purple-300 mb-2">
+              <span>Tingkat Penyelesaian Transaksi</span>
+              <CheckCircle2 className="size-4" />
+            </div>
+            <p className="text-2xl font-black tracking-tight text-purple-800 dark:text-purple-200">
+              {conversionRate}%
+            </p>
+            <p className="text-[11px] text-purple-600/80 dark:text-purple-400/80 mt-1.5">
+              {summary.completed_orders} selesai dari {summary.total_orders} total pesanan
+            </p>
+          </div>
 
-          <Card className="border-l-4 border-l-rose-500 shadow-xs">
-            <CardHeader className="pb-1.5 pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Pesanan Dibatalkan</p>
-            </CardHeader>
-            <CardContent className="pb-4">
-              <p className="text-2xl font-black tracking-tight text-rose-600 dark:text-rose-400">
-                {summary.cancelled_orders.toLocaleString("id-ID")}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Batal atau dana dikembalikan (refund)
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-rose-100 dark:border-rose-900/40 bg-[#FFF1F2] dark:bg-rose-950/25 p-5 shadow-2xs">
+            <div className="flex items-center justify-between text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2">
+              <span>Pesanan Dibatalkan</span>
+              <XCircle className="size-4" />
+            </div>
+            <p className="text-2xl font-black tracking-tight text-rose-800 dark:text-rose-200">
+              {summary.cancelled_orders.toLocaleString("id-ID")}
+            </p>
+            <p className="text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1.5">
+              Batal atau dana dikembalikan (refund)
+            </p>
+          </div>
         </div>
       </div>
 

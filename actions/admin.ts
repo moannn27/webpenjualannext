@@ -302,7 +302,7 @@ export async function getAdminProductOptionsAction() {
   await requireAdmin()
   const supabase = await createClient()
   const { data, error } = await supabase.from('products')
-    .select('id, name, status, categories(name), brands(name)')
+    .select('id, name, status, categories(name), brands(name), product_images(url, is_primary)')
     .eq('status', 'published')
     .order('name')
   if (error) throw new Error(error.message)

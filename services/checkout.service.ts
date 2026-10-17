@@ -200,10 +200,16 @@ export class CheckoutService {
           })
           .eq('order_id', orderId);
 
+        const { data: latestVoucher } = await adminClient
+          .from('vouchers')
+          .select('usage_count')
+          .eq('id', targetVoucher.id)
+          .maybeSingle();
+
         await adminClient
           .from('vouchers')
           .update({
-            usage_count: Number(targetVoucher.usage_count || 0) + 1,
+            usage_count: Number(latestVoucher?.usage_count ?? targetVoucher.usage_count ?? 0) + 1,
             updated_at: new Date().toISOString(),
           })
           .eq('id', targetVoucher.id);

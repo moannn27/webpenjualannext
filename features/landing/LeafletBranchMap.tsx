@@ -177,7 +177,8 @@ export default function LeafletBranchMap({
           zoom: defaultZoom,
           minZoom: 5,
           maxZoom: 18,
-          scrollWheelZoom: true,
+          scrollWheelZoom: false,
+          preferCanvas: true,
         });
 
         if (isCancelled) {

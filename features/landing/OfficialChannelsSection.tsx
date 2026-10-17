@@ -44,31 +44,32 @@ export function OfficialChannelsSection({
   };
 
   return (
-    <section id="official-channel" className="border-t bg-card/40 py-12 sm:py-16">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="official-channel" className="container mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Outer White Card Container (Matching Reference Aesthetic) */}
+      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Top Header & Notice Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
           <div>
             <span className="inline-block text-xs font-bold tracking-wider text-primary uppercase mb-2">
               {sectionTag}
             </span>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
               {sectionTitle}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Pilih marketplace resmi kami. Klik untuk melihat daftar toko dan cabang etalase resmi.
             </p>
           </div>
 
           {/* Transaksi Lebih Aman Notice Box */}
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5 max-w-lg shadow-2xs">
+          <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-4 sm:p-5 max-w-lg shadow-2xs">
             <div className="flex items-start gap-3">
               <ShieldCheck className="size-5 text-primary shrink-0 mt-0.5" />
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
                   Transaksi Lebih Aman
                 </h4>
-                <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                   {noticeText}
                 </p>
               </div>
@@ -87,7 +88,7 @@ export function OfficialChannelsSection({
                 key={marketplace.id}
                 type="button"
                 onClick={(e) => handleCardClick(marketplace, e)}
-                className="group relative flex w-full items-center justify-between rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md text-left cursor-pointer"
+                className="group relative flex w-full items-center justify-between rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-4 sm:p-5 shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-white/20 hover:bg-[#F2F4F7] dark:hover:bg-white/10 text-left cursor-pointer"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <PlatformLogo
@@ -96,7 +97,7 @@ export function OfficialChannelsSection({
                     className="size-11 shrink-0"
                   />
                   <div className="min-w-0">
-                    <span className="block truncate text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                    <span className="block truncate text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
                       {marketplace.name}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary mt-1">
@@ -112,7 +113,7 @@ export function OfficialChannelsSection({
                   </div>
                 </div>
 
-                <div className="grid size-9 place-items-center rounded-xl bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors shrink-0">
+                <div className="grid size-9 place-items-center rounded-xl bg-white dark:bg-black/30 border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-300 group-hover:bg-primary group-hover:text-white transition-colors shrink-0 shadow-2xs">
                   {hasMultiple ? (
                     <ChevronRight className="size-4.5" />
                   ) : (

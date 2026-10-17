@@ -101,52 +101,54 @@ export function ProductReviewsSection({
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Section Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tracking-wide uppercase mb-3">
-            <Sparkles className="size-3.5" />
-            <span>{tag}</span>
+      {/* Outer White Card Container (Matching Reference Aesthetic) */}
+      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+        {/* Section Header */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-8 sm:mb-10">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tracking-wide uppercase mb-3">
+              <Sparkles className="size-3.5" />
+              <span>{tag}</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {title}
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
+              {subtitle}
+            </p>
           </div>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-foreground">
-            {title}
-          </h2>
-          <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">
-            {subtitle}
-          </p>
-        </div>
 
-        {/* Carousel Navigation Buttons (Desktop & Tablet) */}
-        {totalReviews > itemsPerPage && (
-          <div className="flex items-center gap-2 self-start md:self-end">
-            <button
-              type="button"
-              onClick={() => setIsPaused((prev) => !prev)}
-              aria-label={isPaused ? "Lanjutkan putar otomatis" : "Jeda putar otomatis"}
-              className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition shadow-2xs"
-              title={isPaused ? "Lanjutkan otomatis" : "Jeda otomatis"}
-            >
-              {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={prevSlide}
-              aria-label="Ulasan sebelumnya"
-              className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-muted transition shadow-2xs"
-            >
-              <ChevronLeft className="size-5" />
-            </button>
-            <button
-              type="button"
-              onClick={nextSlide}
-              aria-label="Ulasan selanjutnya"
-              className="inline-flex size-10 items-center justify-center rounded-xl border border-border bg-card text-foreground hover:bg-muted transition shadow-2xs"
-            >
-              <ChevronRight className="size-5" />
-            </button>
-          </div>
-        )}
-      </div>
+          {/* Carousel Navigation Buttons (Desktop & Tablet) */}
+          {totalReviews > itemsPerPage && (
+            <div className="flex items-center gap-2 self-start md:self-end">
+              <button
+                type="button"
+                onClick={() => setIsPaused((prev) => !prev)}
+                aria-label={isPaused ? "Lanjutkan putar otomatis" : "Jeda putar otomatis"}
+                className="inline-flex size-9 sm:size-10 items-center justify-center rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F6F7F9] dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition shadow-2xs cursor-pointer"
+                title={isPaused ? "Lanjutkan otomatis" : "Jeda otomatis"}
+              >
+                {isPaused ? <Play className="size-4" /> : <Pause className="size-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={prevSlide}
+                aria-label="Ulasan sebelumnya"
+                className="inline-flex size-9 sm:size-10 items-center justify-center rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F6F7F9] dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition shadow-2xs cursor-pointer"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={nextSlide}
+                aria-label="Ulasan selanjutnya"
+                className="inline-flex size-9 sm:size-10 items-center justify-center rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F6F7F9] dark:bg-white/5 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10 transition shadow-2xs cursor-pointer"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </div>
+          )}
+        </div>
 
       {/* Reviews Slider Viewport */}
       <div
@@ -180,7 +182,7 @@ export function ProductReviewsSection({
                 className="shrink-0 px-2.5 sm:px-3"
                 style={{ width: `${100 / itemsPerPage}%` }}
               >
-                <article className="group flex flex-col justify-between h-full rounded-3xl border border-border/80 bg-card/90 p-5 sm:p-6 shadow-sm hover:shadow-xl hover:border-primary/40 transition-all duration-300">
+                <article className="group flex flex-col justify-between h-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-slate-300 dark:hover:border-white/20 transition-all duration-300">
                   {/* Top: Rating Stars & Badges */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -311,6 +313,7 @@ export function ProductReviewsSection({
           ))}
         </div>
       )}
+      </div>
     </section>
   );
 }

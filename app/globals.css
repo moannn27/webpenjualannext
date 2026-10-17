@@ -49,7 +49,7 @@
 }
 
 :root {
-  --background: #F8FAFC;
+  --background: #ECEFF4;
   --foreground: #111827;
   --card: #FFFFFF;
   --card-foreground: #111827;
@@ -65,8 +65,8 @@
   --accent-foreground: #FFFFFF;
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
+  --border: #CBD5E1;
+  --input: #CBD5E1;
   --ring: #0A4EA3;
   --chart-1: #0A4EA3;
   --chart-2: #2563EB;
@@ -85,9 +85,9 @@
 }
 
 .dark {
-  --background: #0F172A;
+  --background: #131419;
   --foreground: #F8FAFC;
-  --card: #1E293B;
+  --card: #1E2028;
   --card-foreground: #F8FAFC;
   --popover: #1E293B;
   --popover-foreground: #F8FAFC;
@@ -173,5 +173,38 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/* ==========================================================================
+   Finly Admin Dashboard Theme Styles
+   ========================================================================== */
+[data-admin-shell] {
+  --admin-purple: #7C5CFC;
+  --admin-purple-dark: #6C4BE8;
+  --admin-purple-light: #F3EFFF;
+  --admin-amber: #FFB020;
+  --admin-green: #22C55E;
+}
+
+[data-admin-shell] .finly-card {
+  border-radius: 26px;
+  background-color: #FFFFFF;
+  border: 1px solid #E8ECF5;
+  box-shadow: 0 4px 20px -2px rgba(124, 92, 252, 0.03), 0 2px 8px -2px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+.dark [data-admin-shell] .finly-card,
+[data-admin-shell].dark .finly-card {
+  background-color: #23252C;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.25);
+}
+
+[data-admin-shell] .finly-pill-active {
+  background-color: #7C5CFC;
+  color: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 8px 16px -4px rgba(124, 92, 252, 0.35);
 }
 

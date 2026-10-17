@@ -49,11 +49,17 @@ export class CartService {
       return
     }
 
-    const product = await this.productRepo.findStockById(productId)
+    const existingItem = await this.repo.getItemById(itemId)
+    if (!existingItem) throw new Error("Item keranjang tidak ditemukan")
+
+    const verifiedProductId = existingItem.product_id || productId
+    const verifiedVariantId = existingItem.variant_id ?? variantId
+
+    const product = await this.productRepo.findStockById(verifiedProductId)
     if (!product || product.status !== 'published') throw new Error("Produk tidak tersedia")
-    if ((product.product_variants?.length ?? 0) > 0 && !variantId) throw new Error("Pilih varian produk terlebih dahulu")
-    const selectedVariant = variantId ? product.product_variants?.find((variant) => variant.id === variantId) : null
-    const stock = selectedVariant?.stock ?? (variantId ? -1 : product.stock)
+    if ((product.product_variants?.length ?? 0) > 0 && !verifiedVariantId) throw new Error("Pilih varian produk terlebih dahulu")
+    const selectedVariant = verifiedVariantId ? product.product_variants?.find((variant) => variant.id === verifiedVariantId) : null
+    const stock = selectedVariant?.stock ?? (verifiedVariantId ? -1 : product.stock)
     if (stock < quantity) {
        throw new Error("Stok varian tidak mencukupi")
     }

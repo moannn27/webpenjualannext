@@ -307,7 +307,7 @@ export class ProductRepository extends BaseRepository {
       .from('products')
       .select('id, stock, status, product_variants(id, stock)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     if (error) throw error
     return data
   }

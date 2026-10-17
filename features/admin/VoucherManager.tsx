@@ -241,88 +241,89 @@ export function VoucherManager({
       {/* Page Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Kupon & Voucher</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">Kupon & Voucher</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Buat dan atur kode promo diskon untuk pembelian checkout web.
           </p>
         </div>
         {canManage && (
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="size-4" />
+          <Button onClick={handleOpenCreate} className="rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4 shadow-sm gap-2">
+            <Plus className="size-3.5" />
             Tambah Voucher
           </Button>
         )}
       </div>
 
-      {/* Metrics Highlights */}
+      {/* Metrics Highlights - 3 Pastel Cards */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Voucher</p>
-          <p className="mt-2 text-2xl font-bold">{vouchers.length}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{activeCount} voucher aktif saat ini</p>
+        <div className="rounded-2xl border border-blue-200/70 bg-[#EFF6FF] dark:border-blue-900/40 dark:bg-blue-950/20 p-4 shadow-xs">
+          <p className="text-[11px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Total Voucher</p>
+          <p className="mt-1.5 text-2xl font-black tracking-tight text-slate-900 dark:text-white">{vouchers.length}</p>
+          <p className="mt-1 text-xs text-blue-600/80 dark:text-blue-400/80">{activeCount} voucher aktif saat ini</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Voucher Aktif</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{activeCount}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Dapat dipakai di checkout web</p>
+        <div className="rounded-2xl border border-emerald-200/70 bg-[#ECFDF5] dark:border-emerald-900/40 dark:bg-emerald-950/20 p-4 shadow-xs">
+          <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">Voucher Aktif</p>
+          <p className="mt-1.5 text-2xl font-black tracking-tight text-emerald-700 dark:text-emerald-400">{activeCount}</p>
+          <p className="mt-1 text-xs text-emerald-600/80 dark:text-emerald-400/80">Dapat dipakai di checkout web</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Klaim / Penggunaan</p>
-          <p className="mt-2 text-2xl font-bold text-primary">{totalUses}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Transaksi yang menggunakan voucher</p>
-        </div>
-      </div>
-
-      {/* Filter and Search */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[240px] max-w-sm">
-          <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari kode atau deskripsi voucher..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Filter className="size-4 text-muted-foreground" />
-          <select
-            value={scopeFilter}
-            onChange={(e) => setScopeFilter(e.target.value)}
-            className="h-10 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm font-medium"
-          >
-            <option value="all">Semua Sasaran Voucher</option>
-            <option value="all_products">Semua Produk (Umum)</option>
-            <option value="new_customer">Khusus Pengguna Baru</option>
-            <option value="category">Khusus Kategori</option>
-            <option value="brand">Khusus Merk / Brand</option>
-            <option value="combination">Kombinasi (Kategori & Merk)</option>
-          </select>
+        <div className="rounded-2xl border border-purple-200/70 bg-[#F5F3FF] dark:border-purple-900/40 dark:bg-purple-950/20 p-4 shadow-xs">
+          <p className="text-[11px] font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wider">Total Klaim / Penggunaan</p>
+          <p className="mt-1.5 text-2xl font-black tracking-tight text-purple-700 dark:text-purple-300">{totalUses}</p>
+          <p className="mt-1 text-xs text-purple-600/80 dark:text-purple-400/80">Transaksi yang menggunakan voucher</p>
         </div>
       </div>
 
-      {error && !openModal && (
-        <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
-          {error}
-        </p>
-      )}
+      {/* Vouchers Table Container */}
+      <div className="rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] shadow-sm p-4 sm:p-6 space-y-4">
+        {/* Filter and Search */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px] max-w-sm">
+            <Search className="absolute left-3.5 top-2.5 size-4 text-slate-400" />
+            <Input
+              placeholder="Cari kode atau deskripsi voucher..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rounded-full border-slate-200/90 dark:border-white/10 bg-slate-50/60 dark:bg-[#18191E] pl-9 text-xs focus-visible:ring-[#2563EB]/30"
+            />
+          </div>
 
-      {/* Vouchers Table */}
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <Table className="min-w-[850px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Kode & Deskripsi</TableHead>
-              <TableHead>Cakupan Produk</TableHead>
-              <TableHead>Tipe & Diskon</TableHead>
-              <TableHead>Syarat Pembelian</TableHead>
-              <TableHead>Penggunaan</TableHead>
-              <TableHead>Periode</TableHead>
-              <TableHead>Status</TableHead>
-              {canManage && <TableHead className="text-right">Aksi</TableHead>}
-            </TableRow>
-          </TableHeader>
+          <div className="flex items-center gap-2">
+            <Filter className="size-4 text-slate-400" />
+            <select
+              value={scopeFilter}
+              onChange={(e) => setScopeFilter(e.target.value)}
+              className="h-9 rounded-full border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#23252C] px-3.5 text-xs font-medium text-slate-700 dark:text-slate-200"
+            >
+              <option value="all">Semua Sasaran Voucher</option>
+              <option value="all_products">Semua Produk (Umum)</option>
+              <option value="new_customer">Khusus Pengguna Baru</option>
+              <option value="category">Khusus Kategori</option>
+              <option value="brand">Khusus Merk / Brand</option>
+              <option value="combination">Kombinasi (Kategori & Merk)</option>
+            </select>
+          </div>
+        </div>
+
+        {error && !openModal && (
+          <p role="alert" className="rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028]">
+          <Table className="min-w-[850px]">
+            <TableHeader className="bg-slate-50/75 dark:bg-white/[0.02]">
+              <TableRow>
+                <TableHead>Kode & Deskripsi</TableHead>
+                <TableHead>Cakupan Produk</TableHead>
+                <TableHead>Tipe & Diskon</TableHead>
+                <TableHead>Syarat Pembelian</TableHead>
+                <TableHead>Penggunaan</TableHead>
+                <TableHead>Periode</TableHead>
+                <TableHead>Status</TableHead>
+                {canManage && <TableHead className="text-right">Aksi</TableHead>}
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {filteredVouchers.map((voucher) => {
               const parsedEndDate = parseVoucherDate(voucher.end_date, true);
@@ -484,19 +485,26 @@ export function VoucherManager({
                         type="button"
                         onClick={() => handleToggle(voucher.id, voucher.is_active)}
                         disabled={isPending}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors cursor-pointer ${
                           voucher.is_active
-                            ? "bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-400"
-                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40"
+                            : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200/70 dark:bg-white/5 dark:text-slate-400"
                         }`}
                       >
-                        <span className={`size-1.5 rounded-full ${voucher.is_active ? "bg-emerald-600" : "bg-muted-foreground"}`} />
+                        <span className={`size-1.5 rounded-full ${voucher.is_active ? "bg-emerald-500" : "bg-slate-400"}`} />
                         {voucher.is_active ? "Aktif" : "Nonaktif"}
                       </button>
                     ) : (
-                      <Badge variant={voucher.is_active ? "default" : "outline"}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          voucher.is_active
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/30 dark:text-emerald-400"
+                            : "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-white/5 dark:text-slate-400"
+                        }`}
+                      >
+                        <span className={`size-1.5 rounded-full ${voucher.is_active ? "bg-emerald-500" : "bg-slate-400"}`} />
                         {voucher.is_active ? "Aktif" : "Nonaktif"}
-                      </Badge>
+                      </span>
                     )}
                   </TableCell>
 
@@ -541,6 +549,7 @@ export function VoucherManager({
           </TableBody>
         </Table>
       </div>
+    </div>
 
       {/* Modal Buat / Edit Voucher */}
       {openModal && (

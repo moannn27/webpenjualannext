@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -62,6 +63,8 @@ import {
   Bot,
   Building2,
   UserRound,
+  Search,
+  Package,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
@@ -161,7 +164,9 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, startTransition] = useTransition();
-  const [products, setProducts] = useState<{ id: string; name: string; brand: string; category: string }[]>([]);
+  const [products, setProducts] = useState<
+    { id: string; name: string; brand: string; category: string; image?: string }[]
+  >([]);
   const [productSearch, setProductSearch] = useState<Record<string, string>>({});
   const router = useRouter();
 
@@ -231,12 +236,21 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     getAdminProductOptionsAction()
       .then((rows) =>
         setProducts(
-          rows.map((product) => ({
-            id: product.id,
-            name: product.name,
-            brand: product.brands?.[0]?.name ?? "",
-            category: product.categories?.[0]?.name ?? "",
-          }))
+          rows.map((product) => {
+            const b = (product as { brands?: { name?: string } | { name?: string }[] }).brands;
+            const c = (product as { categories?: { name?: string } | { name?: string }[] }).categories;
+            const imgs = (product as { product_images?: { url?: string; is_primary?: boolean }[] }).product_images;
+            const primaryImg = Array.isArray(imgs)
+              ? imgs.find((i) => i.is_primary)?.url || imgs[0]?.url
+              : "";
+            return {
+              id: product.id,
+              name: product.name,
+              brand: Array.isArray(b) ? b[0]?.name ?? "" : b?.name ?? "",
+              category: Array.isArray(c) ? c[0]?.name ?? "" : c?.name ?? "",
+              image: primaryImg || "",
+            };
+          })
         )
       )
       .catch(() => setProducts([]));
@@ -588,48 +602,58 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   };
 
   return (
-    <section className="space-y-6 rounded-2xl border bg-card p-5 sm:p-6">
-      {/* Sticky Top Bar for Instant Saving */}
-      <div className="sticky top-2 z-30 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-background/95 p-3.5 shadow-md backdrop-blur sm:p-4">
-        <div className="flex items-center gap-2.5">
-          <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <div className="space-y-6">
+      {/* Sticky Top Bar for Instant Saving - sticks cleanly right under AdminHeader (h-20 / 80px) */}
+      <div className="sticky top-20 z-20 flex flex-wrap items-center justify-between gap-3.5 rounded-2xl border border-slate-200/90 dark:border-white/10 bg-white/95 dark:bg-[#18191E]/95 p-4 shadow-md backdrop-blur-md transition-all">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-[#2563EB] dark:text-blue-400">
             <Save className="size-5" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold leading-tight text-foreground">
+            <h3 className="text-sm font-bold leading-tight text-slate-900 dark:text-white">
               Pengaturan Toko, Cabang & Official Marketplace
             </h3>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Perubahan langsung tersimpan ke database toko Anda.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={save} disabled={busy} className="gap-2 shadow-sm font-medium">
-            {busy ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}
-            {busy ? "Menyimpan..." : "Simpan Pengaturan"}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setSettings(DEFAULT_STOREFRONT_SETTINGS)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSettings(DEFAULT_STOREFRONT_SETTINGS)}
+            className="rounded-full text-xs font-semibold border-slate-200/80 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 h-9 px-4"
+          >
             Reset Default
+          </Button>
+          <Button
+            onClick={save}
+            disabled={busy}
+            className="gap-2 shadow-sm font-semibold rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs px-5 h-9 transition"
+          >
+            {busy ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+            {busy ? "Menyimpan..." : "Simpan Pengaturan"}
           </Button>
         </div>
       </div>
 
       {error && (
-        <div role="alert" className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3.5 text-sm text-destructive">
+        <div role="alert" className="flex items-center gap-2 rounded-xl border border-destructive/20 bg-destructive/10 p-3.5 text-sm text-destructive">
           <AlertCircle className="size-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <div role="status" className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3.5 text-sm text-green-800">
-          <CheckCircle2 className="size-4 shrink-0 text-green-600" />
+        <div role="status" className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800/40 p-3.5 text-sm text-emerald-800 dark:text-emerald-300">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
           <span>{notice}</span>
         </div>
       )}
 
-      {/* Pembagian Tab Pengaturan ("bagian penyimpanannya juga bisa dibagi bagi") */}
-      <div id="storefront-settings-tabs" className="flex items-center gap-1.5 overflow-x-auto pb-1 text-sm border-b border-border/80 scroll-mt-20">
+      {/* Pembagian Tab Pengaturan */}
+      <div id="storefront-settings-tabs" className="flex items-center gap-2 overflow-x-auto pb-1 text-sm scrollbar-none scroll-mt-24">
         {[
           { id: "all", label: "Semua Pengaturan", icon: Layers },
           { id: "branding", label: "Logo & Identitas", icon: ImageIcon },
@@ -655,10 +679,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                 }
               }}
               className={cn(
-                "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
+                "inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-[#2563EB] text-white border-[#2563EB] shadow-xs"
+                  : "bg-white dark:bg-[#1E2028] text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/10"
               )}
             >
               <Icon className="size-3.5" />
@@ -670,7 +694,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Logo, Identitas Toko & Foto Profil Admin */}
       {(activeSettingsTab === "all" || activeSettingsTab === "branding") && (
-        <div id="storefront-branding-section" className="space-y-6 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
+        <div id="storefront-branding-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-6 shadow-sm scroll-mt-20">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
@@ -952,10 +976,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Pembayaran, Fitur Pelanggan, dsb.) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "features") && (
-        <div id="storefront-features-section" className="space-y-6 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs scroll-mt-20">
-          <div className="border-b border-border/70 pb-4">
+        <div id="storefront-features-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+              <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
                 <SlidersHorizontal className="size-5" />
               </div>
               <div>
@@ -967,6 +991,15 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                 </p>
               </div>
             </div>
+            <Button
+              onClick={save}
+              disabled={busy}
+              size="sm"
+              className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+            >
+              <Save className="size-3.5" />
+              {busy ? "Menyimpan..." : "Simpan Fitur"}
+            </Button>
           </div>
 
           {/* GRUP 1: PENGIRIMAN & PENGAMBILAN */}
@@ -1522,142 +1555,255 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Halaman Depan */}
       {(activeSettingsTab === "all" || activeSettingsTab === "sections") && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold">Tampilan & Section Halaman Depan</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Atur status tampilan, judul, dan deskripsi section yang muncul di halaman beranda.
-            </p>
+        <div id="storefront-sections-settings" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+                <Compass className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">
+                  Tampilan &amp; Section Halaman Depan
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Atur status tampilan, judul, deskripsi singkat, dan produk pilihan untuk setiap section beranda toko.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={save}
+              disabled={busy}
+              size="sm"
+              className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+            >
+              <Save className="size-3.5" />
+              {busy ? "Menyimpan..." : "Simpan Section"}
+            </Button>
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+
+          <div className="grid gap-5 lg:grid-cols-2">
             {Object.entries(settings.sections)
               .filter(([key]) => key !== "testimonials")
               .map(([key, section]) => (
-          <article key={key} className="min-w-0 space-y-3 rounded-xl border bg-background p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold text-primary">{names[key] ?? key}</h3>
-              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={section.visible}
-                  onChange={(event) => updateSection(key, "visible", event.target.checked)}
-                />
-                Tampilkan
-              </label>
-            </div>
-            {section.tag !== undefined && (
-              <label className="block space-y-1 text-xs">
-                Tag / Subjudul Kecil (Atas)
-                <Input
-                  value={section.tag}
-                  onChange={(event) => updateSection(key, "tag", event.target.value)}
-                  placeholder="Contoh: CABANG RESMI / OFFICIAL CHANNEL"
-                />
-              </label>
-            )}
-            <label className="block space-y-1 text-sm">
-              Judul
-              <Input
-                value={section.title}
-                onChange={(event) => updateSection(key, "title", event.target.value)}
-                maxLength={100}
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              Deskripsi singkat
-              <Input
-                value={section.subtitle}
-                onChange={(event) => updateSection(key, "subtitle", event.target.value)}
-                maxLength={180}
-              />
-            </label>
-            {section.notice !== undefined && (
-              <label className="block space-y-1 text-xs">
-                Teks Keamanan Transaksi (Notice)
-                <Input
-                  value={section.notice}
-                  onChange={(event) => updateSection(key, "notice", event.target.value)}
-                />
-              </label>
-            )}
-            {["bestsellers", "newArrivals", "promo", "featuredDiscovery"].includes(key) && (
-              <fieldset className="space-y-3 border-t pt-3">
-                <div className="flex items-center justify-between gap-3">
-                  <legend className="text-sm font-medium">Pilih produk</legend>
-                  <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium">
-                    {(section.productIds ?? []).length}/8 dipilih
-                  </span>
-                </div>
-                <Input
-                  aria-label={`Cari produk untuk ${names[key] ?? key}`}
-                  value={productSearch[key] ?? ""}
-                  onChange={(event) => setProductSearch((current) => ({ ...current, [key]: event.target.value }))}
-                  placeholder="Cari nama produk, brand, kategori..."
-                />
-                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border bg-card p-2">
-                  {products
-                    .filter((product) =>
-                      `${product.name} ${product.brand} ${product.category}`
-                        .toLocaleLowerCase("id-ID")
-                        .includes((productSearch[key] ?? "").trim().toLocaleLowerCase("id-ID"))
-                    )
-                    .map((product) => {
-                      const selected = section.productIds ?? [];
-                      const checked = selected.includes(product.id);
-                      return (
-                        <label key={product.id} className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted">
-                          <input
-                            className="mt-0.5"
-                            type="checkbox"
-                            checked={checked}
-                            disabled={!checked && selected.length >= 8}
-                            onChange={(event) =>
-                              updateSection(
-                                key,
-                                "productIds",
-                                event.target.checked
-                                  ? [...selected, product.id].slice(0, 8)
-                                  : selected.filter((id) => id !== product.id)
-                              )
-                            }
-                          />
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium">{product.name}</span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {[product.brand, product.category].filter(Boolean).join(" · ") || "Tanpa brand/kategori"}
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                </div>
-              </fieldset>
-            )}
-          </article>
-        ))}
-      </div>
-    </div>
-  )}
+                <article
+                  key={key}
+                  className="min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-5 shadow-xs space-y-4 transition-all hover:border-slate-300 dark:hover:border-white/20"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-200/60 dark:border-white/5 pb-3">
+                    <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#2563EB]/10 text-[#2563EB] dark:text-blue-400 border border-[#2563EB]/20">
+                      {names[key] ?? key}
+                    </span>
+                    <label className="relative inline-flex items-center gap-2.5 cursor-pointer select-none">
+                      <span
+                        className={cn(
+                          "text-xs font-semibold transition-colors",
+                          section.visible
+                            ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                            : "text-slate-400 dark:text-slate-500"
+                        )}
+                      >
+                        {section.visible ? "Aktif / Tayang" : "Nonaktif"}
+                      </span>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={section.visible}
+                          onChange={(event) => updateSection(key, "visible", event.target.checked)}
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#2563EB] shadow-xs" />
+                      </div>
+                    </label>
+                  </div>
 
-  {/* SECTION: Official Marketplace & Toko Online (Screenshot 2 Berkelompok) */}
+                  <div className="space-y-3">
+                    {section.tag !== undefined && (
+                      <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <span>Tag / Subjudul Kecil (Atas)</span>
+                        <Input
+                          value={section.tag}
+                          onChange={(event) => updateSection(key, "tag", event.target.value)}
+                          placeholder="Contoh: CABANG RESMI / OFFICIAL CHANNEL"
+                          className="rounded-xl border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] text-xs h-9.5 px-3 focus-visible:ring-[#2563EB]/30 shadow-2xs"
+                        />
+                      </label>
+                    )}
+                    <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>Judul Section</span>
+                      <Input
+                        value={section.title}
+                        onChange={(event) => updateSection(key, "title", event.target.value)}
+                        maxLength={100}
+                        className="rounded-xl border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] text-sm h-10 px-3 font-medium focus-visible:ring-[#2563EB]/30 shadow-2xs"
+                      />
+                    </label>
+                    <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <span>Deskripsi Singkat</span>
+                      <Input
+                        value={section.subtitle}
+                        onChange={(event) => updateSection(key, "subtitle", event.target.value)}
+                        maxLength={180}
+                        className="rounded-xl border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] text-xs h-9.5 px-3 focus-visible:ring-[#2563EB]/30 shadow-2xs"
+                      />
+                    </label>
+                    {section.notice !== undefined && (
+                      <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <span>Teks Keamanan Transaksi (Notice)</span>
+                        <Input
+                          value={section.notice}
+                          onChange={(event) => updateSection(key, "notice", event.target.value)}
+                          className="rounded-xl border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] text-xs h-9.5 px-3 focus-visible:ring-[#2563EB]/30 shadow-2xs"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {["bestsellers", "newArrivals", "promo", "featuredDiscovery"].includes(key) && (
+                    <fieldset className="space-y-3 border-t border-slate-200/70 dark:border-white/5 pt-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <legend className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          Pilih Produk Tampilan
+                        </legend>
+                        <span
+                          className={cn(
+                            "rounded-full px-2.5 py-0.5 text-xs font-bold border transition-colors",
+                            (section.productIds ?? []).length > 0
+                              ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
+                              : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-400 dark:border-white/10"
+                          )}
+                        >
+                          {(section.productIds ?? []).length}/8 dipilih
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
+                        <Input
+                          aria-label={`Cari produk untuk ${names[key] ?? key}`}
+                          value={productSearch[key] ?? ""}
+                          onChange={(event) =>
+                            setProductSearch((current) => ({ ...current, [key]: event.target.value }))
+                          }
+                          placeholder="Cari nama produk, brand, kategori..."
+                          className="pl-8.5 text-xs rounded-xl h-9 bg-white dark:bg-[#18191E] border-slate-200/80 dark:border-white/10 shadow-2xs"
+                        />
+                      </div>
+                      <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] p-2 shadow-2xs">
+                        {products.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-400">
+                            Memuat daftar produk...
+                          </div>
+                        ) : (
+                          products
+                            .filter((product) =>
+                              `${product.name} ${product.brand} ${product.category}`
+                                .toLocaleLowerCase("id-ID")
+                                .includes((productSearch[key] ?? "").trim().toLocaleLowerCase("id-ID"))
+                            )
+                            .map((product) => {
+                              const selected = section.productIds ?? [];
+                              const checked = selected.includes(product.id);
+                              return (
+                                <label
+                                  key={product.id}
+                                  className={cn(
+                                    "flex cursor-pointer items-center gap-2.5 rounded-lg p-2 text-xs transition-colors border select-none",
+                                    checked
+                                      ? "bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60 text-blue-950 dark:text-blue-100 font-medium"
+                                      : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200",
+                                    !checked && selected.length >= 8 && "opacity-50 cursor-not-allowed"
+                                  )}
+                                >
+                                  <input
+                                    className="size-4 rounded border-slate-300 text-[#2563EB] focus:ring-[#2563EB]/30 shrink-0 cursor-pointer"
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={!checked && selected.length >= 8}
+                                    onChange={(event) =>
+                                      updateSection(
+                                        key,
+                                        "productIds",
+                                        event.target.checked
+                                          ? [...selected, product.id].slice(0, 8)
+                                          : selected.filter((id) => id !== product.id)
+                                      )
+                                    }
+                                  />
+                                  {product.image ? (
+                                    <div className="relative size-8 shrink-0 overflow-hidden rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5">
+                                      <Image
+                                        src={product.image}
+                                        alt={product.name}
+                                        fill
+                                        sizes="32px"
+                                        className="object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="size-8 shrink-0 rounded-md border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
+                                      <Package className="size-4" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block truncate font-semibold text-xs leading-snug">
+                                      {product.name}
+                                    </span>
+                                    <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                      {[product.brand, product.category].filter(Boolean).join(" · ") ||
+                                        "Umum"}
+                                    </span>
+                                  </div>
+                                  {checked && (
+                                    <span className="shrink-0 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100/80 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
+                                      Dipilih
+                                    </span>
+                                  )}
+                                </label>
+                              );
+                            })
+                        )}
+                      </div>
+                    </fieldset>
+                  )}
+                </article>
+              ))}
+          </div>
+        </div>
+      )}
+
+  {/* SECTION: Official Marketplace & Toko Online */}
   {(activeSettingsTab === "all" || activeSettingsTab === "marketplaces") && (
-    <div className="space-y-4 border-t pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Share2 className="size-5 text-primary" />
-              <h2 className="text-xl font-bold">Official Marketplace & Akun Toko Resmi</h2>
+    <div id="storefront-marketplaces-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+              <Share2 className="size-5" />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Kelola marketplace resmi (Tokopedia, Shopee, TikTok Shop, dll). Setiap marketplace bisa memiliki beberapa cabang/akun toko.
-            </p>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Official Marketplace &amp; Akun Toko Resmi
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Kelola marketplace resmi (Tokopedia, Shopee, TikTok Shop, dll). Setiap marketplace bisa memiliki beberapa cabang/akun toko.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={addMarketplace} className="gap-1.5">
-              <Plus className="size-4" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addMarketplace}
+              className="gap-1.5 rounded-full text-xs font-semibold border-slate-200/80 dark:border-white/10"
+            >
+              <Plus className="size-3.5" />
               Tambah Platform Marketplace
             </Button>
-            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+            <Button
+              onClick={save}
+              disabled={busy}
+              size="sm"
+              className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+            >
               <Save className="size-3.5" />
               {busy ? "Menyimpan..." : "Simpan Marketplace"}
             </Button>
@@ -1669,7 +1815,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           {(settings.official_marketplaces || []).map((marketplace) => (
             <article
               key={marketplace.id}
-              className="rounded-2xl border border-border bg-background p-4 sm:p-5 shadow-sm space-y-4"
+              className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4 sm:p-5 shadow-xs space-y-4"
             >
               {/* Header Platform */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
@@ -1877,25 +2023,40 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       </div>
       )}
 
-      {/* SECTION: Cabang Toko & Peta Interaktif (Screenshot 1) */}
+      {/* SECTION: Cabang Toko & Peta Interaktif */}
       {(activeSettingsTab === "all" || activeSettingsTab === "branches") && (
-      <div className="space-y-4 border-t pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Compass className="size-5 text-primary" />
-              <h2 className="text-xl font-bold">Cabang Toko & Peta Interaktif (Screenshot 1)</h2>
+      <div id="storefront-branches-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+              <MapPin className="size-5" />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Kelola titik cabang untuk fitur pencarian cabang terdekat dan peta Leaflet OpenStreetMap.
-            </p>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Cabang Toko &amp; Peta Interaktif
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Kelola titik cabang fisik untuk fitur pencarian cabang terdekat dan peta interaktif.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={addBranch} className="gap-1.5">
-              <Plus className="size-4" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addBranch}
+              className="gap-1.5 rounded-full text-xs font-semibold border-slate-200/80 dark:border-white/10"
+            >
+              <Plus className="size-3.5" />
               Tambah Cabang
             </Button>
-            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+            <Button
+              onClick={save}
+              disabled={busy}
+              size="sm"
+              className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+            >
               <Save className="size-3.5" />
               {busy ? "Menyimpan..." : "Simpan Cabang"}
             </Button>
@@ -1905,7 +2066,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         {/* List of Branches */}
         <div className="space-y-4">
           {settings.store.branches.map((branch, index) => (
-            <article key={branch.id} className="rounded-xl border bg-background p-4 sm:p-5 shadow-sm space-y-4">
+            <article key={branch.id} className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4 sm:p-5 shadow-xs space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
@@ -2126,26 +2287,47 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* SECTION: Ulasan & Review Produk Pelanggan (Slider Beranda) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "reviews") && (
-      <div className="space-y-4 border-t pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <MessageSquareQuote className="size-5 text-primary" />
-              <h2 className="text-xl font-bold">Ulasan & Review Produk di Beranda (Slider Otomatis)</h2>
+      <div id="storefront-reviews-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+              <MessageSquareQuote className="size-5" />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ulasan produk yang dipilih di sini akan tampil bergantian secara otomatis di beranda (tepat di atas Official Channel), menampilkan rating bintang, nama pembeli, teks ulasan, serta kartu produk yang dibeli.
-            </p>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Ulasan &amp; Review Produk di Beranda
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Ulasan produk yang dipilih di sini akan tampil di slider beranda secara otomatis, menampilkan rating bintang, ulasan pelanggan, dan kartu produk.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={resetDefaultReviews} className="text-xs">
-              Kembalikan Default (4 Ulasan)
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={resetDefaultReviews}
+              className="text-xs rounded-full border-slate-200/80 dark:border-white/10"
+            >
+              Kembalikan Default (4)
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={addFeaturedReview} className="gap-1.5 text-xs">
-              <Plus className="size-4" />
-              Tambah Ulasan Manual
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addFeaturedReview}
+              className="gap-1.5 text-xs rounded-full border-slate-200/80 dark:border-white/10"
+            >
+              <Plus className="size-3.5" />
+              Tambah Ulasan
             </Button>
-            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+            <Button
+              onClick={save}
+              disabled={busy}
+              size="sm"
+              className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+            >
               <Save className="size-3.5" />
               {busy ? "Menyimpan..." : "Simpan Ulasan"}
             </Button>
@@ -2363,16 +2545,28 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Informasi Toko Utama & Footer */}
       {(activeSettingsTab === "all" || activeSettingsTab === "store") && (
-      <>
-      <div className="space-y-4 border-t pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold">Informasi Toko Utama & Footer</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Alamat utama, kontak CS, dan link Google Maps ini akan tampil di bagian bawah website.
-            </p>
+      <div id="storefront-store-section" className="space-y-8 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+              <Store className="size-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">
+                Informasi Toko Utama, Kontak &amp; Rekening
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Alamat utama, kontak CS, link Google Maps, opsi pickup toko, dan rekening transfer pembayaran.
+              </p>
+            </div>
           </div>
-          <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+          <Button
+            onClick={save}
+            disabled={busy}
+            size="sm"
+            className="gap-1.5 shadow-sm rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs px-4"
+          >
             <Save className="size-3.5" />
             {busy ? "Menyimpan..." : "Simpan Info Toko"}
           </Button>
@@ -2715,7 +2909,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </select>
         </label>
       </div>
-      </>
+      </div>
       )}
 
       {/* Bottom Save Action Buttons */}
@@ -2736,6 +2930,6 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </span>
         )}
       </div>
-    </section>
+    </div>
   );
 }

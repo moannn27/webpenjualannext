@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Star, ShoppingCart, Heart, GitCompareArrows } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
@@ -29,7 +28,9 @@ export function ProductCard({ product }: ProductCardProps) {
   const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
   const isOutOfStock = (product.stock ?? 0) <= 0;
 
-  const toggleWishlist = async () => {
+  const toggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       const result = await toggleWishlistAction(product.id);
       setSaved(result.action === "added");
@@ -47,145 +48,132 @@ export function ProductCard({ product }: ProductCardProps) {
     }).format(price);
   };
 
+  // Specs extraction
+  const specs = collectLaptopSpecifications(product.specifications);
+  const detectedStorage = specs.Storage || product.name.match(/\b(128\s?GB|256\s?GB|512\s?GB|1\s?TB|2\s?TB)\b/i)?.[0];
+  const detectedRam = specs.RAM || product.name.match(/\b(4\s?GB|8\s?GB|16\s?GB|32\s?GB|64\s?GB)\s*(?:RAM)?\b/i)?.[0];
+  const specsSummary = [product.brand, detectedRam, detectedStorage].filter(Boolean).join(" • ");
+
+  const categoryBadge = product.category || product.brand || "GEAR";
+
   return (
-    <div className="group relative flex flex-col bg-card rounded-[24px] border border-border p-4 transition-all duration-300 hover:shadow-xl hover:border-primary/20">
-      
-      {/* Badges */}
-      <div className="absolute top-3.5 left-3.5 z-10 flex flex-wrap gap-1.5 items-center max-w-[calc(100%-3.5rem)] pointer-events-none">
-        {isOutOfStock ? (
-          <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-full bg-rose-600 text-white shadow-xs tracking-wide">
-            Stok Habis
-          </span>
-        ) : (
-          <span className="px-2.5 py-0.5 text-[10.5px] font-medium rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 backdrop-blur-xs">
-            Stok: {product.stock}
-          </span>
-        )}
-        {product.badges
-          ?.filter((badge) => !(isOutOfStock && badge === "Sale"))
-          .slice(0, 1)
-          .map((badge) => {
-            const badgeColor =
-              badge === "Sale"
-                ? "bg-rose-600 text-white"
-                : badge === "Best Seller"
-                ? "bg-amber-500 text-slate-950 font-extrabold"
-                : badge === "Baru"
-                ? "bg-sky-600 text-white"
-                : "bg-primary text-white";
-            return (
-              <span
-                key={badge}
-                className={cn(
-                  "px-2.5 py-0.5 text-[10.5px] font-bold rounded-full shadow-2xs whitespace-nowrap",
-                  badgeColor
-                )}
-              >
-                {badge}
-              </span>
-            );
-          })}
+    <div className="group flex flex-col transition-all duration-300">
+      {/* 1. Image Container (Clean soft grey rounded square from reference image) */}
+      <div className="relative aspect-square w-full rounded-2xl bg-[#F6F7F9] dark:bg-white/5 p-5 flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:bg-[#EFF1F5] dark:group-hover:bg-white/10">
+        {/* Micro Pill Badge at Top-Left */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 pointer-events-none">
+          {isOutOfStock ? (
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-600 text-white shadow-2xs tracking-wider uppercase">
+              Habis
+            </span>
+          ) : (
+            <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-white/90 dark:bg-black/50 text-slate-500 dark:text-slate-400 backdrop-blur-xs shadow-2xs">
+              {categoryBadge}
+            </span>
+          )}
+          {product.discountPrice != null && (
+            <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-500 text-white shadow-2xs">
+              SALE
+            </span>
+          )}
+        </div>
+
+        {/* Wishlist Button at Top-Right */}
+        <button
+          type="button"
+          onClick={toggleWishlist}
+          aria-pressed={saved}
+          className="absolute top-3 right-3 z-10 size-8 rounded-full bg-white/80 dark:bg-black/40 backdrop-blur-xs flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-white transition-all opacity-0 group-hover:opacity-100 shadow-2xs cursor-pointer"
+        >
+          <Heart className={`size-4 ${saved ? "fill-rose-500 text-rose-500" : ""}`} />
+          <span className="sr-only">{saved ? "Hapus dari wishlist" : "Tambah ke wishlist"}</span>
+        </button>
+
+        {/* High-res Centered Cutout Product Image */}
+        <Link
+          href={`/product/${product.id}`}
+          className="relative w-full h-full flex items-center justify-center cursor-pointer"
+        >
+          <Image
+            src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
+            alt={product.name}
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+            className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+          />
+        </Link>
       </div>
 
-      {/* Wishlist Button */}
-      <button onClick={toggleWishlist} aria-pressed={saved} className="absolute top-3.5 right-3.5 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm text-muted-foreground hover:text-destructive hover:bg-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
-        <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />
-        <span className="sr-only">{saved ? "Hapus dari wishlist" : "Tambah ke wishlist"}</span>
-      </button>
-
-      {/* Image */}
-      <Link href={`/product/${product.id}`} className="relative aspect-square mb-6 overflow-hidden rounded-xl bg-white flex items-center justify-center">
-        <Image
-          src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
-          alt={product.name}
-          fill
-          sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
-        />
-      </Link>
-
-      {/* Content */}
-      <div className="flex flex-col flex-1">
-        <div className="flex items-center gap-1 mb-2 text-sm text-muted-foreground">
-          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-          <span className="font-medium text-foreground">{product.rating || "5.0"}</span>
-          <span>({product.reviews || 0})</span>
-        </div>
-        
-        <Link href={`/product/${product.id}`} className="block mb-1">
-          <h3 className="font-semibold text-lg text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+      {/* 2. Product Details Below Image (Clean Minimalist Typography from reference) */}
+      <div className="flex flex-col flex-1 pt-3">
+        {/* Title */}
+        <Link href={`/product/${product.id}`} className="block">
+          <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate group-hover:text-primary transition-colors">
             {product.name}
           </h3>
         </Link>
-        <p className="text-sm text-muted-foreground mb-1.5">{product.brand || product.category}</p>
 
-        {/* Badges Spesifikasi (Storage & RAM) */}
-        {(() => {
-          const specs = collectLaptopSpecifications(product.specifications);
-          const detectedStorage = specs.Storage || product.name.match(/\b(128\s?GB|256\s?GB|512\s?GB|1\s?TB|2\s?TB)\b/i)?.[0];
-          const detectedRam = specs.RAM || product.name.match(/\b(4\s?GB|8\s?GB|16\s?GB|32\s?GB|64\s?GB)\s*(?:RAM)?\b/i)?.[0];
+        {/* Subtitle / Specs */}
+        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+          {specsSummary || product.category || "Garansi Resmi"}
+        </p>
 
-          if (!detectedStorage && !detectedRam) return null;
-
-          return (
-            <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-              {detectedStorage && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary border border-primary/20">
-                  <span className="text-[10px]">💾</span>
-                  <span>{detectedStorage}</span>
-                </span>
-              )}
-              {detectedRam && (
-                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground border border-border/80">
-                  {detectedRam}
-                </span>
-              )}
-            </div>
-          );
-        })()}
-
-        <button type="button" onClick={() => toggleCompare(product.id)} disabled={!compareSelected && compareIds.length >= 3} aria-pressed={compareSelected} className="mb-3 flex w-fit items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:text-primary disabled:cursor-not-allowed disabled:opacity-50">
-          <GitCompareArrows className="size-4" />{compareSelected ? "Hapus dari compare" : "Bandingkan"}
-        </button>
-        
-        <div className="mt-auto flex items-center justify-between">
+        {/* Price & Action Row */}
+        <div className="mt-2 pt-1 flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-xl font-bold text-foreground">
+            <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-white tabular-nums">
               {formatPrice(payablePrice)}
             </span>
             {regularPrice != null && regularPrice > payablePrice && (
-              <span className="text-sm text-muted-foreground line-through">
+              <span className="text-[11px] text-slate-400 line-through tabular-nums">
                 {formatPrice(regularPrice)}
               </span>
             )}
           </div>
-          <Button
-            size="icon"
-            disabled={loadingProductId === product.id}
-            className={cn(
-              "rounded-full h-10 w-10 z-10 transition-colors",
-              isOutOfStock
-                ? "bg-muted text-muted-foreground hover:bg-muted/80 opacity-60 cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-            aria-label={isOutOfStock ? `Stok ${product.name} habis` : `Tambah ${product.name} ke keranjang`}
-            title={isOutOfStock ? "Barang kosong / Stok habis" : "Tambah ke keranjang"}
-            onClick={() => {
-              if (isOutOfStock) {
-                toast.error(
-                  "Barang Kosong / Stok Habis",
-                  `Maaf, produk "${product.name}" sedang kosong dan belum dapat ditambahkan ke keranjang.`
-                );
-                return;
-              }
-              addToCart(product.id, product.name);
-            }}
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span className="sr-only">
-              {isOutOfStock ? "Stok habis" : "Tambah ke keranjang"}
-            </span>
-          </Button>
+
+          <div className="flex items-center gap-1.5">
+            {/* Compare Toggle */}
+            <button
+              type="button"
+              onClick={() => toggleCompare(product.id)}
+              disabled={!compareSelected && compareIds.length >= 3}
+              aria-pressed={compareSelected}
+              title={compareSelected ? "Hapus perbandingan" : "Bandingkan produk"}
+              className={`size-8 rounded-full flex items-center justify-center transition-all ${
+                compareSelected
+                  ? "bg-primary text-white"
+                  : "text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10"
+              }`}
+            >
+              <GitCompareArrows className="size-3.5" />
+            </button>
+
+            {/* Quick Add To Cart Button */}
+            <button
+              type="button"
+              disabled={loadingProductId === product.id}
+              onClick={() => {
+                if (isOutOfStock) {
+                  toast.error(
+                    "Barang Kosong / Stok Habis",
+                    `Maaf, produk "${product.name}" sedang kosong dan belum dapat ditambahkan ke keranjang.`
+                  );
+                  return;
+                }
+                addToCart(product.id, product.name);
+              }}
+              aria-label={isOutOfStock ? `Stok ${product.name} habis` : `Tambah ${product.name} ke keranjang`}
+              title={isOutOfStock ? "Stok habis" : "Tambah ke keranjang"}
+              className={cn(
+                "size-8 sm:size-9 rounded-full flex items-center justify-center transition-all shadow-xs cursor-pointer",
+                isOutOfStock
+                  ? "bg-slate-200 dark:bg-white/10 text-slate-400 cursor-not-allowed opacity-60"
+                  : "bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-105 active:scale-95 hover:bg-black dark:hover:bg-slate-100"
+              )}
+            >
+              <ShoppingCart className="size-3.5 sm:size-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

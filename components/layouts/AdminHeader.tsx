@@ -15,19 +15,23 @@ import {
   X,
   FileText,
   Clock,
+  Calendar,
+  Sun,
+  Moon,
 } from "lucide-react";
-import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
 import {
   getAdminAllNotificationsAction,
   type AdminNotificationItem,
 } from "@/actions/admin";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 export function AdminHeader({
   adminName = "Admin",
@@ -47,6 +51,45 @@ export function AdminHeader({
   const notifRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
+
+  const isDark = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storage", onChange);
+      window.addEventListener("theme-change", onChange);
+      return () => {
+        window.removeEventListener("storage", onChange);
+        window.removeEventListener("theme-change", onChange);
+      };
+    },
+    () => (typeof document !== "undefined" ? document.documentElement.classList.contains("dark") : false),
+    () => false,
+  );
+
+  const toggleTheme = () => {
+    if (typeof document === "undefined") return;
+    const next = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", next);
+    document.documentElement.style.colorScheme = next ? "dark" : "light";
+    window.localStorage.setItem("next-solution-theme", next ? "dark" : "light");
+    window.dispatchEvent(new Event("theme-change"));
+  };
+
+  const currentHour = new Date().getHours();
+  const greetingText =
+    currentHour < 11
+      ? "Selamat Pagi"
+      : currentHour < 15
+      ? "Selamat Siang"
+      : currentHour < 18
+      ? "Selamat Sore"
+      : "Selamat Malam";
+
+  const todayFormatted = new Intl.DateTimeFormat("id-ID", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date());
 
   // Load dismissed notification IDs from localStorage
   useEffect(() => {
@@ -177,28 +220,66 @@ export function AdminHeader({
   return (
     <header
       data-admin-header
-      className="h-16 bg-card border-b flex items-center justify-between gap-3 pl-14 pr-3 sm:px-6 sticky top-0 z-30"
+      className="h-20 bg-[#F0F2F9] dark:bg-[#18191E] border-b border-slate-200/50 dark:border-white/5 flex items-center justify-between gap-4 pl-14 pr-4 sm:px-8 sticky top-0 z-30 transition-colors"
     >
-      <div className="flex-1 max-w-md">
-        <form className="relative" onSubmit={submitSearch}>
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
+      <div className="flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          {greetingText}, {adminName.split(" ")[0]}!
+        </h1>
+      </div>
+
+      <div className="flex items-center gap-2.5 sm:gap-3.5">
+        <form className="relative hidden md:block w-44 lg:w-56" onSubmit={submitSearch}>
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari produk..."
-            className="w-full bg-muted/50 border-none pl-9 rounded-full focus-visible:ring-1 focus-visible:ring-primary/50"
+            placeholder="Search here..."
+            className="w-full bg-white dark:bg-[#23252C] border border-slate-200/70 dark:border-white/10 pl-9 pr-3.5 py-2 text-xs rounded-full text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 shadow-xs transition"
           />
         </form>
-      </div>
 
-      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#EFF6FF] dark:bg-[#2563EB]/15 text-[#2563EB] dark:text-[#60A5FA] text-xs font-semibold select-none shadow-xs">
+          <Calendar className="size-3.5 text-[#2563EB] dark:text-[#60A5FA]" />
+          <span>{todayFormatted}</span>
+        </div>
+
+        <div
+          onClick={toggleTheme}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") toggleTheme();
+          }}
+          title={isDark ? "Beralih ke mode terang" : "Beralih ke mode gelap"}
+          className="flex items-center p-1 rounded-full bg-white dark:bg-[#23252C] border border-slate-200/70 dark:border-white/10 cursor-pointer shadow-xs select-none gap-0.5 transition hover:border-[#2563EB]/40"
+        >
+          <div
+            className={cn(
+              "size-7 rounded-full flex items-center justify-center transition-all",
+              !isDark
+                ? "bg-[#2563EB] text-white shadow-xs"
+                : "text-slate-400 hover:text-slate-200"
+            )}
+          >
+            <Sun className="size-3.5" />
+          </div>
+          <div
+            className={cn(
+              "size-7 rounded-full flex items-center justify-center transition-all",
+              isDark
+                ? "bg-[#2563EB] text-white shadow-xs"
+                : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <Moon className="size-3.5" />
+          </div>
+        </div>
         {/* PUSAT NOTIFIKASI MULTI-KATEGORI */}
         <div ref={notifRef} className="relative">
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
             onClick={() => setNotifOpen((prev) => !prev)}
             aria-label="Pusat Notifikasi"
             title={
@@ -206,21 +287,21 @@ export function AdminHeader({
                 ? `${activeNotifications.length} notifikasi baru menunggu tindakan`
                 : "Tidak ada notifikasi baru"
             }
-            className="rounded-full relative text-muted-foreground hover:text-foreground"
+            className="size-10 rounded-full bg-white dark:bg-[#23252C] border border-slate-200/70 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-xs relative cursor-pointer hover:border-[#2563EB]/40 transition"
           >
             {countSecurity > 0 ? (
-              <ShieldAlert className="h-5 w-5 text-destructive animate-pulse" />
+              <ShieldAlert className="h-4.5 w-4.5 text-rose-500 animate-pulse" />
             ) : countStock > 0 ? (
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <AlertTriangle className="h-4.5 w-4.5 text-amber-500" />
             ) : (
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4.5 w-4.5" />
             )}
             {activeNotifications.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 grid min-w-4.5 min-h-4.5 place-items-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white shadow-xs">
+              <span className="absolute -top-1 -right-1 grid min-w-4.5 min-h-4.5 place-items-center rounded-full bg-[#2563EB] px-1 text-[10px] font-bold text-white shadow-xs ring-2 ring-white dark:ring-[#23252C]">
                 {activeNotifications.length > 99 ? "99+" : activeNotifications.length}
               </span>
             )}
-          </Button>
+          </button>
 
           {notifOpen && (
             <div className="absolute right-0 top-12 z-[70] w-96 max-w-[92vw] rounded-2xl border bg-popover text-popover-foreground shadow-2xl animate-in fade-in zoom-in-95 duration-150 overflow-hidden flex flex-col max-h-[85vh]">
@@ -425,44 +506,34 @@ export function AdminHeader({
           )}
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
+        <Link
+          href="/admin/orders"
           aria-label="Lihat pesanan"
           title="Lihat pesanan"
-          render={<Link href="/admin/orders" />}
-          className="rounded-full relative text-muted-foreground hover:text-foreground"
+          className="size-10 rounded-full bg-white dark:bg-[#23252C] border border-slate-200/70 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-xs cursor-pointer hover:border-[#2563EB]/40 transition"
         >
-          <ShoppingBag className="h-5 w-5" />
-        </Button>
+          <ShoppingBag className="h-4.5 w-4.5" />
+        </Link>
 
-        <div className="h-8 w-px bg-border mx-1 sm:mx-2"></div>
+        <div className="h-7 w-px bg-slate-200 dark:bg-white/10 mx-0.5"></div>
 
         <div ref={menuRef} className="relative">
-          <Button
+          <button
             type="button"
-            variant="ghost"
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}
             aria-label="Buka menu admin"
-            className="flex h-auto items-center gap-3 rounded-xl px-2 py-1.5"
+            className="flex items-center gap-2 rounded-full p-0.5 bg-white dark:bg-[#23252C] border border-slate-200/70 dark:border-white/10 shadow-xs cursor-pointer hover:ring-2 hover:ring-[#2563EB]/40 transition"
           >
-            <span className="text-right hidden sm:block">
-              <span className="block max-w-48 truncate text-sm font-medium leading-none">
-                {adminName}
-              </span>
-              <span className="mt-1 block text-xs text-muted-foreground">Admin</span>
-            </span>
-            <Avatar className="h-9 w-9 border overflow-hidden">
+            <Avatar className="size-9 rounded-full overflow-hidden">
               {avatarUrl ? (
                 <AvatarImage src={avatarUrl} alt={adminName} className="object-cover" />
               ) : null}
-              <AvatarFallback>{adminName.slice(0, 2).toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="bg-gradient-to-tr from-[#2563EB] to-[#60A5FA] text-white font-bold text-xs">
+                {adminName.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
             </Avatar>
-            <ChevronDown
-              className={`size-4 transition-transform ${menuOpen ? "rotate-180" : ""}`}
-            />
-          </Button>
+          </button>
 
           {menuOpen && (
             <div

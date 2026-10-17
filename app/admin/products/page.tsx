@@ -19,11 +19,15 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   ]);
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Products</h2>
-        <p className="text-muted-foreground mt-1">
-          Manage your store&apos;s inventory, pricing, and availability.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+            Katalog Produk
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Kelola inventaris toko, varian spek, penetapan harga, dan ketersediaan stok produk.
+          </p>
+        </div>
       </div>
       
       <ProductTable initialProducts={products} categories={categories ?? []} brands={brands ?? []} initialSearch={search} />
