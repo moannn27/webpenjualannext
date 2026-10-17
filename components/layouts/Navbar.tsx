@@ -240,7 +240,7 @@ export function Navbar({
             <NavigationMenu className="hidden lg:flex">
               <NavigationMenuList>
                 <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent">Produk</NavigationMenuTrigger>
+                  <NavigationMenuTrigger className="bg-transparent text-foreground hover:text-primary transition-colors">Produk</NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <div className="w-[450px] p-4 md:w-[540px] lg:w-[620px]">
                       {/* Opsi Semua Produk (All Products) */}
@@ -257,7 +257,7 @@ export function Navbar({
                               <div className="flex items-center gap-2 text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
                                 Semua Produk
                                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                                  Katalog Lengkap
+                                   Katalog Lengkap
                                 </span>
                               </div>
                               <p className="mt-0.5 text-xs text-muted-foreground transition-colors group-hover:text-foreground/80">
@@ -298,17 +298,17 @@ export function Navbar({
                   </NavigationMenuContent>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
-                  <NavigationMenuLink render={<Link href="/brands" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
+                  <NavigationMenuLink render={<Link href="/brands" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-foreground hover:text-primary transition-colors")}>
                     Brand
                   </NavigationMenuLink>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
-                  <NavigationMenuLink render={<Link href="/promo" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-destructive hover:text-destructive")}>
+                  <NavigationMenuLink render={<Link href="/promo" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-destructive font-semibold hover:text-destructive/80 transition-colors")}>
                     Promo
                   </NavigationMenuLink>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
-                  <NavigationMenuLink render={<Link href="/compare" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent")}>
+                  <NavigationMenuLink render={<Link href="/compare" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-foreground hover:text-primary transition-colors")}>
                     Bandingkan
                   </NavigationMenuLink>
                 </NavigationMenuItem>

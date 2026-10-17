@@ -271,20 +271,34 @@ export class ProductRepository extends BaseRepository {
       .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
       .eq('slug', slug)
       .eq('status', 'published')
-      .single()
-    if (error) throw error
-    return data
+      .maybeSingle()
+    if (error && error.code !== 'PGRST116') throw error
+    return data ?? null
   }
 
   async findById(id: string) {
     const supabase = await this.getClient()
-    const { data, error } = await supabase
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    if (isUuid) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
+        .eq('id', id)
+        .maybeSingle()
+      if (data) return data
+      if (error && error.code !== 'PGRST116') throw error
+    }
+
+    // Fallback: try lookup by slug in case URL is /product/<slug>
+    const { data: bySlug, error: slugErr } = await supabase
       .from('products')
       .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
-      .eq('id', id)
-      .single()
-    if (error) throw error
-    return data
+      .eq('slug', id)
+      .maybeSingle()
+    if (bySlug) return bySlug
+    if (slugErr && slugErr.code !== 'PGRST116') throw slugErr
+
+    return null
   }
 
   async findStockById(id: string) {

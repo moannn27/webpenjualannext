@@ -62,7 +62,7 @@ interface ProductDetailProps {
 export function ProductDetail({ product, reviews = [], initialCartQuantities = [] }: ProductDetailProps) {
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
-  const variants = product.product_variants ?? [];
+  const variants = useMemo(() => product.product_variants ?? [], [product.product_variants]);
   const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? "");
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
   const availableStock = selectedVariant?.stock ?? product.stock;
@@ -80,20 +80,20 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   }, [product.product_images, product.image, product.id, product.name]);
 
   const images = useMemo(() => {
-    if (selectedVariant?.image_url && !baseImages.some((img) => img.url === selectedVariant.image_url)) {
-      const variantLabel = [selectedVariant.color, selectedVariant.ram, selectedVariant.storage].filter(Boolean).join(" ");
-      return [
-        {
-          id: `variant-${selectedVariant.id}`,
-          url: selectedVariant.image_url,
-          alt_text: `${product.name} ${variantLabel ? `- ${variantLabel}` : ""}`,
-          is_primary: true,
-        },
-        ...baseImages,
-      ];
+    const list = [...baseImages];
+    for (const v of variants) {
+      if (v.image_url && !list.some((img) => img.url === v.image_url)) {
+        const variantLabel = [v.color, v.ram, v.storage].filter(Boolean).join(" ");
+        list.push({
+          id: `variant-${v.id}`,
+          url: v.image_url,
+          alt_text: `${product.name}${variantLabel ? ` - ${variantLabel}` : ""}`,
+          is_primary: false,
+        });
+      }
     }
-    return baseImages;
-  }, [baseImages, selectedVariant, product.name]);
+    return list;
+  }, [baseImages, variants, product.name]);
 
   const [activeImage, setActiveImage] = useState(() => selectedVariant?.image_url || images[0]?.url || "");
 
@@ -260,6 +260,14 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       setCartError("");
       if (next.image_url) {
         setActiveImage(next.image_url);
+      } else if (key === "color") {
+        const norm = value.toLowerCase();
+        const matched = images.find(
+          (img) => img.alt_text?.toLowerCase().includes(norm) || img.url.toLowerCase().includes(norm)
+        );
+        if (matched) {
+          setActiveImage(matched.url);
+        }
       }
     }
   };
@@ -323,6 +331,14 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   onClick={() => {
                     setActiveImage(image.url);
                     setLightboxIndex(idx);
+                    const matchingVariant = variants.find(
+                      (v) => (v.image_url && v.image_url === image.url) ||
+                             (v.color && image.alt_text?.toLowerCase().includes(v.color.toLowerCase()))
+                    );
+                    if (matchingVariant && matchingVariant.id !== selectedVariantId) {
+                      setSelectedVariantId(matchingVariant.id);
+                      setQuantity(1);
+                    }
                   }}
                   aria-label={`Tampilkan gambar ${image.alt_text || product.name}`}
                   className={cn(
