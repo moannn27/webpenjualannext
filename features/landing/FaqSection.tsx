@@ -18,13 +18,13 @@ export function FaqSection({
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Outer White Card Container (Matching Reference Aesthetic) */}
-      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5 max-w-4xl mx-auto">
-        <div className="text-center mb-8 sm:mb-10">
+      {/* Outer White Card Container */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5 max-w-4xl mx-auto">
+        <div className="text-center mb-6 sm:mb-8">
           <span className="inline-block text-xs font-bold tracking-wider text-primary uppercase mb-2">
             PUSAT BANTUAN
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 text-slate-900 dark:text-white">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight mb-2 text-slate-900 dark:text-white">
             {title}
           </h2>
           <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">

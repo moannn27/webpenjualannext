@@ -47,7 +47,7 @@ export function FeaturedProducts({
     return () => observer.disconnect();
   }, []);
 
-  // Responsive items per page
+  // Responsive items per page: Mobile (1), Tablet (2), Laptop/Small Desktop (3), Large Desktop (4)
   useEffect(() => {
     const updateItemsPerPage = () => {
       if (typeof window === "undefined") return;
@@ -55,6 +55,8 @@ export function FeaturedProducts({
         setItemsPerPage(1);
       } else if (window.innerWidth < 1024) {
         setItemsPerPage(2);
+      } else if (window.innerWidth < 1280) {
+        setItemsPerPage(3);
       } else {
         setItemsPerPage(4);
       }
@@ -88,28 +90,42 @@ export function FeaturedProducts({
     return () => clearInterval(timer);
   }, [canSlide, isPaused, isInView, goToNext]);
 
-  // Touch gesture handlers
+  // Touch gesture handlers (smooth on tablet and mobile without blocking vertical scroll)
+  const touchStartY = useRef<number | null>(null);
+  const touchDeltaY = useRef<number>(0);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsPaused(true);
     touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
     touchDeltaX.current = 0;
+    touchDeltaY.current = 0;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
+    if (touchStartX.current === null || touchStartY.current === null) return;
     touchDeltaX.current = e.touches[0].clientX - touchStartX.current;
+    touchDeltaY.current = e.touches[0].clientY - touchStartY.current;
   };
 
   const handleTouchEnd = () => {
-    if (touchStartX.current !== null) {
-      if (touchDeltaX.current < -40) {
-        goToNext();
-      } else if (touchDeltaX.current > 40) {
-        goToPrev();
+    if (touchStartX.current !== null && touchStartY.current !== null) {
+      // Only slide horizontally if horizontal movement exceeds vertical scroll
+      if (
+        Math.abs(touchDeltaX.current) > Math.abs(touchDeltaY.current) &&
+        Math.abs(touchDeltaX.current) > 40
+      ) {
+        if (touchDeltaX.current < -40) {
+          goToNext();
+        } else if (touchDeltaX.current > 40) {
+          goToPrev();
+        }
       }
     }
     touchStartX.current = null;
+    touchStartY.current = null;
     touchDeltaX.current = 0;
+    touchDeltaY.current = 0;
     setIsPaused(false);
   };
 
@@ -118,12 +134,12 @@ export function FeaturedProducts({
 
   return (
     <section ref={sectionRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Outer White Card (Screenshot Bottom Container Style: Bestsellers) */}
-      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+      {/* Outer White Card */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Header */}
-        <div className="mb-6 sm:mb-8 flex items-center justify-between gap-4">
+        <div className="mb-5 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               {title}
             </h2>
             {subtitle && (
@@ -175,7 +191,7 @@ export function FeaturedProducts({
             onTouchEnd={handleTouchEnd}
           >
             {/* Slider Track Viewport */}
-            <div className="overflow-hidden py-1 -mx-2.5">
+            <div className="overflow-hidden py-1 -mx-2 sm:-mx-2.5">
               <div
                 className="flex transition-transform duration-500 ease-out"
                 style={{
@@ -186,9 +202,9 @@ export function FeaturedProducts({
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    className="w-full sm:w-1/2 lg:w-1/4 shrink-0 px-2.5 flex flex-col"
+                    className="w-full sm:w-1/2 lg:w-1/3 xl:w-1/4 shrink-0 px-2 sm:px-2.5 flex flex-col"
                   >
-                    <ProductCard product={product} />
+                    <ProductCard product={product} badgeContext={type} />
                   </div>
                 ))}
               </div>

@@ -81,12 +81,12 @@ export function CategorySection({
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Outer White Card (Screenshot 1 Top Container Style) */}
-      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+      {/* Outer White Card */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Header */}
-        <div className="mb-6 sm:mb-8 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
+        <div className="mb-5 sm:mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               {title}
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
@@ -101,36 +101,36 @@ export function CategorySection({
           </Link>
         </div>
 
-        {/* 2x2 Bento Grid (Technology, Gear, Accessory Cards from reference) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+        {/* 2x2 Bento Grid (Technology, Gear, Accessory Cards) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {heroCards.map((card) => (
             <Link
               key={card.id}
               href={card.href}
-              className="group bg-[#F8F9FA] dark:bg-white/5 rounded-[24px] sm:rounded-[28px] p-6 sm:p-8 relative overflow-hidden flex flex-col justify-between min-h-[220px] sm:min-h-[250px] transition-all duration-300 hover:shadow-md hover:bg-[#F2F4F7] dark:hover:bg-white/10"
+              className="group bg-[#F8F9FA] dark:bg-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-7 relative overflow-hidden flex flex-col justify-between min-h-[200px] sm:min-h-[240px] transition-all duration-300 hover:shadow-md hover:bg-[#F2F4F7] dark:hover:bg-white/10"
             >
               {/* Text content on left */}
-              <div className="z-10 max-w-[210px] sm:max-w-[240px]">
+              <div className="z-10 max-w-[62%] sm:max-w-[240px]">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
                   {card.badge}
                 </span>
-                <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h3 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {card.headline}
                 </h3>
-                <p className="mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                   {card.desc}
                 </p>
               </div>
 
               {/* Action link */}
-              <div className="z-10 mt-6">
+              <div className="z-10 mt-5">
                 <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:gap-2.5 transition-all">
                   Explore category <ArrowRight className="size-3.5" />
                 </span>
               </div>
 
               {/* Cutout real product image on right */}
-              <div className="absolute -right-4 -bottom-4 sm:right-2 sm:bottom-0 w-44 h-44 sm:w-56 sm:h-56 pointer-events-none transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-1">
+              <div className="absolute -right-3 -bottom-3 sm:right-2 sm:bottom-0 w-36 h-36 sm:w-48 sm:h-48 md:w-56 md:h-56 pointer-events-none transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-1">
                 <Image
                   src={card.imgUrl}
                   alt={card.headline}

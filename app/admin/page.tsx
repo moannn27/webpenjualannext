@@ -17,12 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Activity,
-  Layers,
   Sparkles,
-  ShoppingBag,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { getDashboardStatsAction, getAdminAllNotificationsAction } from "@/actions/admin";
 import { getAdminAccess } from "@/lib/auth/admin";
 import { getAdminAuditLogsAction } from "@/actions/admin-permissions";
@@ -96,7 +92,25 @@ export default async function AdminOverview(props: {
   // Donut SVG constants
   const radius = 64;
   const circumference = 2 * Math.PI * radius;
-  let runningOffset = 0;
+  const donutSegments = categoryBreakdown.slice(0, 5).reduce<
+    Array<{
+      id: string;
+      dashLength: number;
+      strokeOffset: number;
+      color: string;
+    }>
+  >((acc, cat, idx) => {
+    const pct = cat.count / totalCatProducts;
+    const dashLength = pct * circumference;
+    const strokeOffset = acc.reduce((sum, item) => sum + item.dashLength, 0);
+    acc.push({
+      id: cat.id,
+      dashLength,
+      strokeOffset,
+      color: DONUT_COLORS[idx % DONUT_COLORS.length],
+    });
+    return acc;
+  }, []);
 
   // 4 Top Metric Cards (Finly Style)
   const metricCards = [
@@ -252,7 +266,7 @@ export default async function AdminOverview(props: {
 
       {/* 1. ROW 1: 4 TOP METRIC CARDS (Pastel Tint Cards from Reference Screenshot) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {metricCards.map(({ title, value, subtext, href, cardBg, textClass, badgeClass, badge, icon: Icon }) => (
+        {metricCards.map(({ title, value, subtext, href, cardBg, textClass, badgeClass, badge }) => (
           <div
             key={title}
             className={`rounded-2xl border p-5 shadow-2xs relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm ${cardBg}`}
@@ -588,28 +602,20 @@ export default async function AdminOverview(props: {
                 />
 
                 {/* Segments */}
-                {categoryBreakdown.slice(0, 5).map((cat, idx) => {
-                  const pct = cat.count / totalCatProducts;
-                  const dashLength = pct * circumference;
-                  const strokeOffset = runningOffset;
-                  runningOffset += dashLength;
-                  const color = DONUT_COLORS[idx % DONUT_COLORS.length];
-
-                  return (
-                    <circle
-                      key={cat.id}
-                      cx="80"
-                      cy="80"
-                      r={radius}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth="18"
-                      strokeDasharray={`${dashLength} ${circumference}`}
-                      strokeDashoffset={-strokeOffset}
-                      className="transition-all duration-500"
-                    />
-                  );
-                })}
+                {donutSegments.map((segment) => (
+                  <circle
+                    key={segment.id}
+                    cx="80"
+                    cy="80"
+                    r={radius}
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth="18"
+                    strokeDasharray={`${segment.dashLength} ${circumference}`}
+                    strokeDashoffset={-segment.strokeOffset}
+                    className="transition-all duration-500"
+                  />
+                ))}
               </svg>
 
               {/* Center Total Count */}

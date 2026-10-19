@@ -8,6 +8,8 @@ export function matchesProductSearch(
     name?: string | null
     sku?: string | null
     description?: string | null
+    is_best_seller?: boolean | null
+    is_new_arrival?: boolean | null
     brands?: { name?: string | null } | null
     categories?: { name?: string | null } | null
     product_specifications?: { key?: string; value?: string }[] | null
@@ -27,9 +29,11 @@ export function matchesProductSearch(
   const specsText = (product.product_specifications ?? [])
     .map((s) => `${s.key ?? ''} ${s.value ?? ''}`)
     .join(' ')
+  const newTag = product.is_new_arrival ? 'terbaru baru new arrival' : ''
+  const bestTag = product.is_best_seller ? 'terlaris bestseller best seller terpopuler' : ''
 
   const searchable = normalize(
-    [product.name, product.sku, product.description, brandName, catName, specsText].join(' ')
+    [product.name, product.sku, product.description, brandName, catName, specsText, newTag, bestTag].join(' ')
   )
 
   return tokens.every((token) => searchable.includes(token))

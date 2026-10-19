@@ -22,7 +22,7 @@ export function ProductDiscovery({
 }: ProductDiscoveryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
-  const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest">("default");
+  const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest" | "newest" | "bestseller">("default");
 
   // Derive categories dynamically from constants and products
   const categories = useMemo(() => {
@@ -33,13 +33,16 @@ export function ProductDiscovery({
         set.add(p.category.trim());
       }
     });
-    return ["Semua", ...Array.from(set)];
+    return ["Semua", "⚡ Terbaru", "🔥 Terlaris", ...Array.from(set)];
   }, [initialProducts]);
 
   // Filter and sort products live
   const filteredProducts = useMemo(() => {
     return (initialProducts as (ProductItem & Product)[])
       .filter((product) => {
+        const isNew = Boolean(product.isNewArrival || product.badges?.includes("Baru") || product.badges?.includes("Terbaru"));
+        const isBest = Boolean(product.isBestSeller || product.badges?.includes("Best Seller") || product.badges?.includes("Terlaris"));
+
         // 1. Live search match
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase().trim();
@@ -47,14 +50,21 @@ export function ProductDiscovery({
           const matchesCategory = product.category?.toLowerCase().includes(query);
           const matchesBrand = product.brand?.toLowerCase().includes(query);
           const matchesSku = product.sku?.toLowerCase().includes(query);
-          if (!matchesName && !matchesCategory && !matchesBrand && !matchesSku) {
+          const matchesNew = (query.includes("terbaru") || query.includes("baru")) && isNew;
+          const matchesBest = (query.includes("terlaris") || query.includes("bestseller") || query.includes("best seller")) && isBest;
+
+          if (!matchesName && !matchesCategory && !matchesBrand && !matchesSku && !matchesNew && !matchesBest) {
             return false;
           }
         }
 
-        // 2. Category pill match
+        // 2. Category / Filter pill match
         if (selectedCategory !== "Semua") {
-          if (product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
+          if (selectedCategory === "⚡ Terbaru") {
+            if (!isNew) return false;
+          } else if (selectedCategory === "🔥 Terlaris") {
+            if (!isBest) return false;
+          } else if (product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
             return false;
           }
         }
@@ -62,6 +72,17 @@ export function ProductDiscovery({
         return true;
       })
       .sort((a, b) => {
+        if (sortOption === "newest") {
+          const isNewA = a.isNewArrival ? 1 : 0;
+          const isNewB = b.isNewArrival ? 1 : 0;
+          if (isNewA !== isNewB) return isNewB - isNewA;
+        }
+        if (sortOption === "bestseller") {
+          const isBestA = a.isBestSeller ? 1 : 0;
+          const isBestB = b.isBestSeller ? 1 : 0;
+          if (isBestA !== isBestB) return isBestB - isBestA;
+        }
+
         const priceA = a.discountPrice ?? a.price;
         const priceB = b.discountPrice ?? b.price;
 
@@ -85,12 +106,12 @@ export function ProductDiscovery({
 
   return (
     <section className={cn("container mx-auto px-4 sm:px-6 lg:px-8", className)}>
-      {/* Outer White Card Container (Matching Reference Aesthetic) */}
-      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+      {/* Outer White Card Container */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Section Header */}
-        <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
+        <div className="mb-5 sm:mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-end">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
               {title}
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
@@ -140,11 +161,13 @@ export function ProductDiscovery({
               <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <select
                 value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as "default" | "lowest" | "highest")}
+                onChange={(e) => setSortOption(e.target.value as "default" | "lowest" | "highest" | "newest" | "bestseller")}
                 aria-label="Urutan harga produk"
                 className="h-10 w-full appearance-none rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#131418] pl-9 pr-8 text-xs sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
               >
                 <option value="default">Urutkan: Rekomendasi</option>
+                <option value="newest">⚡ Produk Terbaru</option>
+                <option value="bestseller">🔥 Produk Terlaris</option>
                 <option value="lowest">Harga: Termurah</option>
                 <option value="highest">Harga: Termahal</option>
               </select>
@@ -191,7 +214,7 @@ export function ProductDiscovery({
 
         {/* Product Grid */}
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

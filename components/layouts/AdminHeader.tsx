@@ -3,7 +3,6 @@
 import {
   Search,
   ShoppingBag,
-  ChevronDown,
   LogOut,
   Store,
   UserRound,
@@ -22,8 +21,6 @@ import {
 import { useState, useRef, useEffect, useCallback, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";

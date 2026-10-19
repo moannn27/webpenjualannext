@@ -12,19 +12,14 @@ import {
   X,
   Truck,
   Store,
-  Clock,
   ShieldAlert,
   Package,
   RefreshCw,
-  Trash2,
-  Phone,
   UserRound,
   SlidersHorizontal,
   ChevronDown,
-  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   updateAdminOrderStatusAction,

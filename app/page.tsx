@@ -94,7 +94,21 @@ export default async function Home() {
           }
         />
       )}
-      {sections.bestsellers.visible && <FeaturedProducts title={sections.bestsellers.title} subtitle={sections.bestsellers.subtitle} type="bestseller" initialData={selected("bestsellers", (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
+      {sections.bestsellers.visible && (
+        <FeaturedProducts
+          title={sections.bestsellers.title}
+          subtitle={sections.bestsellers.subtitle}
+          type="bestseller"
+          initialData={selected(
+            "bestsellers",
+            (bestSellers || []).map((product) => toStorefrontProduct(product as StoreProduct))
+          ).map((p) => ({
+            ...p,
+            isBestSeller: true,
+            badges: Array.from(new Set([...(p.badges || []), "Best Seller", "Terlaris"])),
+          }))}
+        />
+      )}
       {sections.promo.visible && (
         <PromoBanner
           banner={(banners ?? []).find((banner) => banner.placement === "promo")}
@@ -103,7 +117,21 @@ export default async function Home() {
           products={selected("promo", uniqueSpotlightProducts)}
         />
       )}
-      {sections.newArrivals.visible && <FeaturedProducts title={sections.newArrivals.title} subtitle={sections.newArrivals.subtitle} type="new" initialData={selected("newArrivals", (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct)))} />}
+      {sections.newArrivals.visible && (
+        <FeaturedProducts
+          title={sections.newArrivals.title}
+          subtitle={sections.newArrivals.subtitle}
+          type="new"
+          initialData={selected(
+            "newArrivals",
+            (newArrivals || []).map((product) => toStorefrontProduct(product as StoreProduct))
+          ).map((p) => ({
+            ...p,
+            isNewArrival: true,
+            badges: Array.from(new Set([...(p.badges || []), "Baru", "Terbaru"])),
+          }))}
+        />
+      )}
       {sections.brands.visible && <BrandShowcase brands={brands ?? []} title={sections.brands.title} />}
       {sections.branches?.visible && (
         <BranchLocatorSection

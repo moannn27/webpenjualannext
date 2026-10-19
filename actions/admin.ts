@@ -1623,6 +1623,23 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
   if (error) throw new Error(error.message)
 
+  // Sinkronisasi status is_new_arrival dan is_best_seller pada tabel products
+  const sectionsObj = (settings as { sections?: Record<string, { productIds?: string[] }> })?.sections
+  if (sectionsObj) {
+    if (Array.isArray(sectionsObj.newArrivals?.productIds) && sectionsObj.newArrivals.productIds.length > 0) {
+      await supabase
+        .from('products')
+        .update({ is_new_arrival: true })
+        .in('id', sectionsObj.newArrivals.productIds)
+    }
+    if (Array.isArray(sectionsObj.bestsellers?.productIds) && sectionsObj.bestsellers.productIds.length > 0) {
+      await supabase
+        .from('products')
+        .update({ is_best_seller: true })
+        .in('id', sectionsObj.bestsellers.productIds)
+    }
+  }
+
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,

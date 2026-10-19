@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -36,7 +37,7 @@ export function AdminSidebar({
   permissions = [],
   collapsed = false,
   onToggleCollapse,
-  storeSettings,
+  storeSettings: _storeSettings,
 }: {
   isSuperAdmin?: boolean;
   permissions?: AdminModuleKey[];
@@ -136,6 +137,7 @@ export function AdminSidebar({
       title: "Operasional toko",
       links: [
         { name: "Produk", href: "/admin/products", icon: Package, permission: "products" as AdminModuleKey },
+        { name: "Sinkronisasi Stok", href: "/admin/stock-sync", icon: RefreshCw, permission: "products" as AdminModuleKey },
         { name: "Kategori", href: "/admin/categories", icon: Tags, permission: "categories" as AdminModuleKey },
         { name: "Brand", href: "/admin/brands", icon: Store, permission: "brands" as AdminModuleKey },
         { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart, permission: "orders" as AdminModuleKey },

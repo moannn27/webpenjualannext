@@ -55,13 +55,13 @@ export function WhyChooseUs({
 
   return (
     <section className="container mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Outer White Card Container (Matching Reference Aesthetic) */}
-      <div className="rounded-[32px] sm:rounded-[36px] bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
-        <div className="mb-8 sm:mb-12 text-center">
+      {/* Outer White Card Container */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5">
+        <div className="mb-6 sm:mb-10 text-center">
           <span className="inline-block text-xs font-bold tracking-wider text-primary uppercase mb-2">
             KEUNGGULAN LAYANAN
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
             {title}
           </h2>
           <p className="mx-auto max-w-2xl text-xs sm:text-sm text-slate-500 dark:text-slate-400">

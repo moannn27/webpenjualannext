@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import {
   deleteAdminProductAction,
@@ -16,6 +16,15 @@ import {
   bulkDeleteAdminProductsAction
 } from "@/actions/admin";
 import { ProductBulkImporter } from "@/features/admin/ProductBulkImporter";
+import {
+  type StockExportFormat,
+  flattenProductsForStockExport,
+  generateStockXlsx,
+  generateStockCsv,
+  generateStockDoc,
+  openStockPrintView,
+  triggerBlobDownload,
+} from "@/lib/export-stock";
 
 const SPEC_PRESETS = [
   "Prosesor",
@@ -64,6 +73,12 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [bulkStockVal, setBulkStockVal] = useState<number>(0);
   const [bulkBestSeller, setBulkBestSeller] = useState<"keep" | "yes" | "no">("keep");
   const [bulkNewArrival, setBulkNewArrival] = useState<"keep" | "yes" | "no">("keep");
+
+  // Stock Export State
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<StockExportFormat>("xlsx");
+  const [exportScope, setExportScope] = useState<"all" | "filtered">("all");
+  const [isExporting, setIsExporting] = useState(false);
 
   // Filters state
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
@@ -119,6 +134,35 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       setError(cause instanceof Error ? cause.message : "Gagal memperbarui stok.");
     } finally {
       setQuickStockSaving(false);
+    }
+  };
+
+  const handleExportStock = async () => {
+    try {
+      setIsExporting(true);
+      const sourceProducts = exportScope === "filtered" ? visible : products;
+      const flattened = flattenProductsForStockExport(sourceProducts);
+      const scopeLabel = exportScope === "filtered" ? "Filter-Aktif" : "Semua-Stok";
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filenameBase = `Rekap-Stok-NextSolution-${scopeLabel}-${timestamp}`;
+
+      if (exportFormat === "xlsx") {
+        const blob = await generateStockXlsx(flattened, scopeLabel);
+        triggerBlobDownload(blob, `${filenameBase}.xlsx`);
+      } else if (exportFormat === "csv") {
+        const blob = generateStockCsv(flattened);
+        triggerBlobDownload(blob, `${filenameBase}.csv`);
+      } else if (exportFormat === "doc") {
+        const blob = generateStockDoc(flattened, scopeLabel);
+        triggerBlobDownload(blob, `${filenameBase}.doc`);
+      } else if (exportFormat === "pdf") {
+        openStockPrintView(flattened, scopeLabel);
+      }
+      setExportModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengekspor data stok.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -368,10 +412,19 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           className="w-full rounded-full border-slate-200/90 dark:border-white/10 bg-slate-50/60 dark:bg-[#18191E] pl-9 text-xs focus-visible:ring-[#2563EB]/30"
         />
       </div>
-      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setExportModalOpen(true)}
+          className="rounded-full border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 font-semibold shadow-2xs text-xs px-3.5 h-9"
+        >
+          <FileSpreadsheet className="mr-1.5 size-4 text-emerald-600 dark:text-emerald-400" />
+          Ekspor Rekap Stok
+        </Button>
         <ProductBulkImporter onImported={refresh} />
         <Button
-          className="w-full sm:w-auto rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs text-xs px-4"
+          className="w-full sm:w-auto rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs text-xs px-4 h-9"
           onClick={() => { setError(""); setSpecifications([]); setVariants([]); setDiscountEnabled(false); setDirectStock(0); setEditing(null); }}
         >
           <Plus className="mr-1.5 size-4" />Tambah produk
@@ -1459,6 +1512,175 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
               </Button>
             </div>
           </form>
+        </section>
+      </div>
+    )}
+
+    {/* Export Stock Modal */}
+    {exportModalOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
+        <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-5">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="size-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 grid place-items-center">
+                <FileSpreadsheet className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">
+                  Ekspor / Ambil Rekap Stok
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Unduh data inventaris stok produk & varian lengkap.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExportModalOpen(false)}
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4 text-xs">
+            {/* Scope Selection */}
+            <div className="space-y-2">
+              <label className="font-bold text-foreground block">
+                1. Data mana yang mau diambil?
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label
+                  onClick={() => setExportScope("all")}
+                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    exportScope === "all"
+                      ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="stock-export-scope"
+                    checked={exportScope === "all"}
+                    onChange={() => setExportScope("all")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="font-bold block text-foreground">Semua Produk ({products.length})</span>
+                    <span className="text-[11px] text-muted-foreground">Seluruh katalog toko</span>
+                  </div>
+                </label>
+
+                <label
+                  onClick={() => setExportScope("filtered")}
+                  className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    exportScope === "filtered"
+                      ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-foreground"
+                      : "border-border text-muted-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="stock-export-scope"
+                    checked={exportScope === "filtered"}
+                    onChange={() => setExportScope("filtered")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="font-bold block text-foreground">Sesuai Filter ({visible.length})</span>
+                    <span className="text-[11px] text-muted-foreground">Barang yang tampil sekarang</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Format Selection */}
+            <div className="space-y-2">
+              <label className="font-bold text-foreground block">
+                2. Pilih format file:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("xlsx")}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    exportFormat === "xlsx"
+                      ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20 font-bold"
+                      : "border-border hover:bg-muted/50 text-foreground"
+                  }`}
+                >
+                  <FileSpreadsheet className="size-5 mx-auto mb-1 text-emerald-600" />
+                  <span className="block text-xs font-semibold">Excel (.xlsx)</span>
+                  <span className="text-[10px] text-muted-foreground">Format tabel rapi</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("pdf")}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    exportFormat === "pdf"
+                      ? "border-rose-500 bg-rose-50/60 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20 font-bold"
+                      : "border-border hover:bg-muted/50 text-foreground"
+                  }`}
+                >
+                  <Printer className="size-5 mx-auto mb-1 text-rose-600" />
+                  <span className="block text-xs font-semibold">PDF / Cetak</span>
+                  <span className="text-[10px] text-muted-foreground">Siap cetak dokumen</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("doc")}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    exportFormat === "doc"
+                      ? "border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20 font-bold"
+                      : "border-border hover:bg-muted/50 text-foreground"
+                  }`}
+                >
+                  <FileText className="size-5 mx-auto mb-1 text-blue-600" />
+                  <span className="block text-xs font-semibold">Word (.doc)</span>
+                  <span className="text-[10px] text-muted-foreground">Microsoft Word</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExportFormat("csv")}
+                  className={`p-3 rounded-xl border text-center transition-all ${
+                    exportFormat === "csv"
+                      ? "border-slate-500 bg-slate-100 dark:bg-white/10 text-foreground ring-2 ring-slate-500/20 font-bold"
+                      : "border-border hover:bg-muted/50 text-foreground"
+                  }`}
+                >
+                  <Download className="size-5 mx-auto mb-1 text-slate-600 dark:text-slate-400" />
+                  <span className="block text-xs font-semibold">CSV (.csv)</span>
+                  <span className="text-[10px] text-muted-foreground">Format teks data</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-muted/40 p-3 text-[11px] text-muted-foreground">
+              💡 Rekap mencakup SKU/MTM produk & varian spesifikasi (RAM/Storage/Warna), stok saat ini, status ketersediaan, harga jual, serta kalkulasi nilai aset.
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setExportModalOpen(false)}
+              disabled={isExporting}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleExportStock}
+              disabled={isExporting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2"
+            >
+              {isExporting ? "Menyiapkan File..." : "Unduh Rekap Stok"}
+            </Button>
+          </div>
         </section>
       </div>
     )}

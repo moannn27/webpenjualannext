@@ -70,7 +70,7 @@ export function PagedProductCatalog({
         <form
           action={basePath}
           method="GET"
-          className="mb-8 rounded-2xl border bg-card p-4 font-sans text-sm shadow-xs transition-all sm:p-5"
+          className="mb-6 rounded-2xl border border-border/80 bg-card p-4 font-sans text-sm shadow-xs transition-all hover:border-primary/30 sm:p-5"
         >
           {/* Baris Utama: Filter Penting Saja */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
@@ -329,11 +329,14 @@ export function PagedProductCatalog({
         </form>
 
         {/* Counter Info */}
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span>
-            Menampilkan {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} dari {total.toLocaleString("id-ID")} produk
-          </span>
-          <span>{pageSize} produk per halaman · diatur super admin</span>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-2.5 text-xs sm:text-sm text-muted-foreground shadow-2xs backdrop-blur-xs">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-primary" />
+            <span>
+              Menampilkan <strong className="font-semibold text-foreground">{total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)}</strong> dari <strong className="font-semibold text-foreground">{total.toLocaleString("id-ID")}</strong> produk
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground/80">{pageSize} produk per halaman · diatur super admin</span>
         </div>
 
         {/* Products Grid */}
