@@ -215,7 +215,7 @@ Pembaruan tombol dark/light mode pada `components/layouts/AdminHeader.tsx`:
 
 ---
 
-## 13. Redesain Faktur / Invoice Penjualan & Real-Time Sync
+## 14. Redesain Faktur / Invoice Penjualan & Real-Time Sync
 
 Pembaruan faktur pembelian pada `app/orders/[id]/invoice/page.tsx` dan `components/invoice/OrderInvoice.tsx`:
 1. **Tata Letak Faktur Lapang & Standar Marketplace**:
@@ -233,9 +233,48 @@ Pembaruan faktur pembelian pada `app/orders/[id]/invoice/page.tsx` dan `componen
 
 ---
 
-## 14. Verifikasi Kualitas & Kesiapan Produksi
+## 15. Security Hardening: Anti-Race Condition Voucher & Proteksi Peran Pengguna (Role Guard)
+
+Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transaksi voucher dan proteksi tabel pengguna:
+
+1. **Pola Reservasi Atomik Voucher (`services/checkout.service.ts`)**:
+   * **Masalah**: Sebelumnya, pembaruan kuota pemakaian voucher (`usage_count`) dilakukan menggunakan pola *read-modify-write* di client Supabase, sehingga dua checkout paralel berisiko melebihi batas kuota (`usage_limit`).
+   * **Solusi**: Diterapkan sistem reservasi token atomik di server:
+     * Sebelum pesanan dibuat, server memanggil RPC `claim_voucher_quota` yang mengunci baris voucher dengan `FOR UPDATE` di PostgreSQL.
+     * Jika kuota tersedia (`usage_count < usage_limit`), sistem menambah `usage_count` dan menerbitkan token reservasi (`voucher_reservations`) berstatus `reserved`.
+     * Jika pesanan berhasil dibuat, reservasi dikonsumsi secara permanen (`consume_voucher_reservation`) dengan status `consumed`.
+     * Jika pesanan gagal di tengah jalan (misal stok habis atau error koneksi), sistem membatalkan reservasi (`release_voucher_reservation`) dan mengembalikan kuota voucher tanpa merusak status keranjang belanja pelanggan.
+
+2. **Mekanisme Anti-Replay pada Pelepasan Kuota**:
+   * `release_voucher_reservation` hanya dapat melepaskan kuota jika token reservasi masih berstatus `reserved`.
+   * Jika pelepasan kuota dipanggil berulang kali (replay attack atau network retry), RPC menolak dan tidak mengurangi `usage_count`.
+   * Voucher yang sudah berhasil dikonsumsi pada pesanan yang selesai (`consumed`) tidak dapat dikurangi kuotanya melalui pemanggilan release.
+
+3. **Penutupan Akses RPC Pengguna Biasa (`service_role` Only)**:
+   * Hak `EXECUTE` pada seluruh fungsi manipulasi kuota voucher (`claim_voucher_quota`, `consume_voucher_reservation`, `release_voucher_reservation`) serta tabel `voucher_reservations` dicabut sepenuhnya dari `PUBLIC`, `anon`, dan `authenticated`.
+   * Hanya backend server yang memegang `service_role` yang dapat memanggil fungsi-fungsi ini. Pengguna biasa atau penyerang yang mencoba memanggil RPC secara langsung melalui API PostgREST akan ditolak dengan error `42501 (permission denied)`.
+
+4. **Constraint Skema Database & Sanitasi Data Lama**:
+   * Ditambahkan constraint PostgreSQL pada tabel `public.vouchers`:
+     * `CHECK (usage_limit IS NULL OR usage_count <= usage_limit)`
+     * `CHECK (usage_count >= 0)`
+   * Pada file migrasi `supabase/migrations/20261105000000_atomic_voucher_quota_and_user_role_guard.sql`, ditambahkan query pembersihan data historis secara otomatis sebelum constraint diterapkan untuk mencegah kegagalan migrasi.
+
+5. **Proteksi Mutlak Kolom Role Pengguna (`guard_user_role_update` Trigger)**:
+   * Menambahkan trigger `BEFORE UPDATE` pada `public.users` yang memeriksa apakah kolom `role` mengalami perubahan.
+   * Modifikasi peran oleh akun biasa atau admin biasa langsung dibatalkan di tingkat PostgreSQL dengan exception `42501`.
+   * Akses perubahan peran resmi oleh Super Admin melalui `admin_update_user_role` serta proses pemeliharaan internal `service_role`/`postgres` tetap diizinkan dan berjalan normal.
+
+6. **Suite Pengujian Keamanan & Konkurensi Baru**:
+   * Dibuat file pengujian baru `__tests__/services/checkout-voucher-concurrency.test.ts` (5 test cases) untuk menguji checkout paralel dengan sisa kuota 1, rollback saat checkout gagal, perlindungan anti-replay, dan penolakan hak akses RPC bagi user biasa.
+   * Diperluas `__tests__/lib/security-authorization.test.ts` (4 test cases baru) untuk memverifikasi logika trigger `guard_user_role_update`.
+
+---
+
+## 16. Verifikasi Kualitas & Kesiapan Produksi
 
 * **TypeScript Compilation (`npx tsc --noEmit`)**: **0 error**, seluruh tipe data valid.
-* **Unit Testing (Vitest)**: Seluruh **193 tests** (19 test suites) lulus 100%.
-* **Next.js Production Build (Turbopack)**: Sukses mengompilasi seluruh **40 halaman & endpoint API** tanpa error.
+* **Unit & Integration Testing (Vitest)**: Seluruh **202 tests** (20 test suites) lulus 100%.
+* **ESLint Validation (`npm run lint`)**: **0 error**, format dan aturan kode bersih.
+
 

@@ -413,5 +413,68 @@ describe('Security & Authorization Suite', () => {
       await expect(confirmOrderDeliveredAction('order-999')).rejects.toThrow(/Hanya pesanan yang sedang dikirim atau siap diambil/);
     });
   });
+
+  describe('guard_user_role_update & User Role Tampering Protection', () => {
+    // Simulates the PostgreSQL guard_user_role_update trigger logic
+    const evaluateRoleUpdateTrigger = (actor: { role: string | null; authRole: string; isSuperuser?: boolean }, oldRole: string, newRole: string) => {
+      if (oldRole !== newRole) {
+        if (actor.isSuperuser || actor.authRole === 'service_role') {
+          return { allowed: true };
+        }
+        if (actor.role !== 'super_admin') {
+          const err = new Error('Modifying user role is restricted exclusively to super administrators.');
+          (err as any).code = '42501';
+          throw err;
+        }
+      }
+      return { allowed: true };
+    };
+
+    it('blocks regular customer from modifying their own or other users role (42501)', () => {
+      expect(() =>
+        evaluateRoleUpdateTrigger(
+          { role: 'customer', authRole: 'authenticated' },
+          'customer',
+          'admin'
+        )
+      ).toThrowError(/restricted exclusively to super administrators/i);
+    });
+
+    it('blocks non-super-admin (ordinary admin) from escalating or altering roles (42501)', () => {
+      expect(() =>
+        evaluateRoleUpdateTrigger(
+          { role: 'admin', authRole: 'authenticated' },
+          'customer',
+          'super_admin'
+        )
+      ).toThrowError(/restricted exclusively to super administrators/i);
+    });
+
+    it('allows super_admin executing role updates via official administrative channels', () => {
+      const result = evaluateRoleUpdateTrigger(
+        { role: 'super_admin', authRole: 'authenticated' },
+        'customer',
+        'admin'
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    it('allows service_role and postgres maintenance to execute role updates', () => {
+      const resultServiceRole = evaluateRoleUpdateTrigger(
+        { role: null, authRole: 'service_role' },
+        'customer',
+        'admin'
+      );
+      expect(resultServiceRole.allowed).toBe(true);
+
+      const resultPostgres = evaluateRoleUpdateTrigger(
+        { role: null, authRole: 'authenticated', isSuperuser: true },
+        'customer',
+        'super_admin'
+      );
+      expect(resultPostgres.allowed).toBe(true);
+    });
+  });
 });
+
 

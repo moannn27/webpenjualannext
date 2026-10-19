@@ -7,7 +7,7 @@ import { getPhoneVariants } from '@/lib/phone';
 import { type Voucher } from '@/types/voucher';
 
 export class CheckoutService {
-  async checkout(userId: string, input: CheckoutInput, voucherCode?: string) {
+  async checkout(userId: string, input: CheckoutInput, voucherCode?: string): Promise<{ id: string }> {
     const supabase = await createClient();
 
     let targetVoucher: Voucher | null = null;
@@ -151,38 +151,69 @@ export class CheckoutService {
       expectedDiscount = valResult.discountAmount;
     }
 
-    // Call atomic checkout stored procedure
-    const { data: orderId, error } = await supabase.rpc('process_checkout', {
-      p_user_id: userId,
-      p_recipient_name: input.recipientName,
-      p_phone: input.phone,
-      p_street_address: input.streetAddress,
-      p_city: input.city,
-      p_province: input.province,
-      p_postal_code: input.postalCode,
-      p_shipping_method: input.shippingMethod,
-      p_payment_method: input.paymentMethod,
-    });
+    let reservationId: string | null = null;
 
-    if (error) throw new Error(error.message);
-    if (!orderId) throw new Error('Checkout did not return an order ID');
-
-    // Apply voucher discount and update usage count on server
+    // Atomically claim voucher quota before checkout using server-only service_role
+    // Returns a unique reservation ID bound to this user and voucher
     if (targetVoucher && expectedDiscount > 0) {
       const adminClient = getSupabaseAdminClient();
-      const { data: orderData } = await adminClient
-        .from('orders')
-        .select('total_amount, shipping_amount')
-        .eq('id', orderId)
-        .single();
+      const { data: claimResId, error: claimErr } = await adminClient.rpc('claim_voucher_quota', {
+        p_voucher_id: targetVoucher.id,
+        p_user_id: userId,
+      });
 
-      if (orderData) {
+      if (claimErr) {
+        if (claimErr.code === 'PGRST202' || claimErr.message?.includes('claim_voucher_quota')) {
+          throw new Error('Fungsi database claim_voucher_quota belum tersedia. Pemakaian voucher dibatalkan secara aman (fail-closed).');
+        }
+        throw new Error(`Gagal memproses klaim voucher: ${claimErr.message}`);
+      }
+
+      if (!claimResId) {
+        throw new Error('Kuota pemakaian voucher ini sudah habis.');
+      }
+
+      reservationId = claimResId;
+    }
+
+    let orderId: string | null = null;
+    try {
+      // Call atomic checkout stored procedure
+      const { data: rpcOrderId, error } = await supabase.rpc('process_checkout', {
+        p_user_id: userId,
+        p_recipient_name: input.recipientName,
+        p_phone: input.phone,
+        p_street_address: input.streetAddress,
+        p_city: input.city,
+        p_province: input.province,
+        p_postal_code: input.postalCode,
+        p_shipping_method: input.shippingMethod,
+        p_payment_method: input.paymentMethod,
+      });
+
+      if (error) throw new Error(error.message);
+      if (!rpcOrderId) throw new Error('Checkout did not return an order ID');
+      orderId = rpcOrderId;
+
+      // Apply voucher discount and update grand total on server
+      if (targetVoucher && expectedDiscount > 0 && reservationId) {
+        const adminClient = getSupabaseAdminClient();
+        const { data: orderData, error: orderFetchErr } = await adminClient
+          .from('orders')
+          .select('total_amount, shipping_amount')
+          .eq('id', orderId)
+          .single();
+
+        if (orderFetchErr || !orderData) {
+          throw new Error('Gagal memverifikasi data pesanan untuk diskon voucher.');
+        }
+
         const orderSubtotal = Number(orderData.total_amount);
         const shippingAmount = Number(orderData.shipping_amount);
         const actualDiscount = Math.min(expectedDiscount, orderSubtotal);
         const grandTotal = Math.max(0, orderSubtotal - actualDiscount) + shippingAmount;
 
-        await adminClient
+        const { error: orderUpdateErr } = await adminClient
           .from('orders')
           .update({
             voucher_id: targetVoucher.id,
@@ -192,7 +223,17 @@ export class CheckoutService {
           })
           .eq('id', orderId);
 
-        await adminClient
+        if (orderUpdateErr) {
+          throw new Error(`Gagal menerapkan diskon voucher ke pesanan: ${orderUpdateErr.message}`);
+        }
+
+        // Mark voucher reservation as permanently consumed by this order
+        await adminClient.rpc('consume_voucher_reservation', {
+          p_reservation_id: reservationId,
+          p_order_id: orderId,
+        });
+
+        const { error: paymentUpdateErr } = await adminClient
           .from('payments')
           .update({
             amount: grandTotal,
@@ -200,22 +241,36 @@ export class CheckoutService {
           })
           .eq('order_id', orderId);
 
-        const { data: latestVoucher } = await adminClient
-          .from('vouchers')
-          .select('usage_count')
-          .eq('id', targetVoucher.id)
-          .maybeSingle();
-
-        await adminClient
-          .from('vouchers')
-          .update({
-            usage_count: Number(latestVoucher?.usage_count ?? targetVoucher.usage_count ?? 0) + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', targetVoucher.id);
+        if (paymentUpdateErr) {
+          throw new Error(`Gagal memperbarui tagihan pembayaran: ${paymentUpdateErr.message}`);
+        }
       }
-    }
 
-    return { id: orderId };
+      return { id: orderId! };
+    } catch (err: unknown) {
+      const adminClient = getSupabaseAdminClient();
+
+      if (orderId) {
+        try {
+          await adminClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
+        } catch (cancelErr) {
+          console.error('Gagal membatalkan pesanan setelah error checkout:', cancelErr);
+        }
+      }
+
+      // Safe, non-replayable release: only decrements if status is still 'reserved'
+      if (reservationId) {
+        try {
+          await adminClient.rpc('release_voucher_reservation', {
+            p_reservation_id: reservationId,
+          });
+        } catch (releaseErr) {
+          console.error('Gagal melepaskan kuota voucher setelah error checkout:', releaseErr);
+        }
+      }
+
+      throw err;
+    }
   }
 }
+
