@@ -4,6 +4,9 @@ import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
 import { notFound, redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata = {
   title: "Faktur Pembelian Resmi",
   description: "Faktur dan invoice rincian transaksi pemesanan produk.",
@@ -51,6 +54,7 @@ export default async function OrderInvoicePage({
       order_items (
         id,
         product_id,
+        variant_id,
         product_name,
         price,
         quantity,
@@ -63,7 +67,7 @@ export default async function OrderInvoicePage({
           brands (name),
           categories (name),
           product_images (url, is_primary),
-          product_specifications (key, value)
+          product_specifications (id, key, value, display_order)
         )
       ),
       payments (
@@ -85,7 +89,7 @@ export default async function OrderInvoicePage({
 
   const [{ data: order, error }, { data: sfRow }] = await Promise.all([
     orderQuery.maybeSingle(),
-    supabase.from("storefront_settings").select("settings").eq("id", "main").maybeSingle(),
+    clientToUse.from("storefront_settings").select("settings").eq("id", "main").maybeSingle(),
   ]);
 
   if (error || !order) {
@@ -95,12 +99,14 @@ export default async function OrderInvoicePage({
   const storefront = normalizeStorefrontSettings(sfRow?.settings);
 
   const storefrontInfo = {
-    storeName: storefront.pickup_info?.store_name || "Next Solution Store",
+    storeName: storefront.store.name || storefront.pickup_info?.store_name || "Next Solution Store",
     storeAddress: storefront.store.address || "Jl. Kartini No. 9",
     storeCity: storefront.store.city || "Bandung",
     storePhone: storefront.store.phone,
-    storeWhatsapp: storefront.store.whatsapp,
+    storeWhatsapp: storefront.store.whatsapp || storefront.store.phone,
     storeEmail: storefront.store.email,
+    logoUrl: storefront.store.logo_url || "",
+    logoDisplayMode: storefront.store.logo_display_mode || "both",
     bankAccounts: storefront.bank_transfer,
   };
 

@@ -25,7 +25,7 @@ export interface InvoiceOrderItem {
   brand_name?: string | null;
   category_name?: string | null;
   description?: string | null;
-  specifications?: Array<{ key: string; value: string }>;
+  specifications?: Array<{ key: string; value: string; display_order?: number }>;
   products?: {
     id?: string;
     sku?: string | null;
@@ -34,7 +34,7 @@ export interface InvoiceOrderItem {
     brands?: { name?: string | null } | null;
     categories?: { name?: string | null } | null;
     product_images?: Array<{ url: string; is_primary?: boolean }>;
-    product_specifications?: Array<{ key: string; value: string }>;
+    product_specifications?: Array<{ key: string; value: string; display_order?: number }>;
   } | null;
 }
 
@@ -82,6 +82,8 @@ export interface InvoiceStorefrontInfo {
   storePhone?: string;
   storeWhatsapp?: string;
   storeEmail?: string;
+  logoUrl?: string;
+  logoDisplayMode?: "both" | "logo_only" | "text_only";
   bankAccounts?: Array<{
     bank_name: string;
     account_number: string;
@@ -99,11 +101,22 @@ interface OrderInvoiceProps {
 
 function getProductSpecifications(item: InvoiceOrderItem): Array<{ key: string; value: string }> {
   const productData = item.products;
-  const existingSpecs = item.specifications || productData?.product_specifications || [];
-  if (Array.isArray(existingSpecs) && existingSpecs.length > 0) {
-    return existingSpecs
+  // Always prioritize latest live specifications from the product record
+  const rawSpecs =
+    productData?.product_specifications && productData.product_specifications.length > 0
+      ? productData.product_specifications
+      : item.specifications || [];
+
+  if (Array.isArray(rawSpecs) && rawSpecs.length > 0) {
+    const list = rawSpecs
       .filter((s) => s && typeof s.key === "string" && typeof s.value === "string" && s.key.trim() && s.value.trim())
-      .map((s) => ({ key: s.key.trim(), value: s.value.trim() }));
+      .map((s) => ({
+        key: s.key.trim(),
+        value: s.value.trim(),
+        display_order: typeof s.display_order === "number" ? s.display_order : 0,
+      }));
+    list.sort((a, b) => a.display_order - b.display_order);
+    return list.map(({ key, value }) => ({ key, value }));
   }
   return [];
 }
@@ -289,39 +302,53 @@ export function OrderInvoice({
           </p>
         </div>
 
-        {/* Invoice Container - Compact Natural Flow */}
-        <div className="print-invoice-sheet bg-card rounded-2xl border border-border shadow-lg p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground space-y-4 print:space-y-3.5">
+        {/* Invoice Container - Spacious Professional Marketplace Layout */}
+        <div className="print-invoice-sheet bg-card rounded-2xl border border-border shadow-lg p-6 sm:p-9 print:p-0 print:border-none print:shadow-none print:rounded-none text-foreground space-y-5 print:space-y-3.5">
           {/* SECTION 1: HEADER & STORE IDENTITY */}
-          <div className="border-b-2 border-border/80 pb-3 print:pb-2">
+          <div className="border-b-2 border-border/80 pb-4 print:pb-2.5">
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
               {/* Store Branding */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-xs print:size-8 print:text-sm print:rounded-md">
-                    NS
-                  </div>
-                  <div>
-                    <h1 className="text-xl font-black tracking-tight leading-tight text-foreground print:text-base">
-                      {storeName}
-                    </h1>
-                    <p className="text-xs font-medium text-muted-foreground print:text-[9px]">
-                      Pusat Komputer, Laptop &amp; Solusi Elektronik Resmi
-                    </p>
-                  </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3.5">
+                  {storefront?.logoUrl && storefront.logoDisplayMode !== "text_only" ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={storefront.logoUrl}
+                      alt={storeName}
+                      className="h-11 sm:h-12 max-w-[170px] object-contain print:h-8"
+                      crossOrigin="anonymous"
+                    />
+                  ) : (
+                    <div className="size-11 sm:size-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-xs print:size-8 print:text-sm print:rounded-md">
+                      NS
+                    </div>
+                  )}
+
+                  {storefront?.logoDisplayMode !== "logo_only" && (
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-tight text-foreground print:text-base">
+                        {storeName}
+                      </h1>
+                      <p className="text-xs font-medium text-muted-foreground print:text-[9.5px]">
+                        Pusat Komputer, Laptop &amp; Solusi Elektronik Resmi
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-muted-foreground pt-0.5 space-y-0.5 print:text-[8.5px]">
+
+                <div className="text-xs text-muted-foreground pt-1 space-y-0.5 print:text-[8.5px]">
                   <p>{storeAddress}, {storeCity}</p>
                   <p>WhatsApp: {formatDisplayPhone(storeWhatsapp)} · Email: {storeEmail}</p>
                 </div>
               </div>
 
               {/* Invoice Meta Strip */}
-              <div className="sm:text-right space-y-1 self-stretch sm:self-auto bg-muted/30 sm:bg-transparent p-2.5 sm:p-0 rounded-xl sm:rounded-none">
-                <div className="inline-block px-2.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md text-[11px] font-bold tracking-wider uppercase print:text-[9px] print:px-2">
+              <div className="sm:text-right space-y-1.5 self-stretch sm:self-auto bg-muted/30 sm:bg-transparent p-3 sm:p-0 rounded-xl sm:rounded-none">
+                <div className="inline-block px-3 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-md text-[11px] font-bold tracking-wider uppercase print:text-[9px] print:px-2">
                   FAKTUR PENJUALAN
                 </div>
                 <div>
-                  <p className="text-lg font-mono font-black tracking-tight text-foreground print:text-sm">
+                  <p className="text-lg sm:text-xl font-mono font-black tracking-tight text-foreground print:text-sm">
                     {order.order_number}
                   </p>
                   <p className="text-xs text-muted-foreground print:text-[8.5px]">
@@ -348,13 +375,13 @@ export function OrderInvoice({
           </div>
 
           {/* SECTION 2: CUSTOMER & DELIVERY INFO (MARKETPLACE TWO-COLUMN STYLE) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 py-3 print:py-2 print:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 print:py-1.5 print:gap-3">
             {/* Box 1: Pembeli */}
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-1 print:p-2 print:rounded-lg">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-1.5 print:p-2.5 print:rounded-lg">
               <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-[8.5px]">
                 DITUJUKAN KEPADA:
               </h3>
-              <p className="text-sm font-bold text-foreground print:text-xs">
+              <p className="text-sm sm:text-base font-bold text-foreground print:text-xs">
                 {recipientName}
               </p>
               <p className="text-xs text-muted-foreground print:text-[8.5px]">
@@ -368,7 +395,7 @@ export function OrderInvoice({
             </div>
 
             {/* Box 2: Pengiriman / Lokasi Ambil */}
-            <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-1 print:p-2 print:rounded-lg">
+            <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-1.5 print:p-2.5 print:rounded-lg">
               <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground print:text-[8.5px]">
                 {isPickup ? "LOKASI PENGAMBILAN (PICKUP):" : "ALAMAT PENGIRIMAN:"}
               </h3>
@@ -377,10 +404,10 @@ export function OrderInvoice({
                   <p className="font-bold text-foreground">
                     {address?.pickup_location || storeName}
                   </p>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground leading-relaxed">
                     {address?.pickup_address || `${storeAddress}, ${storeCity}`}
                   </p>
-                  <p className="text-muted-foreground text-[11px] print:text-[8px]">
+                  <p className="text-muted-foreground text-[11px] print:text-[8px] pt-0.5">
                     Layanan: <span className="font-medium text-foreground">Ambil Sendiri di Toko</span>
                   </p>
                 </div>
@@ -389,10 +416,10 @@ export function OrderInvoice({
                   <p className="font-bold text-foreground">
                     Penerima: {recipientName}
                   </p>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground leading-relaxed">
                     {address?.street_address || "-"}, {[address?.city, address?.province, address?.postal_code].filter(Boolean).join(", ")}
                   </p>
-                  <p className="text-muted-foreground text-[11px] print:text-[8px]">
+                  <p className="text-muted-foreground text-[11px] print:text-[8px] pt-0.5">
                     Layanan: <span className="capitalize font-medium text-foreground">{order.courier}</span>
                   </p>
                 </div>
@@ -402,30 +429,31 @@ export function OrderInvoice({
 
           {/* SECTION 3: PRODUCT TABLE WITH AUTHENTIC MARKETPLACE LAYOUT */}
           <div className="py-1 print:py-0.5">
-            <div className="border border-border/80 rounded-xl overflow-hidden print:rounded-lg">
+            <div className="border border-border/80 rounded-xl overflow-hidden print:rounded-lg shadow-2xs">
               <table className="w-full text-left text-xs print:text-[9.5px]">
                 <thead className="bg-muted/70 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider print:text-[8px]">
                   <tr>
-                    <th className="py-2 px-3 w-8 text-center font-bold">No</th>
-                    <th className="py-2 px-2.5 w-16 text-center font-bold">Foto</th>
-                    <th className="py-2 px-3 font-bold">Info &amp; Rincian Produk</th>
-                    <th className="py-2 px-3 text-right w-28 font-bold">Harga Satuan</th>
-                    <th className="py-2 px-2.5 text-center w-12 font-bold">Qty</th>
-                    <th className="py-2 px-3 text-right w-32 font-bold">Subtotal</th>
+                    <th className="py-3 px-3.5 w-10 text-center font-bold">No</th>
+                    <th className="py-3 px-3 w-16 text-center font-bold">Foto</th>
+                    <th className="py-3 px-4 font-bold">Info &amp; Rincian Produk</th>
+                    <th className="py-3 px-4 text-right w-32 font-bold">Harga Satuan</th>
+                    <th className="py-3 px-3 text-center w-14 font-bold">Qty</th>
+                    <th className="py-3 px-4 text-right w-36 font-bold">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {order.order_items.map((item, index) => {
                     const productData = item.products;
                     const imgUrl =
-                      item.product_image ||
                       productData?.product_images?.find((img) => img.is_primary)?.url ||
                       productData?.product_images?.[0]?.url ||
+                      item.product_image ||
                       null;
 
-                    const brandName = item.brand_name || productData?.brands?.name;
-                    const categoryName = item.category_name || productData?.categories?.name;
-                    const skuCode = item.sku || productData?.sku;
+                    const liveTitle = productData?.name || item.product_name;
+                    const brandName = productData?.brands?.name || item.brand_name;
+                    const categoryName = productData?.categories?.name || item.category_name;
+                    const skuCode = productData?.sku || item.sku;
 
                     const variant = item.variant_details;
                     const variantText =
@@ -441,50 +469,57 @@ export function OrderInvoice({
 
                     const specs = getProductSpecifications(item);
 
+                    // Check if raw description repeats specs
+                    const rawDesc = (productData?.description || item.description || "").trim();
+                    const isRedundantDesc =
+                      specs.length > 0 &&
+                      rawDesc.length > 0 &&
+                      specs.some((s) => s.value && rawDesc.includes(s.value));
+
                     return (
-                      <tr key={item.id || index} className="text-foreground align-top">
+                      <tr key={item.id || index} className="text-foreground align-top hover:bg-muted/10 transition-colors">
                         {/* Number */}
-                        <td className="py-2.5 px-3 text-center text-muted-foreground font-semibold print:py-1.5">
+                        <td className="py-3.5 px-3.5 text-center text-muted-foreground font-semibold print:py-2">
                           {index + 1}
                         </td>
 
                         {/* Product Image */}
-                        <td className="py-2.5 px-2.5 print:py-1.5">
-                          <div className="size-12 rounded-lg border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-10">
+                        <td className="py-3.5 px-3 print:py-2">
+                          <div className="size-14 rounded-xl border border-border/70 bg-white p-1 flex items-center justify-center overflow-hidden shrink-0 print:size-10 shadow-2xs">
                             {imgUrl ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={imgUrl}
-                                alt={item.product_name}
+                                alt={liveTitle}
                                 className="size-full object-contain"
                                 crossOrigin="anonymous"
                               />
                             ) : (
-                              <Laptop className="size-5 text-muted-foreground/40" />
+                              <Laptop className="size-6 text-muted-foreground/40" />
                             )}
                           </div>
                         </td>
 
                         {/* Product Details */}
-                        <td className="py-2.5 px-3 print:py-1.5">
-                          <p className="font-bold text-sm leading-snug text-foreground print:text-xs">
-                            {item.product_name}
+                        <td className="py-3.5 px-4 print:py-2">
+                          <p className="font-bold text-sm sm:text-base leading-snug text-foreground print:text-xs">
+                            {liveTitle}
                           </p>
 
                           {/* Brand, Category, SKU Tags */}
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1 print:mt-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5 print:mt-1">
                             {brandName && (
-                              <span className="rounded bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary print:text-[8px]">
+                              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary print:text-[8px]">
                                 {brandName}
                               </span>
                             )}
                             {categoryName && (
-                              <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] font-medium text-muted-foreground print:text-[8px]">
+                              <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground print:text-[8px]">
                                 {categoryName}
                               </span>
                             )}
                             {skuCode && (
-                              <span className="font-mono text-[10px] text-muted-foreground print:text-[8px]">
+                              <span className="font-mono text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/50 print:text-[8px]">
                                 SKU: {skuCode}
                               </span>
                             )}
@@ -492,43 +527,48 @@ export function OrderInvoice({
 
                           {/* Variant Selected Pill */}
                           {variantText && (
-                            <p className="text-[11px] text-primary font-semibold mt-1 print:text-[8.5px] print:mt-0.5">
-                              Pilihan Varian: {variantText}
-                            </p>
+                            <div className="mt-2 print:mt-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-primary/10 text-primary font-semibold text-[11px] print:text-[8.5px]">
+                                Pilihan Varian: {variantText}
+                              </span>
+                            </div>
                           )}
 
-                          {/* Real Specifications from DB only */}
+                          {/* Real Specifications from DB with clean chip badges */}
                           {specs.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground print:text-[8px]">
+                            <div className="mt-2.5 flex flex-wrap gap-1.5 text-xs print:mt-1.5">
                               {specs.map((spec, sIdx) => (
-                                <span key={sIdx} className="leading-snug">
-                                  <strong className="font-medium text-muted-foreground">• {spec.key}:</strong>{" "}
-                                  <span className="text-foreground">{spec.value}</span>
+                                <span
+                                  key={sIdx}
+                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-muted/80 border border-border/60 text-[10.5px] text-muted-foreground print:text-[8px] print:px-1.5 print:py-0"
+                                >
+                                  <strong className="font-semibold text-foreground/80">{spec.key}:</strong>
+                                  <span className="text-foreground font-medium">{spec.value}</span>
                                 </span>
                               ))}
                             </div>
                           )}
 
-                          {/* Product Note if any */}
-                          {productData?.description && productData.description.trim() !== "" && (
-                            <p className="text-[10px] text-muted-foreground mt-1 italic print:text-[8px] line-clamp-1">
-                              Catatan: {productData.description}
+                          {/* Product Note if any and not redundant */}
+                          {rawDesc !== "" && !isRedundantDesc && (
+                            <p className="text-[10.5px] text-muted-foreground/80 mt-2 italic print:text-[8px] line-clamp-2">
+                              Catatan: {rawDesc}
                             </p>
                           )}
                         </td>
 
                         {/* Unit Price */}
-                        <td className="py-2.5 px-3 text-right font-mono text-muted-foreground font-medium print:py-1.5">
+                        <td className="py-3.5 px-4 text-right font-mono text-muted-foreground font-medium print:py-2">
                           {formatRupiah(item.price)}
                         </td>
 
                         {/* Quantity */}
-                        <td className="py-2.5 px-2.5 text-center font-bold text-foreground print:py-1.5">
+                        <td className="py-3.5 px-3 text-center font-bold text-foreground print:py-2">
                           {item.quantity}
                         </td>
 
                         {/* Subtotal */}
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-foreground print:py-1.5">
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-foreground print:py-2">
                           {formatRupiah(item.price * item.quantity)}
                         </td>
                       </tr>
@@ -540,32 +580,32 @@ export function OrderInvoice({
           </div>
 
           {/* SECTION 4: PAYMENT INFO & FINANCIAL SUMMARY */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 py-2.5 border-t border-border/80 print:py-2 print:gap-4">
-            {/* Left Box: Payment Details & Guarantee Terms (No AI slop!) */}
-            <div className="space-y-2 text-xs print:space-y-1.5 print:text-[9px]">
-              <div className="rounded-xl border border-border/70 bg-muted/20 p-2.5 space-y-1 print:p-2 print:rounded-lg">
-                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-3.5 border-t border-border/80 print:py-2 print:gap-4">
+            {/* Left Box: Payment Details & Guarantee Terms */}
+            <div className="space-y-3 text-xs print:space-y-1.5 print:text-[9px]">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3.5 space-y-1.5 print:p-2 print:rounded-lg">
+                <div className="flex justify-between items-center text-[11px] print:text-[8.5px]">
                   <span className="text-muted-foreground">Metode Pembayaran:</span>
                   <span className="font-semibold text-foreground uppercase">{paymentMethodName}</span>
                 </div>
-                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+                <div className="flex justify-between items-center text-[11px] print:text-[8.5px]">
                   <span className="text-muted-foreground">Status Pembayaran:</span>
                   <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}`}>
                     {isPaymentConfirmed ? "Lunas (Diverifikasi Admin)" : "Menunggu Verifikasi Admin (Pending)"}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-[10.5px] print:text-[8.5px]">
+                <div className="flex justify-between items-center text-[11px] print:text-[8.5px]">
                   <span className="text-muted-foreground">Waktu Pemesanan:</span>
                   <span className="font-medium text-foreground">{formattedDateTimeWIB}</span>
                 </div>
 
                 {!isPaymentConfirmed && (
-                  <div className="pt-1.5 border-t border-border/60 space-y-1">
-                    <p className="text-[10px] font-bold text-muted-foreground print:text-[8px]">
+                  <div className="pt-2 border-t border-border/60 space-y-1">
+                    <p className="text-[10.5px] font-bold text-muted-foreground print:text-[8px]">
                       Rekening Pembayaran:
                     </p>
                     {bankAccounts.map((acc, i) => (
-                      <div key={i} className="flex justify-between text-[10px] font-mono print:text-[8px]">
+                      <div key={i} className="flex justify-between text-[10.5px] font-mono print:text-[8px]">
                         <span>{acc.bank_name}: {acc.account_number}</span>
                         <span>a.n. {acc.account_holder}</span>
                       </div>
@@ -575,11 +615,11 @@ export function OrderInvoice({
               </div>
 
               {/* Warranty & Unboxing Note */}
-              <div className="text-[10px] text-muted-foreground space-y-0.5 print:text-[8px]">
+              <div className="text-[10.5px] text-muted-foreground space-y-1 print:text-[8px] p-2.5 bg-muted/10 rounded-lg border border-border/50">
                 <p className="font-bold text-foreground uppercase tracking-wider text-[10px] print:text-[8px]">
                   Catatan &amp; Ketentuan Garansi:
                 </p>
-                <ul className="list-disc list-inside space-y-0.5">
+                <ul className="list-disc list-inside space-y-0.5 leading-relaxed">
                   <li>Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi.</li>
                   <li>Segel garansi pada unit wajib utuh dan tidak rusak saat klaim garansi.</li>
                   <li>Wajib menyertakan video unboxing utuh saat mengajukan komplain pesanan.</li>
@@ -588,7 +628,7 @@ export function OrderInvoice({
             </div>
 
             {/* Right Box: Calculations Breakdown & Grand Total */}
-            <div className="space-y-1 text-xs self-end print:space-y-0.5 print:text-[9.5px]">
+            <div className="space-y-1.5 text-xs self-end print:space-y-0.5 print:text-[9.5px]">
               <div className="flex justify-between text-muted-foreground py-0.5">
                 <span>Total Harga ({order.order_items.reduce((acc, i) => acc + i.quantity, 0)} Barang)</span>
                 <span className="font-mono font-medium text-foreground">{formatRupiah(order.total_amount)}</span>
@@ -608,52 +648,52 @@ export function OrderInvoice({
                 </span>
               </div>
 
-              <div className="border-t border-border/80 pt-2 flex justify-between items-center bg-muted/40 p-2.5 rounded-xl border border-border/60 print:p-2 print:rounded-lg">
+              <div className="border-t border-border/80 pt-2 flex justify-between items-center bg-primary/10 p-3.5 rounded-xl border border-primary/25 print:p-2 print:rounded-lg">
                 <div>
                   <span className="text-xs font-bold uppercase text-foreground print:text-[9.5px]">
                     TOTAL TAGIHAN
                   </span>
-                  <p className="text-[9.5px] text-muted-foreground print:text-[7.5px]">
+                  <p className="text-[10px] text-muted-foreground print:text-[7.5px]">
                     Sudah termasuk PPN jika berlaku
                   </p>
                 </div>
-                <span className="text-xl font-black font-mono text-primary print:text-base">
+                <span className="text-2xl font-black font-mono text-primary print:text-base">
                   {formatRupiah(order.grand_total)}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* SECTION 5: SIGNATURES & COMPUTER-GENERATED NOTICE (NO FAKE RUBBER STAMP!) */}
-          <div className="border-t border-border/80 pt-2.5 print:pt-2">
+          {/* SECTION 5: SIGNATURES & COMPUTER-GENERATED NOTICE */}
+          <div className="border-t border-border/80 pt-4 print:pt-2">
             <div className="flex justify-between items-end gap-6 text-xs print:text-[9px]">
               {/* Penerima / Pembeli */}
-              <div className="text-center space-y-7 print:space-y-6 min-w-32">
+              <div className="text-center space-y-8 print:space-y-6 min-w-36">
                 <p className="font-semibold text-foreground">Tanda Tangan Pembeli</p>
                 <div>
-                  <div className="border-b border-foreground/50 w-36 mx-auto"></div>
-                  <p className="text-[10px] text-muted-foreground mt-1 print:text-[8px] truncate">
+                  <div className="border-b-2 border-foreground/30 w-40 mx-auto"></div>
+                  <p className="text-[10.5px] text-muted-foreground mt-1.5 print:text-[8px] truncate">
                     ( {recipientName} )
                   </p>
                 </div>
               </div>
 
               {/* System Note */}
-              <div className="hidden sm:block text-center flex-1 px-4 text-[9.5px] text-muted-foreground print:block print:text-[7.5px]">
+              <div className="hidden sm:block text-center flex-1 px-4 text-[10px] text-muted-foreground print:block print:text-[7.5px]">
                 <p>
                   Faktur ini diterbitkan secara resmi oleh sistem komputer {storeName} sebagai bukti transaksi yang sah.
                 </p>
-                <p className="text-primary font-medium mt-0.5">
+                <p className="text-primary font-medium mt-1">
                   Terima kasih atas kepercayaan Anda telah berbelanja di {storeName}!
                 </p>
               </div>
 
               {/* Toko / Kasir - Clean Official Signature */}
-              <div className="text-center space-y-7 print:space-y-6 min-w-32">
+              <div className="text-center space-y-8 print:space-y-6 min-w-36">
                 <p className="font-semibold text-foreground">Petugas Toko / Kasir</p>
                 <div>
-                  <div className="border-b border-foreground/50 w-36 mx-auto"></div>
-                  <p className="text-[10px] text-muted-foreground mt-1 print:text-[8px]">
+                  <div className="border-b-2 border-foreground/30 w-40 mx-auto"></div>
+                  <p className="text-[10.5px] text-muted-foreground mt-1.5 print:text-[8px]">
                     ( {storeName} )
                   </p>
                 </div>

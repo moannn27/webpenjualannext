@@ -199,6 +199,9 @@ export function Navbar({
                   <Link href="/compare" className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-muted">
                     Bandingkan
                   </Link>
+                  <Link href="/about" className="rounded-lg px-3 py-2 text-base font-semibold hover:bg-muted">
+                    Tentang Kami
+                  </Link>
                 </div>
               </SheetContent>
             </Sheet>
@@ -310,6 +313,11 @@ export function Navbar({
                 <NavigationMenuItem>
                   <NavigationMenuLink render={<Link href="/compare" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-foreground hover:text-primary transition-colors")}>
                     Bandingkan
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink render={<Link href="/about" />} className={cn(navigationMenuTriggerStyle(), "bg-transparent text-foreground hover:text-primary transition-colors")}>
+                    Tentang Kami
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               </NavigationMenuList>

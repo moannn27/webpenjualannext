@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Plus,
   RefreshCw,
+  Info,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -149,6 +150,7 @@ export function AdminSidebar({
       title: "Konten & Pengaturan",
       links: [
         { name: "Landing page", href: "/admin/content", icon: Images, permission: "content" as AdminModuleKey },
+        { name: "Tentang Kami (About)", href: "/admin/about", icon: Info, permission: "content" as AdminModuleKey },
         { name: "Fitur & Pengaturan", href: "/admin/content?tab=features", icon: SlidersHorizontal, permission: "content" as AdminModuleKey },
       ],
     },

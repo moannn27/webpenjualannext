@@ -163,8 +163,79 @@ Menambahkan fitur ekspor inventaris stok lengkap di halaman Admin Katalog Produk
 
 ---
 
-## 10. Verifikasi Kualitas & Kesiapan Produksi
+## 10. Fitur Halaman "Tentang Kami" (About Us) & Visual Photo Layout Editor
+
+Menambahkan halaman publik `/about` dan manajemen konten visual di `/admin/about`:
+1. **Halaman Publik `/about` (Server Components & SEO Ready)**:
+   - Metadata SEO lengkap (`title`, `description`, OpenGraph, Twitter card).
+   - 8 seksi konten dinamis: Hero Perkenalan, Tentang Kami (Story), Fakta & Statistik, Keunggulan Kami, Brand Partner, Layanan / Alur Pembelian, Tim / Foto Aktivitas, dan Call-to-Action (CTA).
+   - Menghubungkan tautan navigasi di Navbar desktop, Navbar mobile, dan Footer.
+2. **Admin Panel Visual About Us (`features/admin/AboutUsManager.tsx`)**:
+   - Pengelolaan urutan dan visibilitas setiap seksi (tampil/sembunyi).
+   - Form input terstruktur dengan live preview interaktif.
+   - Manajemen upload foto langsung ke Supabase Storage (`storefront-images` atau bucket terkait) lengkap dengan pengaturan teks alt SEO.
+3. **Fitur Khusus Visual Photo Layout Editor (`components/shared/PhotoLayoutRenderer.tsx`)**:
+   - **Pilihan Template Layout**: Single Image, Split Layout (kiri/kanan), Image Grid (2-4 kolom), Photo Collage (kombinasi hero & kartu), Gallery / Carousel, dan Wide Banner.
+   - **Kustomisasi Gambar**: Rasio (1:1, 16:9, 4:3, 3:4, wide, auto), sudut membulat (*rounded*, *slightly rounded*, *sharp*), fokus gambar (*center*, *top*, *bottom*, *left*, *right*), fit (*cover* / *contain*), serta opsi border dan shadow.
+   - Responsif desktop dan mobile tanpa merusak proporsi gambar.
+4. **Migrasi Database Idempotent (`supabase/migrations/20261104000000_about_us_content.sql`)**:
+   - Menyimpan konten About Us ke dalam `storefront_settings.settings.about_us` dengan fallback default yang relevan untuk Toko Next Solution.
+
+---
+
+## 11. Pusat Notifikasi Admin Multi-Kategori & Multi-Role
+
+Pembaruan sistem notifikasi header admin pada `actions/admin.ts` dan `components/layouts/AdminHeader.tsx`:
+1. **Perbaikan Z-Index Stacking Context (Masalah Bleeding/Tumpukan)**:
+   - Header admin dinaikkan ke `z-50` dan popover notifikasi ke `z-[100]`.
+   - Sticky bar sub-header pada halaman pengelola diturunkan ke `z-20` sehingga dropdown notifikasi melayang sempurna tanpa tertembus tombol halaman.
+2. **Pusat Notifikasi Multi-Kategori**:
+   - Ikon lonceng (*Bell*) dengan badge indikator jumlah pesan yang belum dibaca.
+   - Tab filter kategori cepat: `Semua`, `Pesanan`, `Pembayaran`, `Stok`, `Katalog`, `Aktivitas`, `Keamanan`.
+   - Menampilkan detail pesanan baru, bukti transfer verifikasi, peringatan stok menipis/habis ($\le 5$), penambahan produk/brand/kategori, riwayat audit log admin, serta peringatan keamanan akun terkunci.
+3. **Visibilitas Berbasis Peran (Super Admin vs Admin Biasa)**:
+   - **Super Admin**: Menerima seluruh notifikasi lengkap (finansial, audit log, keamanan).
+   - **Admin Biasa**: Menerima notifikasi operasional dasar (pesanan masuk, stok, katalog).
+   - **Dialog Konfigurasi Staf**: Super Admin dapat mengatur kategori notifikasi staf langsung dari dropdown via `saveStaffNotificationConfigAction()`.
+
+---
+
+## 12. Redesain Switch Mode Gelap / Terang (Smooth Gliding Pill Switch)
+
+Pembaruan tombol dark/light mode pada `components/layouts/AdminHeader.tsx`:
+1. **Wadah Proporsional Anti-Dempet**:
+   - Menggantikan wadah lingkaran sempit 40px yang sebelumnya memaksakan 2 ikon bertumpukan menjadi kapsul switch selebar `w-[68px]` dan tinggi `h-9` ($36\text{px}$).
+   - Slot matahari dan bulan berjarak lega ($28\text{px}$ masing-masing) tanpa tumpang tindih.
+2. **Animasi Geser Halus (Spring Gliding Thumb)**:
+   - Indikator kapsul meluncur dengan kurva pegas `cubic-bezier(0.34, 1.56, 0.64, 1)`.
+   - **Mode Terang**: Thumb meluncur ke kiri dengan gradien hangat amber/matahari (`from-amber-400 to-amber-300`) dan rotasi halus ikon matahari.
+   - **Mode Gelap**: Thumb meluncur sejauh $32\text{px}$ ke kanan dengan gradien biru modern (`from-blue-600 to-indigo-600`) dan rotasi halus ikon bulan.
+3. **Sinkronisasi Tema Real-Time**:
+   - Terhubung langsung ke `document.documentElement` dan menyimpan preferensi ke dua kunci penyimpanan (`next-solution-theme` & `theme`) secara instan.
+
+---
+
+## 13. Redesain Faktur / Invoice Penjualan & Real-Time Sync
+
+Pembaruan faktur pembelian pada `app/orders/[id]/invoice/page.tsx` dan `components/invoice/OrderInvoice.tsx`:
+1. **Tata Letak Faktur Lapang & Standar Marketplace**:
+   - Padding kertas diperluas (`p-6 sm:p-9`) dan kartu penerima/pengiriman ditata dengan ruang bernapas yang cukup.
+   - Tinggi baris tabel produk diperluas (`py-3.5 px-4`) dan foto produk diperbesar menjadi `size-14` dengan sudut membulat.
+2. **Penyajian Spesifikasi Berbentuk Chip Rapi**:
+   - Spesifikasi teknis (Processor, RAM, Storage, GPU, Display, OS, Garansi) ditata sebagai chip terstruktur, bukan lagi paragraf teks bertumpuk yang berjejal.
+   - Duplikasi teks catatan produk yang mengulang spesifikasi mentah dieliminasi.
+   - Kolom tanda tangan pembeli dan kasir dipertinggi (`space-y-8`) sehingga siap untuk tanda tangan fisik dan cap resmi.
+3. **Logo Toko Real-Time dari Database**:
+   - Membaca `logo_url` dari `storefront_settings.store.logo_url` dan menampilkannya secara dinamis dengan proporsi `object-contain`.
+   - Mendukung opsi tampilan logo: logo + teks nama toko, logo saja, atau teks saja.
+4. **Bebas Cache Usang (*Zero Stale Cache*)**:
+   - Menambahkan `export const dynamic = "force-dynamic"` dan `export const revalidate = 0` sehingga setiap perubahan data produk, harga, logo toko, maupun spesifikasi di admin langsung tercermin di faktur seketika.
+
+---
+
+## 14. Verifikasi Kualitas & Kesiapan Produksi
 
 * **TypeScript Compilation (`npx tsc --noEmit`)**: **0 error**, seluruh tipe data valid.
-* **Unit Testing (Vitest)**: Seluruh **189 tests** (18 test suites) lulus 100%.
-* **Next.js Production Build (Turbopack)**: Sukses mengompilasi seluruh **39 halaman & endpoint API** tanpa error.
+* **Unit Testing (Vitest)**: Seluruh **193 tests** (19 test suites) lulus 100%.
+* **Next.js Production Build (Turbopack)**: Sukses mengompilasi seluruh **40 halaman & endpoint API** tanpa error.
+

@@ -1836,131 +1836,421 @@ export async function cleanupUnusedStorageAction() {
   return { success: true, deletedCount }
 }
 
+export type AdminNotificationCategory =
+  | 'order'
+  | 'payment'
+  | 'stock'
+  | 'catalog'
+  | 'activity'
+  | 'security';
+
 export type AdminNotificationItem = {
-  id: string
-  category: 'order' | 'stock' | 'security'
-  title: string
-  description: string
-  link: string
-  created_at: string
-  severity: 'urgent' | 'warning' | 'info'
-}
+  id: string;
+  category: AdminNotificationCategory;
+  title: string;
+  description: string;
+  link: string;
+  created_at: string;
+  severity: 'urgent' | 'warning' | 'info';
+};
 
 export async function getAdminAllNotificationsAction(): Promise<{
-  notifications: AdminNotificationItem[]
+  notifications: AdminNotificationItem[];
   counts: {
-    total: number
-    orders: number
-    stock: number
-    security: number
-  }
+    total: number;
+    orders: number;
+    payment: number;
+    stock: number;
+    catalog: number;
+    activity: number;
+    security: number;
+  };
+  allowedCategories: AdminNotificationCategory[];
+  staffNotificationConfig: AdminNotificationCategory[];
+  isSuperAdmin: boolean;
 }> {
-  const { isAdmin } = await getAdminAccess()
+  const { isAdmin, role } = await getAdminAccess();
   if (!isAdmin) {
     return {
       notifications: [],
-      counts: { total: 0, orders: 0, stock: 0, security: 0 },
-    }
+      counts: { total: 0, orders: 0, payment: 0, stock: 0, catalog: 0, activity: 0, security: 0 },
+      allowedCategories: [],
+      staffNotificationConfig: ['order', 'stock', 'catalog'],
+      isSuperAdmin: false,
+    };
   }
 
-  const supabase = await createClient()
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const isSuperAdmin = role === 'super_admin';
+  const supabase = await createClient();
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  const notifs: AdminNotificationItem[] = []
+  const notifs: AdminNotificationItem[] = [];
+
+  // Read settings for audit logs and staff notification configuration
+  let staffNotificationConfig: AdminNotificationCategory[] = ['order', 'stock', 'catalog'];
+  let auditLogs: Array<{
+    id: string;
+    admin_name: string;
+    admin_role: string;
+    action: string;
+    entity_type: string;
+    entity_name: string;
+    details: string;
+    created_at: string;
+  }> = [];
+
+  try {
+    const { data: sfData } = await supabase
+      .from('storefront_settings')
+      .select('settings')
+      .eq('id', 'main')
+      .maybeSingle();
+
+    if (Array.isArray(sfData?.settings?.staff_notification_config) && sfData.settings.staff_notification_config.length > 0) {
+      staffNotificationConfig = sfData.settings.staff_notification_config;
+    }
+
+    if (Array.isArray(sfData?.settings?.admin_audit_logs)) {
+      auditLogs = sfData.settings.admin_audit_logs;
+    }
+  } catch {
+    // fallback
+  }
 
   // 1. Akun Terkunci (Keamanan)
   if (serviceKey && url) {
     try {
-      const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
-      const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
+      const adminClient = createSupabaseAdminClient(url, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
       const lockedUsers = (authData?.users ?? []).filter(
         (u) => Boolean(u.user_metadata?.is_password_locked)
-      )
+      );
       for (const u of lockedUsers) {
-        const name = (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || u.email || 'Pengguna'
+        const name =
+          (u.user_metadata?.full_name as string) ||
+          (u.user_metadata?.name as string) ||
+          u.email ||
+          'Pengguna';
         notifs.push({
           id: `sec-${u.id}`,
           category: 'security',
           title: `Akun Terkunci: ${name}`,
-          description: `${u.email || '-'} telah 3x salah memasukkan kata sandi lama dan butuh bantuan reset password.`,
+          description: `${u.email || '-'} telah 3x salah memasukkan kata sandi dan butuh reset password.`,
           link: '/admin/customers',
-          created_at: (u.user_metadata?.password_locked_at as string) || new Date().toISOString(),
+          created_at:
+            (u.user_metadata?.password_locked_at as string) || new Date().toISOString(),
           severity: 'urgent',
-        })
+        });
       }
     } catch {
       // fallback
     }
   }
 
-  // 2. Pesanan Baru / Menunggu Pembayaran / Diproses (Orders)
+  // 2. Pesanan Masuk & Status Pembelian (Order)
   try {
-    const { data: pendingOrders } = await supabase
+    const { data: recentOrders } = await supabase
       .from('orders')
-      .select('id, order_number, status, grand_total, created_at, users(full_name)')
-      .in('status', ['pending', 'processing'])
+      .select('id, order_number, status, payment_status, payment_method, grand_total, created_at, updated_at, users(full_name)')
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(20);
 
-    for (const o of pendingOrders ?? []) {
-      const profile = Array.isArray(o.users) ? o.users[0] : o.users
-      const customerName = profile?.full_name || 'Pelanggan'
-      const isPending = o.status === 'pending'
-      notifs.push({
-        id: `ord-${o.id}`,
-        category: 'order',
-        title: isPending ? `Pesanan #${o.order_number || o.id}` : `Pesanan Diproses #${o.order_number || o.id}`,
-        description: `${customerName} • Total Rp ${Number(o.grand_total ?? 0).toLocaleString('id-ID')} • ${isPending ? 'Menunggu Pembayaran' : 'Siap Diproses Toko'}`,
-        link: '/admin/orders',
-        created_at: o.created_at,
-        severity: isPending ? 'warning' : 'info',
-      })
+    for (const o of recentOrders ?? []) {
+      const profile = Array.isArray(o.users) ? o.users[0] : o.users;
+      const customerName = profile?.full_name || 'Pelanggan';
+      const orderNum = o.order_number || String(o.id).slice(0, 8);
+      const formattedTotal = Number(o.grand_total ?? 0).toLocaleString('id-ID');
+
+      if (o.status === 'pending') {
+        notifs.push({
+          id: `ord-pending-${o.id}`,
+          category: 'order',
+          title: `Pesanan Baru Masuk #${orderNum}`,
+          description: `${customerName} • Total Rp ${formattedTotal} • Menunggu Pembayaran`,
+          link: '/admin/orders',
+          created_at: o.created_at,
+          severity: 'warning',
+        });
+      } else if (o.status === 'processing') {
+        notifs.push({
+          id: `ord-proc-${o.id}`,
+          category: 'order',
+          title: `Pesanan Diproses #${orderNum}`,
+          description: `${customerName} • Total Rp ${formattedTotal} • Siap Cek-in & Pengiriman`,
+          link: '/admin/orders',
+          created_at: o.updated_at || o.created_at,
+          severity: 'info',
+        });
+      } else if (o.status === 'shipped') {
+        notifs.push({
+          id: `ord-ship-${o.id}`,
+          category: 'order',
+          title: `Pesanan Dikirim #${orderNum}`,
+          description: `Pesanan ${customerName} sedang dalam perjalanan pengiriman kurir.`,
+          link: '/admin/orders',
+          created_at: o.updated_at || o.created_at,
+          severity: 'info',
+        });
+      } else if (o.status === 'cancelled') {
+        notifs.push({
+          id: `ord-cancel-${o.id}`,
+          category: 'order',
+          title: `Pesanan Dibatalkan #${orderNum}`,
+          description: `Pesanan ${customerName} telah dibatalkan oleh sistem atau pelanggan.`,
+          link: '/admin/orders',
+          created_at: o.updated_at || o.created_at,
+          severity: 'warning',
+        });
+      }
+
+      // 3. Pengeditan Pembayaran & Verifikasi Transfer (Payment)
+      if (o.payment_status === 'paid') {
+        notifs.push({
+          id: `pay-paid-${o.id}`,
+          category: 'payment',
+          title: `Pembayaran Lunas: #${orderNum}`,
+          description: `Pembayaran ${customerName} sebesar Rp ${formattedTotal} (${o.payment_method || 'Transfer'}) telah lunas terverifikasi.`,
+          link: '/admin/orders',
+          created_at: o.updated_at || o.created_at,
+          severity: 'info',
+        });
+      } else if (o.payment_status === 'awaiting_verification' || (o.status === 'pending' && o.payment_method === 'transfer')) {
+        notifs.push({
+          id: `pay-verify-${o.id}`,
+          category: 'payment',
+          title: `Verifikasi Transfer: #${orderNum}`,
+          description: `Pesanan ${customerName} (Rp ${formattedTotal}) membutuhkan cek mutasi & verifikasi transfer bank.`,
+          link: '/admin/orders',
+          created_at: o.updated_at || o.created_at,
+          severity: 'urgent',
+        });
+      }
     }
   } catch {
     // fallback
   }
 
-  // 3. Stok Menipis / Habis (Stock <= 5)
+  // 4. Stok Menipis / Habis (Stock <= 5)
   try {
     const { data: lowStockProducts } = await supabase
       .from('products')
       .select('id, name, stock, updated_at, categories(name)')
       .lte('stock', 5)
       .order('stock', { ascending: true })
-      .limit(10)
+      .limit(10);
 
     for (const p of lowStockProducts ?? []) {
-      const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories
-      const isOut = (p.stock ?? 0) <= 0
+      const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+      const isOut = (p.stock ?? 0) <= 0;
       notifs.push({
-        id: `stock-${p.id}`,
+        id: `stock-alert-${p.id}`,
         category: 'stock',
         title: isOut ? `Stok Habis: ${p.name}` : `Stok Menipis: ${p.name}`,
-        description: isOut ? `Stok kosong! Kategori: ${cat?.name || '-'}. Segera lakukan restock inventaris.` : `Sisa ${p.stock} unit (Kategori: ${cat?.name || '-'}). Segera restock sebelum kehabisan.`,
+        description: isOut
+          ? `Stok kosong! Kategori: ${cat?.name || '-'}. Segera lakukan restock inventaris.`
+          : `Sisa ${p.stock} unit (Kategori: ${cat?.name || '-'}). Segera restock sebelum kehabisan.`,
         link: `/admin/products?search=${encodeURIComponent(p.name)}`,
         created_at: p.updated_at || new Date().toISOString(),
         severity: isOut ? 'urgent' : 'warning',
-      })
+      });
     }
   } catch {
     // fallback
   }
 
-  // Urutkan berdasarkan waktu terbaru
-  notifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  // 5. Log Aktivitas (Pengeditan Pembayaran, Masukin Data Stock, Produk, Brand, dll)
+  for (const log of auditLogs.slice(0, 30)) {
+    const detailLower = (log.details || '').toLowerCase();
+    const isPaymentEdit =
+      log.entity_type === 'order' &&
+      (detailLower.includes('pembayaran') ||
+        detailLower.includes('bayar') ||
+        detailLower.includes('transfer') ||
+        detailLower.includes('verifikasi') ||
+        detailLower.includes('lunas') ||
+        detailLower.includes('status'));
+
+    const isStockEdit =
+      detailLower.includes('stok') ||
+      detailLower.includes('stock') ||
+      detailLower.includes('sinkronisasi') ||
+      detailLower.includes('import stock');
+
+    const isCatalog =
+      ['product', 'brand', 'category'].includes(log.entity_type) && !isStockEdit;
+
+    if (isPaymentEdit) {
+      notifs.push({
+        id: `audit-pay-${log.id}`,
+        category: 'payment',
+        title: `Pengeditan Pembayaran: ${log.entity_name}`,
+        description: `${log.admin_name} (${log.admin_role}): ${log.details}`,
+        link: '/admin/orders',
+        created_at: log.created_at,
+        severity: 'info',
+      });
+    } else if (isStockEdit) {
+      notifs.push({
+        id: `audit-stock-${log.id}`,
+        category: 'stock',
+        title: `Pembaruan Stok: ${log.entity_name}`,
+        description: `${log.admin_name} (${log.admin_role}): ${log.details}`,
+        link: '/admin/stock-sync',
+        created_at: log.created_at,
+        severity: 'info',
+      });
+    } else if (isCatalog) {
+      notifs.push({
+        id: `audit-cat-${log.id}`,
+        category: 'catalog',
+        title: `${log.action === 'create' ? 'Penambahan' : 'Pengeditan'} ${
+          log.entity_type === 'product'
+            ? 'Produk'
+            : log.entity_type === 'brand'
+            ? 'Brand'
+            : 'Kategori'
+        }: ${log.entity_name}`,
+        description: `${log.admin_name} (${log.admin_role}): ${log.details}`,
+        link:
+          log.entity_type === 'product'
+            ? '/admin/products'
+            : log.entity_type === 'brand'
+            ? '/admin/brands'
+            : '/admin/categories',
+        created_at: log.created_at,
+        severity: 'info',
+      });
+    } else if (['content', 'settings', 'voucher', 'account'].includes(log.entity_type)) {
+      notifs.push({
+        id: `audit-act-${log.id}`,
+        category: 'activity',
+        title: `Aktivitas Sistem: ${log.entity_name}`,
+        description: `${log.admin_name} (${log.admin_role}): ${log.details}`,
+        link: log.entity_type === 'voucher' ? '/admin/vouchers' : '/admin/logs',
+        created_at: log.created_at,
+        severity: 'info',
+      });
+    }
+  }
+
+  // 6. Produk & Brand Baru Ditambahkan (Katalog Baru)
+  try {
+    const { data: recentProds } = await supabase
+      .from('products')
+      .select('id, name, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    for (const p of recentProds ?? []) {
+      notifs.push({
+        id: `prod-new-${p.id}`,
+        category: 'catalog',
+        title: `Produk Baru: ${p.name}`,
+        description: `Produk telah terdaftar aktif dalam katalog toko.`,
+        link: `/admin/products?search=${encodeURIComponent(p.name)}`,
+        created_at: p.created_at,
+        severity: 'info',
+      });
+    }
+  } catch {
+    // fallback
+  }
+
+  // Urutkan berdasarkan waktu terbaru dan cegah duplikat ID
+  const seenIds = new Set<string>();
+  const uniqueNotifs: AdminNotificationItem[] = [];
+  for (const n of notifs) {
+    if (!seenIds.has(n.id)) {
+      seenIds.add(n.id);
+      uniqueNotifs.push(n);
+    }
+  }
+  uniqueNotifs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  // Kategori yang diizinkan untuk dilihat oleh user saat ini
+  const allowedCategories: AdminNotificationCategory[] = isSuperAdmin
+    ? ['order', 'payment', 'stock', 'catalog', 'activity', 'security']
+    : staffNotificationConfig;
+
+  // Filter notifikasi sesuai kategori yang diizinkan
+  const filteredNotifs = uniqueNotifs
+    .filter((n) => allowedCategories.includes(n.category))
+    .slice(0, 50);
 
   const counts = {
-    total: notifs.length,
-    orders: notifs.filter((n) => n.category === 'order').length,
-    stock: notifs.filter((n) => n.category === 'stock').length,
-    security: notifs.filter((n) => n.category === 'security').length,
+    total: filteredNotifs.length,
+    orders: filteredNotifs.filter((n) => n.category === 'order').length,
+    payment: filteredNotifs.filter((n) => n.category === 'payment').length,
+    stock: filteredNotifs.filter((n) => n.category === 'stock').length,
+    catalog: filteredNotifs.filter((n) => n.category === 'catalog').length,
+    activity: filteredNotifs.filter((n) => n.category === 'activity').length,
+    security: filteredNotifs.filter((n) => n.category === 'security').length,
+  };
+
+  return {
+    notifications: filteredNotifs,
+    counts,
+    allowedCategories,
+    staffNotificationConfig,
+    isSuperAdmin,
+  };
+}
+
+export async function saveStaffNotificationConfigAction(
+  categories: AdminNotificationCategory[]
+): Promise<{ success: boolean; message: string; staffNotificationConfig: AdminNotificationCategory[] }> {
+  const { user, role } = await getAdminAccess();
+  if (!user || role !== 'super_admin') {
+    throw new Error('Hanya Super Admin yang berwenang mengatur preferensi notifikasi staf.');
+  }
+
+  const validCategories: AdminNotificationCategory[] = [
+    'order',
+    'payment',
+    'stock',
+    'catalog',
+    'activity',
+    'security',
+  ];
+  const cleaned = categories.filter((c) => validCategories.includes(c));
+  if (cleaned.length === 0) {
+    throw new Error('Pilih minimal satu kategori notifikasi untuk staf admin.');
+  }
+
+  const adminClient = getSupabaseAdminClient();
+  const { data: sfData } = await adminClient
+    .from('storefront_settings')
+    .select('settings')
+    .eq('id', 'main')
+    .maybeSingle();
+
+  const currentSettings =
+    sfData?.settings && typeof sfData.settings === 'object' ? sfData.settings : {};
+
+  const { error } = await adminClient.from('storefront_settings').upsert(
+    {
+      id: 'main',
+      settings: {
+        ...currentSettings,
+        staff_notification_config: cleaned,
+      },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  );
+
+  if (error) {
+    throw new Error(`Gagal menyimpan pengaturan notifikasi staf: ${error.message}`);
   }
 
   return {
-    notifications: notifs,
-    counts,
-  }
+    success: true,
+    message: 'Pengaturan notifikasi staf admin berhasil disimpan!',
+    staffNotificationConfig: cleaned,
+  };
 }
 
 export async function updateAdminAvatarAction(avatarUrl: string) {

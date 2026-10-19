@@ -27,8 +27,9 @@ const groups = [
     ],
   },
   {
-    title: "Bantuan",
+    title: "Bantuan & Info",
     links: [
+      ["Tentang Kami", "/about"],
       ["FAQ", "/faq"],
       ["Login", "/login"],
       ["Buat akun", "/register"],
