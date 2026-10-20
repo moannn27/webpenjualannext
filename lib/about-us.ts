@@ -173,6 +173,7 @@ export const DEFAULT_ABOUT_US_CONTENT: AboutUsContent = {
   og_image: "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?q=80&w=1200&auto=format&fit=crop",
   section_order: ["hero", "story", "stats", "values", "brands", "process", "team_gallery", "cta"],
   section_visibility: {
+    homepage: true,
     hero: true,
     story: true,
     stats: true,

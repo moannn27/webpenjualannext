@@ -6,6 +6,7 @@ import { PromoBanner } from "@/features/landing/PromoBanner";
 import { BrandShowcase } from "@/features/landing/BrandShowcase";
 import { WhyChooseUs } from "@/features/landing/WhyChooseUs";
 import { FaqSection } from "@/features/landing/FaqSection";
+import { AboutUsSection } from "@/features/landing/AboutUsSection";
 import { BranchLocatorSection } from "@/features/landing/BranchLocatorSection";
 import { ProductReviewsSection } from "@/features/landing/ProductReviewsSection";
 import { OfficialChannelsSection } from "@/features/landing/OfficialChannelsSection";
@@ -14,6 +15,8 @@ import { getBestSellerAction, getNewArrivalAction, getProductsByIdsAction, getPr
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getBrandsAction, getCategoriesAction } from "@/actions/catalog";
 import { getBannersAction, getFAQsAction } from "@/actions/content";
+import { getAboutUsContentAction } from "@/actions/about";
+import { DEFAULT_ABOUT_US_CONTENT } from "@/lib/about-us";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { getStorefrontFeaturedReviewsAction } from "@/actions/review";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
@@ -35,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, banners, rawSettings] = await Promise.all([
+  const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, banners, rawSettings, aboutContent] = await Promise.all([
     getBestSellerAction().catch(() => []),
     getNewArrivalAction().catch(() => []),
     getPromoProductsAction(8).catch(() => []),
@@ -44,6 +47,7 @@ export default async function Home() {
     getFAQsAction().catch(() => []),
     getBannersAction().catch(() => []),
     getStorefrontSettingsAction().catch(() => null),
+    getAboutUsContentAction().catch(() => DEFAULT_ABOUT_US_CONTENT),
   ]);
   const settings = normalizeStorefrontSettings(rawSettings);
   const sections = settings.sections;
@@ -161,6 +165,7 @@ export default async function Home() {
       )}
       {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} store={settings.store} pickupInfo={settings.pickup_info} />}
       {sections.faq.visible && <FaqSection faqs={faqs ?? []} title={sections.faq.title} subtitle={sections.faq.subtitle} />}
+      {sections.about?.visible !== false && <AboutUsSection content={aboutContent} />}
     </div>
   );
 }

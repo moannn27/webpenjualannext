@@ -415,16 +415,50 @@ describe('Security & Authorization Suite', () => {
   });
 
   describe('guard_user_role_update & User Role Tampering Protection', () => {
-    // Simulates the PostgreSQL guard_user_role_update trigger logic
-    const evaluateRoleUpdateTrigger = (actor: { role: string | null; authRole: string; isSuperuser?: boolean }, oldRole: string, newRole: string) => {
+    // Simulates the hardened PostgreSQL guard_user_role_update trigger logic
+    const evaluateRoleUpdateTrigger = (actor: {
+      role: string | null;
+      authRole: string | null;
+      sessionUser?: string;
+      jwtSub?: string | null;
+      actorId?: string;
+      targetId?: string;
+      totalSuperAdmins?: number;
+      definerCurrentUser?: string; // What current_user evaluates to inside a SECURITY DEFINER function
+    }, oldRole: string, newRole: string) => {
       if (oldRole !== newRole) {
-        if (actor.isSuperuser || actor.authRole === 'service_role') {
+        // Flawed implementation checked: IF current_user IN ('postgres', 'supabase_admin')
+        // In a SECURITY DEFINER function, actor.definerCurrentUser is ALWAYS 'postgres'.
+        // The hardened implementation IGNORES definerCurrentUser and checks sessionUser + JWT claims instead!
+        const isServiceRole = actor.authRole === 'service_role';
+        const isDirectDba = ['postgres', 'supabase_admin'].includes(actor.sessionUser ?? '') && !actor.authRole && !actor.jwtSub;
+
+        if (isServiceRole || isDirectDba) {
           return { allowed: true };
         }
+
+        // Verify caller identity via JWT auth.uid()
         if (actor.role !== 'super_admin') {
           const err = new Error('Modifying user role is restricted exclusively to super administrators.');
           (err as any).code = '42501';
           throw err;
+        }
+
+        // Self-demotion check
+        if (actor.actorId && actor.targetId && actor.actorId === actor.targetId && newRole !== 'super_admin') {
+          const err = new Error('A super admin cannot demote their own account.');
+          (err as any).code = '22023';
+          throw err;
+        }
+
+        // Last super admin protection
+        if (oldRole === 'super_admin' && newRole !== 'super_admin') {
+          const count = actor.totalSuperAdmins ?? 2;
+          if (count <= 1) {
+            const err = new Error('Cannot demote the last super admin.');
+            (err as any).code = '22023';
+            throw err;
+          }
         }
       }
       return { allowed: true };
@@ -433,7 +467,7 @@ describe('Security & Authorization Suite', () => {
     it('blocks regular customer from modifying their own or other users role (42501)', () => {
       expect(() =>
         evaluateRoleUpdateTrigger(
-          { role: 'customer', authRole: 'authenticated' },
+          { role: 'customer', authRole: 'authenticated', sessionUser: 'authenticator', jwtSub: 'cust-1' },
           'customer',
           'admin'
         )
@@ -443,32 +477,94 @@ describe('Security & Authorization Suite', () => {
     it('blocks non-super-admin (ordinary admin) from escalating or altering roles (42501)', () => {
       expect(() =>
         evaluateRoleUpdateTrigger(
-          { role: 'admin', authRole: 'authenticated' },
+          { role: 'admin', authRole: 'authenticated', sessionUser: 'authenticator', jwtSub: 'admin-1' },
           'customer',
           'super_admin'
         )
       ).toThrowError(/restricted exclusively to super administrators/i);
     });
 
-    it('allows super_admin executing role updates via official administrative channels', () => {
+    it('prevents SECURITY DEFINER bypass: caller cannot bypass guard even though function definer is postgres', () => {
+      // In PostgreSQL, any SECURITY DEFINER function sets current_user = 'postgres'.
+      // If the trigger checked current_user, this customer request would bypass!
+      // With our hardened trigger, it is strictly rejected.
+      expect(() =>
+        evaluateRoleUpdateTrigger(
+          {
+            role: 'customer',
+            authRole: 'authenticated',
+            sessionUser: 'authenticator',
+            jwtSub: 'attacker-cust-id',
+            definerCurrentUser: 'postgres', // Function owner is postgres!
+          },
+          'customer',
+          'super_admin'
+        )
+      ).toThrowError(/restricted exclusively to super administrators/i);
+    });
+
+    it('rejects attempt when super_admin attempts self-demotion (22023)', () => {
+      expect(() =>
+        evaluateRoleUpdateTrigger(
+          {
+            role: 'super_admin',
+            authRole: 'authenticated',
+            sessionUser: 'authenticator',
+            jwtSub: 'super-admin-uuid',
+            actorId: 'super-admin-uuid',
+            targetId: 'super-admin-uuid', // same target!
+          },
+          'super_admin',
+          'customer'
+        )
+      ).toThrowError(/cannot demote their own account/i);
+    });
+
+    it('rejects attempt to demote the last remaining super_admin (22023)', () => {
+      expect(() =>
+        evaluateRoleUpdateTrigger(
+          {
+            role: 'super_admin',
+            authRole: 'authenticated',
+            sessionUser: 'authenticator',
+            jwtSub: 'super-actor-uuid',
+            actorId: 'super-actor-uuid',
+            targetId: 'other-super-uuid',
+            totalSuperAdmins: 1, // Only 1 exists!
+          },
+          'super_admin',
+          'admin'
+        )
+      ).toThrowError(/Cannot demote the last super admin/i);
+    });
+
+    it('allows super_admin executing valid role updates via official administrative channels', () => {
       const result = evaluateRoleUpdateTrigger(
-        { role: 'super_admin', authRole: 'authenticated' },
+        {
+          role: 'super_admin',
+          authRole: 'authenticated',
+          sessionUser: 'authenticator',
+          jwtSub: 'super-admin-uuid',
+          actorId: 'super-admin-uuid',
+          targetId: 'target-cust-uuid',
+          totalSuperAdmins: 3,
+        },
         'customer',
         'admin'
       );
       expect(result.allowed).toBe(true);
     });
 
-    it('allows service_role and postgres maintenance to execute role updates', () => {
+    it('allows service_role and direct psql console maintenance to execute role updates', () => {
       const resultServiceRole = evaluateRoleUpdateTrigger(
-        { role: null, authRole: 'service_role' },
+        { role: null, authRole: 'service_role', sessionUser: 'authenticator' },
         'customer',
         'admin'
       );
       expect(resultServiceRole.allowed).toBe(true);
 
       const resultPostgres = evaluateRoleUpdateTrigger(
-        { role: null, authRole: 'authenticated', isSuperuser: true },
+        { role: null, authRole: null, jwtSub: null, sessionUser: 'postgres' },
         'customer',
         'super_admin'
       );

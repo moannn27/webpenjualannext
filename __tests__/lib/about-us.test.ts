@@ -110,5 +110,27 @@ describe("About Us Data Normalizer & Config", () => {
     expect(custom.values.items).toHaveLength(1);
     expect(custom.values.items[0].title).toBe("Garansi Resmi");
   });
-});
 
+  it("supports homepage section visibility toggle for single-source-of-truth integration", () => {
+    const withHomepageOn = normalizeAboutUsContent({
+      section_visibility: {
+        homepage: true,
+      },
+    });
+    expect(withHomepageOn.section_visibility.homepage).toBe(true);
+
+    const withHomepageOff = normalizeAboutUsContent({
+      section_visibility: {
+        homepage: false,
+      },
+    });
+    expect(withHomepageOff.section_visibility.homepage).toBe(false);
+  });
+
+  it("ensures homepage and about page share identical schema and fallback defaults", () => {
+    expect(DEFAULT_ABOUT_US_CONTENT.section_visibility.homepage).toBe(true);
+    expect(DEFAULT_ABOUT_US_CONTENT.hero.title).toBeTruthy();
+    expect(DEFAULT_ABOUT_US_CONTENT.hero.photo_layout.images.length).toBeGreaterThan(0);
+    expect(DEFAULT_ABOUT_US_CONTENT.hero.photo_layout.template).toBe("collage");
+  });
+});

@@ -24,11 +24,7 @@ import {
   ShieldCheck,
   HelpCircle,
   Grid,
-  Columns,
   Image as ImageIcon,
-  Sliders,
-  ChevronDown,
-  ChevronUp,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -78,7 +74,6 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
   const [activeTab, setActiveTab] = useState<string>("structure");
   const [isPending, startTransition] = useTransition();
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
 
   // Tab horizontal scroll states and refs
   const tabsRef = React.useRef<HTMLDivElement>(null);
@@ -1799,7 +1794,6 @@ function PhotoLayoutConfigEditor({
   supportPlacement = true,
 }: PhotoLayoutConfigEditorProps) {
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   const updateConfig = (patch: Partial<PhotoLayoutConfig>) => {
     onChange({ ...config, ...patch });

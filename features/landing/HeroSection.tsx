@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HERO_SLIDES } from "@/constants/dummy";
@@ -94,33 +93,35 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Background Image Carousel */}
-        <AnimatePresence mode="sync">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.75, ease: "easeInOut" }}
-            className="absolute inset-0"
-          >
-            <Image
-              src={slide.image}
-              alt={slide.title}
-              fill
-              sizes="100vw"
-              className="object-cover"
-              priority={currentSlide === 0}
-            />
-            <div className="absolute inset-0 bg-black/45" />
-          </motion.div>
-        </AnimatePresence>
+        {/* Background Image Carousel (Pure CSS Fade: instant first render, no 3.5s render delay, zero JS animation overhead) */}
+        {slides.map((s, index) => {
+          const isActive = index === (currentSlide % slides.length);
+          return (
+            <div
+              key={index}
+              className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                isActive ? "opacity-100 z-1" : "opacity-0 pointer-events-none z-0"
+              }`}
+              aria-hidden={!isActive}
+            >
+              <Image
+                src={s.image}
+                alt={s.title}
+                fill
+                sizes="100vw"
+                className="object-cover"
+                priority={index === 0}
+              />
+              <div className="absolute inset-0 bg-black/45" />
+            </div>
+          );
+        })}
 
         {/* Slide Counter Pill (Top-Right) */}
         {slides.length > 1 && (
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
             <span className="inline-flex items-center gap-1 rounded-full bg-black/40 backdrop-blur-md px-3 py-1 text-xs font-semibold text-white/90 border border-white/10 shadow-sm">
-              <span className="font-bold text-white">{currentSlide + 1}</span>
+              <span className="font-bold text-white">{(currentSlide % slides.length) + 1}</span>
               <span className="text-white/60">/</span>
               <span className="text-white/70">{slides.length}</span>
             </span>
@@ -129,43 +130,37 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
 
         {/* Content Overlay */}
         <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center text-white">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`content-${currentSlide}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.65, delay: 0.12, ease: "easeOut" }}
-              className="max-w-3xl flex flex-col items-center"
-            >
-              <span className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/80 sm:mb-4 sm:text-sm md:text-base">
-                {slide.subtitle}
-              </span>
-              <h1 className="mb-4 text-3xl font-bold tracking-tight leading-tight sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl">
-                {slide.title}
-              </h1>
-              <p className="mb-8 max-w-2xl text-sm font-light text-white/90 sm:mb-10 sm:text-base md:text-xl">
-                {slide.description}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-                <Button
-                  render={<Link href={slide.href} />}
-                  size="lg"
-                  className="rounded-full px-7 text-sm font-semibold bg-white text-black hover:bg-white/90 sm:px-8 sm:text-base cursor-pointer"
-                >
-                  {slide.cta}
-                </Button>
-                <Button
-                  variant="outline"
-                  render={<Link href="/products" />}
-                  size="lg"
-                  className="rounded-full border-white/40 bg-black/25 px-7 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 sm:px-8 sm:text-base cursor-pointer"
-                >
-                  Semua Produk
-                </Button>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+          <div
+            key={currentSlide}
+            className="max-w-3xl flex flex-col items-center animate-in fade-in duration-500"
+          >
+            <span className="mb-3 text-xs font-semibold uppercase tracking-widest text-white/80 sm:mb-4 sm:text-sm md:text-base">
+              {slide.subtitle}
+            </span>
+            <h1 className="mb-4 text-3xl font-bold tracking-tight leading-tight sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl">
+              {slide.title}
+            </h1>
+            <p className="mb-8 max-w-2xl text-sm font-light text-white/90 sm:mb-10 sm:text-base md:text-xl">
+              {slide.description}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+              <Button
+                render={<Link href={slide.href} />}
+                size="lg"
+                className="rounded-full px-7 text-sm font-semibold bg-white text-black hover:bg-white/90 sm:px-8 sm:text-base cursor-pointer"
+              >
+                {slide.cta}
+              </Button>
+              <Button
+                variant="outline"
+                render={<Link href="/products" />}
+                size="lg"
+                className="rounded-full border-white/40 bg-black/25 px-7 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 sm:px-8 sm:text-base cursor-pointer"
+              >
+                Semua Produk
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Multi-Slide Navigation Indicators (Supports 2 to 10+ slides cleanly) */}
@@ -177,7 +172,7 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
                   key={index}
                   onClick={() => setCurrentSlide(index)}
                   className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                    index === currentSlide
+                    index === (currentSlide % slides.length)
                       ? "w-6 sm:w-8 bg-white"
                       : "w-2 sm:w-2.5 bg-white/40 hover:bg-white/75"
                   }`}

@@ -425,6 +425,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     whyUs: { visible: true, title: "Kenapa Belanja di Next Solution?", subtitle: "Produk pilihan dan layanan untuk kebutuhanmu." },
     testimonials: { visible: false, title: "Kata Pelanggan", subtitle: "Pengalaman pelanggan Next Solution." },
     faq: { visible: true, title: "Pertanyaan Umum", subtitle: "Butuh bantuan? Kami siap membantu." },
+    about: { visible: true, title: "Tentang Next Solution", subtitle: "Mitra resmi dan tepercaya untuk kebutuhan laptop dan teknologi Anda." },
   },
   store: {
     name: "Next Solution",

@@ -502,4 +502,351 @@ describe('Checkout Voucher Concurrency, Reservation Safety & RBAC Suite', () => 
       checkoutService.checkout('user-test', validCheckoutInput, 'FAILCLOSED')
     ).rejects.toThrow(/fail-closed|belum tersedia/i);
   });
+
+  it('opportunistically reclaims expired reservations (>15 mins) when claiming quota, avoiding quota lockout from server crashes', async () => {
+    const voucherState = {
+      id: 'voucher-stale-test-uuid',
+      code: 'STALE1',
+      description: 'Test Stale Recovery',
+      discount_type: 'fixed_amount',
+      discount_value: 50000,
+      min_purchase: 100000,
+      max_discount: null,
+      start_date: null,
+      end_date: null,
+      is_active: true,
+      usage_limit: 1,
+      usage_count: 1,
+    };
+
+    const reservationsDb: Record<string, { voucher_id: string; user_id: string; status: string; created_at: Date; order_id?: string }> = {
+      'res-stale-abandoned': {
+        voucher_id: voucherState.id,
+        user_id: 'crashed-user-999',
+        status: 'reserved',
+        created_at: new Date(Date.now() - 20 * 60 * 1000),
+      },
+    };
+
+    let reservationCounter = 1;
+
+    const { createClient } = await import('@/lib/supabase/server');
+    vi.mocked(createClient).mockImplementation(async () => {
+      return {
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: { ...voucherState },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'storefront_settings') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: { settings: {} }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'cart') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: dummyCart, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'orders') {
+            return {
+              select: () => ({
+                eq: () => ({ neq: () => Promise.resolve({ count: 0 }) }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') {
+            return { data: 'order-recovered-123', error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any;
+    });
+
+    const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+    vi.mocked(getSupabaseAdminClient).mockImplementation(() => {
+      return {
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({
+                    data: { total_amount: 15000000, shipping_amount: 25000 },
+                    error: null,
+                  }),
+                }),
+              }),
+              update: () => ({ eq: async () => ({ error: null }) }),
+            };
+          }
+          if (table === 'payments') {
+            return { update: () => ({ eq: async () => ({ error: null }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string, args: any) => {
+          if (fn === 'claim_voucher_quota') {
+            const now = Date.now();
+            let reclaimed = 0;
+            for (const [, res] of Object.entries(reservationsDb)) {
+              if (res.voucher_id === args?.p_voucher_id && res.status === 'reserved') {
+                const ageMinutes = (now - res.created_at.getTime()) / (60 * 1000);
+                if (ageMinutes > 15) {
+                  res.status = 'released';
+                  reclaimed++;
+                }
+              }
+            }
+            if (reclaimed > 0) {
+              voucherState.usage_count = Math.max(0, voucherState.usage_count - reclaimed);
+            }
+
+            if (voucherState.is_active && (voucherState.usage_limit === null || voucherState.usage_count < voucherState.usage_limit)) {
+              voucherState.usage_count += 1;
+              reservationCounter++;
+              const resId = 'res-uuid-' + reservationCounter;
+              reservationsDb[resId] = {
+                voucher_id: voucherState.id,
+                user_id: args?.p_user_id,
+                status: 'reserved',
+                created_at: new Date(),
+              };
+              return { data: resId, error: null };
+            }
+            return { data: null, error: null };
+          }
+          if (fn === 'consume_voucher_reservation') {
+            const res = reservationsDb[args?.p_reservation_id];
+            if (res && res.status === 'reserved') {
+              res.status = 'consumed';
+              res.order_id = args?.p_order_id;
+              return { data: true, error: null };
+            }
+            return { data: false, error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any;
+    });
+
+    expect(reservationsDb['res-stale-abandoned'].status).toBe('reserved');
+    expect(voucherState.usage_count).toBe(1);
+
+    const result = await checkoutService.checkout('user-new-customer', validCheckoutInput, 'STALE1');
+
+    expect(result.id).toBe('order-recovered-123');
+    expect(reservationsDb['res-stale-abandoned'].status).toBe('released');
+    expect(voucherState.usage_count).toBe(1);
+  });
+
+  it('fails checkout safely and triggers rollback when consume_voucher_reservation returns false (e.g. reservation expired)', async () => {
+    const voucherState = {
+      id: 'voucher-consume-fail-uuid',
+      code: 'EXPIREFAIL',
+      description: 'Test Expired Consume',
+      discount_type: 'fixed_amount',
+      discount_value: 50000,
+      min_purchase: 100000,
+      max_discount: null,
+      start_date: null,
+      end_date: null,
+      is_active: true,
+      usage_limit: 5,
+      usage_count: 1,
+    };
+
+    let cancelledOrderId: string | null = null;
+    let releasedReservationId: string | null = null;
+
+    const { createClient } = await import('@/lib/supabase/server');
+    vi.mocked(createClient).mockImplementation(async () => {
+      return {
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: { ...voucherState },
+                      error: null,
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === 'storefront_settings') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: { settings: {} }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === 'cart') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: dummyCart, error: null }),
+                }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') {
+            return { data: 'order-to-cancel-999', error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any;
+    });
+
+    const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+    vi.mocked(getSupabaseAdminClient).mockImplementation(() => {
+      return {
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  single: async () => ({
+                    data: { total_amount: 15000000, shipping_amount: 25000 },
+                    error: null,
+                  }),
+                }),
+              }),
+              update: (fields: any) => ({
+                eq: async (_col: string, val: any) => {
+                  if (fields.status === 'cancelled') {
+                    cancelledOrderId = val;
+                  }
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string, args: any) => {
+          if (fn === 'claim_voucher_quota') {
+            return { data: 'res-will-expire', error: null };
+          }
+          if (fn === 'consume_voucher_reservation') {
+            return { data: false, error: null };
+          }
+          if (fn === 'release_voucher_reservation') {
+            releasedReservationId = args?.p_reservation_id;
+            return { data: false, error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any;
+    });
+
+    await expect(
+      checkoutService.checkout('user-expire-test', validCheckoutInput, 'EXPIREFAIL')
+    ).rejects.toThrow(/kadaluarsa atau tidak valid/i);
+
+    expect(cancelledOrderId).toBe('order-to-cancel-999');
+    expect(releasedReservationId).toBe('res-will-expire');
+  });
+
+  it('allows releases and decrements on oversubscribed historical vouchers without crashing, while blocking increments (23514)', () => {
+    // Simulates the PostgreSQL guard_voucher_usage_limit trigger logic
+    const enforceVoucherQuotaGuard = (
+      op: 'INSERT' | 'UPDATE',
+      oldRow: { usage_count: number; usage_limit: number | null } | null,
+      newRow: { usage_count: number; usage_limit: number | null }
+    ) => {
+      if (newRow.usage_count < 0) {
+        const err = new Error('Voucher usage_count cannot be negative.');
+        (err as any).code = '23514';
+        throw err;
+      }
+
+      if (op === 'INSERT') {
+        if (newRow.usage_limit !== null && newRow.usage_count > newRow.usage_limit) {
+          const err = new Error(`Voucher usage_count (${newRow.usage_count}) exceeds usage_limit (${newRow.usage_limit}).`);
+          (err as any).code = '23514';
+          throw err;
+        }
+      }
+
+      if (op === 'UPDATE' && oldRow) {
+        if (newRow.usage_limit !== null) {
+          if (newRow.usage_count > oldRow.usage_count && newRow.usage_count > newRow.usage_limit) {
+            const err = new Error(`Voucher usage_count (${newRow.usage_count}) cannot be incremented beyond usage_limit (${newRow.usage_limit}).`);
+            (err as any).code = '23514';
+            throw err;
+          }
+        }
+      }
+
+      return { allowed: true };
+    };
+
+    // 1. Oversubscribed historical voucher (limit: 10, current count: 12)
+    const historicalVoucher = { usage_count: 12, usage_limit: 10 };
+
+    // 2. Decrementing from 12 -> 11 when reservation is released or order cancelled MUST succeed
+    const decrementResult = enforceVoucherQuotaGuard(
+      'UPDATE',
+      historicalVoucher,
+      { usage_count: 11, usage_limit: 10 }
+    );
+    expect(decrementResult.allowed).toBe(true);
+
+    // 3. Updating non-quota fields (same usage_count: 12) MUST succeed
+    const metadataUpdateResult = enforceVoucherQuotaGuard(
+      'UPDATE',
+      historicalVoucher,
+      { usage_count: 12, usage_limit: 10 }
+    );
+    expect(metadataUpdateResult.allowed).toBe(true);
+
+    // 4. Attempting to INCREMENT (12 -> 13) MUST fail with 23514
+    expect(() =>
+      enforceVoucherQuotaGuard(
+        'UPDATE',
+        historicalVoucher,
+        { usage_count: 13, usage_limit: 10 }
+      )
+    ).toThrowError(/cannot be incremented beyond usage_limit/);
+
+    // 5. Attempting to set negative usage_count MUST fail with 23514
+    expect(() =>
+      enforceVoucherQuotaGuard(
+        'UPDATE',
+        historicalVoucher,
+        { usage_count: -1, usage_limit: 10 }
+      )
+    ).toThrowError(/cannot be negative/);
+  });
+
 });

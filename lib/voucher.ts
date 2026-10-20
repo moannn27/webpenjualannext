@@ -103,10 +103,11 @@ export function isItemEligibleForVoucher(
 export function calculateVoucherDiscount(
   voucher: Voucher,
   subtotal: number,
-  optionsOrNow: Date | { items?: VoucherItemInput[]; now?: Date } = new Date()
+  optionsOrNow: Date | { items?: VoucherItemInput[]; now?: Date; skipUsageLimitCheck?: boolean } = new Date()
 ): VoucherValidationResult {
   const now = optionsOrNow instanceof Date ? optionsOrNow : optionsOrNow.now ?? new Date();
   const items = optionsOrNow instanceof Date ? undefined : optionsOrNow.items;
+  const skipUsageLimitCheck = optionsOrNow instanceof Date ? false : Boolean(optionsOrNow.skipUsageLimitCheck);
 
   if (!voucher || !voucher.is_active) {
     return {
@@ -145,7 +146,7 @@ export function calculateVoucherDiscount(
     }
   }
 
-  if (voucher.usage_limit !== null && voucher.usage_limit !== undefined) {
+  if (!skipUsageLimitCheck && voucher.usage_limit !== null && voucher.usage_limit !== undefined) {
     if (voucher.usage_count >= voucher.usage_limit) {
       return {
         isValid: false,

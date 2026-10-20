@@ -14,11 +14,14 @@ export async function getUserProfileAction() {
   if (!user) throw new Error("Unauthorized")
   
   const profile = await userService.getProfile(user.id)
+  const isLocked = Boolean(user.app_metadata?.is_password_locked ?? profile?.is_password_locked)
+  const failedAttempts = Number(user.app_metadata?.failed_password_attempts ?? profile?.failed_password_attempts ?? 0)
+
   return { 
     ...profile, 
     email: user.email ?? '',
-    is_password_locked: Boolean(user.user_metadata?.is_password_locked),
-    failed_password_attempts: Number(user.user_metadata?.failed_password_attempts ?? 0),
+    is_password_locked: isLocked,
+    failed_password_attempts: failedAttempts,
   }
 }
 
@@ -27,8 +30,27 @@ export async function checkUserLockStatusAction() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { isLocked: false }
 
-  const isLocked = Boolean(user.user_metadata?.is_password_locked)
-  return { isLocked }
+  // 1. Authoritative check via server-side app_metadata (tamper-proof by user client)
+  if (Boolean(user.app_metadata?.is_password_locked)) {
+    return { isLocked: true }
+  }
+
+  // 2. Authoritative check via public.users database table
+  try {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('is_password_locked')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.is_password_locked) {
+      return { isLocked: true }
+    }
+  } catch {
+    // If column not yet added to table, fallback to app_metadata check
+  }
+
+  return { isLocked: false }
 }
 
 export async function updateProfileAction(formData: FormData) {
@@ -62,7 +84,21 @@ export async function updateUserPasswordAction(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("Unauthorized")
 
-  if (Boolean(user.user_metadata?.is_password_locked)) {
+  // Authoritative check via app_metadata and public.users (ignoring client-writable user_metadata)
+  const isAuthoritativeLocked = Boolean(user.app_metadata?.is_password_locked)
+  let isDbLocked = false
+  try {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('is_password_locked')
+      .eq('id', user.id)
+      .maybeSingle()
+    isDbLocked = Boolean(profile?.is_password_locked)
+  } catch {
+    // ignore if table query fails
+  }
+
+  if (isAuthoritativeLocked || isDbLocked) {
     return {
       error: 'Form ubah kata sandi telah dikunci karena 3x salah kata sandi lama. Silakan hubungi admin toko agar dibantu reset kata sandi.',
       isLocked: true,
@@ -93,21 +129,45 @@ export async function updateUserPasswordAction(formData: FormData) {
       password: oldPassword,
     })
     if (signInError) {
-      const currentFails = Number(user.user_metadata?.failed_password_attempts ?? 0) + 1
+      const prevFails = Math.max(
+        Number(user.app_metadata?.failed_password_attempts ?? 0),
+        Number(user.user_metadata?.failed_password_attempts ?? 0)
+      )
+      const currentFails = prevFails + 1
       const isLocked = currentFails >= 3
+      const now = new Date().toISOString()
 
-      const metadata = {
+      const appMetadata = {
+        ...user.app_metadata,
+        failed_password_attempts: currentFails,
+        is_password_locked: isLocked,
+        password_locked_at: isLocked ? now : null,
+      }
+      const userMetadata = {
         ...user.user_metadata,
         failed_password_attempts: currentFails,
         is_password_locked: isLocked,
-        password_locked_at: isLocked ? new Date().toISOString() : null,
+        password_locked_at: isLocked ? now : null,
       }
 
       try {
         const adminClient = getSupabaseAdminClient()
-        await adminClient.auth.admin.updateUserById(user.id, { user_metadata: metadata })
+        await adminClient.auth.admin.updateUserById(user.id, {
+          app_metadata: appMetadata,
+          user_metadata: userMetadata,
+        })
+        try {
+          await adminClient.from('users').update({
+            is_password_locked: isLocked,
+            failed_password_attempts: currentFails,
+            password_locked_at: isLocked ? now : null,
+          }).eq('id', user.id)
+        } catch {
+          // ignore
+        }
       } catch {
-        await supabase.auth.updateUser({ data: metadata })
+        // Fallback if service role client fails
+        await supabase.auth.updateUser({ data: userMetadata }).catch(() => null)
       }
 
       if (isLocked) {
@@ -140,18 +200,37 @@ export async function updateUserPasswordAction(formData: FormData) {
     return { error: error.message }
   }
 
-  // Bersihkan status kunci dan hitungan gagal setelah password berhasil diperbarui
-  const clearedMeta = {
+  // Bersihkan status kunci dan hitungan gagal secara permanen di app_metadata dan public.users
+  const clearedAppMeta = {
+    ...user.app_metadata,
+    failed_password_attempts: 0,
+    is_password_locked: false,
+    password_locked_at: null,
+  }
+  const clearedUserMeta = {
     ...user.user_metadata,
     failed_password_attempts: 0,
     is_password_locked: false,
     password_locked_at: null,
   }
+
   try {
     const adminClient = getSupabaseAdminClient()
-    await adminClient.auth.admin.updateUserById(user.id, { user_metadata: clearedMeta })
+    await adminClient.auth.admin.updateUserById(user.id, {
+      app_metadata: clearedAppMeta,
+      user_metadata: clearedUserMeta,
+    })
+    try {
+      await adminClient.from('users').update({
+        is_password_locked: false,
+        failed_password_attempts: 0,
+        password_locked_at: null,
+      }).eq('id', user.id)
+    } catch {
+      // ignore
+    }
   } catch {
-    await supabase.auth.updateUser({ data: clearedMeta })
+    await supabase.auth.updateUser({ data: clearedUserMeta }).catch(() => null)
   }
 
   revalidatePath('/profile')

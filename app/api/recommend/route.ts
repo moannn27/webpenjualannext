@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 type Candidate = {
   id: string;
@@ -235,6 +236,55 @@ function fallbackChatReply(message: string) {
 }
 
 export async function POST(request: Request) {
+  // 1. Enforce payload size limit (max 32 KB)
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (contentLength > 32 * 1024) {
+    return NextResponse.json({ error: "Payload permintaan terlalu besar (maksimal 32 KB)." }, { status: 413 });
+  }
+
+  // 2. Serverless-safe persistent rate limiting per IP (15 requests / 60 seconds)
+  const clientIp = getClientIp(request);
+  let rateLimit;
+  try {
+    rateLimit = await checkRateLimit(`recommend:${clientIp}`, 15, 60);
+  } catch {
+    return NextResponse.json(
+      { error: "Layanan rekomendasi AI sedang tidak tersedia. Silakan coba beberapa saat lagi." },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": "60",
+        },
+      }
+    );
+  }
+
+  if (rateLimit.unavailable) {
+    return NextResponse.json(
+      { error: "Layanan rekomendasi AI sedang tidak tersedia karena kendala sistem rate limit. Silakan coba beberapa saat lagi." },
+      {
+        status: 503,
+        headers: {
+          "Retry-After": "60",
+        },
+      }
+    );
+  }
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Terlalu banyak permintaan rekomendasi. Silakan tunggu beberapa saat." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.resetSeconds),
+          "X-RateLimit-Limit": String(rateLimit.limit),
+          "X-RateLimit-Remaining": String(rateLimit.remaining),
+          "X-RateLimit-Reset": String(rateLimit.resetSeconds),
+        },
+      }
+    );
+  }
   let body: { message?: unknown; history?: unknown };
   try {
     body = await request.json();
@@ -242,8 +292,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
   }
 
-  const message = typeof body.message === "string" ? body.message.trim().slice(0, 500) : "";
-  if (!message) return NextResponse.json({ error: "Tulis kebutuhan produkmu dulu." }, { status: 400 });
+  if (typeof body.message !== "string") {
+    return NextResponse.json({ error: "Tulis kebutuhan produkmu dulu." }, { status: 400 });
+  }
+
+  const message = body.message.trim().slice(0, 500);
+  if (message.length < 2) {
+    return NextResponse.json({ error: "Pesan terlalu singkat (minimal 2 karakter)." }, { status: 400 });
+  }
 
   const history = Array.isArray(body.history)
     ? body.history.slice(-8).flatMap((item) => {

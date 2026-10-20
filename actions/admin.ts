@@ -506,9 +506,9 @@ export async function getAdminCustomersAction() {
           u.id,
           {
             email: u.email ?? null,
-            is_password_locked: Boolean(u.user_metadata?.is_password_locked),
-            failed_attempts: Number(u.user_metadata?.failed_password_attempts ?? 0),
-            locked_at: (u.user_metadata?.password_locked_at as string) || null,
+            is_password_locked: Boolean(u.app_metadata?.is_password_locked ?? u.user_metadata?.is_password_locked),
+            failed_attempts: Number(u.app_metadata?.failed_password_attempts ?? u.user_metadata?.failed_password_attempts ?? 0),
+            locked_at: (u.app_metadata?.password_locked_at as string) || (u.user_metadata?.password_locked_at as string) || null,
           },
         ]) ?? []
       )
@@ -549,8 +549,8 @@ export async function createAdminManagedAccountAction(input: {
   if (fullName.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !['customer', 'admin', 'super_admin'].includes(role)) {
     return { error: 'Periksa nama, email, dan role yang dipilih.' }
   }
-  if (role === 'super_admin' && !isSuperAdmin) {
-    return { error: 'Hanya Super Admin yang berhak membuat akun dengan role Super Admin.' }
+  if (role !== 'customer' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak membuat akun staf Admin atau Super Admin.' }
   }
   if (password && password.length < 6) {
     return { error: 'Password minimal 6 karakter jika ingin dibuatkan langsung.' }
@@ -561,12 +561,21 @@ export async function createAdminManagedAccountAction(input: {
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
   let createdUserId: string | null = null
+  const currentAppMeta = {}
 
   if (password) {
     const { data, error } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
+    app_metadata: {
+      ...currentAppMeta,
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+      password_reset_by_admin: true,
+      password_reset_at: new Date().toISOString(),
+    },
       user_metadata: { full_name: fullName },
     })
     if (error || !data.user) return { error: error?.message ?? 'Gagal membuat akun dengan password.' }
@@ -602,6 +611,7 @@ export async function setAdminManagedAccountPasswordAction(input: {
 }) {
   const { user, adminName, isSuperAdmin } = await requireUserManagementAccess()
   const userId = input.userId.trim()
+  const targetId = userId
   const newPassword = input.newPassword.trim()
   if (!userId || newPassword.length < 6) {
     return { error: 'Password minimal 6 karakter.' }
@@ -612,16 +622,25 @@ export async function setAdminManagedAccountPasswordAction(input: {
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
   const { data: targetProfile } = await adminClient.from('users').select('role, full_name').eq('id', userId).maybeSingle()
-  if (targetProfile?.role === 'super_admin' && !isSuperAdmin) {
-    return { error: 'Hanya Super Admin yang berhak menyetel password Super Admin.' }
+  if (targetProfile?.role && targetProfile.role !== 'customer' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak menyetel password staf Admin atau Super Admin.' }
   }
 
   const { data: targetUser } = await adminClient.auth.admin.getUserById(userId)
   const currentMeta = targetUser?.user?.user_metadata || {}
+  const currentAppMeta = targetUser?.user?.app_metadata || {}
 
   const { data: updatedUser, error } = await adminClient.auth.admin.updateUserById(userId, {
     password: newPassword,
     email_confirm: true,
+    app_metadata: {
+      ...currentAppMeta,
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+      password_reset_by_admin: true,
+      password_reset_at: new Date().toISOString(),
+    },
     user_metadata: {
       ...currentMeta,
       is_password_locked: false,
@@ -632,6 +651,16 @@ export async function setAdminManagedAccountPasswordAction(input: {
     },
   })
   if (error) return { error: error.message }
+
+  try {
+    await adminClient.from('users').update({
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+    }).eq('id', targetId)
+  } catch {
+    // ignore
+  }
 
   await recordAdminActivity({
     admin_id: user.id,
@@ -657,10 +686,24 @@ export async function unlockAdminManagedAccountAction(userId: string) {
   if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
+  const { data: targetProfile } = await adminClient.from('users').select('role').eq('id', targetId).maybeSingle()
+  if (targetProfile?.role && targetProfile.role !== 'customer' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak membuka kunci akun staf Admin atau Super Admin.' }
+  }
+
   const { data: targetUser } = await adminClient.auth.admin.getUserById(targetId)
   const currentMeta = targetUser?.user?.user_metadata || {}
+  const currentAppMeta = targetUser?.user?.app_metadata || {}
 
   const { data: updatedUser, error } = await adminClient.auth.admin.updateUserById(targetId, {
+    app_metadata: {
+      ...currentAppMeta,
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+      unlocked_by_admin: true,
+      unlocked_at: new Date().toISOString(),
+    },
     user_metadata: {
       ...currentMeta,
       is_password_locked: false,
@@ -671,6 +714,16 @@ export async function unlockAdminManagedAccountAction(userId: string) {
     },
   })
   if (error) return { error: error.message }
+
+  try {
+    await adminClient.from('users').update({
+      is_password_locked: false,
+      failed_password_attempts: 0,
+      password_locked_at: null,
+    }).eq('id', targetId)
+  } catch {
+    // ignore
+  }
 
   await recordAdminActivity({
     admin_id: user.id,
@@ -711,8 +764,8 @@ export async function deleteAdminManagedAccountAction(userId: string) {
     return { error: 'Akun tidak ditemukan atau sudah dihapus.' }
   }
 
-  if (targetProfile.role === 'super_admin' && !isSuperAdmin) {
-    return { error: 'Hanya Super Admin yang berhak menghapus akun Super Admin.' }
+  if (targetProfile.role !== 'customer' && !isSuperAdmin) {
+    return { error: 'Hanya Super Admin yang berhak menghapus atau mendemosikan akun staf Admin atau Super Admin.' }
   }
 
   if (targetProfile.role === 'super_admin') {
@@ -833,7 +886,7 @@ export async function getAdminLockedAccountsNotificationAction() {
     const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
     const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 })
     const lockedUsers = (authData?.users ?? []).filter(
-      (u) => Boolean(u.user_metadata?.is_password_locked)
+      (u) => Boolean(u.app_metadata?.is_password_locked ?? u.user_metadata?.is_password_locked)
     )
 
     return {
@@ -842,7 +895,7 @@ export async function getAdminLockedAccountsNotificationAction() {
         id: u.id,
         email: u.email ?? null,
         name: (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || u.email || 'Pelanggan',
-        lockedAt: (u.user_metadata?.password_locked_at as string) || null,
+        lockedAt: (u.app_metadata?.password_locked_at as string) || (u.user_metadata?.password_locked_at as string) || null,
       })),
     }
   } catch {
@@ -1926,7 +1979,7 @@ export async function getAdminAllNotificationsAction(): Promise<{
       });
       const { data: authData } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
       const lockedUsers = (authData?.users ?? []).filter(
-        (u) => Boolean(u.user_metadata?.is_password_locked)
+        (u) => Boolean(u.app_metadata?.is_password_locked ?? u.user_metadata?.is_password_locked)
       );
       for (const u of lockedUsers) {
         const name =
@@ -2258,6 +2311,9 @@ export async function updateAdminAvatarAction(avatarUrl: string) {
   const cleanUrl = avatarUrl.trim()
   if (cleanUrl && !/^https?:\/\//i.test(cleanUrl) && !cleanUrl.startsWith('/')) {
     throw new Error('URL foto tidak valid. Gunakan format URL HTTPS atau upload gambar.')
+  }
+  if (/\.(svg|html|htm)($|\?)/i.test(cleanUrl)) {
+    throw new Error('Format gambar SVG/HTML tidak diizinkan demi alasan keamanan. Gunakan file JPG, PNG, atau WebP.')
   }
 
   // Update auth metadata

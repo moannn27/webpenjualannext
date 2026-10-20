@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import { 
   Sparkles, 
   ChevronLeft, 
@@ -230,12 +229,6 @@ export function PromoBanner({
     }
   };
 
-  // Apple-grade fluid deceleration curve for natural, buttery-smooth gliding
-  const transitionConfig = {
-    duration: 0.52,
-    ease: [0.22, 1, 0.36, 1] as const,
-  };
-
   return (
     <section ref={bannerRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
       {/* High-Performance Lightweight Cyber Gradient Container */}
@@ -335,13 +328,18 @@ export function PromoBanner({
                         ? regularPrice - payablePrice
                         : null;
 
+                    const cardStyle = getCardStyle(d);
                     return (
-                      <motion.div
+                      <div
                         key={product.id}
-                        initial={false}
-                        animate={getCardStyle(d)}
-                        transition={transitionConfig}
-                        style={{ willChange: "transform, opacity" }}
+                        style={{
+                          transform: `translateX(${cardStyle.x}) scale(${cardStyle.scale})`,
+                          opacity: cardStyle.opacity,
+                          zIndex: cardStyle.zIndex,
+                          pointerEvents: cardStyle.pointerEvents,
+                          transition: "transform 520ms cubic-bezier(0.22, 1, 0.36, 1), opacity 520ms cubic-bezier(0.22, 1, 0.36, 1)",
+                          willChange: "transform, opacity",
+                        }}
                         className="absolute w-[275px] sm:w-[315px] md:w-[330px] select-none"
                       >
                         <div
@@ -539,7 +537,7 @@ export function PromoBanner({
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>

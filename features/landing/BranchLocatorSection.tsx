@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Search, MessageCircle, MapPin, ExternalLink, Clock, Phone, ChevronRight } from "lucide-react";
 import type { StoreBranch, StoreSectionSetting } from "@/lib/storefront-settings";
@@ -41,6 +41,27 @@ export function BranchLocatorSection({
   storeName = "Next Solution",
 }: BranchLocatorSectionProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const sectionRef = useRef<HTMLElement>(null);
+  const [mapVisible, setMapVisible] = useState(false);
+
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") {
+      setMapVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setMapVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "350px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const activeBranches = useMemo(() => {
     return branches.filter((b) => b.is_active !== false);
@@ -139,7 +160,7 @@ export function BranchLocatorSection({
     "Temukan lokasi toko terdekat beserta informasi kontak, jam operasional, dan petunjuk arah.";
 
   return (
-    <section id="cabang" className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section ref={sectionRef} id="cabang" className="container mx-auto px-4 sm:px-6 lg:px-8">
       {/* Outer White Card Container */}
       <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-4 sm:p-6 lg:p-8 shadow-sm border border-slate-100 dark:border-white/5">
         {/* Top Header */}
@@ -237,11 +258,20 @@ export function BranchLocatorSection({
         <div className="grid gap-6 lg:grid-cols-12 items-start">
           {/* Main Leaflet Map View */}
           <div className="lg:col-span-8 rounded-2xl border border-slate-200/80 dark:border-white/10 overflow-hidden shadow-2xs">
-            <LeafletBranchMap
-              branches={filteredBranches}
-              selectedBranch={selectedBranch}
-              onSelectBranch={handleSelectBranch}
-            />
+            {mapVisible ? (
+              <LeafletBranchMap
+                branches={filteredBranches}
+                selectedBranch={selectedBranch}
+                onSelectBranch={handleSelectBranch}
+              />
+            ) : (
+              <div className="flex h-[380px] sm:h-[460px] lg:h-[500px] w-full items-center justify-center rounded-2xl border border-border bg-muted/30 text-muted-foreground">
+                <div className="flex flex-col items-center gap-2">
+                  <MapPin className="size-8 text-primary/70" />
+                  <p className="text-xs font-semibold">Peta Lokasi Toko & Cabang</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Selected Branch Detail & Quick List */}

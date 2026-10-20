@@ -23,6 +23,7 @@ export function ProductDiscovery({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest" | "newest" | "bestseller">("default");
+  const [showAll, setShowAll] = useState(false);
 
   // Derive categories dynamically from constants and products
   const categories = useMemo(() => {
@@ -100,9 +101,11 @@ export function ProductDiscovery({
     setSearchQuery("");
     setSelectedCategory("Semua");
     setSortOption("default");
+    setShowAll(false);
   };
 
   const hasActiveFilters = searchQuery.trim() !== "" || selectedCategory !== "Semua" || sortOption !== "default";
+  const displayedProducts = (hasActiveFilters || showAll) ? filteredProducts : filteredProducts.slice(0, 8);
 
   return (
     <section className={cn("container mx-auto px-4 sm:px-6 lg:px-8", className)}>
@@ -214,11 +217,24 @@ export function ProductDiscovery({
 
         {/* Product Grid */}
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+              {displayedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+            {filteredProducts.length > 8 && !hasActiveFilters && !showAll && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAll(true)}
+                  className="rounded-full border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-6 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+                >
+                  Lihat Semua ({filteredProducts.length} Produk Pilihan)
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           /* Empty State */
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 dark:border-white/10 bg-[#F6F7F9] dark:bg-white/5 py-16 px-4 text-center">

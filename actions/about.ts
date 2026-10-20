@@ -28,7 +28,12 @@ export async function getAboutUsContentAction(): Promise<AboutUsContent> {
         .eq('id', 'default')
         .maybeSingle();
 
-      if (!dedicatedErr && dedicatedData?.content) {
+      if (
+        !dedicatedErr &&
+        dedicatedData?.content &&
+        typeof dedicatedData.content === 'object' &&
+        Object.keys(dedicatedData.content).length > 2
+      ) {
         return normalizeAboutUsContent(dedicatedData.content);
       }
     } catch {

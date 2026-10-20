@@ -66,3 +66,30 @@ BEGIN
   END IF;
 END $$;
 
+
+-- 6. Safe backfill: preserve existing About Us content from storefront_settings if available
+DO $$
+DECLARE
+  v_existing_content jsonb := NULL;
+BEGIN
+  -- Check storefront_settings where id = 'about'
+  SELECT settings INTO v_existing_content
+  FROM public.storefront_settings
+  WHERE id = 'about' AND settings IS NOT NULL AND settings != '{}'::jsonb;
+
+  -- If not found, check storefront_settings where id = 'main' -> settings->'about_us'
+  IF v_existing_content IS NULL THEN
+    SELECT settings->'about_us' INTO v_existing_content
+    FROM public.storefront_settings
+    WHERE id = 'main' AND settings->'about_us' IS NOT NULL AND settings->'about_us' != '{}'::jsonb;
+  END IF;
+
+  -- If existing content is found, insert or update into about_us_content
+  IF v_existing_content IS NOT NULL THEN
+    INSERT INTO public.about_us_content (id, content, updated_at)
+    VALUES ('default', v_existing_content, NOW())
+    ON CONFLICT (id) DO UPDATE
+      SET content = EXCLUDED.content
+      WHERE public.about_us_content.content = '{}'::jsonb OR public.about_us_content.content IS NULL;
+  END IF;
+END $$;

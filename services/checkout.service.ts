@@ -141,6 +141,7 @@ export class CheckoutService {
 
       const valResult = calculateVoucherDiscount(voucherWithTargeting, cartSubtotal, {
         items: cartItemsForVoucher,
+        skipUsageLimitCheck: true,
       });
 
       if (!valResult.isValid) {
@@ -228,10 +229,14 @@ export class CheckoutService {
         }
 
         // Mark voucher reservation as permanently consumed by this order
-        await adminClient.rpc('consume_voucher_reservation', {
+        const { data: consumed, error: consumeErr } = await adminClient.rpc('consume_voucher_reservation', {
           p_reservation_id: reservationId,
           p_order_id: orderId,
         });
+
+        if (consumeErr || consumed === false) {
+          throw new Error('Reservasi kuota voucher telah kadaluarsa atau tidak valid.');
+        }
 
         const { error: paymentUpdateErr } = await adminClient
           .from('payments')
