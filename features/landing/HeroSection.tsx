@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
+
+const subscribeEmpty = () => () => {};
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
@@ -32,6 +34,7 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const isMounted = useSyncExternalStore(subscribeEmpty, () => true, () => false);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
@@ -96,6 +99,7 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
         {/* Background Image Carousel (Pure CSS Fade: instant first render, no 3.5s render delay, zero JS animation overhead) */}
         {slides.map((s, index) => {
           const isActive = index === (currentSlide % slides.length);
+          const shouldRender = index === 0 || isMounted;
           return (
             <div
               key={index}
@@ -104,14 +108,17 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
               }`}
               aria-hidden={!isActive}
             >
-              <Image
-                src={s.image}
-                alt={s.title}
-                fill
-                sizes="100vw"
-                className="object-cover"
-                priority={index === 0}
-              />
+              {shouldRender && (
+                <Image
+                  src={s.image}
+                  alt={s.title}
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1920px"
+                  className="object-cover"
+                  priority={index === 0}
+                  fetchPriority={index === 0 ? "high" : "low"}
+                />
+              )}
               <div className="absolute inset-0 bg-black/45" />
             </div>
           );
@@ -166,18 +173,22 @@ export function HeroSection({ banners = [] }: { banners?: LandingBanner[] }) {
         {/* Multi-Slide Navigation Indicators (Supports 2 to 10+ slides cleanly) */}
         {slides.length > 1 && (
           <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-20 max-w-[90vw] overflow-x-auto scrollbar-none py-1">
-            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-black/30 backdrop-blur-md border border-white/10">
+            <div className="flex items-center gap-0.5 sm:gap-1 px-3 py-1 rounded-full bg-black/30 backdrop-blur-md border border-white/10">
               {slides.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentSlide(index)}
-                  className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                    index === (currentSlide % slides.length)
-                      ? "w-6 sm:w-8 bg-white"
-                      : "w-2 sm:w-2.5 bg-white/40 hover:bg-white/75"
-                  }`}
+                  className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center p-1 cursor-pointer"
                   aria-label={`Pindah ke slide ${index + 1}`}
-                />
+                >
+                  <span
+                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${
+                      index === (currentSlide % slides.length)
+                        ? "w-6 sm:w-8 bg-white"
+                        : "w-2 sm:w-2.5 bg-white/40 hover:bg-white/75"
+                    }`}
+                  />
+                </button>
               ))}
             </div>
           </div>

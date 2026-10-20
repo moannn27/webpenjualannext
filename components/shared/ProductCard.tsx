@@ -105,7 +105,7 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
           {isBestSeller && (
             <span
               title="Produk Terlaris"
-              className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold rounded-md bg-amber-500 text-white shadow-2xs tracking-wide"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-extrabold rounded-md bg-amber-500 text-slate-950 shadow-2xs tracking-wide"
             >
               <Flame className="size-2.5" />
               Terlaris

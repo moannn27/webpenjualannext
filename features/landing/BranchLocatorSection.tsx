@@ -218,9 +218,9 @@ export function BranchLocatorSection({
               href={waChatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] px-6 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition hover:scale-[1.01] active:scale-95 shrink-0 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#128C7E] hover:bg-[#0e7064] px-6 py-3 text-sm sm:text-base font-bold text-white shadow-sm transition hover:scale-[1.01] active:scale-95 shrink-0 cursor-pointer"
             >
-              <MessageCircle className="size-5 fill-white text-[#25D366]" />
+              <MessageCircle className="size-5 fill-white text-[#128C7E]" />
               <span>Chat WhatsApp</span>
             </a>
           </div>
@@ -240,7 +240,7 @@ export function BranchLocatorSection({
                     key={city}
                     type="button"
                     onClick={() => handleCityPillClick(city)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition cursor-pointer ${
+                    className={`rounded-lg px-3 py-1.5 text-xs min-h-[32px] inline-flex items-center justify-center font-medium transition cursor-pointer ${
                       searchQuery.toLowerCase() === city.toLowerCase()
                         ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "bg-[#F8F9FA] dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-[#F2F4F7]"
@@ -314,7 +314,7 @@ export function BranchLocatorSection({
                     href={selectedBranch.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${selectedBranch.name} ${selectedBranch.address}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card hover:bg-slate-50 dark:hover:bg-white/10 px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 transition shadow-2xs"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card hover:bg-slate-50 dark:hover:bg-white/10 px-3 py-2 min-h-[38px] text-xs font-semibold text-slate-800 dark:text-slate-200 transition shadow-2xs"
                   >
                     <ExternalLink className="size-3.5" />
                     <span>Petunjuk Arah</span>
@@ -325,7 +325,7 @@ export function BranchLocatorSection({
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 px-3 py-2 text-xs font-bold text-primary-foreground transition shadow-xs"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary hover:bg-primary/90 px-3 py-2 min-h-[38px] text-xs font-bold text-primary-foreground transition shadow-xs"
                   >
                     <MessageCircle className="size-3.5" />
                     <span>Chat WhatsApp</span>

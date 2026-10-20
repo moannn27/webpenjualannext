@@ -238,9 +238,9 @@ export function ProductReviewsSection({
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h4 className="font-bold text-xs sm:text-sm text-foreground truncate">
+                        <h3 className="font-bold text-xs sm:text-sm text-foreground truncate">
                           {review.user_name}
-                        </h4>
+                        </h3>
                         <p className="text-[11px] text-muted-foreground truncate">
                           {review.date_text || "Pelanggan Terverifikasi"}
                         </p>
@@ -274,9 +274,9 @@ export function ProductReviewsSection({
                           </div>
                         )}
                         <div className="min-w-0">
-                          <h5 className="font-bold text-xs text-foreground truncate group-hover/prod:text-primary transition">
+                          <h4 className="font-bold text-xs text-foreground truncate group-hover/prod:text-primary transition">
                             {review.product_name}
-                          </h5>
+                          </h4>
                           <span className="text-[11px] text-primary font-medium inline-flex items-center gap-1 mt-0.5">
                             Lihat Detail Produk
                           </span>
@@ -297,19 +297,23 @@ export function ProductReviewsSection({
 
       {/* Dots Pagination Indicators */}
       {totalReviews > itemsPerPage && (
-        <div className="flex items-center justify-center gap-2 mt-8">
+        <div className="flex items-center justify-center gap-1 mt-8">
           {[...Array(maxIndex + 1)].map((_, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setCurrentIndex(i)}
               aria-label={`Ke slide ulasan ${i + 1}`}
-              className={`h-2 rounded-full transition-all duration-300 ${
-                currentIndex === i
-                  ? "w-8 bg-primary"
-                  : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
-              }`}
-            />
+              className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center p-1 cursor-pointer"
+            >
+              <span
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  currentIndex === i
+                    ? "w-8 bg-primary"
+                    : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

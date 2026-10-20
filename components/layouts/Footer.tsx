@@ -222,7 +222,7 @@ export function Footer({
                     {contactPhone && (
                       <p className="flex items-center justify-between gap-2">
                         <span>Telepon:</span>
-                        <a className="font-semibold text-foreground hover:text-primary transition-colors" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
+                        <a className="font-semibold text-foreground hover:text-primary transition-colors inline-flex items-center min-h-[32px] py-1" href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
                           {contactPhone}
                         </a>
                       </p>
@@ -231,7 +231,7 @@ export function Footer({
                       <p className="flex items-center justify-between gap-2 pt-0.5">
                         <span>WhatsApp:</span>
                         <a
-                          className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                          className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center min-h-[32px] py-1"
                           href={`https://wa.me/${store.whatsapp.replace(/\D/g, "")}`}
                           target="_blank"
                           rel="noreferrer"
@@ -274,7 +274,7 @@ export function Footer({
                         type="button"
                         onClick={() => handleMarketplaceClick(marketplace)}
                         title={`${marketplace.name} (${storeCount} toko resmi)`}
-                        aria-label={`Official Store di ${marketplace.name}`}
+                        aria-label={`${marketplace.name} (${storeCount} toko resmi)`}
                         className="group relative flex size-12 items-center justify-center rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1E2028] p-2.5 shadow-2xs transition-all duration-200 hover:-translate-y-1 hover:border-primary/50 hover:shadow-md hover:ring-2 hover:ring-primary/20 cursor-pointer"
                       >
                         <PlatformLogo
@@ -283,7 +283,7 @@ export function Footer({
                           className="size-7 transition-transform group-hover:scale-110"
                         />
                         {storeCount > 1 && (
-                          <span className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-primary text-[9px] font-black text-primary-foreground shadow-xs">
+                          <span aria-hidden="true" className="absolute -top-1.5 -right-1.5 grid size-4.5 place-items-center rounded-full bg-primary text-[9px] font-black text-primary-foreground shadow-xs">
                             {storeCount}
                           </span>
                         )}

@@ -212,19 +212,23 @@ export function FeaturedProducts({
 
             {/* Dots Indicator */}
             {canSlide && (
-              <div className="mt-8 flex items-center justify-center gap-1.5">
+              <div className="mt-8 flex items-center justify-center gap-1">
                 {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setCurrentIndex(idx)}
                     aria-label={`Slide ke-${idx + 1}`}
-                    className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                      currentIndex === idx
-                        ? "w-6 bg-slate-900 dark:bg-white"
-                        : "w-1.5 bg-slate-300 dark:bg-white/20 hover:bg-slate-400"
-                    }`}
-                  />
+                    className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center p-1 cursor-pointer"
+                  >
+                    <span
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        currentIndex === idx
+                          ? "w-6 bg-slate-900 dark:bg-white"
+                          : "w-1.5 bg-slate-300 dark:bg-white/20 hover:bg-slate-400"
+                      }`}
+                    />
+                  </button>
                 ))}
               </div>
             )}

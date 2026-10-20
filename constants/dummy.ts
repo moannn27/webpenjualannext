@@ -4,7 +4,7 @@ export const HERO_SLIDES = [
     title: "Pusat Komputer & Laptop Terkurasi",
     subtitle: "Next Solution Store",
     description: "Temukan pilihan laptop kerja, laptop gaming, dan PC dengan spesifikasi teknis lengkap sesuai kebutuhan Anda.",
-    image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=2000&auto=format&fit=crop",
+    image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?q=80&w=1200&auto=format&fit=crop",
     cta: "Jelajahi Produk",
     href: "/products"
   },

@@ -278,8 +278,8 @@ export function PromoBanner({
               <Button
                 render={<Link href={banner?.target_url || "/promo"} />}
                 size="lg"
-                className="rounded-full bg-white px-8 font-bold text-primary shadow-xl hover:bg-white/95 hover:scale-105 active:scale-95 transition-all duration-200"
-                aria-label={banner?.button_label || "Lihat penawaran promo"}
+                className="rounded-full bg-white px-8 font-bold text-blue-900 shadow-xl hover:bg-white/95 hover:scale-105 active:scale-95 transition-all duration-200"
+                aria-label={banner?.button_label || "Lihat promo"}
               >
                 {banner?.button_label || "Lihat promo"}
               </Button>
@@ -556,20 +556,24 @@ export function PromoBanner({
                         <ChevronLeft className="size-4" />
                       </button>
 
-                      {/* Dots indicator with generous padding (never cut off) */}
-                      <div className="flex items-center gap-1.5 py-1">
+                      {/* Dots indicator with generous touch targets */}
+                      <div className="flex items-center gap-1 py-1">
                         {products.map((p, idx) => (
                           <button
                             key={p.id}
                             type="button"
                             onClick={() => goToIndex(idx)}
                             aria-label={`Tampilkan produk spotlight ke-${idx + 1}`}
-                            className={`h-2 rounded-full transition-all duration-300 ${
-                              safeIndex === idx
-                                ? "w-7 bg-white shadow-md"
-                                : "w-2 bg-white/40 hover:bg-white/70"
-                            }`}
-                          />
+                            className="inline-flex min-h-[28px] min-w-[28px] items-center justify-center p-1 cursor-pointer"
+                          >
+                            <span
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                safeIndex === idx
+                                  ? "w-7 bg-white shadow-md"
+                                  : "w-2 bg-white/40 hover:bg-white/70"
+                              }`}
+                            />
+                          </button>
                         ))}
                       </div>
 
@@ -594,7 +598,7 @@ export function PromoBanner({
               /* Fallback when no promo product exists */
               <div className="flex w-full max-w-sm flex-col items-center justify-center rounded-[24px] border border-white/20 bg-white/10 p-6 text-center text-primary-foreground backdrop-blur-md">
                 <Gift className="mb-2 size-10 text-white/80" />
-                <h4 className="text-base font-semibold">Produk Promo Pilihan</h4>
+                <h3 className="text-base font-semibold">Produk Promo Pilihan</h3>
                 <p className="mt-1 text-xs text-primary-foreground/80">
                   Nantikan deretan produk terbaik dengan penawaran harga spesial dari kami!
                 </p>

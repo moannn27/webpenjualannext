@@ -66,9 +66,9 @@ export function OfficialChannelsSection({
             <div className="flex items-start gap-3">
               <ShieldCheck className="size-5 text-primary shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-primary">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-primary">
                   Transaksi Lebih Aman
-                </h4>
+                </h3>
                 <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                   {noticeText}
                 </p>

@@ -38,7 +38,6 @@ export function BrandShowcase({
             <Link
               key={brand.id}
               href={`/products?brand=${brand.id}`}
-              aria-label={`Lihat produk ${brand.name}`}
               className="group flex flex-col items-center justify-center p-5 rounded-2xl bg-[#F6F7F9] dark:bg-white/5 border border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm transition-all duration-300 text-center"
             >
               <div className="relative size-12 mb-2 flex items-center justify-center overflow-hidden rounded-xl bg-white dark:bg-black/30 p-2 shadow-2xs">

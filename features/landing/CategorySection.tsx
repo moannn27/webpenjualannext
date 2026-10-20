@@ -111,7 +111,7 @@ export function CategorySection({
             >
               {/* Text content on left */}
               <div className="z-10 max-w-[62%] sm:max-w-[240px]">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block mb-1">
                   {card.badge}
                 </span>
                 <h3 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">

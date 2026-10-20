@@ -52,7 +52,13 @@ export default async function Home() {
   const settings = normalizeStorefrontSettings(rawSettings);
   const sections = settings.sections;
   const selectedIds = ["bestsellers", "newArrivals", "promo", "featuredDiscovery"].flatMap((key) => sections[key]?.productIds ?? []);
-  const selectedRows = await getProductsByIdsAction(selectedIds).catch(() => []);
+  const [selectedRows, featuredReviews] = await Promise.all([
+    selectedIds.length ? getProductsByIdsAction(selectedIds).catch(() => []) : Promise.resolve([]),
+    getStorefrontFeaturedReviewsAction(
+      settings.featured_reviews,
+      settings.selected_review_ids
+    ).catch(() => settings.featured_reviews),
+  ]);
   const selectedProducts = selectedRows.map((product) => toStorefrontProduct(product as StoreProduct));
   const selected = (key: "bestsellers" | "newArrivals" | "promo" | "featuredDiscovery", fallback: typeof selectedProducts) => {
     const ids = sections[key]?.productIds ?? [];
@@ -68,11 +74,6 @@ export default async function Home() {
   const uniqueSpotlightProducts = Array.from(
     new Map(spotlightCandidateRows.map((product) => [product.id, product])).values()
   ).map((product) => toStorefrontProduct(product as StoreProduct));
-
-  const featuredReviews = await getStorefrontFeaturedReviewsAction(
-    settings.featured_reviews,
-    settings.selected_review_ids
-  ).catch(() => settings.featured_reviews);
 
   const storeJsonLd = buildStoreJsonLd(settings.store);
 
