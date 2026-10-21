@@ -894,5 +894,3 @@ export function OrderInvoice({
     </div>
   );
 }
-
-}
