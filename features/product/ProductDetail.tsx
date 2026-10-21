@@ -155,24 +155,9 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       setCartCountAfterAdd(result.cartCount);
       setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity }));
       
-      const variantLabel = selectedVariant
-        ? [selectedVariant.color, selectedVariant.ram, selectedVariant.storage].filter(Boolean).join(" · ")
-        : null;
-
-      useCartStore.getState().addItem(
-        {
-          id: product.id,
-          name: product.name,
-          price: productPrice,
-          category: (product as { category?: string }).category || (product.brands?.name ? `Laptop ${product.brands.name}` : "Produk"),
-          image: activeImage || product.image || "",
-          stock: availableStock,
-        },
-        quantity,
-        selectedVariant?.id ?? null,
-        variantLabel,
-        { silentToast: true }
-      );
+      if (result.cartItem) {
+        useCartStore.getState().addItemDirect(result.cartItem);
+      }
 
       emitCartUpdated(result.cartCount);
       toast.success(

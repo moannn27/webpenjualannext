@@ -61,6 +61,7 @@ export default async function CheckoutPage() {
   return (
     <CheckoutClient
       initialCart={cart}
+      currentUserId={user.id}
       shippingMethods={shippingMethods}
       initialAddress={initialAddress}
       pickupInfo={mainPickup}

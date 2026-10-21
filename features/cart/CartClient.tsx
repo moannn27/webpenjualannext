@@ -3,18 +3,28 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, Plus, Minus, ArrowRight, Package, ShieldCheck, PackageCheck, Headphones } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Trash2, Plus, Minus, ArrowRight, Package, ShieldCheck, PackageCheck, Headphones, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { updateCartQuantityAction, removeFromCartAction } from "@/actions/cart";
+import { updateCartQuantityAction, removeFromCartAction, syncCartAction } from "@/actions/cart";
 import { type CartData } from "@/types/cart";
 import { getMasterProductById } from "@/constants/products";
 import { useCartStore, type StoredCartItem } from "@/store/useCartStore";
+import { formatCartItemToStored } from "@/lib/cart-utils";
 import { CheckoutProgressHeader } from "@/components/checkout/CheckoutProgressHeader";
 import { cn } from "@/lib/utils";
 
-export function CartClient({ initialCart }: { initialCart: CartData | null }) {
+export function CartClient({
+  initialCart,
+  currentUserId,
+}: {
+  initialCart: CartData | null;
+  currentUserId?: string | null;
+}) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState("");
 
   const items = useCartStore((state) => state.items);
@@ -35,32 +45,15 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
     const timer = setTimeout(() => {
       setMounted(true);
       try {
-        const stored = window.localStorage.getItem("next_solution_cart");
-        const currentStoreItems = useCartStore.getState().items;
-        // Seed if local storage has no items yet and server cart has real user items
-        if ((!stored || currentStoreItems.length === 0) && initialCart?.cart_items && initialCart.cart_items.length > 0) {
-          const seeded: StoredCartItem[] = initialCart.cart_items.map((it) => {
-            const lookupId = it.products?.id || it.product_id;
-            const master = getMasterProductById(lookupId);
-            const verifiedPrice = master
-              ? Number(master.discountPrice ?? master.price)
-              : Number(it.product_variants?.discount_price ?? it.product_variants?.price ?? it.products?.price ?? 0);
-            return {
-              id: it.id,
-              productId: lookupId,
-              name: master?.name || it.products?.name || "Produk",
-              price: verifiedPrice,
-              category: master?.category || "Laptops",
-              image: master?.image || it.products?.image || "",
-              stock: master?.stock ?? it.products?.stock ?? 10,
-              quantity: it.quantity,
-              variantId: it.variant_id ?? null,
-              variantLabel: it.product_variants
-                ? [it.product_variants.color, it.product_variants.ram, it.product_variants.storage].filter(Boolean).join(" · ")
-                : null,
-            };
-          });
-          useCartStore.getState().setCartItems(seeded);
+        const serverCartItems: StoredCartItem[] = (initialCart?.cart_items || []).map((it) =>
+          formatCartItemToStored(it as Parameters<typeof formatCartItemToStored>[0])
+        );
+
+        const activeUserId = currentUserId || null;
+        if (activeUserId) {
+          useCartStore.getState().syncWithUser(activeUserId, serverCartItems);
+        } else {
+          useCartStore.getState().clearCart();
         }
       } catch (e) {
         console.error("Failed to seed cart store", e);
@@ -68,7 +61,7 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [initialCart]);
+  }, [initialCart, currentUserId]);
 
   const updateQuantity = async (itemId: string, productId: string, currentQ: number, delta: number) => {
     const newQ = currentQ + delta;
@@ -102,6 +95,34 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
       setError(err instanceof Error ? err.message : "Gagal menghapus produk.");
     } finally {
       setLoadingId(null);
+    }
+  };
+
+  const handleProceedToCheckout = async () => {
+    if (cartItems.length === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const payload = cartItems.map((it) => ({
+        productId: it.productId || it.id,
+        variantId: it.variantId ?? null,
+        quantity: it.quantity,
+      }));
+      const res = await syncCartAction(payload);
+      if (res.success && res.cart?.cart_items) {
+        const seeded: StoredCartItem[] = res.cart.cart_items.map((it: Parameters<typeof formatCartItemToStored>[0]) =>
+          formatCartItemToStored(it)
+        );
+        useCartStore.getState().setCartItems(seeded, currentUserId || null);
+      }
+      router.push("/checkout");
+    } catch (err) {
+      if (err instanceof Error && err.message === "Unauthorized") {
+        router.push("/login?redirect=/checkout");
+      } else {
+        router.push("/checkout");
+      }
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -258,11 +279,22 @@ export function CartClient({ initialCart }: { initialCart: CartData | null }) {
               </div>
 
               <Button
-                render={<Link href="/checkout" />}
+                type="button"
+                onClick={handleProceedToCheckout}
+                disabled={isCheckingOut || cartItems.length === 0}
                 size="lg"
-                className="w-full rounded-xl h-12 text-sm font-semibold shadow-sm active:scale-95 transition-transform"
+                className="w-full rounded-xl h-12 text-sm font-semibold shadow-sm active:scale-95 transition-transform cursor-pointer"
               >
-                Lanjut ke checkout <ArrowRight className="ml-2 h-4 w-4" />
+                {isCheckingOut ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Menyiapkan checkout...
+                  </>
+                ) : (
+                  <>
+                    Lanjut ke checkout <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
 
               {/* Compact Trust Badges */}

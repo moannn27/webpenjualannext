@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Navbar } from "@/components/layouts/Navbar";
 import { Footer } from "@/components/layouts/Footer";
@@ -8,19 +9,38 @@ import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import { ToastNotification } from "@/components/shared/ToastNotification";
 import { ScrollToTopButton } from "@/components/shared/ScrollToTopButton";
 import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
+import { useCartStore, type StoredCartItem } from "@/store/useCartStore";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { AlertTriangle, Sparkles } from "lucide-react";
 
 export function StorefrontChrome({
   children,
   cartCount,
+  currentUserId = null,
+  initialCartItems = [],
   settings,
 }: {
   children: React.ReactNode;
   cartCount: number;
+  currentUserId?: string | null;
+  initialCartItems?: StoredCartItem[];
   settings: StorefrontSettings;
 }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    const store = useCartStore.getState();
+    if (!currentUserId) {
+      if (store.userId || store.items.length > 0) {
+        store.clearCart();
+      }
+    } else {
+      if (store.userId !== currentUserId) {
+        store.syncWithUser(currentUserId, initialCartItems);
+      }
+    }
+  }, [currentUserId, initialCartItems]);
+
   if (pathname.startsWith("/admin") || pathname.includes("/invoice")) return <>{children}</>;
 
   const features = settings.features;
@@ -43,7 +63,7 @@ export function StorefrontChrome({
         </div>
       )}
 
-      <Navbar cartCount={cartCount} settings={settings} />
+      <Navbar cartCount={cartCount} currentUserId={currentUserId} settings={settings} />
       <main className="flex-1">{children}</main>
       <Footer
         settings={settings.store}

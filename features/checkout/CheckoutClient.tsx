@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useState, useEffect, type FormEvent } from "react";
+import { Fragment, useState, useEffect, useRef, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { proceedToCheckoutAction } from "@/actions/checkout";
 import { validateVoucherForCheckoutAction } from "@/actions/voucher";
+import { syncCartAction } from "@/actions/cart";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { type CartData } from "@/types/cart";
 import {
@@ -121,6 +123,7 @@ const formatCurrency = (amount: number) =>
 
 interface CheckoutClientProps {
   initialCart: CartData;
+  currentUserId?: string | null;
   shippingMethods: ShippingMethod[];
   initialAddress: CheckoutAddress | null;
   pickupInfo: PickupLocation;
@@ -133,6 +136,7 @@ interface CheckoutClientProps {
 
 export function CheckoutClient({
   initialCart,
+  currentUserId,
   shippingMethods,
   initialAddress,
   pickupInfo,
@@ -142,6 +146,9 @@ export function CheckoutClient({
   storeWhatsapp,
   storeName,
 }: CheckoutClientProps) {
+  const router = useRouter();
+  const hasTriggeredSyncRef = useRef(false);
+  const [isSyncingFromStore, setIsSyncingFromStore] = useState(false);
   const isDeliveryEnabled = features?.delivery_enabled !== false;
   const isPickupEnabled = features?.pickup_enabled !== false;
   const initialFulfillment: "delivery" | "pickup" = isDeliveryEnabled ? "delivery" : "pickup";
@@ -181,6 +188,40 @@ export function CheckoutClient({
       } catch {}
     }
   }, []);
+
+  // Sync client cart store to database if initialCart is empty on load
+  useEffect(() => {
+    if (currentUserId && useCartStore.getState().userId && useCartStore.getState().userId !== currentUserId) {
+      useCartStore.getState().syncWithUser(currentUserId);
+    }
+
+    if (!placedOrder && (!initialCart?.cart_items || initialCart.cart_items.length === 0)) {
+      const storeItems = useCartStore.getState().items;
+      const storeUserId = useCartStore.getState().userId;
+      if (storeUserId === currentUserId && storeItems.length > 0 && !hasTriggeredSyncRef.current) {
+        hasTriggeredSyncRef.current = true;
+        const timer = setTimeout(() => {
+          setIsSyncingFromStore(true);
+          const payload = storeItems.map((it) => ({
+            productId: it.productId || it.id,
+            variantId: it.variantId ?? null,
+            quantity: it.quantity,
+          }));
+          syncCartAction(payload)
+            .then((res) => {
+              if (res.success && res.cart?.cart_items && res.cart.cart_items.length > 0) {
+                router.refresh();
+              }
+            })
+            .catch(() => {})
+            .finally(() => {
+              setIsSyncingFromStore(false);
+            });
+        }, 0);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [initialCart, placedOrder, router, currentUserId]);
 
   const clearPlacedOrderStorage = () => {
     if (typeof window !== "undefined") {
@@ -782,6 +823,22 @@ export function CheckoutClient({
               </div>
             </div>
           </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (isSyncingFromStore) {
+    return (
+      <main className="mx-auto w-full max-w-lg px-4 py-20 text-center animate-in fade-in duration-300">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-xs space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <LoaderCircle className="size-6 animate-spin" />
+          </div>
+          <h1 className="text-xl font-bold">Menghubungkan Keranjang Belanja...</h1>
+          <p className="text-sm text-muted-foreground">
+            Mohon tunggu sebentar, kami sedang menyiapkan produk untuk proses checkout Anda.
+          </p>
         </div>
       </main>
     );

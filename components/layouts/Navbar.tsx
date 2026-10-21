@@ -65,9 +65,11 @@ const productCategories: { title: string; href: string; description: string }[] 
 
 export function Navbar({
   cartCount = 0,
+  currentUserId = null,
   settings,
 }: {
   cartCount?: number;
+  currentUserId?: string | null;
   settings?: StorefrontSettings;
 }) {
   const storeName = settings?.store?.name || "Next Solution";
@@ -82,6 +84,7 @@ export function Navbar({
     () => false
   );
   const totalStoreItems = useCartStore((state) => state.getTotalItems());
+  const storeUserId = useCartStore((state) => state.userId);
   const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
   const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
   const [isScrolled, setIsScrolled] = React.useState(false);
@@ -125,8 +128,8 @@ export function Navbar({
   }, []);
 
   const effectiveCartCount = mounted
-    ? Math.max(displayCartCount, totalStoreItems)
-    : displayCartCount;
+    ? (!currentUserId ? 0 : (storeUserId === currentUserId ? totalStoreItems : displayCartCount))
+    : cartCount;
 
   const resetAccountTimer = React.useCallback(() => {
     if (closeTimer.current) clearTimeout(closeTimer.current);

@@ -636,7 +636,7 @@ export function OrderInvoice({
             <div className="invoice-table-header bg-[#3730A3] text-white rounded-t-lg px-4 sm:px-6 py-3 flex items-center text-xs font-bold uppercase tracking-wider print:py-2 print:text-[9.5px]">
               <div className="flex-1">Items Description</div>
               <div className="w-28 sm:w-36 text-right">Unit Price</div>
-              <div className="w-14 sm:w-16 text-center">Qnt</div>
+              <div className="w-14 sm:w-16 text-center">Qty</div>
               <div className="w-28 sm:w-36 text-right">Total</div>
             </div>
 
@@ -834,15 +834,14 @@ export function OrderInvoice({
               <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px] print:text-[9px]">
                 QUESTIONS?
               </p>
-              <div className="space-y-0.5">
-                <p>
-                  <span className="text-slate-500">Email us</span>{" "}
-                  <span className="font-mono text-slate-800 font-medium">: {storeEmail}</span>
-                </p>
-                <p>
-                  <span className="text-slate-500">Call / WA</span>{" "}
-                  <span className="font-mono text-slate-800 font-medium">: {formatDisplayPhone(storeWhatsapp || storePhone)}</span>
-                </p>
+              <div className="grid grid-cols-[auto_auto_1fr] items-baseline gap-x-2 gap-y-1 text-xs text-slate-600 print:text-[8.5px]">
+                <span className="text-slate-500">Email us</span>
+                <span className="text-slate-400 select-none">:</span>
+                <span className="font-mono text-slate-800 font-medium truncate">{storeEmail}</span>
+
+                <span className="text-slate-500">Call / WA</span>
+                <span className="text-slate-400 select-none">:</span>
+                <span className="font-mono text-slate-800 font-medium">{formatDisplayPhone(storeWhatsapp || storePhone)}</span>
               </div>
             </div>
 
@@ -851,31 +850,30 @@ export function OrderInvoice({
               <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px] print:text-[9px]">
                 PAYMENT INFO :
               </p>
-              <div className="space-y-0.5">
-                <p>
-                  <span className="text-slate-500">Metode</span>{" "}
-                  <span className="text-slate-800 font-medium">: {paymentMethodName}</span>
-                </p>
+              <div className="grid grid-cols-[auto_auto_1fr] items-baseline gap-x-2 gap-y-1 text-xs text-slate-600 print:text-[8.5px]">
+                <span className="text-slate-500">Metode</span>
+                <span className="text-slate-400 select-none">:</span>
+                <span className="text-slate-800 font-medium">{paymentMethodName}</span>
+
                 {bankAccounts[0] && (
                   <>
-                    <p>
-                      <span className="text-slate-500">Account</span>{" "}
-                      <span className="font-mono text-slate-800 font-medium">
-                        : {bankAccounts[0].account_number} ({bankAccounts[0].bank_name})
-                      </span>
-                    </p>
-                    <p>
-                      <span className="text-slate-500">A/C Name</span>{" "}
-                      <span className="text-slate-800 font-medium">: {bankAccounts[0].account_holder}</span>
-                    </p>
+                    <span className="text-slate-500">Account</span>
+                    <span className="text-slate-400 select-none">:</span>
+                    <span className="font-mono text-slate-800 font-medium">
+                      {bankAccounts[0].account_number} ({bankAccounts[0].bank_name})
+                    </span>
+
+                    <span className="text-slate-500">A/C Name</span>
+                    <span className="text-slate-400 select-none">:</span>
+                    <span className="text-slate-800 font-medium">{bankAccounts[0].account_holder}</span>
                   </>
                 )}
-                <p>
-                  <span className="text-slate-500">Status</span>{" "}
-                  <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700" : "text-amber-700"}`}>
-                    : {isPaymentConfirmed ? "LUNAS (DIVERIFIKASI)" : "MENUNGGU PEMBAYARAN"}
-                  </span>
-                </p>
+
+                <span className="text-slate-500">Status</span>
+                <span className="text-slate-400 select-none">:</span>
+                <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700" : "text-amber-700"}`}>
+                  {isPaymentConfirmed ? "LUNAS (DIVERIFIKASI)" : "MENUNGGU PEMBAYARAN"}
+                </span>
               </div>
             </div>
 

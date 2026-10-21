@@ -8,7 +8,6 @@ import {
   UserRound,
   Bell,
   ShieldAlert,
-  AlertTriangle,
   CheckCircle2,
   Trash2,
   X,
@@ -22,8 +21,6 @@ import {
   Package,
   History,
   Sliders,
-  Settings,
-  Check,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -31,13 +28,13 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
+import { useCartStore } from "@/store/useCartStore";
 import {
   getAdminAllNotificationsAction,
   saveStaffNotificationConfigAction,
   type AdminNotificationItem,
   type AdminNotificationCategory,
 } from "@/actions/admin";
-import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const CATEGORY_META: Record<
   AdminNotificationCategory,
@@ -383,25 +380,25 @@ export function AdminHeader({
               toggleTheme();
             }
           }}
-          className="relative flex items-center w-[68px] h-9 rounded-full bg-slate-200/80 dark:bg-[#23252C] border border-slate-300/70 dark:border-white/10 p-1 cursor-pointer transition-colors duration-300 select-none shadow-xs hover:border-slate-400/50 dark:hover:border-white/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 group"
+          className="relative flex items-center w-16 h-8 shrink-0 rounded-full bg-slate-200/80 dark:bg-[#23252C] border border-slate-300/70 dark:border-white/10 cursor-pointer transition-colors duration-300 select-none shadow-xs hover:border-slate-400/50 dark:hover:border-white/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB]/40 group"
           title={isDark ? "Mode Gelap aktif (Klik untuk beralih ke Mode Terang)" : "Mode Terang aktif (Klik untuk beralih ke Mode Gelap)"}
           aria-label={isDark ? "Ganti ke mode terang" : "Ganti ke mode gelap"}
         >
           {/* Kapsul geser aktif (smooth gliding thumb) */}
           <span
             className={cn(
-              "absolute top-1 left-1 size-7 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] pointer-events-none",
+              "absolute top-[3px] left-[3px] size-6 aspect-square shrink-0 rounded-full transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] pointer-events-none shadow-md",
               isDark
-                ? "translate-x-[32px] bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-md shadow-blue-500/35"
-                : "translate-x-0 bg-gradient-to-tr from-amber-400 to-amber-300 shadow-md shadow-amber-500/30"
+                ? "translate-x-8 bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/35"
+                : "translate-x-0 bg-gradient-to-tr from-amber-400 to-amber-300 shadow-amber-500/30"
             )}
           />
 
           {/* Slot Ikon yang lega & proporsional */}
-          <div className="relative z-10 flex items-center justify-between w-full h-full pointer-events-none">
+          <div className="relative z-10 flex items-center justify-between w-full h-full px-[3px] pointer-events-none">
             <div
               className={cn(
-                "size-7 flex items-center justify-center transition-all duration-300",
+                "size-6 aspect-square shrink-0 flex items-center justify-center transition-all duration-300",
                 !isDark
                   ? "text-amber-950 scale-100 font-bold"
                   : "text-slate-400 group-hover:text-slate-300 scale-90 opacity-60"
@@ -411,7 +408,7 @@ export function AdminHeader({
             </div>
             <div
               className={cn(
-                "size-7 flex items-center justify-center transition-all duration-300",
+                "size-6 aspect-square shrink-0 flex items-center justify-center transition-all duration-300",
                 isDark
                   ? "text-white scale-100 font-bold"
                   : "text-slate-400 group-hover:text-slate-500 scale-90 opacity-60"
@@ -769,7 +766,10 @@ export function AdminHeader({
               <div className="h-px bg-border my-1" />
               <button
                 type="button"
-                onClick={() => logout()}
+                onClick={() => {
+                  useCartStore.getState().clearCart();
+                  logout();
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition cursor-pointer"
               >
                 <LogOut className="size-3.5" />

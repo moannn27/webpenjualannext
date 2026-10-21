@@ -97,6 +97,133 @@ describe("Cart State & Product Master Data (Step 1)", () => {
       expect(calculatedSubtotal).toBe(realPrice * 2);
       expect(calculatedSubtotal).not.toBe(1 * 2);
     });
+
+    it("isolates cart across user accounts and prevents cross-account item leaks", () => {
+      const prodA = MASTER_PRODUCTS[0];
+      const prodB = MASTER_PRODUCTS[1];
+
+      // User A (e.g. Admin) adds prodA
+      useCartStore.getState().syncWithUser("user-admin-id", [
+        {
+          id: "item-admin-1",
+          productId: prodA.id,
+          name: prodA.name,
+          price: prodA.price,
+          category: prodA.category,
+          image: prodA.image,
+          stock: prodA.stock,
+          quantity: 2,
+        },
+      ]);
+      expect(useCartStore.getState().userId).toBe("user-admin-id");
+      expect(useCartStore.getState().items.length).toBe(1);
+      expect(useCartStore.getState().items[0].productId).toBe(prodA.id);
+
+      // User switches to User B (Customer) with their own server items
+      useCartStore.getState().syncWithUser("user-customer-id", [
+        {
+          id: "item-cust-1",
+          productId: prodB.id,
+          name: prodB.name,
+          price: prodB.price,
+          category: prodB.category,
+          image: prodB.image,
+          stock: prodB.stock,
+          quantity: 1,
+        },
+      ]);
+
+      // Cart MUST now only have User B's item, and User A's item MUST be completely gone
+      expect(useCartStore.getState().userId).toBe("user-customer-id");
+      expect(useCartStore.getState().items.length).toBe(1);
+      expect(useCartStore.getState().items[0].productId).toBe(prodB.id);
+      expect(useCartStore.getState().items.some((it) => it.productId === prodA.id)).toBe(false);
+
+      // User logs out (userId becomes null)
+      useCartStore.getState().clearCart();
+      expect(useCartStore.getState().userId).toBeNull();
+      expect(useCartStore.getState().items.length).toBe(0);
+    });
+
+    it("supports addItemDirect and updates existing matching variant", () => {
+      useCartStore.getState().setUserId("user-2");
+      useCartStore.getState().addItemDirect({
+        id: "cart-item-uuid-1",
+        productId: "prod-db-uuid-1",
+        name: "Lenovo AIO 24IRH9",
+        price: 8500000,
+        category: "All-in-One PC",
+        image: "https://example.com/aio.jpg",
+        stock: 5,
+        quantity: 1,
+        variantId: "variant-uuid-cloud-grey",
+        variantLabel: "Cloud Grey · 8GB",
+      });
+
+      expect(useCartStore.getState().items.length).toBe(1);
+      expect(useCartStore.getState().items[0].name).toBe("Lenovo AIO 24IRH9");
+      expect(useCartStore.getState().items[0].variantId).toBe("variant-uuid-cloud-grey");
+      expect(useCartStore.getState().items[0].quantity).toBe(1);
+
+      // Add another with same variant -> updates quantity and properties
+      useCartStore.getState().addItemDirect({
+        id: "cart-item-uuid-1",
+        productId: "prod-db-uuid-1",
+        name: "Lenovo AIO 24IRH9",
+        price: 8500000,
+        category: "All-in-One PC",
+        image: "https://example.com/aio.jpg",
+        stock: 5,
+        quantity: 2,
+        variantId: "variant-uuid-cloud-grey",
+        variantLabel: "Cloud Grey · 8GB",
+      });
+
+      expect(useCartStore.getState().items.length).toBe(1);
+      expect(useCartStore.getState().items[0].quantity).toBe(2);
+
+      // Add a different variant -> appends new item
+      useCartStore.getState().addItemDirect({
+        id: "cart-item-uuid-2",
+        productId: "prod-db-uuid-1",
+        name: "Lenovo AIO 24IRH9",
+        price: 8900000,
+        category: "All-in-One PC",
+        image: "https://example.com/aio-luna.jpg",
+        stock: 3,
+        quantity: 1,
+        variantId: "variant-uuid-luna-grey",
+        variantLabel: "Luna Grey · 8GB",
+      });
+
+      expect(useCartStore.getState().items.length).toBe(2);
+      expect(useCartStore.getState().getTotalItems()).toBe(3);
+    });
+
+    it("resets cart to empty when switching from User 1 to an empty User 2", () => {
+      // User 1 has 3 items
+      useCartStore.getState().syncWithUser("user-1", [
+        { id: "1", productId: "p1", name: "P1", price: 100, category: "C", image: "", stock: 5, quantity: 1 },
+        { id: "2", productId: "p2", name: "P2", price: 200, category: "C", image: "", stock: 5, quantity: 2 },
+      ]);
+      expect(useCartStore.getState().getTotalItems()).toBe(3);
+
+      // User switches to User 2 who has an empty cart
+      useCartStore.getState().syncWithUser("user-2", []);
+      expect(useCartStore.getState().userId).toBe("user-2");
+      expect(useCartStore.getState().items.length).toBe(0);
+      expect(useCartStore.getState().getTotalItems()).toBe(0);
+    });
+
+    it("syncWithUser(null) cleans up all items when user logs out", () => {
+      useCartStore.getState().syncWithUser("user-1", [
+        { id: "1", productId: "p1", name: "P1", price: 100, category: "C", image: "", stock: 5, quantity: 1 },
+      ]);
+      expect(useCartStore.getState().items.length).toBe(1);
+
+      useCartStore.getState().syncWithUser(null);
+      expect(useCartStore.getState().userId).toBeNull();
+      expect(useCartStore.getState().items.length).toBe(0);
+    });
   });
 });
-

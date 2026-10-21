@@ -4,7 +4,9 @@ import { StorefrontChrome } from "@/components/layouts/StorefrontChrome";
 import { getCartAction } from "@/actions/cart";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
-import { type CartItem } from "@/types/cart";
+import { createClient } from "@/lib/supabase/server";
+import { formatCartItemToStored } from "@/lib/cart-utils";
+import { type StoredCartItem } from "@/store/useCartStore";
 import { getSiteUrl, DEFAULT_SITE_TITLE, DEFAULT_SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import "./globals.css";
 
@@ -69,16 +71,32 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let cartCount = 0;
+  let currentUserId: string | null = null;
+  let initialCartItems: StoredCartItem[] = [];
   let rawSettings: unknown = null;
+
   try {
-    const cart = await getCartAction();
-    if (cart && cart.cart_items) {
-      cartCount = cart.cart_items.reduce((acc: number, item: CartItem) => acc + item.quantity, 0);
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      currentUserId = user.id;
+      const cart = await getCartAction();
+      if (cart && cart.cart_items) {
+        initialCartItems = cart.cart_items.map((it: Parameters<typeof formatCartItemToStored>[0]) =>
+          formatCartItemToStored(it)
+        );
+        cartCount = initialCartItems.reduce((acc, item) => acc + item.quantity, 0);
+      }
     }
   } catch {
-    // User is likely unauthenticated
+    // User is unauthenticated or error fetching cart
   }
-  try { rawSettings = await getStorefrontSettingsAction(); } catch { /* Store settings migration may not be applied yet. */ }
+
+  try {
+    rawSettings = await getStorefrontSettingsAction();
+  } catch {
+    /* Store settings migration may not be applied yet. */
+  }
   const settings = normalizeStorefrontSettings(rawSettings);
 
   return (
@@ -91,7 +109,14 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background text-foreground font-sans flex flex-col">
-        <StorefrontChrome cartCount={cartCount} settings={settings}>{children}</StorefrontChrome>
+        <StorefrontChrome
+          currentUserId={currentUserId}
+          cartCount={cartCount}
+          initialCartItems={initialCartItems}
+          settings={settings}
+        >
+          {children}
+        </StorefrontChrome>
       </body>
     </html>
   );

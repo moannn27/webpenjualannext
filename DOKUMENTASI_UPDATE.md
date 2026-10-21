@@ -274,7 +274,51 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
 ## 16. Verifikasi Kualitas & Kesiapan Produksi
 
 * **TypeScript Compilation (`npx tsc --noEmit`)**: **0 error**, seluruh tipe data valid.
-* **Unit & Integration Testing (Vitest)**: Seluruh **202 tests** (20 test suites) lulus 100%.
+* **Unit & Integration Testing (Vitest)**: Seluruh **245 tests** (23 test suites) lulus 100%.
 * **ESLint Validation (`npm run lint`)**: **0 error**, format dan aturan kode bersih.
+* **Next.js Production Build (`npm run build`)**: Sukses mengompilasi **40/40 routes** dengan Turbopack.
+
+---
+
+## 17. Perbaikan UI & Presisi Desain: Faktur Pembelian & Theme Toggle Admin
+
+1. **Perataan Kolom Info Pembayaran & Bantuan Faktur (`components/invoice/OrderInvoice.tsx`)**:
+   * **Masalah**: Label dan tanda titik dua pada bagian *"QUESTIONS?"* dan *"PAYMENT INFO:"* tidak sejajar, tampak berantakan dan kurang simetris.
+   * **Solusi**: Diterapkan CSS Grid `grid-cols-[auto_auto_1fr]` dengan `items-baseline` dan spasi seragam (`gap-x-2 gap-y-1.5`). Titik dua dan teks penjelasan kini sejajar vertikal 100% sempurna di semua resolusi dan mode cetak.
+
+2. **Presisi Geometris Tombol Toggle Mode Tema Admin (`components/layouts/AdminHeader.tsx`)**:
+   * **Masalah**: Lingkaran thumb indikator tema (light/dark mode) di Admin Header tampak lonjong atau tidak bulat sempurna karena distorsi flex/shrink.
+   * **Solusi**: Diterapkan proporsi lingkaran murni `size-6 aspect-square shrink-0 rounded-full` dengan margin simetris `top-[3px] left-[3px]`, track selebar 62px, dan jarak geser `translate-x-8`. Lingkaran thumb kini 100% geometris bulat sempurna dengan animasi transisi yang mulus.
+
+---
+
+## 18. Arsitektur Keranjang Belanja Terisolasi Penuh (Zero Cross-Account Leakage)
+
+1. **Prinsip Single Source of Truth**:
+   * Database Supabase (`cart` dan `cart_items`) dijadikan satu-satunya sumber kebenaran data (*authoritative source of truth*) untuk pengguna terotentikasi.
+   * Dibuat helper universal [`lib/cart-utils.ts`](file:///c:/web next penjualan/lib/cart-utils.ts) (`formatCartItemToStored`) yang menstandarisasi konversi data relasi produk dan varian dari database ke client store. Seluruh duplikasi kode mapping dieliminasi.
+
+2. **Sinkronisasi Multi-Akun Global (`components/layouts/StorefrontChrome.tsx` & `app/layout.tsx`)**:
+   * `app/layout.tsx` mengambil status autentikasi user dan keranjang dari database di tingkat server untuk setiap halaman storefront, lalu meneruskannya ke `StorefrontChrome`.
+   * `StorefrontChrome` secara proaktif mendeteksi perubahan sesi login:
+     * **Saat Pengguna Logout**: Memanggil `clearCart()`, mengosongkan isi keranjang dan `localStorage` menjadi 0 item seketika.
+     * **Saat Pengguna Berganti Akun (misal Akun 1 ke Akun 2)**:
+       Memanggil `syncWithUser(currentUserId, initialCartItems)`. Isi keranjang Akun 1 langsung dibersihkan total dan digantikan 100% dengan keranjang resmi milik Akun 2. Tidak ada lagi sisa barang akun lama yang tercampur.
+
+3. **Perbaikan Bug Badge Navbar (`components/layouts/Navbar.tsx`)**:
+   * Menghapus logika cacat `Math.max(displayCartCount, totalStoreItems)` yang sebelumnya menyebabkan angka keranjang dari akun sebelumnya terjebak dan tidak pernah berkurang.
+   * Nilai badge kini murni merefleksikan jumlah barang akun yang sedang login secara real-time dan terhubung dengan event `CART_UPDATED_EVENT`.
+
+4. **Auto-Resolution Varian & Pencegahan Kegagalan Quick-Add (`services/cart.service.ts` & `features/cart/useAddToCart.ts`)**:
+   * Ketika pembeli mengklik tombol keranjang dari kartu katalog pada produk yang memiliki varian spesifikasi/warna, sistem secara otomatis memilih varian default yang memiliki stok tersedia (*first in-stock variant*).
+   * Menghilangkan error *"Pilih warna dan spesifikasi produk terlebih dahulu"* saat quick-add dan langsung memasukkan produk ke keranjang akun aktif.
+   * Server Action mengembalikan objek `cartItem` lengkap yang langsung diinjeksi ke client store melalui method baru `addItemDirect(item)` di [`store/useCartStore.ts`](file:///c:/web next penjualan/store/useCartStore.ts).
+
+5. **Pencegahan Kontaminasi Database Baru (`features/cart/CartClient.tsx` & `features/checkout/CheckoutClient.tsx`)**:
+   * Dihapus percabangan berbahaya yang sebelumnya mengunggah data keranjang usang di localStorage ke database akun baru yang masih kosong.
+   * Sinkronisasi ke database saat checkout hanya diizinkan jika `storeUserId === currentUserId`.
+
+6. **Pengujian Unit Tambahan (`__tests__/store/cart.test.ts`)**:
+   * Ditambahkan test suite pengujian isolasi akun, pergantian akun, reset keranjang kosong, penambahan `addItemDirect`, dan penjaminan keamanan harga.
 
 

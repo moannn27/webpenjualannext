@@ -13,7 +13,8 @@ vi.mock('@/lib/supabase/server', () => ({
       update: vi.fn().mockReturnThis(),
       delete: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: {}, error: null })
+      single: vi.fn().mockResolvedValue({ data: {}, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({ data: {}, error: null })
     })),
     auth: {
       getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test-user-id' } }, error: null })

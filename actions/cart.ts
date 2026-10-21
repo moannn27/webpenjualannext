@@ -29,8 +29,7 @@ export async function addToCartAction(productId: string, quantity: number, varia
   if (!user) throw new Error("Unauthorized")
 
   const result = await cartService.addItem(user.id, productId, quantity, variantId)
-  // The client updates the header count from the returned total; avoid a full
-  // storefront layout refresh (which reloads all cart product media/specs).
+  revalidatePath('/', 'layout')
   return { success: true, ...result }
 }
 
@@ -51,4 +50,24 @@ export async function removeFromCartAction(itemId: string) {
 
   await cartService.removeItem(itemId)
   revalidatePath('/', 'layout')
+}
+
+export async function syncCartAction(
+  items: { productId: string; variantId?: string | null; quantity: number }[]
+) {
+  if (!Array.isArray(items)) throw new Error("Format data keranjang tidak valid")
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const normalized = items.map((it) => ({
+    productId: it.productId,
+    variantId: it.variantId ?? null,
+    quantity: Math.max(1, Math.min(999, Math.floor(it.quantity || 1))),
+  }))
+
+  const cart = await cartService.syncCart(user.id, normalized)
+  revalidatePath('/cart')
+  revalidatePath('/checkout')
+  return { success: true, cart }
 }

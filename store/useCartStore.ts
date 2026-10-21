@@ -19,7 +19,9 @@ export interface StoredCartItem {
 }
 
 interface CartStoreState {
+  userId: string | null;
   items: StoredCartItem[];
+  setUserId: (userId: string | null) => void;
   addItem: (
     product: ProductItem,
     quantity?: number,
@@ -30,7 +32,9 @@ interface CartStoreState {
   updateQuantity: (id: string, quantity: number) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
-  setCartItems: (items: StoredCartItem[]) => void;
+  setCartItems: (items: StoredCartItem[], userId?: string | null) => void;
+  addItemDirect: (item: StoredCartItem) => void;
+  syncWithUser: (userId: string | null, serverItems?: StoredCartItem[]) => void;
   /**
    * Security calculation: Re-look up product by ID from master product data
    * to guarantee prices in localStorage are never trusted.
@@ -69,7 +73,11 @@ const customStorage = {
 export const useCartStore = create<CartStoreState>()(
   persist(
     (set, get) => ({
+      userId: null,
       items: [],
+      setUserId: (userId) => {
+        set({ userId });
+      },
       addItem: (product, quantity = 1, variantId = null, variantLabel = null, options) => {
         // Look up verified master product data
         const master = getMasterProductById(product.id) || product;
@@ -162,12 +170,12 @@ export const useCartStore = create<CartStoreState>()(
       },
 
       clearCart: () => {
-        set({ items: [] });
+        set({ items: [], userId: null });
         if (typeof window !== "undefined") {
           try {
             window.localStorage.setItem(
               "next_solution_cart",
-              JSON.stringify({ state: { items: [] }, version: 0 })
+              JSON.stringify({ state: { items: [], userId: null }, version: 0 })
             );
             window.localStorage.removeItem("next_solution_cart_items");
           } catch {
@@ -177,19 +185,63 @@ export const useCartStore = create<CartStoreState>()(
         emitCartUpdated(0);
       },
 
-      setCartItems: (items) => {
-        set({ items });
+      setCartItems: (items, userId) => {
+        const targetUserId = userId !== undefined ? userId : get().userId;
+        set({ items, userId: targetUserId });
         if (typeof window !== "undefined") {
           try {
             window.localStorage.setItem(
               "next_solution_cart",
-              JSON.stringify({ state: { items }, version: 0 })
+              JSON.stringify({ state: { items, userId: targetUserId }, version: 0 })
             );
           } catch {
             // ignore
           }
         }
         emitCartUpdated(items.reduce((sum, item) => sum + item.quantity, 0));
+      },
+
+      addItemDirect: (item) => {
+        set((state) => {
+          const existingIndex = state.items.findIndex(
+            (it) => it.productId === item.productId && (it.variantId ?? null) === (item.variantId ?? null)
+          );
+          if (existingIndex > -1) {
+            const nextItems = [...state.items];
+            nextItems[existingIndex] = {
+              ...nextItems[existingIndex],
+              ...item,
+            };
+            return { items: nextItems };
+          }
+          return { items: [...state.items, item] };
+        });
+        emitCartUpdated(get().getTotalItems());
+      },
+
+      syncWithUser: (userId, serverItems) => {
+        // If user logged out
+        if (!userId) {
+          get().clearCart();
+          return;
+        }
+
+        const currentUserId = get().userId;
+        const targetItems = serverItems !== undefined ? serverItems : (currentUserId === userId ? get().items : []);
+
+        set({ userId, items: targetItems });
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem(
+              "next_solution_cart",
+              JSON.stringify({ state: { items: targetItems, userId }, version: 0 })
+            );
+            window.localStorage.removeItem("next_solution_cart_items");
+          } catch {
+            // ignore
+          }
+        }
+        emitCartUpdated(targetItems.reduce((sum, item) => sum + item.quantity, 0));
       },
 
       getSubtotal: () => {

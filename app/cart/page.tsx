@@ -1,9 +1,13 @@
 import { CartClient } from "@/features/cart/CartClient";
 import { getCartAction } from "@/actions/cart";
+import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default async function CartPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   let cart = null;
   try {
     cart = await getCartAction();
@@ -27,5 +31,5 @@ export default async function CartPage() {
     // Handle other errors gracefully
   }
 
-  return <CartClient initialCart={cart} />;
+  return <CartClient initialCart={cart} currentUserId={user?.id ?? null} />;
 }

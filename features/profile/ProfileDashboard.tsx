@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { logout } from "@/actions/auth";
+import { useCartStore } from "@/store/useCartStore";
 import { toast } from "@/store/useToastStore";
 import {
   updateProfileAction,
@@ -519,7 +520,11 @@ export function ProfileDashboard({
                 </Link>
               )}
               <form action={logout}>
-                <button className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-destructive hover:bg-destructive/10 transition-colors">
+                <button
+                  type="submit"
+                  onClick={() => useCartStore.getState().clearCart()}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                >
                   <LogOut className="size-5" />
                   Keluar
                 </button>
