@@ -84,6 +84,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd) }}
       />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
+      {sections.about?.visible !== false && <AboutUsSection content={aboutContent} />}
       {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
       {sections.featuredDiscovery?.visible !== false && (
         <ProductDiscovery
@@ -166,7 +167,6 @@ export default async function Home() {
       )}
       {sections.whyUs.visible && <WhyChooseUs title={sections.whyUs.title} subtitle={sections.whyUs.subtitle} store={settings.store} pickupInfo={settings.pickup_info} />}
       {sections.faq.visible && <FaqSection faqs={faqs ?? []} title={sections.faq.title} subtitle={sections.faq.subtitle} />}
-      {sections.about?.visible !== false && <AboutUsSection content={aboutContent} />}
     </div>
   );
 }

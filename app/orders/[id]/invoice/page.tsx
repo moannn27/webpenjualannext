@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
-import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
+import { OrderInvoice, type InvoiceOrderData, type InvoiceOrderItem } from "@/components/invoice/OrderInvoice";
 import { notFound, redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,40 @@ export const metadata = {
   title: "Faktur Pembelian Resmi",
   description: "Faktur dan invoice rincian transaksi pemesanan produk.",
 };
+
+const RICH_ORDER_ITEM_SELECT = `
+  id,
+  product_id,
+  variant_id,
+  product_name,
+  price,
+  quantity,
+  variant_details,
+  products (
+    id,
+    sku,
+    name,
+    description,
+    product_images (url, is_primary),
+    product_specifications (key, value, display_order)
+  )
+`;
+
+interface RawOrderRecord {
+  id: string;
+  order_number: string;
+  created_at: string;
+  status: string;
+  total_amount?: number | null;
+  shipping_amount?: number | null;
+  discount_amount?: number | null;
+  grand_total?: number | null;
+  courier: string;
+  shipping_address?: InvoiceOrderData["shipping_address"];
+  user_id: string;
+  order_items?: unknown[];
+  payments?: InvoiceOrderData["payments"];
+}
 
 export default async function OrderInvoicePage({
   params,
@@ -23,21 +57,23 @@ export default async function OrderInvoicePage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/login?redirect=/orders/${id}/invoice`);
+    redirect(`/login?redirect=/orders/${encodeURIComponent(id)}/invoice`);
   }
 
   const { data: profile } = await supabase
     .from("users")
-    .select("role")
+    .select("id, role, full_name, phone")
     .eq("id", user.id)
     .maybeSingle();
 
   const isAdmin = profile?.role === "admin" || profile?.role === "super_admin";
-
-  // If admin, fetch order using admin client to view any customer invoice.
-  // Otherwise fetch using standard client ensuring user_id matches.
   const clientToUse = isAdmin ? getSupabaseAdminClient() : supabase;
-  const orderQuery = clientToUse
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const filterColumn = isUuid ? "id" : "order_number";
+
+  // 1. Try rich query with nested product images and specifications
+  let primaryQuery = clientToUse
     .from("orders")
     .select(`
       id,
@@ -51,50 +87,156 @@ export default async function OrderInvoicePage({
       courier,
       shipping_address,
       user_id,
-      order_items (
-        id,
-        product_id,
-        variant_id,
-        product_name,
-        price,
-        quantity,
-        variant_details,
-        products (
-          id,
-          sku,
-          name,
-          description,
-          brands (name),
-          categories (name),
-          product_images (url, is_primary),
-          product_specifications (id, key, value, display_order)
-        )
-      ),
+      order_items (${RICH_ORDER_ITEM_SELECT}),
       payments (
         id,
         amount,
         payment_method,
         status
-      ),
-      users (
-        full_name,
-        phone
       )
     `)
-    .eq("id", id);
+    .eq(filterColumn, id);
 
   if (!isAdmin) {
-    orderQuery.eq("user_id", user.id);
+    primaryQuery = primaryQuery.eq("user_id", user.id);
   }
 
-  const [{ data: order, error }, { data: sfRow }] = await Promise.all([
-    orderQuery.maybeSingle(),
-    clientToUse.from("storefront_settings").select("settings").eq("id", "main").maybeSingle(),
-  ]);
+  let order: RawOrderRecord | null = null;
+  const { data: primaryData, error: primaryErr } = await primaryQuery.maybeSingle();
+  if (!primaryErr && primaryData) {
+    order = primaryData as unknown as RawOrderRecord;
+  }
+  let error = primaryErr;
+
+  // 2. Resilient fallback query if deep product relations fail on older or modified records
+  if (error || !order) {
+    let fallbackQuery = clientToUse
+      .from("orders")
+      .select(`
+        id,
+        order_number,
+        created_at,
+        status,
+        total_amount,
+        shipping_amount,
+        discount_amount,
+        grand_total,
+        courier,
+        shipping_address,
+        user_id,
+        order_items (
+          id,
+          product_id,
+          variant_id,
+          product_name,
+          price,
+          quantity,
+          variant_details
+        ),
+        payments (
+          id,
+          amount,
+          payment_method,
+          status
+        )
+      `)
+      .eq(filterColumn, id);
+
+    if (!isAdmin) {
+      fallbackQuery = fallbackQuery.eq("user_id", user.id);
+    }
+
+    const fallbackResult = await fallbackQuery.maybeSingle();
+    if (fallbackResult.data) {
+      order = fallbackResult.data as unknown as RawOrderRecord;
+      error = null;
+    }
+  }
+
+  // 3. Fallback: if not UUID and first failed, or vice versa, try the other column
+  if (!order) {
+    const altColumn = isUuid ? "order_number" : "id";
+    let altQuery = clientToUse
+      .from("orders")
+      .select(`
+        id,
+        order_number,
+        created_at,
+        status,
+        total_amount,
+        shipping_amount,
+        discount_amount,
+        grand_total,
+        courier,
+        shipping_address,
+        user_id,
+        order_items (
+          id,
+          product_id,
+          variant_id,
+          product_name,
+          price,
+          quantity,
+          variant_details
+        ),
+        payments (
+          id,
+          amount,
+          payment_method,
+          status
+        )
+      `)
+      .eq(altColumn, id);
+
+    if (!isAdmin) {
+      altQuery = altQuery.eq("user_id", user.id);
+    }
+
+    const altResult = await altQuery.maybeSingle();
+    if (altResult.data) {
+      order = altResult.data as unknown as RawOrderRecord;
+      error = null;
+    }
+  }
 
   if (error || !order) {
     notFound();
   }
+
+  // Double check authorization: customers can NEVER view someone else's order
+  if (!isAdmin && order.user_id !== user.id) {
+    notFound();
+  }
+
+  // Retrieve user metadata cleanly without brittle nested PostgREST joins
+  let customerUser = {
+    full_name: profile?.full_name ?? null,
+    phone: profile?.phone ?? null,
+    email: user.email ?? null,
+  };
+
+  if (order.user_id !== user.id) {
+    const { data: customerProfile } = await clientToUse
+      .from("users")
+      .select("full_name, phone")
+      .eq("id", order.user_id)
+      .maybeSingle();
+
+    if (customerProfile) {
+      customerUser = {
+        full_name: customerProfile.full_name ?? null,
+        phone: customerProfile.phone ?? null,
+        email: null,
+      };
+    }
+  }
+
+  // Fetch storefront settings
+  const { data: sfRow } = await clientToUse
+    .from("storefront_settings")
+    .select("settings")
+    .eq("id", "main")
+    .maybeSingle();
 
   const storefront = normalizeStorefrontSettings(sfRow?.settings);
 
@@ -108,6 +250,27 @@ export default async function OrderInvoicePage({
     logoUrl: storefront.store.logo_url || "",
     logoDisplayMode: storefront.store.logo_display_mode || "both",
     bankAccounts: storefront.bank_transfer,
+    headerSubtitle: storefront.invoice?.header_subtitle,
+    termsNote: storefront.invoice?.terms_note,
+    guaranteeNote: storefront.invoice?.guarantee_note,
+    complaintWhatsapp: storefront.invoice?.complaint_whatsapp,
+    complaintInstructions: storefront.invoice?.complaint_instructions,
+  };
+
+  const invoiceOrder: InvoiceOrderData = {
+    id: order.id,
+    order_number: order.order_number,
+    created_at: order.created_at,
+    status: order.status,
+    total_amount: Number(order.total_amount ?? 0),
+    shipping_amount: Number(order.shipping_amount ?? 0),
+    discount_amount: Number(order.discount_amount ?? 0),
+    grand_total: Number(order.grand_total ?? 0),
+    courier: order.courier,
+    shipping_address: order.shipping_address,
+    order_items: (order.order_items ?? []) as unknown as InvoiceOrderItem[],
+    payments: (order.payments ?? []) as InvoiceOrderData["payments"],
+    users: customerUser,
   };
 
   const backHref = isAdmin ? "/admin/orders" : "/profile";
@@ -115,10 +278,12 @@ export default async function OrderInvoicePage({
 
   return (
     <OrderInvoice
-      order={order as unknown as InvoiceOrderData}
+      order={invoiceOrder}
       storefront={storefrontInfo}
       backHref={backHref}
       backLabel={backLabel}
+      isAdmin={isAdmin}
     />
   );
 }
+

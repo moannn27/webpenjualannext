@@ -87,7 +87,14 @@ export default async function CheckoutSuccessPage({
     storePhone: storefront.store.phone,
     storeWhatsapp: rawWa,
     storeEmail: storefront.store.email,
+    logoUrl: storefront.store.logo_url || "",
+    logoDisplayMode: storefront.store.logo_display_mode || "both",
     bankAccounts: storefront.bank_transfer,
+    headerSubtitle: storefront.invoice?.header_subtitle,
+    termsNote: storefront.invoice?.terms_note,
+    guaranteeNote: storefront.invoice?.guarantee_note,
+    complaintWhatsapp: storefront.invoice?.complaint_whatsapp,
+    complaintInstructions: storefront.invoice?.complaint_instructions,
   };
 
   const address = order?.shipping_address as Record<string, unknown> | null;

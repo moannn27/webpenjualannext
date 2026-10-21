@@ -150,6 +150,14 @@ export function extractCoordinatesFromLocation(
   return { lat: -6.9185411, lng: 107.6165665, detectedCity: "Bandung" };
 }
 
+export type StoreInvoiceSettings = {
+  header_subtitle?: string;
+  terms_note?: string;
+  guarantee_note?: string;
+  complaint_whatsapp?: string;
+  complaint_instructions?: string;
+};
+
 export type StorefrontSettings = {
   sections: Record<string, StoreSectionSetting>;
   store: {
@@ -180,6 +188,7 @@ export type StorefrontSettings = {
   admin_audit_logs?: AdminAuditLog[];
   voucher_targeting?: Record<string, VoucherTargeting>;
   features: StoreFeaturesSettings;
+  invoice: StoreInvoiceSettings;
 };
 
 export type StoreFeaturesSettings = {
@@ -459,6 +468,13 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   admin_audit_logs: [],
   voucher_targeting: {},
   features: DEFAULT_STORE_FEATURES,
+  invoice: {
+    header_subtitle: "Pusat Komputer, Laptop & Solusi Elektronik Resmi",
+    terms_note: "Simpan faktur fisik atau digital ini sebagai bukti sah transaksi dan garansi resmi. Garansi distributor berlaku dengan kondisi segel utuh. Wajib sertakan video unboxing lengkap saat pengajuan komplain.",
+    guarantee_note: "Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi resmi dan administrasi perpajakan.",
+    complaint_whatsapp: "6281234567890",
+    complaint_instructions: "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.",
+  },
 };
 
 export function normalizeStoreBranch(raw: unknown, index = 0): StoreBranch {
@@ -725,6 +741,33 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
         ? (input.voucher_targeting as Record<string, VoucherTargeting>)
         : {},
     features: normalizeStoreFeatures((input as { features?: unknown })?.features),
+    invoice: {
+      header_subtitle:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.header_subtitle !== undefined &&
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.header_subtitle !== ""
+          ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.header_subtitle).trim()
+          : "Pusat Komputer, Laptop & Solusi Elektronik Resmi",
+      terms_note:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.terms_note !== undefined &&
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.terms_note !== ""
+          ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.terms_note).trim()
+          : "Simpan faktur fisik atau digital ini sebagai bukti sah transaksi dan garansi resmi. Garansi distributor berlaku dengan kondisi segel utuh. Wajib sertakan video unboxing lengkap saat pengajuan komplain.",
+      guarantee_note:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.guarantee_note !== undefined &&
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.guarantee_note !== ""
+          ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.guarantee_note).trim()
+          : "Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi resmi dan administrasi perpajakan.",
+      complaint_whatsapp:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.complaint_whatsapp !== undefined &&
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.complaint_whatsapp !== ""
+          ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.complaint_whatsapp).trim()
+          : (input.store?.whatsapp?.trim() || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp),
+      complaint_instructions:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.complaint_instructions !== undefined &&
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.complaint_instructions !== ""
+          ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.complaint_instructions).trim()
+          : "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.",
+    },
   };
 }
 

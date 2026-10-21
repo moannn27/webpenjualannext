@@ -6,15 +6,14 @@ import Image from "next/image";
 import {
   Award,
   CheckCircle,
+  CheckCircle2,
   Clock,
   Headphones,
   HeartHandshake,
   Laptop,
-  Mail,
   MapPin,
   MessageSquare,
   PackageCheck,
-  Phone,
   ShieldCheck,
   Sparkles,
   Star,
@@ -65,6 +64,15 @@ function renderDynamicIcon(iconName: string, className = "h-5 w-5") {
     default:
       return <CheckCircle className={className} />;
   }
+}
+
+function repeatToFill<T>(items: T[], minLength = 6): T[] {
+  if (items.length === 0) return [];
+  let result = [...items];
+  while (result.length < minLength) {
+    result = [...result, ...items];
+  }
+  return result;
 }
 
 export function AboutUsView({ content }: AboutUsViewProps) {
@@ -277,11 +285,12 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+              {/* Flex wrap container to automatically center orphan rows (Ref: Gambar No. 5) */}
+              <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
                 {activeStats.map((item) => (
                   <div
                     key={item.id}
-                    className="relative rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 text-center shadow-xs hover:shadow-md transition-all hover:-translate-y-1"
+                    className="w-[calc(50%-0.5rem)] sm:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.125rem)] min-w-[200px] max-w-xs relative rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 text-center shadow-xs hover:shadow-md transition-all hover:-translate-y-1 flex flex-col justify-center"
                   >
                     <div className="flex items-baseline justify-center gap-1 mb-2">
                       <span className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#0A4EA3] dark:text-blue-400 tracking-tight">
@@ -307,7 +316,7 @@ export function AboutUsView({ content }: AboutUsViewProps) {
         );
       }
 
-      // 4. VALUES / KEUNGGULAN SECTION
+      // 4. VALUES / KEUNGGULAN SECTION (Ref: Image No. 1 - Elevated Top-Tab Cards)
       case "values": {
         if (!values || !values.items || values.items.length === 0) return null;
         const activeValues = values.items.filter((item) => item.is_active !== false);
@@ -320,7 +329,7 @@ export function AboutUsView({ content }: AboutUsViewProps) {
             className="py-16 sm:py-24 border-b border-slate-200/70 dark:border-white/5"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+              <div className="text-center max-w-2xl mx-auto mb-14 sm:mb-20">
                 {values.tag && (
                   <span className="text-xs sm:text-sm font-bold tracking-wider uppercase text-[#0A4EA3] dark:text-blue-400 mb-2 block">
                     {values.tag}
@@ -336,30 +345,40 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {/* 3-Column Grid with Top Protruding Tab Icon Badges (Ref: Image No. 1) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-12 sm:gap-y-14 gap-x-6 sm:gap-x-8 pt-4">
                 {activeValues.map((val) => (
                   <div
                     key={val.id}
-                    className="group relative rounded-2xl sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-6 sm:p-7 shadow-xs hover:shadow-xl hover:border-blue-500/40 transition-all duration-300 flex flex-col justify-between"
+                    className="group relative rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-white/10 pt-11 pb-7 px-6 sm:px-7 shadow-xs hover:shadow-xl hover:border-primary/40 transition-all duration-300 flex flex-col items-center text-center justify-between"
                   >
-                    <div>
-                      <div className="flex items-center justify-between mb-5">
-                        <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 text-[#0A4EA3] dark:text-blue-400 flex items-center justify-center shadow-xs group-hover:scale-110 group-hover:bg-[#0A4EA3] group-hover:text-white transition-all duration-300">
-                          {renderDynamicIcon(val.icon, "h-6 w-6")}
-                        </div>
-                        {val.badge && (
-                          <span className="rounded-full bg-slate-100 dark:bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                            {val.badge}
-                          </span>
-                        )}
+                    {/* Protruding Top Icon Tab Badge (Ref: Image No. 1) */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2">
+                      <div className="size-14 sm:size-15 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-white/10 shadow-md flex items-center justify-center text-primary dark:text-blue-400 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                        {renderDynamicIcon(val.icon, "size-6")}
                       </div>
+                    </div>
 
-                      <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-[#0A4EA3] dark:group-hover:text-blue-400 transition-colors">
+                    <div className="w-full flex flex-col items-center">
+                      {val.badge && (
+                        <span className="inline-block rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#0A4EA3] dark:text-blue-400 border border-blue-200/60 dark:border-blue-900/60 px-3 py-0.5 text-[11px] font-bold tracking-wide mb-3">
+                          {val.badge}
+                        </span>
+                      )}
+
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-2 leading-snug group-hover:text-[#0A4EA3] dark:group-hover:text-blue-400 transition-colors">
                         {val.title}
                       </h3>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-[280px]">
                         {val.description}
                       </p>
+                    </div>
+
+                    {/* Circular Action Arrow at Bottom (Ref: Image No. 1) */}
+                    <div className="mt-6 pt-2">
+                      <div className="size-9 rounded-full border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 flex items-center justify-center text-slate-600 dark:text-slate-300 group-hover:bg-[#0A4EA3] group-hover:text-white group-hover:border-[#0A4EA3] group-hover:scale-110 transition-all duration-300 shadow-2xs">
+                        <ArrowRight className="size-4 group-hover:translate-x-0.5 transition-transform" />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -369,17 +388,28 @@ export function AboutUsView({ content }: AboutUsViewProps) {
         );
       }
 
-      // 5. BRANDS & TECHNOLOGY SECTION
+      // 5. BRANDS & TECHNOLOGY SECTION (Continuous Dual-Row Moving Marquee)
       case "brands": {
         if (!brands || !brands.items || brands.items.length === 0) return null;
         const activeBrands = brands.items.filter((item) => item.is_active !== false);
         if (activeBrands.length === 0) return null;
 
+        const rawRow1 = activeBrands.filter((_, idx) => idx % 2 === 0);
+        const rawRow2 = activeBrands.filter((_, idx) => idx % 2 === 1);
+        const baseRow1 = rawRow1.length > 0 ? rawRow1 : activeBrands;
+        const baseRow2 = rawRow2.length > 0 ? rawRow2 : activeBrands;
+
+        const filledRow1 = repeatToFill(baseRow1, 6);
+        const filledRow2 = repeatToFill(baseRow2, 6);
+
+        const track1 = [...filledRow1, ...filledRow1];
+        const track2 = [...filledRow2, ...filledRow2];
+
         return (
           <section
             key="brands"
             aria-label="Brand & Merek Mitra Resmi"
-            className="py-16 sm:py-20 bg-[#F8F9FA]/60 dark:bg-slate-950/40 border-b border-slate-200/70 dark:border-white/5"
+            className="py-16 sm:py-20 bg-[#F8F9FA]/60 dark:bg-slate-950/40 border-b border-slate-200/70 dark:border-white/5 overflow-hidden"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-14">
@@ -398,45 +428,88 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-                {activeBrands.map((b) => (
-                  <div
-                    key={b.id}
-                    className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all hover:scale-[1.01]"
-                  >
-                    <div>
-                      {b.logo_url && (
-                        <div className="relative h-10 w-28 mb-3">
-                          <Image
-                            src={b.logo_url}
-                            alt={b.name}
-                            fill
-                            unoptimized
-                            className="object-contain object-left"
-                          />
-                        </div>
+              {/* Dual-Row Animated Marquee (Alternating continuous movement) */}
+              <div className="marquee-container relative space-y-4 sm:space-y-5 overflow-hidden py-2">
+                {/* Subtle gradient edges for smooth fade effect */}
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-28 bg-gradient-to-r from-[#F8F9FA] dark:from-slate-950 to-transparent z-10" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-28 bg-gradient-to-l from-[#F8F9FA] dark:from-slate-950 to-transparent z-10" />
+
+                {/* Row 1: Moves Left */}
+                <div className="flex w-max gap-4 sm:gap-5 animate-marquee-left">
+                  {track1.map((b, idx) => (
+                    <div
+                      key={`r1-${b.id}-${idx}`}
+                      className="w-[280px] sm:w-[320px] shrink-0 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 flex flex-col justify-between shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-300"
+                    >
+                      <div>
+                        {b.logo_url && (
+                          <div className="relative h-9 w-28 mb-3">
+                            <Image
+                              src={b.logo_url}
+                              alt={b.name}
+                              fill
+                              unoptimized
+                              className="object-contain object-left"
+                            />
+                          </div>
+                        )}
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          {b.name}
+                        </h3>
+                        <p className="text-xs font-semibold text-[#0A4EA3] dark:text-blue-400 mt-0.5">
+                          {b.category}
+                        </p>
+                      </div>
+                      {b.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-slate-100 dark:border-white/5 leading-snug line-clamp-2">
+                          {b.description}
+                        </p>
                       )}
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                        {b.name}
-                      </h3>
-                      <p className="text-xs font-medium text-[#0A4EA3] dark:text-blue-400 mt-0.5">
-                        {b.category}
-                      </p>
                     </div>
-                    {b.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-slate-100 dark:border-white/5 leading-snug">
-                        {b.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
+
+                {/* Row 2: Moves Right */}
+                <div className="flex w-max gap-4 sm:gap-5 animate-marquee-right">
+                  {track2.map((b, idx) => (
+                    <div
+                      key={`r2-${b.id}-${idx}`}
+                      className="w-[280px] sm:w-[320px] shrink-0 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 flex flex-col justify-between shadow-xs hover:shadow-md hover:border-primary/40 transition-all duration-300"
+                    >
+                      <div>
+                        {b.logo_url && (
+                          <div className="relative h-9 w-28 mb-3">
+                            <Image
+                              src={b.logo_url}
+                              alt={b.name}
+                              fill
+                              unoptimized
+                              className="object-contain object-left"
+                            />
+                          </div>
+                        )}
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          {b.name}
+                        </h3>
+                        <p className="text-xs font-semibold text-[#0A4EA3] dark:text-blue-400 mt-0.5">
+                          {b.category}
+                        </p>
+                      </div>
+                      {b.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-slate-100 dark:border-white/5 leading-snug line-clamp-2">
+                          {b.description}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
         );
       }
 
-      // 6. PROCESS / LAYANAN SECTION
+      // 6. PROCESS / LAYANAN SECTION (Interconnected Workflow - Ref: Image No. 3)
       case "process": {
         if (!processSection || !processSection.steps || processSection.steps.length === 0) return null;
         const activeSteps = processSection.steps.filter((s) => s.is_active !== false);
@@ -449,7 +522,7 @@ export function AboutUsView({ content }: AboutUsViewProps) {
             className="py-16 sm:py-24 border-b border-slate-200/70 dark:border-white/5"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+              <div className="text-center max-w-2xl mx-auto mb-14 sm:mb-20">
                 {processSection.tag && (
                   <span className="text-xs sm:text-sm font-bold tracking-wider uppercase text-[#0A4EA3] dark:text-blue-400 mb-2 block">
                     {processSection.tag}
@@ -465,30 +538,46 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 sm:gap-6 relative">
+              {/* Interconnected Workflow (Ref: Image No. 3) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-4 relative">
                 {activeSteps.map((step, idx) => (
-                  <div
-                    key={step.id}
-                    className="relative rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 sm:p-6 shadow-xs flex flex-col justify-between hover:shadow-md transition-all hover:-translate-y-1"
-                  >
-                    <div>
-                      {/* Step number badge */}
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs font-black tracking-wider uppercase px-2.5 py-1 rounded-md bg-[#0A4EA3]/10 dark:bg-blue-400/10 text-[#0A4EA3] dark:text-blue-400 border border-blue-200/50 dark:border-blue-900/50">
-                          {step.step_number || `0${idx + 1}`}
-                        </span>
-                        <div className="text-slate-400 dark:text-slate-500">
-                          {renderDynamicIcon(step.icon, "h-5 w-5")}
-                        </div>
+                  <div key={step.id} className="group relative flex flex-col items-center">
+                    {/* Connecting Line with Arrow to Next Step (Desktop: Horizontal) */}
+                    {idx < activeSteps.length - 1 && (
+                      <div className="hidden lg:flex items-center absolute top-10 left-[calc(50%+2.75rem)] w-[calc(100%-5.5rem)] pointer-events-none z-0">
+                        <div className="h-0.5 w-full bg-gradient-to-r from-[#0A4EA3]/30 via-[#0A4EA3]/60 to-[#0A4EA3]/30 border-b border-dashed border-[#0A4EA3]/40" />
+                        <ArrowRight className="size-4 text-[#0A4EA3] dark:text-blue-400 shrink-0 -ml-1 stroke-[2.5]" />
                       </div>
+                    )}
 
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 leading-snug">
+                    {/* Step Node Circle (Ref: Image No. 3) */}
+                    <div className="relative mb-5 z-10">
+                      <div className="size-20 sm:size-22 rounded-full border-2 border-[#0A4EA3]/25 dark:border-blue-400/30 bg-white dark:bg-slate-900 shadow-sm flex items-center justify-center text-[#0A4EA3] dark:text-blue-400 group-hover:scale-110 group-hover:border-[#0A4EA3] group-hover:bg-[#0A4EA3] group-hover:text-white transition-all duration-300">
+                        {renderDynamicIcon(step.icon, "size-8")}
+                      </div>
+                      {/* Step Number Badge */}
+                      <span className="absolute -top-1.5 -right-1.5 size-7 rounded-full bg-[#0A4EA3] text-white text-xs font-black flex items-center justify-center shadow-xs border-2 border-white dark:border-slate-900">
+                        {step.step_number || `0${idx + 1}`}
+                      </span>
+                    </div>
+
+                    {/* Step Card / Text Content */}
+                    <div className="w-full rounded-2xl bg-white/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/10 p-5 shadow-2xs group-hover:shadow-md group-hover:border-[#0A4EA3]/40 transition-all duration-300 flex-1 flex flex-col text-center">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 leading-snug group-hover:text-[#0A4EA3] dark:group-hover:text-blue-400 transition-colors">
                         {step.title}
                       </h3>
-                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                         {step.description}
                       </p>
                     </div>
+
+                    {/* Mobile Connecting Line Downward */}
+                    {idx < activeSteps.length - 1 && (
+                      <div className="lg:hidden flex flex-col items-center my-3 text-[#0A4EA3]/40 pointer-events-none">
+                        <div className="w-0.5 h-6 border-l-2 border-dashed border-[#0A4EA3]/40" />
+                        <ArrowRight className="size-4 rotate-90 text-[#0A4EA3] dark:text-blue-400 -mt-1 stroke-[2.5]" />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -540,13 +629,13 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 </div>
               )}
 
-              {/* Team Members List */}
+              {/* Team Members List - Centered Flex Layout */}
               {members.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="flex flex-wrap justify-center gap-6">
                   {members.map((member) => (
                     <div
                       key={member.id}
-                      className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-5 text-center shadow-xs hover:shadow-md transition-all hover:scale-[1.02]"
+                      className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)] max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 p-6 text-center shadow-xs hover:shadow-md transition-all hover:scale-[1.02] flex flex-col items-center justify-between"
                     >
                       {member.photo_url ? (
                         <div className="relative mx-auto h-24 w-24 rounded-full overflow-hidden mb-4 border-2 border-[#0A4EA3]/20 shadow-xs">
@@ -583,71 +672,115 @@ export function AboutUsView({ content }: AboutUsViewProps) {
         );
       }
 
-      // 8. CTA SECTION
+      // 8. CTA SECTION (Split Human-Centric Layout - Ref: Screenshot 2)
       case "cta": {
         if (!cta) return null;
+
+        const defaultConsultationImage = "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?q=80&w=1200&auto=format&fit=crop";
+        const ctaImage = cta.image_url || defaultConsultationImage;
+        const badge1 = cta.badge_1 || "Rekomendasi Spesifikasi Tepat Sesuai Budget";
+        const badge2 = cta.badge_2 || "100% Unit Baru, Segel & Bergaransi Resmi";
+        const badge3 = cta.badge_3 || "Konsultasi Gratis & Layanan Purna Jual Terpercaya";
 
         return (
           <section
             key="cta"
             aria-label="Hubungi Kami & Konsultasi"
-            className="py-16 sm:py-24"
+            className="py-12 sm:py-16"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0A4EA3] via-[#0D5BBF] to-[#1E3A8A] text-white p-8 sm:p-12 lg:p-16 shadow-2xl">
-                {/* Decorative background glows */}
-                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/3 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
+              {/* Outer Card with Split Layout */}
+              <div className="relative overflow-hidden rounded-3xl bg-[#0A4EA3] text-white shadow-xl grid grid-cols-1 lg:grid-cols-12">
+                {/* Left Side: Authentic Specialist Photo */}
+                <div className="lg:col-span-5 relative min-h-[300px] sm:min-h-[380px] lg:min-h-full overflow-hidden bg-slate-900">
+                  <Image
+                    src={ctaImage}
+                    alt="Konsultasi Perangkat Komputer"
+                    fill
+                    unoptimized
+                    className="object-cover object-center"
+                  />
+                  {/* Subtle decorative dot-matrix accent (Ref: Screenshot 2) */}
+                  <div className="absolute bottom-5 right-5 grid grid-cols-6 gap-1.5 opacity-40 pointer-events-none">
+                    {Array.from({ length: 24 }).map((_, i) => (
+                      <span key={i} className="size-1 rounded-full bg-white block" />
+                    ))}
+                  </div>
+                </div>
 
-                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                  <div className="lg:col-span-8">
-                    {cta.tag && (
-                      <span className="inline-block rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1 text-xs font-bold tracking-wider uppercase text-blue-100 mb-3 border border-white/20">
-                        {cta.tag}
+                {/* Right Side: Deep Blue Card Content */}
+                <div className="lg:col-span-7 p-7 sm:p-10 lg:p-12 flex flex-col justify-center">
+                  {cta.tag && (
+                    <span className="inline-block self-start rounded-full bg-white/15 px-3.5 py-1 text-[11px] font-bold tracking-wider uppercase text-blue-100 border border-white/20 mb-3.5">
+                      {cta.tag}
+                    </span>
+                  )}
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white mb-3 leading-tight">
+                    {cta.title}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed max-w-xl mb-6">
+                    {cta.description}
+                  </p>
+
+                  {/* 3 Circular Badge Value Items (Ref: Screenshot 2) */}
+                  <div className="space-y-3 mb-8">
+                    <div className="flex items-center gap-3">
+                      <div className="size-6 sm:size-7 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                        <CheckCircle2 className="size-3.5 sm:size-4 stroke-[2.5]" />
+                      </div>
+                      <span className="text-xs sm:text-sm font-semibold text-white/95">
+                        {badge1}
                       </span>
-                    )}
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white mb-4 leading-tight">
-                      {cta.title}
-                    </h2>
-                    <p className="text-sm sm:text-base text-blue-100/90 leading-relaxed max-w-2xl mb-8">
-                      {cta.description}
-                    </p>
-
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                      {cta.primary_button_label && (
-                        <Link
-                          href={cta.primary_button_url || "/products"}
-                          target={cta.primary_button_url?.startsWith("http") ? "_blank" : undefined}
-                          rel={cta.primary_button_url?.startsWith("http") ? "noopener noreferrer" : undefined}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#0A4EA3] hover:bg-blue-50 px-6 py-3.5 text-sm sm:text-base font-bold shadow-lg transition-all hover:scale-[1.02]"
-                        >
-                          <span>{cta.primary_button_label}</span>
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      )}
-
-                      {cta.secondary_button_label && (
-                        <Link
-                          href={cta.secondary_button_url || "/products"}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/30 backdrop-blur-sm px-6 py-3.5 text-sm sm:text-base font-semibold transition-all hover:scale-[1.02]"
-                        >
-                          <span>{cta.secondary_button_label}</span>
-                        </Link>
-                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="size-6 sm:size-7 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                        <CheckCircle2 className="size-3.5 sm:size-4 stroke-[2.5]" />
+                      </div>
+                      <span className="text-xs sm:text-sm font-semibold text-white/95">
+                        {badge2}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="size-6 sm:size-7 rounded-full bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs">
+                        <CheckCircle2 className="size-3.5 sm:size-4 stroke-[2.5]" />
+                      </div>
+                      <span className="text-xs sm:text-sm font-semibold text-white/95">
+                        {badge3}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Direct Contact Info Box */}
-                  <div className="lg:col-span-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-5 sm:p-6 text-xs sm:text-sm space-y-3.5">
-                    <p className="text-xs uppercase tracking-wider text-blue-200 font-bold mb-1">
-                      Kontak Langsung
-                    </p>
+                  {/* High-Contrast CTA Buttons */}
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                    {cta.primary_button_label && (
+                      <Link
+                        href={cta.primary_button_url || "/products"}
+                        target={cta.primary_button_url?.startsWith("http") ? "_blank" : undefined}
+                        rel={cta.primary_button_url?.startsWith("http") ? "noopener noreferrer" : undefined}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 px-6 py-3.5 text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <span>{cta.primary_button_label}</span>
+                        <ArrowRight className="size-4" />
+                      </Link>
+                    )}
 
-                    {cta.contact_whatsapp && (
-                      <div className="flex items-start gap-3">
-                        <MessageSquare className="h-4 w-4 text-emerald-300 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[11px] text-blue-200">WhatsApp Resmi</p>
+                    {cta.secondary_button_label && (
+                      <Link
+                        href={cta.secondary_button_url || "/products"}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/25 px-5 py-3.5 text-xs sm:text-sm font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <span>{cta.secondary_button_label}</span>
+                      </Link>
+                    )}
+                  </div>
+
+                  {/* Direct Contact Bar (Subtle & clean at bottom) */}
+                  {(cta.contact_whatsapp || cta.contact_phone || cta.contact_address) && (
+                    <div className="mt-8 pt-5 border-t border-white/15 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-blue-100/90">
+                      {cta.contact_whatsapp && (
+                        <div className="inline-flex items-center gap-1.5">
+                          <span className="size-2 rounded-full bg-emerald-400" />
+                          <span>WA:</span>
                           <a
                             href={`https://wa.me/${cta.contact_whatsapp.replace(/[^0-9]/g, "")}`}
                             target="_blank"
@@ -657,14 +790,11 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                             {cta.contact_whatsapp}
                           </a>
                         </div>
-                      </div>
-                    )}
-
-                    {cta.contact_phone && (
-                      <div className="flex items-start gap-3">
-                        <Phone className="h-4 w-4 text-blue-200 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[11px] text-blue-200">Telepon Toko</p>
+                      )}
+                      {cta.contact_phone && (
+                        <div className="inline-flex items-center gap-1.5">
+                          <span className="size-2 rounded-full bg-blue-300" />
+                          <span>Telp:</span>
                           <a
                             href={`tel:${cta.contact_phone}`}
                             className="font-semibold text-white hover:underline"
@@ -672,36 +802,15 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                             {cta.contact_phone}
                           </a>
                         </div>
-                      </div>
-                    )}
-
-                    {cta.contact_email && (
-                      <div className="flex items-start gap-3">
-                        <Mail className="h-4 w-4 text-blue-200 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[11px] text-blue-200">Email Layanan</p>
-                          <a
-                            href={`mailto:${cta.contact_email}`}
-                            className="font-semibold text-white hover:underline break-all"
-                          >
-                            {cta.contact_email}
-                          </a>
+                      )}
+                      {cta.contact_address && (
+                        <div className="inline-flex items-center gap-1.5 text-white/80">
+                          <MapPin className="size-3 text-rose-300 shrink-0" />
+                          <span className="truncate max-w-[240px] sm:max-w-[320px]">{cta.contact_address}</span>
                         </div>
-                      </div>
-                    )}
-
-                    {cta.contact_address && (
-                      <div className="flex items-start gap-3 pt-1 border-t border-white/15">
-                        <MapPin className="h-4 w-4 text-rose-300 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-[11px] text-blue-200">Alamat Toko</p>
-                          <p className="font-medium text-white/95 text-xs leading-snug">
-                            {cta.contact_address}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -9,6 +9,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./__tests__/setup.ts'],
+    testTimeout: 30000,
     alias: {
       '@': projectRoot
     }

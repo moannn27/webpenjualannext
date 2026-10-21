@@ -10,7 +10,10 @@ import { buildProductJsonLd } from "@/lib/seo";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await getProductByIdAction(id).catch(() => null);
+  const product = await getProductByIdAction(id).catch((err) => {
+    console.error('Product fetch error for ID:', id, err);
+    return null;
+  });
   if (!product) return { title: "Produk Tidak Ditemukan" };
   const imageUrl = product.product_images?.[0]?.url;
   const title = product.name;
@@ -41,7 +44,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await getProductByIdAction(id).catch(() => null);
+  const product = await getProductByIdAction(id).catch((err) => {
+    console.error('Product fetch error for ID:', id, err);
+    return null;
+  });
 
   if (!product) {
     notFound();

@@ -284,13 +284,23 @@ export class ProductRepository extends BaseRepository {
     const supabase = await this.getClient()
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     if (isUuid) {
+      // 1. Try full join including product_variants
       const { data, error } = await supabase
         .from('products')
         .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
         .eq('id', id)
         .maybeSingle()
       if (data) return data
-      if (error && error.code !== 'PGRST116') throw error
+
+      // 2. Resilient fallback without product_variants if relationship was unresolvable
+      if (error && error.code !== 'PGRST116') {
+        const { data: fallbackData } = await supabase
+          .from('products')
+          .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+          .eq('id', id)
+          .maybeSingle()
+        if (fallbackData) return { ...fallbackData, product_variants: [] }
+      }
     }
 
     // Fallback: try lookup by slug in case URL is /product/<slug>
@@ -300,7 +310,15 @@ export class ProductRepository extends BaseRepository {
       .eq('slug', id)
       .maybeSingle()
     if (bySlug) return bySlug
-    if (slugErr && slugErr.code !== 'PGRST116') throw slugErr
+
+    if (slugErr && slugErr.code !== 'PGRST116') {
+      const { data: fbSlug } = await supabase
+        .from('products')
+        .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+        .eq('slug', id)
+        .maybeSingle()
+      if (fbSlug) return { ...fbSlug, product_variants: [] }
+    }
 
     return null
   }
@@ -312,8 +330,16 @@ export class ProductRepository extends BaseRepository {
       .select('id, stock, status, product_variants(id, stock)')
       .eq('id', id)
       .maybeSingle()
-    if (error) throw error
-    return data
+    if (!error && data) return data
+
+    // Fallback if product_variants is unavailable or throws relation error
+    const { data: baseData, error: baseErr } = await supabase
+      .from('products')
+      .select('id, stock, status')
+      .eq('id', id)
+      .maybeSingle()
+    if (baseErr && baseErr.code !== 'PGRST116') throw baseErr
+    return baseData ? { ...baseData, product_variants: [] } : null
   }
   
   async search(queryStr: string) {

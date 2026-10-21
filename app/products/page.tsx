@@ -102,44 +102,40 @@ export default async function ProductsPage({ searchParams }: {
           )}
         </nav>
 
-        {/* Hero Banner Card */}
-        <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-6 sm:p-8 shadow-xs">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-primary/10 blur-3xl dark:bg-primary/20" />
-          <div className="pointer-events-none absolute -left-12 -bottom-12 size-48 rounded-full bg-blue-500/10 blur-2xl dark:bg-blue-500/20" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        {/* Natural & Grounded Catalog Banner Card (No Glossy AI Look) */}
+        <div className="rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1E2028] p-6 sm:p-8 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="space-y-3 max-w-2xl">
-              <div className="flex items-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-xs">
-                  <Layers className="size-6" />
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/10 text-primary shrink-0">
+                  <Layers className="size-5" />
                 </div>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-                  <Sparkles className="size-3" />
-                  <span>Katalog Resmi Next Solution</span>
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-primary dark:text-blue-400">
+                  Katalog Resmi Next Solution
+                </span>
               </div>
 
               <div>
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {pageTitle}
                 </h1>
-                <p className="mt-1.5 text-sm sm:text-base text-muted-foreground leading-relaxed">
+                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                   {pageSubtitle}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2.5 shrink-0">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-background/80 px-3.5 py-2 text-xs font-medium text-foreground backdrop-blur-xs shadow-2xs">
-                <Package className="size-4 text-primary" />
+            <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 shrink-0">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs">
+                <Package className="size-3.5 text-primary" />
                 <span>{result.total} Produk Ditemukan</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-background/80 px-3.5 py-2 text-xs font-medium text-foreground backdrop-blur-xs shadow-2xs">
-                <ShieldCheck className="size-4 text-emerald-500" />
+              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs">
+                <ShieldCheck className="size-3.5 text-emerald-600" />
                 <span>100% Produk Original</span>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-background/80 px-3.5 py-2 text-xs font-medium text-foreground backdrop-blur-xs shadow-2xs">
-                <Zap className="size-4 text-amber-500" />
+              <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/80 dark:bg-white/5 px-3.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs">
+                <Zap className="size-3.5 text-amber-500" />
                 <span>Garansi Resmi Distributor</span>
               </div>
             </div>

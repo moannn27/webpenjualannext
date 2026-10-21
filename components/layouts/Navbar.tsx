@@ -327,21 +327,21 @@ export function Navbar({
           {/* Search, Actions */}
           <div className="relative flex min-w-0 flex-1 items-center justify-end gap-3 lg:flex-none lg:w-auto">
             <form onSubmit={submitSearch} className="relative hidden w-full max-w-sm items-center sm:flex lg:w-72 xl:w-80">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
               <Input
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Cari produk atau spesifikasi..."
-                className="w-full bg-muted/50 border-none pl-9 rounded-full focus-visible:ring-1 focus-visible:ring-primary/50 transition-all duration-200"
+                className="w-full bg-white dark:bg-[#1A1C23] border border-slate-300/90 dark:border-white/20 pl-9 rounded-full text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 shadow-2xs transition-all duration-200"
               />
             </form>
 
             <Button variant="ghost" size="icon" className="rounded-full sm:hidden" aria-label="Cari produk" aria-expanded={mobileSearchOpen} onClick={() => setMobileSearchOpen((open) => !open)}>
               <Search className="size-5" />
             </Button>
-            {mobileSearchOpen && <form onSubmit={submitSearch} className="absolute left-0 right-0 top-14 z-50 flex items-center rounded-full bg-background p-2 shadow-lg sm:hidden">
-              <Input autoFocus type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari produk..." aria-label="Cari produk" className="border-none bg-muted/50" />
+            {mobileSearchOpen && <form onSubmit={submitSearch} className="absolute left-0 right-0 top-14 z-50 flex items-center rounded-full bg-background border border-slate-300 dark:border-white/20 p-2 shadow-lg sm:hidden">
+              <Input autoFocus type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari produk..." aria-label="Cari produk" className="border-none bg-transparent" />
               <Button type="submit" size="sm" className="ml-2 rounded-full">Cari</Button>
             </form>}
             

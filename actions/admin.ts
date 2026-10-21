@@ -1102,6 +1102,7 @@ export async function saveAdminProductAction(formData: FormData) {
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true }
 }
@@ -1297,6 +1298,7 @@ export async function bulkImportAdminProductsAction(products: unknown) {
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true, count: importedCount }
 }
@@ -1320,6 +1322,7 @@ export async function deleteAdminProductAction(productId: string) {
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true }
 }
@@ -1352,6 +1355,7 @@ export async function bulkUpdateAdminProductsStatusAction(
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true, count: productIds.length }
 }
@@ -1414,6 +1418,7 @@ export async function bulkUpdateAdminProductsAction(
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true, count: productIds.length }
 }
@@ -1442,6 +1447,7 @@ export async function bulkDeleteAdminProductsAction(productIds: string[]) {
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
   return { success: true, count: productIds.length }
 }
@@ -1574,7 +1580,7 @@ export async function getLandingContentAction() {
 }
 
 export async function saveStorefrontSettingsAction(settings: unknown) {
-  const { user, adminName } = await requireSuperAdmin()
+  const { user, adminName, isSuperAdmin, role } = await requireModulePermission('content')
   if (!settings || typeof settings !== 'object' || JSON.stringify(settings).length > 100000) throw new Error('Pengaturan toko tidak valid.')
   const catalogPageSize = (settings as { admin?: { catalogPageSize?: unknown } }).admin?.catalogPageSize
   if (catalogPageSize !== undefined && ![24, 48, 100, 200].includes(Number(catalogPageSize))) throw new Error('Jumlah produk per halaman harus 24, 48, 100, atau 200.')
@@ -1673,7 +1679,21 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
     }
   }
   const supabase = await createClient()
-  const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings }, { onConflict: 'id' })
+  let settingsToSave = settings as Record<string, unknown>
+  if (!isSuperAdmin) {
+    const { data: existingData } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
+    const existingSettings = (existingData?.settings && typeof existingData.settings === 'object') ? existingData.settings as Record<string, unknown> : {}
+    settingsToSave = {
+      ...settingsToSave,
+      admin_permissions: existingSettings.admin_permissions,
+      admin: {
+        ...(settingsToSave.admin as Record<string, unknown> || {}),
+        catalogPageSize: (existingSettings.admin as Record<string, unknown>)?.catalogPageSize ?? 24,
+      },
+    }
+  }
+
+  const { error } = await supabase.from('storefront_settings').upsert({ id: 'main', settings: settingsToSave }, { onConflict: 'id' })
   if (error) throw new Error(error.message)
 
   // Sinkronisasi status is_new_arrival dan is_best_seller pada tabel products
@@ -1696,11 +1716,11 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
-    admin_role: 'super_admin',
+    admin_role: role || (isSuperAdmin ? 'super_admin' : 'admin'),
     action: 'update',
     entity_type: 'settings',
-    entity_name: 'Pengaturan Toko',
-    details: 'Memperbarui pengaturan storefront, cabang, dan official marketplace',
+    entity_name: 'Pengaturan Toko & Faktur',
+    details: 'Memperbarui pengaturan storefront, faktur penjualan, cabang, dan official marketplace',
   })
 
   revalidatePath('/')
@@ -1709,6 +1729,7 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
   revalidatePath('/checkout')
   revalidatePath('/cart')
   revalidatePath('/products')
+  revalidatePath('/orders/[id]/invoice', 'page')
   return { success: true }
 }
 

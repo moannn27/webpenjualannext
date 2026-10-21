@@ -33,10 +33,10 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
   return (
     <section
       aria-label="Tentang Kami - Next Solution Store"
-      className={`relative overflow-hidden py-14 sm:py-18 lg:py-22 border-t border-slate-200/80 dark:border-white/5 bg-gradient-to-b from-slate-50/60 via-white to-slate-50/30 dark:from-slate-950/40 dark:via-background dark:to-slate-950/30 ${className}`}
+      className={`container mx-auto px-4 sm:px-6 lg:px-8 ${className}`}
     >
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-12 shadow-sm border border-slate-100 dark:border-white/5 relative overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           {/* Text & Content Column */}
           <div className="lg:col-span-6 flex flex-col justify-center">
             {badge && (

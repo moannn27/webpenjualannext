@@ -1667,6 +1667,61 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
               />
             </div>
 
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Foto Konsultan / Banner CTA (URL Gambar)
+              </label>
+              <Input
+                value={content.cta.image_url ?? ""}
+                onChange={(e) =>
+                  updateContent("cta", { ...content.cta, image_url: e.target.value })
+                }
+                placeholder="https://images.unsplash.com/..."
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Foto konsultan atau showroom di sisi kiri banner CTA (split layout modern).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Poin Keunggulan 1
+              </label>
+              <Input
+                value={content.cta.badge_1 ?? ""}
+                onChange={(e) =>
+                  updateContent("cta", { ...content.cta, badge_1: e.target.value })
+                }
+                placeholder="Rekomendasi Spesifikasi Tepat Sesuai Budget"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Poin Keunggulan 2
+              </label>
+              <Input
+                value={content.cta.badge_2 ?? ""}
+                onChange={(e) =>
+                  updateContent("cta", { ...content.cta, badge_2: e.target.value })
+                }
+                placeholder="100% Unit Baru, Segel & Bergaransi Resmi"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Poin Keunggulan 3
+              </label>
+              <Input
+                value={content.cta.badge_3 ?? ""}
+                onChange={(e) =>
+                  updateContent("cta", { ...content.cta, badge_3: e.target.value })
+                }
+                placeholder="Konsultasi Gratis & Layanan Purna Jual Terpercaya"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Label Tombol Utama

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { Heart, Package, Trash2 } from "lucide-react";
+import { Heart, Trash2, ArrowRight } from "lucide-react";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { Button } from "@/components/ui/button";
+import { ProductCard } from "@/components/shared/ProductCard";
+import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 
 type WishlistItem = {
   id: string;
@@ -19,6 +20,7 @@ type WishlistItem = {
     product_images?: { url: string; is_primary?: boolean }[];
     product_specifications?: { key: string; value: string; display_order?: number | null }[];
     brands?: { name: string } | null;
+    stock?: number;
   } | null;
 };
 
@@ -40,36 +42,92 @@ export function WishlistClient({ initialWishlist }: { initialWishlist: WishlistI
     }
   }
 
-  return <main className="container mx-auto min-h-[60vh] px-4 py-12 sm:px-6 lg:px-8">
-    <h1 className="mb-2 text-3xl font-bold">Wishlist</h1>
-    <p className="mb-8 text-muted-foreground">Produk yang kamu simpan.</p>
-    {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-    {items.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{items.map((item) => {
-      const product = item.products;
-      if (!product) return null;
-      const images = [...(product.product_images ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
-      const imageUrl = product.image || images[0]?.url;
-      const specifications = [...(product.product_specifications ?? [])]
-        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
-        .slice(0, 3);
-      const extraSpecs = Math.max(0, (product.product_specifications?.length ?? 0) - specifications.length);
-      return <article key={item.id} className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-[88px_minmax(0,1fr)_auto] sm:gap-4 sm:p-5">
-        <Link href={`/product/${product.id}`} aria-label={`Lihat ${product.name}`} className="relative grid size-[72px] place-items-center overflow-hidden rounded-xl bg-muted/40 sm:size-[88px]">
-          {imageUrl ? <Image src={imageUrl} alt={product.name} fill sizes="(max-width: 640px) 72px, 88px" className="object-contain p-2" /> : <Package className="size-7 text-muted-foreground" aria-hidden="true" />}
-        </Link>
-        <Link href={`/product/${product.id}`} className="min-w-0 pt-0.5">
-          <span className="line-clamp-2 font-semibold hover:text-primary">{product.name}</span>
-          {product.brands?.name && <span className="mt-1 block text-sm text-muted-foreground">{product.brands.name}</span>}
-          <span className="mt-2 block font-bold">Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}</span>
-          {specifications.length > 0 && <span className="mt-2 flex flex-wrap gap-1.5">
-            {specifications.map((specification, index) => <span key={`${specification.key}-${index}`} className="min-w-0 max-w-full truncate rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">{specification.key}:</span> {specification.value}</span>)}
-            {extraSpecs > 0 && <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">+{extraSpecs} spek</span>}
-          </span>}
-        </Link>
-        <Button variant="ghost" size="icon" aria-label={`Hapus ${product.name} dari wishlist`} disabled={busyId === item.product_id} onClick={() => remove(item.product_id)}>
-          {busyId === item.product_id ? <Heart className="size-5 animate-pulse" /> : <Trash2 className="size-5 text-destructive" />}
-        </Button>
-      </article>;
-    })}</div> : <div className="rounded-2xl border border-border py-16 text-center"><Heart className="mx-auto mb-4 size-10 text-muted-foreground" /><p className="mb-5 text-muted-foreground">Wishlist kamu masih kosong.</p><Button render={<Link href="/products" />}>Jelajahi produk</Button></div>}
-  </main>;
+  return (
+    <main className="container mx-auto min-h-[60vh] px-4 py-8 sm:py-12 sm:px-6 lg:px-8">
+      {/* Outer Card Container */}
+      <div className="rounded-2xl sm:rounded-3xl bg-white dark:bg-[#1E2028] p-6 sm:p-8 lg:p-10 shadow-sm border border-slate-100 dark:border-white/5">
+        {/* Header Bar */}
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-100 dark:border-white/5">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Wishlist Saya
+            </h1>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Daftar produk pilihan yang kamu simpan ({items.length} item tersimpan).
+            </p>
+          </div>
+          {items.length > 0 && (
+            <Link
+              href="/products"
+              className="text-xs sm:text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              Lanjut belanja <ArrowRight className="size-4" />
+            </Link>
+          )}
+        </div>
+
+        {error && (
+          <div role="alert" className="mb-6 rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {items.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            {items.map((item) => {
+              const rawProduct = item.products;
+              if (!rawProduct) return null;
+
+              const storefrontProduct = toStorefrontProduct({
+                ...rawProduct,
+                stock: rawProduct.stock ?? 10,
+                categories: null,
+                brands: rawProduct.brands ?? null,
+                product_images: (rawProduct.product_images || []).map((img) => ({
+                  url: img.url,
+                  is_primary: Boolean(img.is_primary),
+                })),
+              } as unknown as StoreProduct);
+
+              return (
+                <div key={item.id} className="relative group/wishlist flex flex-col">
+                  <ProductCard product={storefrontProduct} />
+                  {/* Delete Button on top-right */}
+                  <button
+                    type="button"
+                    aria-label={`Hapus ${rawProduct.name} dari wishlist`}
+                    disabled={busyId === item.product_id}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void remove(item.product_id);
+                    }}
+                    className="absolute top-2.5 right-2.5 z-20 size-8 rounded-full bg-white/95 dark:bg-slate-900/95 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-slate-200/80 dark:border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-110 cursor-pointer disabled:opacity-50"
+                    title="Hapus dari Wishlist"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 py-16 text-center">
+            <div className="size-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+              <Heart className="size-8" />
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white mb-1">
+              Wishlist kamu masih kosong
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
+              Simpan produk yang kamu incar dengan menekan tombol hati saat menjelajahi katalog.
+            </p>
+            <Button render={<Link href="/products" />} className="rounded-xl px-6">
+              Jelajahi Produk
+            </Button>
+          </div>
+        )}
+      </div>
+    </main>
+  );
 }

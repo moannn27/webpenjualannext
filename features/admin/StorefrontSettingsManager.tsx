@@ -65,6 +65,7 @@ import {
   UserRound,
   Search,
   Package,
+  FileText,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
 
@@ -171,7 +172,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const router = useRouter();
 
   const [activeSettingsTab, setActiveSettingsTab] = useState<
-    "all" | "branding" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store"
+    "all" | "branding" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store" | "invoice"
   >("all");
   const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
   const [adminAvatarUrl, setAdminAvatarUrl] = useState("");
@@ -189,7 +190,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   useEffect(() => {
     const handleSwitch = (tab: string, shouldScroll = true) => {
       if (
-        ["all", "branding", "features", "sections", "marketplaces", "branches", "reviews", "store"].includes(tab)
+        ["all", "branding", "features", "sections", "marketplaces", "branches", "reviews", "store", "invoice"].includes(tab)
       ) {
         setActiveSettingsTab(tab as typeof activeSettingsTab);
         if (shouldScroll) {
@@ -366,6 +367,17 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
   const updateCatalogPageSize = (value: number) =>
     setSettings((current) => ({ ...current, admin: { ...current.admin, catalogPageSize: value } }));
+
+
+  const updateInvoice = <K extends keyof StorefrontSettings["invoice"]>(
+    field: K,
+    value: StorefrontSettings["invoice"][K]
+  ) =>
+    setSettings((current) => ({
+      ...current,
+      invoice: { ...current.invoice, [field]: value },
+    }));
+
 
   const uploadLogo = async (file: File, isForAdmin = false) => {
     try {
@@ -663,6 +675,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           { id: "branches", label: "Cabang & Peta", icon: MapPin },
           { id: "reviews", label: "Ulasan Produk", icon: Star },
           { id: "store", label: "Profil & Rekening", icon: Phone },
+          { id: "invoice", label: "Faktur & Komplain", icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSettingsTab === tab.id;
@@ -2910,6 +2923,111 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         </label>
       </div>
       </div>
+      )}
+
+      {/* Pengaturan Faktur Penjualan & Layanan Komplain */}
+      {(activeSettingsTab === "all" || activeSettingsTab === "invoice") && (
+        <div id="storefront-invoice-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <FileText className="size-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  Faktur Penjualan &amp; Komplain Pesanan
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Kelola subtitle faktur, catatan garansi, syarat komplain (unboxing), serta WhatsApp penanganan kendala pembeli.
+                </p>
+              </div>
+            </div>
+            <Button onClick={save} disabled={busy} size="sm" className="gap-1.5 shadow-sm">
+              <Save className="size-3.5" />
+              Simpan Pengaturan Faktur
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Sub-judul / Tagline Faktur (Header Kiri)
+              </label>
+              <Input
+                value={settings.invoice?.header_subtitle ?? ""}
+                onChange={(e) => updateInvoice("header_subtitle", e.target.value)}
+                placeholder="Pusat Komputer, Laptop & Solusi Elektronik Resmi"
+                className="rounded-xl"
+              />
+              <p className="text-xs text-muted-foreground">
+                Muncul di bawah nama toko pada header resmi faktur penjualan.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                WhatsApp Admin Penanganan Komplain
+              </label>
+              <Input
+                value={settings.invoice?.complaint_whatsapp ?? ""}
+                onChange={(e) => updateInvoice("complaint_whatsapp", e.target.value)}
+                placeholder="6281234567890"
+                className="rounded-xl font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nomor WhatsApp tujuan saat pembeli mengajukan komplain setelah pengiriman / pengambilan barang.
+              </p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Catatan Verifikasi &amp; Garansi (Kotak Note di Atas Total)
+              </label>
+              <textarea
+                rows={3}
+                value={settings.invoice?.guarantee_note ?? ""}
+                onChange={(e) => updateInvoice("guarantee_note", e.target.value)}
+                placeholder="Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi resmi dan administrasi perpajakan."
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Pesan jaminan keabsahan faktur yang ditampilkan untuk pesanan berstatus Lunas / Terverifikasi.
+              </p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Syarat &amp; Ketentuan Faktur (TERMS &amp; CONDITIONS/NOTE Footer)
+              </label>
+              <textarea
+                rows={3}
+                value={settings.invoice?.terms_note ?? ""}
+                onChange={(e) => updateInvoice("terms_note", e.target.value)}
+                placeholder="Simpan faktur fisik atau digital ini sebagai bukti sah transaksi dan garansi resmi. Garansi distributor berlaku dengan kondisi segel utuh. Wajib sertakan video unboxing lengkap saat pengajuan komplain."
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Ditampilkan pada kolom ketiga di bagian footer faktur penjualan.
+              </p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Petunjuk / Prosedur Komplain Pelanggan
+              </label>
+              <textarea
+                rows={2}
+                value={settings.invoice?.complaint_instructions ?? ""}
+                onChange={(e) => updateInvoice("complaint_instructions", e.target.value)}
+                placeholder="Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh."
+                className="w-full rounded-xl border border-input bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <p className="text-xs text-muted-foreground">
+                Panduan komplain yang tampil pada box bantuan pesanan pelanggan.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bottom Save Action Buttons */}

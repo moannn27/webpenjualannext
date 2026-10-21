@@ -39,6 +39,8 @@ const groups = [
 
 type FooterStoreSettings = {
   name?: string;
+  logo_url?: string;
+  logo_display_mode?: "both" | "logo_only" | "text_only";
   description: string;
   address: string;
   maps_url?: string;
@@ -79,6 +81,12 @@ export function Footer({
     !store.phone || store.phone === "1283017230891273"
       ? "+62 812-3456-7890"
       : store.phone;
+
+  const storeName = store.name || "Next Solution";
+  const logoUrl = store.logo_url || "";
+  const displayMode = store.logo_display_mode || "both";
+  const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
+  const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
 
   // Resolve active marketplaces
   const activeMarketplaces =
@@ -123,14 +131,20 @@ export function Footer({
           <div className={`grid gap-6 sm:gap-8 pb-8 border-b border-slate-100 dark:border-white/5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${columnsClass}`}>
             {/* 1. Store Brand & Value Props */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="size-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-base">
-                  NS
-                </div>
-                <Link href="/" className="text-2xl font-black tracking-tight text-foreground hover:text-primary transition-colors">
-                  {store.name || "Next Solution"}
-                </Link>
-              </div>
+              <Link href="/" className="inline-flex items-center gap-2.5">
+                {showLogo && (
+                  <img
+                    src={logoUrl}
+                    alt={storeName}
+                    className="h-9 max-w-[160px] object-contain"
+                  />
+                )}
+                {showText && (
+                  <span className="text-2xl font-bold tracking-tight text-primary">
+                    {storeName}
+                  </span>
+                )}
+              </Link>
               <p className="text-xs sm:text-sm leading-relaxed text-muted-foreground">{store.description}</p>
               
               <div className="pt-1 flex flex-col gap-2 text-xs">

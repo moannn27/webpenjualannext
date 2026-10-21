@@ -140,6 +140,10 @@ export type AboutCtaSection = {
   tag: string;
   title: string;
   description: string;
+  image_url?: string;
+  badge_1?: string;
+  badge_2?: string;
+  badge_3?: string;
   primary_button_label: string;
   primary_button_url: string;
   secondary_button_label: string;
@@ -594,6 +598,10 @@ export const DEFAULT_ABOUT_US_CONTENT: AboutUsContent = {
     tag: "KONSULTASI SEKARANG",
     title: "Siap Menemukan Laptop & Perangkat yang Paling Tepat?",
     description: "Diskusikan kebutuhan komputasi Anda bersama tim Next Solution atau langsung telusuri koleksi lengkap laptop bergaransi resmi kami hari ini.",
+    image_url: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?q=80&w=1200&auto=format&fit=crop",
+    badge_1: "Rekomendasi Spesifikasi Tepat Sesuai Budget",
+    badge_2: "100% Unit Baru, Segel & Bergaransi Resmi",
+    badge_3: "Konsultasi Gratis & Layanan Purna Jual Terpercaya",
     primary_button_label: "Tanya Kami via WhatsApp",
     primary_button_url: "https://wa.me/6281234567890?text=Halo%20Next%20Solution%2C%20saya%20tertarik%20ingin%20tanya%20pilihan%20laptop%20yang%20ready.",
     secondary_button_label: "Jelajahi Katalog Produk",
@@ -786,6 +794,10 @@ export function normalizeAboutUsContent(raw: unknown): AboutUsContent {
       tag: String(input.cta?.tag ?? DEFAULT_ABOUT_US_CONTENT.cta.tag).trim(),
       title: String(input.cta?.title ?? DEFAULT_ABOUT_US_CONTENT.cta.title).trim(),
       description: String(input.cta?.description ?? DEFAULT_ABOUT_US_CONTENT.cta.description).trim(),
+      image_url: typeof input.cta?.image_url === "string" && input.cta.image_url.trim() ? input.cta.image_url.trim() : DEFAULT_ABOUT_US_CONTENT.cta.image_url,
+      badge_1: typeof input.cta?.badge_1 === "string" && input.cta.badge_1.trim() ? input.cta.badge_1.trim() : DEFAULT_ABOUT_US_CONTENT.cta.badge_1,
+      badge_2: typeof input.cta?.badge_2 === "string" && input.cta.badge_2.trim() ? input.cta.badge_2.trim() : DEFAULT_ABOUT_US_CONTENT.cta.badge_2,
+      badge_3: typeof input.cta?.badge_3 === "string" && input.cta.badge_3.trim() ? input.cta.badge_3.trim() : DEFAULT_ABOUT_US_CONTENT.cta.badge_3,
       primary_button_label: String(input.cta?.primary_button_label ?? DEFAULT_ABOUT_US_CONTENT.cta.primary_button_label).trim(),
       primary_button_url: String(input.cta?.primary_button_url ?? DEFAULT_ABOUT_US_CONTENT.cta.primary_button_url).trim(),
       secondary_button_label: String(input.cta?.secondary_button_label ?? DEFAULT_ABOUT_US_CONTENT.cta.secondary_button_label).trim(),
