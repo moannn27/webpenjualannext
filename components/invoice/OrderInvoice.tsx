@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { formatDisplayPhone } from "@/lib/phone";
+import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
 
 export interface InvoiceOrderItem {
   id: string;
@@ -68,6 +69,11 @@ export interface InvoiceOrderData {
     pickup_location?: string;
     pickup_address?: string;
     fulfillment_change_note?: string;
+    customer_snapshot?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+    };
   } | null;
   order_items: InvoiceOrderItem[];
   payments?: InvoicePayment[];
@@ -217,10 +223,13 @@ export function OrderInvoice({
 
   const address = order.shipping_address;
   const isPickup = order.courier === "pickup";
-  const recipientName =
-    address?.recipient_name || order.users?.full_name || "Pelanggan";
-  const recipientPhone = address?.phone || order.users?.phone || "-";
-  const customerEmail = order.users?.email || null;
+  const customerIdentity = resolveOrderCustomerIdentity({
+    shippingAddress: address,
+    userProfile: order.users,
+  });
+  const recipientName = customerIdentity.name || "Nama tidak tercatat";
+  const recipientPhone = customerIdentity.phone || "-";
+  const customerEmail = customerIdentity.email;
 
   // Format date in Indonesian WIB (Asia/Jakarta)
   const orderDateObj = new Date(order.created_at);
@@ -515,7 +524,7 @@ export function OrderInvoice({
             </div>
 
             {/* Right: FAKTUR PENJUALAN Badge, Order #, Date WIB & Status Pills */}
-            <div className="text-left sm:text-right space-y-2 min-w-[260px]">
+            <div className="min-w-0 w-full space-y-2 text-left sm:w-auto sm:min-w-[260px] sm:text-right">
               {/* Badge "FAKTUR PENJUALAN" */}
               <div className="sm:flex sm:justify-end">
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200 print:text-[9px] print:py-0.5 print:px-2.5">
@@ -524,7 +533,7 @@ export function OrderInvoice({
               </div>
 
               {/* Order Number */}
-              <p className="text-lg sm:text-xl font-mono font-black text-slate-900 tracking-tight print:text-base">
+              <p className="break-all text-lg sm:text-xl font-mono font-black text-slate-900 tracking-tight print:text-base">
                 {order.order_number}
               </p>
 
@@ -581,7 +590,7 @@ export function OrderInvoice({
               {customerEmail && (
                 <p className="text-slate-600">
                   <span className="text-slate-500">Email:</span>{" "}
-                  <span className="text-slate-800">{customerEmail}</span>
+                  <span className="break-all text-slate-800">{customerEmail}</span>
                 </p>
               )}
             </div>
@@ -671,10 +680,10 @@ export function OrderInvoice({
                 return (
                   <div
                     key={item.id || index}
-                    className="invoice-item-row px-4 sm:px-6 py-4 flex items-start text-xs sm:text-sm hover:bg-slate-50/60 transition-colors print:py-2.5 print:text-[9.5px]"
+                    className="invoice-item-row grid grid-cols-[minmax(0,1fr)_4rem_2rem_4.5rem] items-start gap-2 px-3 py-4 text-[10px] hover:bg-slate-50/60 transition-colors sm:grid-cols-[minmax(0,1fr)_9rem_4rem_9rem] sm:gap-3 sm:px-6 sm:text-sm print:px-4 print:py-2.5 print:text-[9.5px]"
                   >
                     {/* Item Description Column */}
-                    <div className="flex-1 pr-4 space-y-1">
+                    <div className="min-w-0 space-y-1">
                       <p className="font-bold text-slate-900 text-sm sm:text-base leading-snug print:text-xs">
                         {liveTitle}
                       </p>
@@ -715,17 +724,17 @@ export function OrderInvoice({
                     </div>
 
                     {/* Unit Price */}
-                    <div className="w-28 sm:w-36 text-right font-semibold text-slate-800 pt-0.5 font-mono print:text-[9.5px]">
+                    <div className="break-words text-right font-semibold text-slate-800 pt-0.5 font-mono print:text-[9.5px]">
                       {formatRupiah(item.price)}
                     </div>
 
                     {/* Qnt */}
-                    <div className="w-14 sm:w-16 text-center font-bold text-slate-900 pt-0.5 print:text-[9.5px]">
+                    <div className="text-center font-bold text-slate-900 pt-0.5 print:text-[9.5px]">
                       {item.quantity}
                     </div>
 
                     {/* Total */}
-                    <div className="w-28 sm:w-36 text-right font-bold text-slate-900 pt-0.5 font-mono print:text-[9.5px]">
+                    <div className="break-words text-right font-bold text-slate-900 pt-0.5 font-mono print:text-[9.5px]">
                       {formatRupiah(item.price * item.quantity)}
                     </div>
                   </div>

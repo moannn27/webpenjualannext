@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Sparkles, MessagesSquare, CheckCircle2 } from "lucide-react";
+import { ArrowRight, MessagesSquare, CheckCircle2 } from "lucide-react";
 import type { AboutUsContent } from "@/lib/about-us";
 import { PhotoLayoutRenderer } from "@/components/shared/PhotoLayoutRenderer";
 
@@ -20,13 +20,19 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
 
   const badge = hero?.badge || "TENTANG NEXT SOLUTION STORE";
   const title = story?.title || hero?.title || "Solusi Terpercaya untuk Kebutuhan Laptop & Teknologi Anda";
-  const subtitle = hero?.subtitle || "Authorized Laptop & Technology Partner";
+  const subtitle = hero?.subtitle || "Next Solution Store";
   const description =
     story?.story_paragraphs?.[0] ||
     hero?.description ||
     "Next Solution Store menyediakan laptop bisnis, gaming, PC all-in-one, dan perangkat komputasi 100% original bergaransi resmi dengan konsultasi spesifikasi jujur dan layanan purna jual andal.";
 
-  const photoLayout = hero?.photo_layout || story?.photo_layout;
+  const configuredPhotoLayout = hero?.photo_layout || story?.photo_layout;
+  const photoClaims = [configuredPhotoLayout?.badge_text, configuredPhotoLayout?.badge_subtext]
+    .map((claim) => claim?.replace(/^[\s⭐✨🌟★☆]+/u, "").trim())
+    .filter((claim): claim is string => Boolean(claim));
+  const photoLayout = configuredPhotoLayout
+    ? { ...configuredPhotoLayout, badge_text: undefined, badge_subtext: undefined }
+    : null;
   const activeStats = (stats?.items || []).filter((s) => s.is_active).slice(0, 4);
   const coreValues = (story?.core_values || []).slice(0, 3);
 
@@ -40,10 +46,9 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
           {/* Text & Content Column */}
           <div className="lg:col-span-6 flex flex-col justify-center">
             {badge && (
-              <div className="inline-flex items-center gap-2 self-start rounded-full bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-[#0A4EA3] dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-xs mb-4">
-                <Sparkles className="h-3.5 w-3.5 text-[#0A4EA3] dark:text-blue-400 shrink-0" />
-                <span className="uppercase tracking-wider text-[11px] font-bold">{badge}</span>
-              </div>
+              <p className="mb-3 self-start text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                {badge}
+              </p>
             )}
 
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.2] mb-3">
@@ -121,6 +126,11 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
           {photoLayout && (
             <div className="lg:col-span-6">
               <PhotoLayoutRenderer config={photoLayout} />
+              {photoClaims.length > 0 && (
+                <p className="mt-3 text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                  {photoClaims.join(" · ")}
+                </p>
+              )}
             </div>
           )}
         </div>

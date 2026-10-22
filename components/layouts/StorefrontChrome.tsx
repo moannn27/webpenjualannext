@@ -11,7 +11,7 @@ import { ScrollToTopButton } from "@/components/shared/ScrollToTopButton";
 import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
 import { useCartStore, type StoredCartItem } from "@/store/useCartStore";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 export function StorefrontChrome({
   children,
@@ -49,8 +49,7 @@ export function StorefrontChrome({
     <>
       {/* 1. Bar Pengumuman Atas (Announcement Bar) */}
       {features?.announcement_bar_enabled && features.announcement_bar_text && (
-        <div className="bg-primary text-primary-foreground py-2 px-4 text-center text-xs font-semibold tracking-wide shadow-xs flex items-center justify-center gap-2">
-          <Sparkles className="size-3.5 shrink-0" />
+        <div className="bg-primary text-primary-foreground py-2 px-4 text-center text-xs font-semibold tracking-wide shadow-xs">
           <span>{features.announcement_bar_text}</span>
         </div>
       )}

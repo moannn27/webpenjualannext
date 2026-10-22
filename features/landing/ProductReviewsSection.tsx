@@ -11,7 +11,6 @@ import {
   Quote,
   ExternalLink,
   Laptop,
-  Sparkles,
   Pause,
   Play,
 } from "lucide-react";
@@ -106,10 +105,9 @@ export function ProductReviewsSection({
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 sm:gap-6 mb-6 sm:mb-8">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tracking-wide uppercase mb-3">
-              <Sparkles className="size-3.5" />
-              <span>{tag}</span>
-            </div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+              {tag}
+            </p>
             <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               {title}
             </h2>

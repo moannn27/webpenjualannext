@@ -322,10 +322,49 @@ export async function getAdminOrdersAction() {
     .lte('updated_at', twoDaysAgo)
 
   const { data, error } = await supabase.from('orders')
-    .select('id, order_number, status, total_amount, discount_amount, shipping_amount, grand_total, created_at, updated_at, courier, shipping_address, users(full_name, phone), order_items(id, product_id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
+    .select('id, user_id, order_number, status, total_amount, discount_amount, shipping_amount, grand_total, created_at, updated_at, courier, shipping_address, users(full_name, phone), order_items(id, product_id, product_name, price, quantity, variant_details, products(product_images(url, is_primary))), payments(id, amount, status, payment_method)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return data ?? []
+
+  const orders = data ?? []
+  const userIdsWithoutSnapshotEmail = new Set(
+    orders.flatMap((order) => {
+      const address = order.shipping_address && typeof order.shipping_address === 'object'
+        ? order.shipping_address as Record<string, unknown>
+        : {}
+      const snapshot = address.customer_snapshot && typeof address.customer_snapshot === 'object'
+        ? address.customer_snapshot as Record<string, unknown>
+        : {}
+      return order.user_id && !snapshot.email ? [order.user_id] : []
+    })
+  )
+  const emailByUserId = new Map<string, string>()
+
+  if (userIdsWithoutSnapshotEmail.size > 0) {
+    try {
+      const adminClient = getSupabaseAdminClient()
+      let page = 1
+      while (userIdsWithoutSnapshotEmail.size > 0) {
+        const { data: authData, error: authError } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 })
+        if (authError) break
+        for (const authUser of authData.users) {
+          if (authUser.email && userIdsWithoutSnapshotEmail.has(authUser.id)) {
+            emailByUserId.set(authUser.id, authUser.email)
+            userIdsWithoutSnapshotEmail.delete(authUser.id)
+          }
+        }
+        if (authData.users.length < 1000) break
+        page += 1
+      }
+    } catch {
+      // Historical email may be unavailable when Auth lookup is unavailable.
+    }
+  }
+
+  return orders.map((order) => ({
+    ...order,
+    customer_email: order.user_id ? emailByUserId.get(order.user_id) ?? null : null,
+  }))
 }
 
 export async function getAdminOrderNotificationsAction() {
@@ -754,12 +793,13 @@ export async function deleteAdminManagedAccountAction(userId: string) {
   if (!serviceKey || !url) return { error: 'SUPABASE_SERVICE_ROLE_KEY belum diatur di environment server.' }
   const adminClient = createSupabaseAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-  const { data: targetProfile } = await adminClient
+  const { data: targetProfile, error: profileError } = await adminClient
     .from('users')
-    .select('id, full_name, role, email')
+    .select('id, full_name, role')
     .eq('id', targetId)
     .maybeSingle()
 
+  if (profileError) return { error: `Gagal memeriksa profil akun: ${profileError.message}` }
   if (!targetProfile) {
     return { error: 'Akun tidak ditemukan atau sudah dihapus.' }
   }
@@ -769,78 +809,83 @@ export async function deleteAdminManagedAccountAction(userId: string) {
   }
 
   if (targetProfile.role === 'super_admin') {
-    const { count: superAdminCount } = await adminClient
+    const { count: superAdminCount, error: superAdminCountError } = await adminClient
       .from('users')
       .select('id', { count: 'exact', head: true })
       .eq('role', 'super_admin')
 
+    if (superAdminCountError) return { error: `Gagal memeriksa jumlah Super Admin: ${superAdminCountError.message}` }
     if ((superAdminCount ?? 0) <= 1) {
       return { error: 'Tidak dapat menghapus Super Admin terakhir di sistem toko.' }
     }
   }
 
-  const targetName = targetProfile.full_name || targetProfile.email || 'Pengguna'
+  const { data: authResult, error: authLookupError } = await adminClient.auth.admin.getUserById(targetId)
+  if (authLookupError || !authResult.user) {
+    return { error: 'Identitas Auth akun tidak ditemukan. Tidak ada data yang dihapus.' }
+  }
 
-  // Cek apakah ada riwayat pesanan (foreign key ON DELETE RESTRICT)
-  const { count: orderCount } = await adminClient
+  const targetEmail = authResult.user.email || ''
+  const targetName = targetProfile.full_name || targetEmail || 'Pengguna'
+
+  // FK ON DELETE SET NULL keeps orders and their billing snapshots intact.
+  const { count: orderCount, error: orderCountError } = await adminClient
     .from('orders')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', targetId)
 
-  if (orderCount && orderCount > 0) {
-    await adminClient.auth.admin.deleteUser(targetId).catch(() => null)
-    await adminClient.from('users').update({
-      role: 'customer',
-      full_name: `[Dinonaktifkan] ${targetName}`,
-      phone: null,
-    }).eq('id', targetId)
+  if (orderCountError) return { error: `Gagal memeriksa riwayat pesanan: ${orderCountError.message}` }
 
-    await recordAdminActivity({
-      admin_id: user.id,
-      admin_name: adminName,
-      admin_role: isSuperAdmin ? 'super_admin' : 'admin',
-      action: 'delete',
-      entity_type: 'account',
-      entity_name: targetName,
-      details: `Menonaktifkan akun "${targetName}" (${targetProfile.role}) dan mencabut akses login karena memiliki ${orderCount} riwayat pesanan.`,
-    })
+  // Supabase Auth refuses to delete users who still own Storage objects. Find
+  // ownership server-side, then remove through Storage API (never SQL metadata).
+  const { data: ownedObjects, error: storageLookupError } = await adminClient.rpc('list_user_storage_objects', {
+    p_user_id: targetId,
+  })
+  if (storageLookupError) {
+    return { error: 'Gagal memeriksa file milik akun. Pastikan migration penghapusan akun sudah diterapkan.' }
+  }
 
-    revalidatePath('/admin/customers')
-    return {
-      success: true,
-      message: `Akun "${targetName}" dinonaktifkan & akses login dicabut (memiliki ${orderCount} transaksi pesanan).`,
+  const objectsByBucket = new Map<string, string[]>()
+  for (const object of ownedObjects ?? []) {
+    if (!object.bucket_id || !object.name) continue
+    const paths = objectsByBucket.get(object.bucket_id) ?? []
+    paths.push(object.name)
+    objectsByBucket.set(object.bucket_id, paths)
+  }
+
+  for (const [bucket, objectPaths] of objectsByBucket) {
+    for (let offset = 0; offset < objectPaths.length; offset += 100) {
+      const { error } = await adminClient.storage.from(bucket).remove(objectPaths.slice(offset, offset + 100))
+      if (error) {
+        return {
+          error: `Akun belum dihapus. Pembersihan file Storage gagal (${bucket}): ${error.message}. Aman untuk mencoba ulang.`,
+        }
+      }
     }
   }
 
-  // Jika tidak memiliki pesanan, hapus bersih dari auth & users
+  // Official Auth Admin API removes auth.users and cascades the private profile.
+  // Related orders and voucher history are detached by the migration's SET NULL FKs.
   const { error: authError } = await adminClient.auth.admin.deleteUser(targetId)
   if (authError) {
-    return { error: `Gagal menghapus akun: ${authError.message}` }
+    const message = authError.message.toLowerCase().includes('super admin')
+      ? 'Akun belum dihapus. Tidak dapat menghapus Super Admin terakhir di sistem toko. File Storage yang sudah dibersihkan tidak dapat dipulihkan.'
+      : `Akun belum dihapus: ${authError.message}. File Storage mungkin sudah dibersihkan; coba ulangi setelah kendala Auth teratasi.`
+    return { error: message }
   }
 
-  try {
-    await adminClient.from('users').delete().eq('id', targetId)
-  } catch {
-    // Ignore users row deletion error if cascade deleted or already removed
-  }
+  const { data: sfData } = await adminClient
+    .from('storefront_settings')
+    .select('settings')
+    .eq('id', 'main')
+    .maybeSingle()
 
-  try {
-    const { data: sfData } = await adminClient
-      .from('storefront_settings')
-      .select('settings')
-      .eq('id', 'main')
-      .maybeSingle()
-
-    if (sfData?.settings?.admin_permissions?.[targetId]) {
-      const updatedSettings = { ...sfData.settings }
-      delete updatedSettings.admin_permissions[targetId]
-      await adminClient
-        .from('storefront_settings')
-        .update({ settings: updatedSettings })
-        .eq('id', 'main')
-    }
-  } catch {
-    // Ignore permissions cleanup failure
+  if (sfData?.settings?.admin_permissions?.[targetId]) {
+    const updatedSettings = { ...sfData.settings }
+    const currentPermissions = { ...updatedSettings.admin_permissions }
+    delete currentPermissions[targetId]
+    updatedSettings.admin_permissions = currentPermissions
+    await adminClient.from('storefront_settings').update({ settings: updatedSettings }).eq('id', 'main')
   }
 
   await recordAdminActivity({
@@ -850,11 +895,18 @@ export async function deleteAdminManagedAccountAction(userId: string) {
     action: 'delete',
     entity_type: 'account',
     entity_name: targetName,
-    details: `Menghapus akun "${targetName}" (${targetProfile.role}) secara permanen.`,
+    details: orderCount
+      ? `Menghapus akun "${targetName}" (${targetProfile.role}) secara permanen dan mempertahankan ${orderCount} pesanan beserta detail transaksi.`
+      : `Menghapus akun "${targetName}" (${targetProfile.role}) secara permanen beserta data profil nontransaksional.`,
   })
 
   revalidatePath('/admin/customers')
-  return { success: true }
+  return {
+    success: true,
+    message: orderCount
+      ? `Akun "${targetName}" dihapus. ${orderCount} riwayat pesanan tetap dipertahankan.`
+      : `Akun "${targetName}" dihapus permanen.`,
+  }
 }
 
 export async function getAdminCustomerReportsAction() {

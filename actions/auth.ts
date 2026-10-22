@@ -22,7 +22,7 @@ export async function login(formData: FormData) {
 
   if (error) {
     return { error: error.message === 'Invalid login credentials'
-      ? 'Email atau kata sandi salah.'
+      ? 'Email atau password tidak sesuai. Jika Anda sebelumnya mendaftar menggunakan Google, silakan login dengan Google terlebih dahulu, lalu buka Pengaturan > Keamanan untuk membuat password.'
       : error.message }
   }
 

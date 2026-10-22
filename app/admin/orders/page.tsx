@@ -10,6 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { OrderSortSelect } from "@/features/admin/OrderSortSelect";
 import { OrderActionModal } from "@/features/admin/OrderActionModal";
+import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
 import { 
   Search, 
   MessageCircle, 
@@ -355,8 +356,13 @@ export default async function AdminOrdersPage({
                   isPickup ? option.value !== "shipped" : option.value !== "ready_for_pickup"
                 );
                 const address = order.shipping_address as Record<string, unknown> | null;
-                const customerName = order.users?.[0]?.full_name || "Pelanggan";
-                const customerPhone = order.users?.[0]?.phone || "";
+                const customer = resolveOrderCustomerIdentity({
+                  shippingAddress: address,
+                  userProfile: order.users,
+                });
+                const customerName = customer.name || "Nama tidak tercatat";
+                const customerEmail = customer.email || order.customer_email || null;
+                const customerPhone = customer.phone || "";
                 const firstItem = order.order_items?.[0];
                 const itemCount = (order.order_items ?? []).reduce((acc, i) => acc + (i.quantity || 1), 0);
 
@@ -410,14 +416,15 @@ export default async function AdminOrdersPage({
 
                     {/* 2. Pelanggan */}
                     <TableCell className="py-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="size-8 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center font-bold text-xs text-slate-700 dark:text-slate-200 shrink-0">
-                          {customerName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white truncate">
+                      <div className="min-w-[150px] max-w-[220px] space-y-0.5">
+                          <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white line-clamp-2">
                             {customerName}
                           </p>
+                          {customerEmail && (
+                            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400" title={customerEmail}>
+                              {customerEmail}
+                            </p>
+                          )}
                           {customerPhone && (
                             <a
                               href={`https://wa.me/${customerPhone.replace(/\D/g, "").replace(/^0/, "62")}?text=Halo%20${encodeURIComponent(customerName)}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20${order.order_number}.`}
@@ -429,7 +436,6 @@ export default async function AdminOrdersPage({
                               <span>{customerPhone}</span>
                             </a>
                           )}
-                        </div>
                       </div>
                     </TableCell>
 
@@ -504,6 +510,7 @@ export default async function AdminOrdersPage({
                           href={`/orders/${order.id}/invoice`}
                           target="_blank"
                           rel="noreferrer"
+                          aria-label={`Buka invoice pesanan ${order.order_number}`}
                           title="Lihat Faktur / Invoice"
                           className="size-8 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#23252C] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 transition shadow-2xs"
                         >

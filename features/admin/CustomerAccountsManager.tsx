@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   createAdminManagedAccountAction,
@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { runSingleFlight } from "@/lib/async/single-flight";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertTriangle,
@@ -93,6 +94,7 @@ export function CustomerAccountsManager({
   const [deleteTargetUser, setDeleteTargetUser] = useState<Account | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const deleteInFlight = useRef(false);
 
   const createAccount = (formData: FormData) => {
     setError("");
@@ -233,7 +235,9 @@ export function CustomerAccountsManager({
     setDeleteError("");
     setIsDeleting(true);
     try {
-      const res = await deleteAdminManagedAccountAction(deleteTargetUser.id);
+      const result = await runSingleFlight(deleteInFlight, () => deleteAdminManagedAccountAction(deleteTargetUser.id));
+      if (!result.accepted) return;
+      const res = result.value;
       if (res.error) {
         setDeleteError(res.error);
         setIsDeleting(false);
@@ -614,6 +618,7 @@ export function CustomerAccountsManager({
                             title={`Hapus akun ${customer.full_name || customer.email || "ini"}`}
                             onClick={() => {
                               setDeleteError("");
+                              setIsDeleting(false);
                               setDeleteTargetUser(customer);
                             }}
                           >

@@ -89,6 +89,8 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
   const [busy, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [superAdminCorrectionOpen, setSuperAdminCorrectionOpen] = useState(false);
+  const [correctionStatus, setCorrectionStatus] = useState(order.status);
+  const [correctionStatusOptionsOpen, setCorrectionStatusOptionsOpen] = useState(false);
   const router = useRouter();
 
   // Close on Escape key
@@ -595,7 +597,11 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
                 <div className="rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/10 p-4 space-y-3">
                   <button
                     type="button"
-                    onClick={() => setSuperAdminCorrectionOpen(!superAdminCorrectionOpen)}
+                    onClick={() => {
+                      setSuperAdminCorrectionOpen(!superAdminCorrectionOpen);
+                      setCorrectionStatus(order.status);
+                      setCorrectionStatusOptionsOpen(false);
+                    }}
                     className="flex items-center justify-between w-full text-left font-bold text-xs text-amber-800 dark:text-amber-300 cursor-pointer"
                   >
                     <span className="flex items-center gap-1.5">
@@ -612,7 +618,7 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
                       onSubmit={(e) => {
                         e.preventDefault();
                         const form = e.currentTarget;
-                        const statusVal = (form.elements.namedItem("status") as HTMLSelectElement).value;
+                        const statusVal = (form.elements.namedItem("status") as HTMLInputElement).value;
                         const isPickupCorrection = (form.elements.namedItem("fulfillment_correction") as HTMLInputElement)?.checked;
                         handleOrderStatusChange(statusVal, {
                           isCorrection: true,
@@ -621,22 +627,50 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
                       }}
                       className="space-y-3 pt-2 border-t border-amber-200/60 dark:border-amber-900/40 text-xs"
                     >
-                      <label className="block space-y-1">
+                      <div className="block space-y-1">
                         <span className="font-semibold text-slate-700 dark:text-slate-300">
                           Paksa Ubah Status Pesanan Menjadi:
                         </span>
-                        <select
-                          name="status"
-                          defaultValue={order.status}
-                          className="h-9 w-full rounded-xl border border-amber-300 dark:border-amber-800 bg-white dark:bg-[#1E2028] px-3 text-xs font-semibold"
+                        <input type="hidden" name="status" value={correctionStatus} />
+                        <button
+                          type="button"
+                          aria-haspopup="listbox"
+                          aria-expanded={correctionStatusOptionsOpen}
+                          onClick={() => setCorrectionStatusOptionsOpen((open) => !open)}
+                          className="flex h-9 w-full items-center justify-between gap-3 rounded-xl border border-amber-300 bg-white px-3 text-left text-xs font-semibold dark:border-amber-800 dark:bg-[#1E2028]"
                         >
-                          {Object.entries(statusLabels).map(([val, label]) => (
-                            <option key={val} value={val}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          <span>{statusLabels[correctionStatus] ?? correctionStatus}</span>
+                          <ChevronDown className={cn("size-4 shrink-0 transition-transform", correctionStatusOptionsOpen && "rotate-180")} />
+                        </button>
+                        {correctionStatusOptionsOpen && (
+                          <div
+                            role="listbox"
+                            aria-label="Pilih status pesanan"
+                            className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-amber-200 bg-white p-1 shadow-sm dark:border-amber-900/60 dark:bg-[#1E2028]"
+                          >
+                            {Object.entries(statusLabels).map(([value, label]) => (
+                              <button
+                                key={value}
+                                type="button"
+                                role="option"
+                                aria-selected={correctionStatus === value}
+                                onClick={() => {
+                                  setCorrectionStatus(value);
+                                  setCorrectionStatusOptionsOpen(false);
+                                }}
+                                className={cn(
+                                  "block w-full rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors",
+                                  correctionStatus === value
+                                    ? "bg-amber-100 text-amber-950 dark:bg-amber-900/50 dark:text-amber-100"
+                                    : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10"
+                                )}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
 
                       {order.courier !== "pickup" && (
                         <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 dark:text-slate-300">

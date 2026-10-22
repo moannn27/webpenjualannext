@@ -200,7 +200,7 @@ export const DEFAULT_ABOUT_US_CONTENT: AboutUsContent = {
     photo_layout: {
       template: "collage",
       placement: "right",
-      badge_text: "⭐ 100% Original BNIB",
+      badge_text: "100% Original BNIB",
       badge_subtext: "Garansi Resmi Prinsipal",
       images: [
         {

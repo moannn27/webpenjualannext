@@ -322,3 +322,46 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
    * Ditambahkan test suite pengujian isolasi akun, pergantian akun, reset keranjang kosong, penambahan `addItemDirect`, dan penjaminan keamanan harga.
 
 
+
+
+---
+
+## 19. Siklus Penghapusan Akun Aman, Snapshot Identitas Pembeli & Pembersihan UI
+
+1. **Preservasi Pesanan & Riwayat Transaksi Historis (`supabase/migrations/20261107000000_account_deletion_and_session_guard.sql`)**:
+   * Kolom `orders.user_id` dan `voucher_reservations.user_id` diubah menjadi `NULLABLE` dengan foreign key `ON DELETE SET NULL`.
+   * Penghapusan akun pengguna tidak lagi membahayakan atau menghapus riwayat pesanan fisik dan transaksi legal toko.
+   * Supabase Auth Admin API dapat menghapus akun secara tuntas tanpa tertahan error *Foreign Key Constraint Violation*.
+
+2. **Snapshot Identitas Pembeli saat Transaksi (`supabase/migrations/20261108000000_snapshot_order_customer_identity.sql`)**:
+   * Trigger PostgreSQL `snapshot_order_customer_identity_before_insert` secara otomatis merekam nama, email, dan nomor telepon pembeli di waktu transaksi ke dalam `shipping_address.customer_snapshot`.
+   * Dibuat resolver universal [`lib/orders/customer-identity.ts`](file:///c:/webnext/lib/orders/customer-identity.ts) (`resolveOrderCustomerIdentity`) yang diterapkan pada:
+     - Faktur resmi pembelian ([`OrderInvoice.tsx`](file:///c:/webnext/components/invoice/OrderInvoice.tsx) & `app/orders/[id]/invoice/page.tsx`).
+     - Panel manajemen pesanan admin ([`OrderActionModal.tsx`](file:///c:/webnext/features/admin/OrderActionModal.tsx) & `actions/admin.ts`).
+   * Menjamin nama pembeli, email, dan nomor kontak selalu tampil akurat dan lengkap selamanya, bahkan jika akun auth telah dihapus di kemudian hari.
+
+3. **Pembersihan File Storage Akun Otomatis (`actions/admin.ts`)**:
+   * Ditambahkan fungsi PostgreSQL `list_user_storage_objects(p_user_id)` untuk mendeteksi file avatar dan foto ulasan milik pengguna di bucket Supabase Storage.
+   * Server action `deleteAdminManagedAccountAction` menghapus seluruh file milik akun melalui Storage API resmi sebelum akun dihapus dari Auth, mencegah error penolakan hapus dari Supabase Auth karena kepemilikan file storage.
+
+4. **Proteksi Mutlak Super Admin Terakhir**:
+   * Trigger PostgreSQL `guard_last_super_admin_delete` menggunakan *advisory transaction lock* (`pg_advisory_xact_lock`) untuk mencegah kondisi *race condition* atau dua permintaan hapus paralel yang dapat melenyapkan seluruh Super Admin di sistem.
+
+5. **Proteksi Sesi Akun Terhapus di Middleware (`lib/supabase/middleware.ts` & `lib/auth/active-profile.ts`)**:
+   * Token JWT Supabase yang masih aktif setelah akun dihapus otomatis diperiksa terhadap data profil aktif melalui helper `getActiveUserProfileStatus`.
+   * Jika profil terhapus (`missing`), cookie otentikasi langsung dibersihkan (`maxAge: 0`) dan request ditolak secara aman, mencegah akun yang sudah dihapus mengakses endpoint privat sebelum masa kedaluwarsa JWT berakhir.
+
+6. **Pengaturan Kata Sandi bagi Akun Google OAuth ([`actions/user.ts`](file:///c:/webnext/actions/user.ts) & [`ProfileDashboard.tsx`](file:///c:/webnext/features/profile/ProfileDashboard.tsx))**:
+   * Pengguna yang mendaftar via Google Sign-In kini dapat langsung membuat kata sandi pertama kali tanpa diminta memasukkan kata sandi lama (`canSetPasswordWithoutCurrentPassword`).
+   * Sesi login Google yang telah diverifikasi menjadi otoritas sah untuk menyetel password baru pada akun tersebut.
+
+7. **Pembersihan Elemen Visual Landing Page (Desain Alami & Bebas AI Slop)**:
+   * Menghilangkan badge berkilau berlebihan (*sparkles*) pada seksi About Us ([`AboutUsSection.tsx`](file:///c:/webnext/features/landing/AboutUsSection.tsx)), Review Produk ([`ProductReviewsSection.tsx`](file:///c:/webnext/features/landing/ProductReviewsSection.tsx)), dan Banner Promo ([`PromoBanner.tsx`](file:///c:/webnext/features/landing/PromoBanner.tsx)).
+   * Menggantinya dengan tipografi judul uppercase tracking yang elegan dan natural (`text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500`).
+   * Membersihkan teks label berulang "Official Partner" pada kartu brand ([`BrandShowcase.tsx`](file:///c:/webnext/features/landing/BrandShowcase.tsx)).
+
+8. **Pengujian Otomatis Komprehensif**:
+   * Ditambahkan file tes baru:
+     - `__tests__/lib/account-lifecycle.test.ts` (13 test cases): menguji siklus hidup penghapusan akun, pembersihan file, proteksi super admin, dan middleware.
+     - `__tests__/lib/order-customer-identity.test.ts` (4 test cases): menguji keakuratan snapshot identitas pembeli historis dan fallback profil.
+   * Seluruh **25 test suites (262 tests)** lulus 100%.

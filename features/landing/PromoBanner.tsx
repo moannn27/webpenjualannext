@@ -5,11 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
-  Sparkles, 
   ChevronLeft, 
   ChevronRight, 
   ShoppingCart, 
-  Star, 
+  Star,
   Heart, 
   ArrowRight,
   Tag,
@@ -261,10 +260,9 @@ export function PromoBanner({
         <div className="relative z-10 grid grid-cols-1 items-center gap-8 p-6 sm:p-10 lg:grid-cols-12 lg:gap-8 lg:p-10 xl:p-12">
           {/* Left Side: Headline & Promo Description */}
           <div className="flex flex-col items-start justify-center lg:col-span-4 xl:col-span-4">
-            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/15 px-3.5 py-1 text-xs font-semibold backdrop-blur-xs shadow-xs sm:mb-4 sm:text-sm">
-              <Sparkles className="size-3.5 text-amber-300" />
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-blue-100/90 sm:mb-4 sm:text-sm">
               {sectionTitle || banner?.title || "Promo Pilihan"}
-            </span>
+            </p>
 
             <h2 className="mb-3 text-3xl font-extrabold tracking-tight sm:mb-5 sm:text-4xl lg:text-5xl text-white">
               {title}
@@ -387,13 +385,11 @@ export function PromoBanner({
                                   ) : null}
                                   {product.isBestSeller && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-950 shadow-xs">
-                                      <Star className="size-2.5 fill-slate-950" />
                                       Best Seller
                                     </span>
                                   )}
                                   {product.isNewArrival && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                      <Sparkles className="size-2.5" />
                                       Baru
                                     </span>
                                   )}

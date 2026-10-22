@@ -95,9 +95,6 @@ export function BrandShowcase({
                   <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover/card:text-primary transition-colors block truncate">
                     {brand.name}
                   </span>
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500 block truncate">
-                    Official Partner
-                  </span>
                 </div>
               </Link>
             ))}
@@ -130,9 +127,6 @@ export function BrandShowcase({
                 <div className="min-w-0 flex-1">
                   <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 group-hover/card:text-primary transition-colors block truncate">
                     {brand.name}
-                  </span>
-                  <span className="text-[11px] text-slate-400 dark:text-slate-500 block truncate">
-                    Official Partner
                   </span>
                 </div>
               </Link>

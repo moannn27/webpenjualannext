@@ -509,7 +509,7 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                   onChange={(e) =>
                     updateContent("hero", { ...content.hero, badge: e.target.value })
                   }
-                  placeholder="AUTHORIZED PARTNER & TECH SPECIALIST"
+                  placeholder="TENTANG NEXT SOLUTION STORE"
                 />
               </div>
 

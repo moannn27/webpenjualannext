@@ -41,7 +41,7 @@ interface RawOrderRecord {
   grand_total?: number | null;
   courier: string;
   shipping_address?: InvoiceOrderData["shipping_address"];
-  user_id: string;
+  user_id: string | null;
   order_items?: unknown[];
   payments?: InvoiceOrderData["payments"];
 }
@@ -208,27 +208,32 @@ export default async function OrderInvoicePage({
     notFound();
   }
 
-  // Retrieve user metadata cleanly without brittle nested PostgREST joins
-  let customerUser = {
-    full_name: profile?.full_name ?? null,
-    phone: profile?.phone ?? null,
-    email: user.email ?? null,
-  };
+  // Resolve the profile only by the order's own UUID. A missing user_id means
+  // the account was deleted; never substitute the currently signed-in admin.
+  const isCurrentUserOrder = order.user_id === user.id;
+  let customerUser = isCurrentUserOrder
+    ? {
+        full_name: profile?.full_name ?? null,
+        phone: profile?.phone ?? null,
+        email: user.email ?? null,
+      }
+    : { full_name: null, phone: null, email: null };
 
-  if (order.user_id !== user.id) {
-    const { data: customerProfile } = await clientToUse
-      .from("users")
-      .select("full_name, phone")
-      .eq("id", order.user_id)
-      .maybeSingle();
+  if (order.user_id && !isCurrentUserOrder && isAdmin) {
+    const [{ data: customerProfile }, { data: authResult }] = await Promise.all([
+      clientToUse
+        .from("users")
+        .select("full_name, phone")
+        .eq("id", order.user_id)
+        .maybeSingle(),
+      getSupabaseAdminClient().auth.admin.getUserById(order.user_id),
+    ]);
 
-    if (customerProfile) {
-      customerUser = {
-        full_name: customerProfile.full_name ?? null,
-        phone: customerProfile.phone ?? null,
-        email: null,
-      };
-    }
+    customerUser = {
+      full_name: customerProfile?.full_name ?? null,
+      phone: customerProfile?.phone ?? null,
+      email: authResult.user?.email ?? null,
+    };
   }
 
   // Fetch storefront settings

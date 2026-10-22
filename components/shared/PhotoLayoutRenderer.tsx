@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   AspectRatioOption,
   BorderOption,
@@ -125,22 +125,17 @@ function FloatingBadge({
 }) {
   if (!badgeText && !badgeSubtext) return null;
   return (
-    <div className="inline-flex items-center gap-3 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-3 border border-slate-200/80 dark:border-white/10 shadow-xl shadow-slate-900/10 dark:shadow-black/50 transition-all hover:scale-[1.02]">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0A4EA3] to-[#2563EB] text-white shadow-md shadow-blue-500/20">
-        <Sparkles className="h-5 w-5" />
-      </div>
-      <div>
+    <div className="text-center">
         {badgeText && (
-          <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-            {badgeText}
+          <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 leading-tight">
+            {badgeText.replace(/^[\s⭐✨🌟★☆]+/u, "")}
           </p>
         )}
         {badgeSubtext && (
-          <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">
+          <p className="mt-1 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-tight">
             {badgeSubtext}
           </p>
         )}
-      </div>
     </div>
   );
 }

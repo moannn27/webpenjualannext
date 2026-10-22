@@ -6,7 +6,13 @@ import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { ProfileDashboard } from "@/features/profile/ProfileDashboard";
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>
+}) {
+  const params = await searchParams
+  const initialTab = params.tab === 'settings' ? 'settings' : 'orders'
   const [profile, orders, wishlist, reviews, rawSettings] = await Promise.all([
     getUserProfileAction().catch(() => null),
     getUserOrdersAction().catch(() => []),
@@ -23,6 +29,7 @@ export default async function ProfilePage() {
       wishlist={wishlist ?? []}
       reviews={reviews ?? []}
       storeWhatsapp={settings.store.whatsapp}
+      initialTab={initialTab}
     />
   );
 }

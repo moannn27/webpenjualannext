@@ -100,6 +100,15 @@ export default function LoginPage() {
         <form action={handleLogin} className="space-y-4">
           {error && <div className="text-destructive text-sm text-center bg-destructive/10 p-3 rounded-xl border border-destructive/20" role="alert">
             {error}
+            {error.startsWith("Email atau password tidak sesuai.") && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Setelah login dengan Google, buka{" "}
+                <Link href="/profile?tab=settings" className="font-medium text-primary underline">
+                  Pengaturan &gt; Keamanan
+                </Link>{" "}
+                untuk membuat password.
+              </p>
+            )}
             {error.toLowerCase().includes("email not confirmed") && (
               <div className="mt-2">
                 {verificationSent ? <p className="text-green-700">Email verifikasi sudah dikirim ulang. Periksa inbox atau folder spam.</p> : (

@@ -16,10 +16,18 @@ export async function getUserProfileAction() {
   const profile = await userService.getProfile(user.id)
   const isLocked = Boolean(user.app_metadata?.is_password_locked ?? profile?.is_password_locked)
   const failedAttempts = Number(user.app_metadata?.failed_password_attempts ?? profile?.failed_password_attempts ?? 0)
+  const providers = Array.isArray(user.app_metadata?.providers) ? user.app_metadata.providers : []
+  const identities = user.identities ?? []
+  const hasEmailIdentity = user.app_metadata?.provider === 'email'
+    || providers.includes('email')
+    || identities.some((identity) => identity.provider === 'email')
+    || (providers.length === 0 && identities.length === 0)
+  const hasGoogleIdentity = user.app_metadata?.provider === 'google' || providers.includes('google') || identities.some((identity) => identity.provider === 'google')
 
   return { 
     ...profile, 
     email: user.email ?? '',
+    canSetPasswordWithoutCurrentPassword: hasGoogleIdentity && !hasEmailIdentity,
     is_password_locked: isLocked,
     failed_password_attempts: failedAttempts,
   }
@@ -105,11 +113,22 @@ export async function updateUserPasswordAction(formData: FormData) {
     }
   }
 
-  const oldPassword = String(formData.get('old_password') ?? '').trim()
-  const newPassword = String(formData.get('new_password') ?? '').trim()
-  const confirmPassword = String(formData.get('confirm_password') ?? '').trim()
+  const providers = Array.isArray(user.app_metadata?.providers) ? user.app_metadata.providers : []
+  const identities = user.identities ?? []
+  const hasEmailIdentity = user.app_metadata?.provider === 'email'
+    || providers.includes('email')
+    || identities.some((identity) => identity.provider === 'email')
+    || (providers.length === 0 && identities.length === 0)
+  const hasGoogleIdentity = user.app_metadata?.provider === 'google' || providers.includes('google') || identities.some((identity) => identity.provider === 'google')
+  const canSetWithoutCurrentPassword = hasGoogleIdentity && !hasEmailIdentity
+  if (!hasEmailIdentity && !canSetWithoutCurrentPassword) {
+    return { error: 'Metode masuk akun tidak mendukung pengaturan kata sandi ini.' }
+  }
+  const oldPassword = String(formData.get('old_password') ?? '')
+  const newPassword = String(formData.get('new_password') ?? '')
+  const confirmPassword = String(formData.get('confirm_password') ?? '')
 
-  if (!oldPassword) {
+  if (hasEmailIdentity && !oldPassword) {
     return { error: 'Masukkan kata sandi lama Anda.' }
   }
   if (newPassword.length < 6) {
@@ -122,8 +141,10 @@ export async function updateUserPasswordAction(formData: FormData) {
     return { error: 'Konfirmasi kata sandi tidak cocok.' }
   }
 
-  // Verifikasi kata sandi lama dengan autentikasi
-  if (user.email) {
+  // Email/password users keep the existing current-password check and lockout.
+  // A Google-only account has no current password to verify; its verified session
+  // is the authority for adding the first password to the same Auth user.
+  if (hasEmailIdentity && user.email) {
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: oldPassword,

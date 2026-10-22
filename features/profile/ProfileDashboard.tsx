@@ -48,6 +48,7 @@ type Profile = {
   role?: string | null;
   is_password_locked?: boolean;
   failed_password_attempts?: number;
+  canSetPasswordWithoutCurrentPassword?: boolean;
 } | null;
 
 type OrderedProduct = {
@@ -176,15 +177,17 @@ export function ProfileDashboard({
   wishlist,
   reviews = [],
   storeWhatsapp = "081234567890",
+  initialTab = "orders",
 }: {
   profile: Profile;
   orders: Order[];
   wishlist: WishlistEntry[];
   reviews?: UserReview[];
   storeWhatsapp?: string;
+  initialTab?: Tab;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("orders");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [deliveredOrderIds, setDeliveredOrderIds] = useState<string[]>([]);
   const orderList = useMemo(() => {
     if (!deliveredOrderIds.length) return orders;
@@ -302,7 +305,7 @@ export function ProfileDashboard({
       return;
     }
 
-    if (!oldPassword) {
+    if (!profile?.canSetPasswordWithoutCurrentPassword && !oldPassword) {
       setPasswordError("Masukkan kata sandi lama Anda.");
       return;
     }
@@ -1039,10 +1042,13 @@ export function ProfileDashboard({
                 <div className="mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Lock className="size-5 text-primary" />
-                    Ubah Kata Sandi
+                    Keamanan & Kata Sandi
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Perbarui kata sandi akunmu untuk keamanan login.
+                    Atur kata sandi untuk masuk dengan email dan kata sandi. Login Google tetap memakai akun yang sama.
+                  </p>
+                  <p className="max-w-lg text-sm text-muted-foreground">
+                    Email akun terverifikasi: <strong className="text-foreground">{profile?.email || "Tidak tersedia"}</strong>
                   </p>
                 </div>
 
@@ -1118,7 +1124,7 @@ export function ProfileDashboard({
                     )}
 
                     <form onSubmit={handleUpdatePassword} className="max-w-lg space-y-4">
-                      <div className="space-y-2">
+                      {!profile?.canSetPasswordWithoutCurrentPassword && <div className="space-y-2">
                         <label className="block text-sm font-medium">Kata sandi lama</label>
                         <div className="relative">
                           <Input
@@ -1138,7 +1144,7 @@ export function ProfileDashboard({
                             {showOldPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                           </button>
                         </div>
-                      </div>
+                      </div>}
 
                       <div className="space-y-2">
                         <label className="block text-sm font-medium">Kata sandi baru</label>
@@ -1186,8 +1192,8 @@ export function ProfileDashboard({
                         </div>
                       </div>
 
-                      <Button type="submit" disabled={passwordBusy || !oldPassword || !newPassword || !confirmPassword}>
-                        {passwordBusy ? "Menyimpan kata sandi..." : "Perbarui Kata Sandi"}
+                      <Button type="submit" disabled={passwordBusy || (!profile?.canSetPasswordWithoutCurrentPassword && !oldPassword) || !newPassword || !confirmPassword}>
+                        {passwordBusy ? "Menyimpan kata sandi..." : "Simpan Kata Sandi"}
                       </Button>
                     </form>
                   </>
