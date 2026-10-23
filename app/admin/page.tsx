@@ -4,7 +4,6 @@ import {
   Users,
   CreditCard,
   Package,
-  Tags,
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,

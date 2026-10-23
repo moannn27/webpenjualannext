@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { MapPin, ExternalLink } from "lucide-react";
 import type { StoreBranch, OfficialMarketplace, OfficialChannel } from "@/lib/storefront-settings";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
@@ -133,9 +134,12 @@ export function Footer({
             <div className="space-y-4">
               <Link href="/" className="inline-flex items-center gap-2.5">
                 {showLogo && (
-                  <img
+                  <Image
                     src={logoUrl}
                     alt={storeName}
+                    width={160}
+                    height={36}
+                    unoptimized
                     className="h-9 max-w-[160px] object-contain"
                   />
                 )}

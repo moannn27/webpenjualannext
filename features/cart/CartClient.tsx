@@ -162,9 +162,10 @@ export function CartClient({
           <div className="flex-1 space-y-4">
             {cartItems.map((item) => {
               const master = getMasterProductById(item.productId || item.id);
-              const imageUrl = master?.image || item.image;
-              const price = master ? Number(master.discountPrice ?? master.price) : Number(item.price);
-              const itemStock = master?.stock ?? item.stock ?? 10;
+              const isVariantItem = Boolean(item.variantId);
+              const imageUrl = isVariantItem ? item.image : master?.image || item.image;
+              const price = isVariantItem ? Number(item.price) : master ? Number(master.discountPrice ?? master.price) : Number(item.price);
+              const itemStock = isVariantItem ? item.stock : master?.stock ?? item.stock ?? 10;
               const isUpdating = loadingId === item.id;
 
               return (
@@ -183,10 +184,10 @@ export function CartClient({
                     {imageUrl ? (
                       <Image
                         src={imageUrl}
-                        alt={master?.name || item.name}
+                        alt={item.variantLabel ? `${item.name} - ${item.variantLabel}` : item.name}
                         fill
                         sizes="(max-width: 640px) 72px, 88px"
-                        className="object-cover rounded-xl transition-transform duration-300 group-hover:scale-105"
+                        className="object-contain rounded-xl p-1 transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
                       <span className="grid size-full place-items-center text-muted-foreground">
@@ -202,7 +203,7 @@ export function CartClient({
                       href={`/product/${master?.id || item.productId || item.id}`}
                       className="line-clamp-2 font-semibold text-base transition-colors hover:text-primary sm:text-lg"
                     >
-                      {master?.name || item.name}
+                      {item.name || master?.name}
                     </Link>
                     <p className="mt-0.5 text-xs text-muted-foreground font-medium">
                       {master?.brand || master?.category || item.category || "Laptop & Komputer"}
@@ -210,6 +211,11 @@ export function CartClient({
                     {item.variantLabel && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Varian: <span className="font-semibold text-foreground/80">{item.variantLabel}</span>
+                      </p>
+                    )}
+                    {item.variantSku && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        SKU: <span className="font-mono font-medium text-foreground/80">{item.variantSku}</span>
                       </p>
                     )}
                   </div>

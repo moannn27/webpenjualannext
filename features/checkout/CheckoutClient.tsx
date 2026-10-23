@@ -42,7 +42,7 @@ import {
 } from "@/types/checkout";
 
 import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
-import { getMasterProductById } from "@/constants/products";
+import { getCartItemAvailableStock, getCartItemUnitPrice } from "@/lib/cart-utils";
 import { toast } from "@/components/Toast";
 import { useCartStore } from "@/store/useCartStore";
 import { CheckoutProgressHeader } from "@/components/checkout/CheckoutProgressHeader";
@@ -72,43 +72,34 @@ function validateCustomerPhone(phone: string): { valid: boolean; error?: string 
 }
 
 /**
- * Re-verify item price strictly against constants/products.ts (never trust client price state).
+ * Use the selected variant or database product price; fall back to the local catalog only for legacy items.
  */
 const getItemPrice = (item: CartData["cart_items"][number]): number => {
-  const lookupId = item.products?.id || item.product_id;
-  const master = getMasterProductById(lookupId);
-  if (master) {
-    return Number(master.discountPrice ?? master.price);
-  }
-  return Number(
-    item.product_variants?.discount_price ??
-    item.product_variants?.price ??
-    item.products.discount_price ??
-    item.products.price ??
-    0
-  );
+  return getCartItemUnitPrice(item);
 };
 
 /**
- * Re-verify stock strictly against constants/products.ts.
+ * Validate against the selected variant's stock when a variant is in the cart.
  */
-function verifyStockAgainstMaster(items: CartData["cart_items"]): { valid: boolean; error?: string } {
+function verifyCartItemStock(items: CartData["cart_items"]): { valid: boolean; error?: string } {
   for (const item of items) {
-    const lookupId = item.products?.id || item.product_id;
-    const master = getMasterProductById(lookupId);
-    if (master) {
-      if (master.stock <= 0) {
+    const selectedVariant = item.product_variants;
+    if (item.variant_id && !selectedVariant) {
+      return { valid: false, error: `Varian produk "${item.products.name}" tidak ditemukan. Muat ulang keranjang.` };
+    }
+
+    const availableStock = getCartItemAvailableStock(item);
+    if (availableStock !== undefined && availableStock !== null) {
+      if (availableStock <= 0) {
         return {
           valid: false,
-          error: `Stok produk "${master.name}" sedang habis / tidak tersedia.`,
+          error: `Stok produk "${item.products.name}" sedang habis / tidak tersedia.`,
         };
       }
-      if (item.quantity > master.stock) {
-        return {
-          valid: false,
-          error: `Jumlah pesanan "${master.name}" (${item.quantity} unit) melebihi stok yang tersedia (${master.stock} unit).`,
-        };
-      }
+      if (item.quantity > availableStock) return {
+        valid: false,
+        error: `Jumlah pesanan "${item.products.name}" (${item.quantity} unit) melebihi stok yang tersedia (${availableStock} unit).`,
+      };
     }
   }
   return { valid: true };
@@ -397,7 +388,7 @@ export function CheckoutClient({
       }
 
       // Re-verify all checkout item prices and stock strictly against constants/products.ts
-      const stockCheck = verifyStockAgainstMaster(initialCart.cart_items);
+      const stockCheck = verifyCartItemStock(initialCart.cart_items);
       if (!stockCheck.valid) {
         setErrorMessage(stockCheck.error || "Validasi stok gagal.");
         toast.error("Stok Tidak Cukup", stockCheck.error || "Stok tidak mencukupi.");
@@ -475,7 +466,7 @@ export function CheckoutClient({
       }
 
       // 3. Re-verify all checkout item prices and stock strictly against constants/products.ts
-      const stockCheck = verifyStockAgainstMaster(initialCart.cart_items);
+      const stockCheck = verifyCartItemStock(initialCart.cart_items);
       if (!stockCheck.valid) {
         setErrorMessage(stockCheck.error || "Validasi stok gagal.");
         toast.error("Stok Tidak Cukup", stockCheck.error || "Stok produk tidak mencukupi.");

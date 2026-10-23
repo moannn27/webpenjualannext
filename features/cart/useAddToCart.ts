@@ -14,8 +14,7 @@ export function useAddToCart() {
   const addToCart = async (
     productId: string,
     productName?: string,
-    variantId?: string | null,
-    _variantLabel?: string | null
+    variantId?: string | null
   ) => {
     setLoadingProductId(productId);
     try {

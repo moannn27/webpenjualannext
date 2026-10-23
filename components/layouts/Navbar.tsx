@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Search, ShoppingCart, Heart, User, Menu, ChevronDown, LayoutGrid, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -212,9 +213,12 @@ export function Navbar({
             {/* Logo Mobile */}
             <Link href="/" className="flex items-center gap-2">
               {showLogo && (
-                <img
+                <Image
                   src={logoUrl}
                   alt={storeName}
+                  width={120}
+                  height={32}
+                  unoptimized
                   className="h-8 max-w-[120px] object-contain"
                 />
               )}
@@ -230,9 +234,12 @@ export function Navbar({
           <div className="hidden lg:flex lg:items-center lg:gap-8">
             <Link href="/" className="flex items-center gap-2.5">
               {showLogo && (
-                <img
+                <Image
                   src={logoUrl}
                   alt={storeName}
+                  width={160}
+                  height={36}
+                  unoptimized
                   className="h-9 max-w-[160px] object-contain"
                 />
               )}

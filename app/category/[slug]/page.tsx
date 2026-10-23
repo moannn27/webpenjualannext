@@ -7,7 +7,6 @@ import {
   Laptop,
   Cpu,
   Package,
-  Sparkles,
   ShieldCheck,
   Zap,
 } from "lucide-react";

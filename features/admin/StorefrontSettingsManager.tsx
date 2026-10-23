@@ -928,9 +928,12 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   <div className="flex items-center gap-2.5 h-10 px-2 rounded-md bg-muted/30 border border-border/40">
                     {settings.store.logo_url &&
                     (settings.store.logo_display_mode === "both" || settings.store.logo_display_mode === "logo_only") && (
-                      <img
+                      <Image
                         src={settings.store.logo_url}
                         alt="Logo Preview"
+                        width={120}
+                        height={28}
+                        unoptimized
                         className="h-7 max-w-[120px] object-contain"
                       />
                     )}
@@ -953,9 +956,12 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                     <div className="flex items-center gap-2">
                       {(settings.store.admin_logo_url || settings.store.logo_url) &&
                       (settings.store.logo_display_mode === "both" || settings.store.logo_display_mode === "logo_only") ? (
-                        <img
-                          src={settings.store.admin_logo_url || settings.store.logo_url}
+                        <Image
+                          src={settings.store.admin_logo_url || settings.store.logo_url || ""}
                           alt="Admin Logo Preview"
+                          width={28}
+                          height={28}
+                          unoptimized
                           className="size-7 rounded-lg object-contain bg-background"
                         />
                       ) : (

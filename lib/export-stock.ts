@@ -566,7 +566,7 @@ export function openStockPrintView(items: StockExportItem[], title = 'Semua Stok
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <title>Laporan Rekap Stok - Next Solution</title>
+  <title>${esc(title)} - Laporan Rekap Stok - Next Solution</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @media print {

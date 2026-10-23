@@ -32,6 +32,32 @@ interface RawCartItem {
   } | null;
 }
 
+type CartItemPriceData = Pick<RawCartItem, "product_id" | "products" | "product_variants">;
+
+export function getCartItemUnitPrice(item: CartItemPriceData): number {
+  const product = item.products || null;
+  const variant = item.product_variants || null;
+  const master = getMasterProductById(product?.id || item.product_id);
+
+  return Number(
+    variant?.discount_price ??
+      variant?.price ??
+      product?.discount_price ??
+      product?.price ??
+      master?.discountPrice ??
+      master?.price ??
+      0
+  );
+}
+
+export function getCartItemAvailableStock(item: CartItemPriceData): number | null {
+  const product = item.products || null;
+  const variant = item.product_variants || null;
+  const master = getMasterProductById(product?.id || item.product_id);
+
+  return variant?.stock ?? product?.stock ?? master?.stock ?? null;
+}
+
 /**
  * Universal formatter that transforms a database cart_items row
  * into a verified, sanitized StoredCartItem for the client cart store.
@@ -42,18 +68,15 @@ export function formatCartItemToStored(it: RawCartItem): StoredCartItem {
   const lookupId = product?.id || it.product_id;
   const master = getMasterProductById(lookupId);
 
-  const verifiedPrice = master
-    ? Number(master.discountPrice ?? master.price)
-    : Number(variant?.discount_price ?? variant?.price ?? product?.discount_price ?? product?.price ?? 0);
-
-  const availableStock = master?.stock ?? variant?.stock ?? product?.stock ?? 10;
+  const verifiedPrice = getCartItemUnitPrice(it);
+  const availableStock = getCartItemAvailableStock(it) ?? 10;
 
   const primaryImage =
     variant?.image_url ||
-    master?.image ||
     product?.product_images?.find((img) => img.is_primary)?.url ||
     product?.product_images?.[0]?.url ||
     product?.image ||
+    master?.image ||
     "";
 
   const variantLabel = variant
@@ -63,7 +86,7 @@ export function formatCartItemToStored(it: RawCartItem): StoredCartItem {
   return {
     id: it.id,
     productId: lookupId,
-    name: master?.name || product?.name || "Produk",
+    name: product?.name || master?.name || "Produk",
     price: verifiedPrice,
     category: master?.category || product?.categories?.name || product?.category || "Produk",
     image: primaryImage,
@@ -71,6 +94,7 @@ export function formatCartItemToStored(it: RawCartItem): StoredCartItem {
     quantity: Math.max(1, it.quantity),
     variantId: it.variant_id ?? null,
     variantLabel,
+    variantSku: variant?.sku || null,
   };
 }
 

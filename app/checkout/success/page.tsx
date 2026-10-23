@@ -1,8 +1,9 @@
-import { CheckCircle2, Clock3, MessageCircle, FileText, ArrowRight } from "lucide-react";
+import { CheckCircle2, Clock3, AlertCircle, MessageCircle, FileText, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { getOrderPaymentState } from "@/lib/orders/payment-status";
 import { OrderInvoice, type InvoiceOrderData } from "@/components/invoice/OrderInvoice";
 
 export const metadata = {
@@ -117,12 +118,14 @@ export default async function CheckoutSuccessPage({
       }).format(orderDateObj) + " WIB"
     : "";
 
-  const paymentStatus = order?.payments?.[0]?.status || "pending";
-  const isPaymentConfirmed =
-    paymentStatus === "success" ||
-    order?.status === "processing" ||
-    order?.status === "shipped" ||
-    order?.status === "delivered";
+  const paymentState = getOrderPaymentState(order?.payments);
+  const isPaymentConfirmed = paymentState === "paid";
+  const paymentStateLabel = {
+    paid: "Lunas",
+    pending: "Menunggu verifikasi admin",
+    failed: "Pembayaran gagal atau kedaluwarsa",
+    refunded: "Pembayaran dikembalikan",
+  }[paymentState];
 
   const fulfillment = isPickup ? "Ambil sendiri di toko" : "Diantar ke alamat penerima";
   const confirmationMessage = order
@@ -150,7 +153,7 @@ export default async function CheckoutSuccessPage({
                 : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
             }`}
           >
-            {isPaymentConfirmed ? <CheckCircle2 className="h-9 w-9" /> : <Clock3 className="h-9 w-9" />}
+            {paymentState === "paid" ? <CheckCircle2 className="h-9 w-9" /> : paymentState === "pending" ? <Clock3 className="h-9 w-9" /> : <AlertCircle className="h-9 w-9" />}
           </div>
 
           <div className="mb-2">
@@ -167,12 +170,22 @@ export default async function CheckoutSuccessPage({
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl mb-2">
-            {isPaymentConfirmed ? "Pembayaran Telah Diverifikasi!" : "Pesanan Diterima — Menunggu Konfirmasi"}
+            {paymentState === "paid"
+              ? "Pembayaran Telah Diverifikasi!"
+              : paymentState === "pending"
+                ? "Pesanan Diterima — Menunggu Konfirmasi"
+                : paymentState === "failed"
+                  ? "Pembayaran Belum Berhasil"
+                  : "Pembayaran Telah Dikembalikan"}
           </h1>
           <p className="text-muted-foreground text-sm sm:text-base max-w-xl">
-            {isPaymentConfirmed
+            {paymentState === "paid"
               ? "Pembayaran Anda telah berhasil diverifikasi oleh admin. Pesanan Anda sedang dipersiapkan untuk dikirim / diambil."
-              : "Pesanan Anda berhasil dicatat dengan status Pending. Silakan transfer sesuai total tagihan dan kirim bukti transfer ke WhatsApp admin agar status faktur berubah menjadi Lunas."}
+              : paymentState === "pending"
+                ? "Pesanan Anda berhasil dicatat. Silakan transfer sesuai total tagihan dan kirim bukti transfer ke WhatsApp admin agar pembayaran dapat diverifikasi."
+                : paymentState === "failed"
+                  ? "Pembayaran belum berhasil atau sudah kedaluwarsa. Hubungi admin untuk memastikan langkah berikutnya sebelum melakukan pembayaran ulang."
+                  : "Pembayaran untuk pesanan ini telah dikembalikan. Hubungi admin jika Anda memerlukan informasi lebih lanjut."}
           </p>
 
           {order && (
@@ -185,8 +198,8 @@ export default async function CheckoutSuccessPage({
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">Status Pembayaran:</span>
-                <span className={`font-semibold text-xs sm:text-sm ${isPaymentConfirmed ? "text-emerald-600" : "text-amber-600"}`}>
-                  {isPaymentConfirmed ? "Lunas" : "Menunggu Verifikasi Admin (Pending)"}
+                <span className={`font-semibold text-xs sm:text-sm ${paymentState === "paid" ? "text-emerald-600" : paymentState === "pending" ? "text-amber-600" : "text-rose-600"}`}>
+                  {paymentStateLabel}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">

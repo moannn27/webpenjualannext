@@ -365,3 +365,56 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
      - `__tests__/lib/account-lifecycle.test.ts` (13 test cases): menguji siklus hidup penghapusan akun, pembersihan file, proteksi super admin, dan middleware.
      - `__tests__/lib/order-customer-identity.test.ts` (4 test cases): menguji keakuratan snapshot identitas pembeli historis dan fallback profil.
    * Seluruh **25 test suites (262 tests)** lulus 100%.
+
+---
+
+## 20. Presisi Varian Keranjang, Pemisahan Status Pembayaran & SKU Faktur, Optimasi Galeri Produk, dan Pembersihan Zero-Warning
+
+1. **Presisi Varian Keranjang (Harga, Stok, dan SKU)**:
+   * **Helper Sentral (`lib/cart-utils.ts`)**:
+     - `getCartItemUnitPrice`: Menghitung harga satuan item keranjang dengan memprioritaskan harga spesifik varian (`item.variant?.price`) di atas harga master produk (`item.product.price`).
+     - `getCartItemAvailableStock`: Memastikan batasan kuantitas pemesanan mengacu pada stok varian aktif (`item.variant?.stock`), mencegah *overselling* atau salah kalkulasi stok.
+     - `getCartItemSku`: Mengambil SKU varian (`item.variant?.sku`) jika ada, dan fallback ke SKU master produk.
+   * **Sinkronisasi Store & UI Keranjang (`store/useCartStore.ts`, `features/cart/CartClient.tsx`, `features/cart/useAddToCart.ts`)**:
+     - `updateQuantity` dan `getSubtotal` di store secara konsisten menggunakan helper harga dan stok varian.
+     - UI Keranjang menampilkan thumbnail gambar varian spesifik, badge stok varian real-time (`Stok: X`), dan label SKU varian.
+   * **Validasi Checkout (`features/checkout/CheckoutClient.tsx`)**:
+     - Validasi stok saat menuju transaksi pembayaran kini memeriksa ketersediaan stok varian masing-masing produk secara akurat.
+   * **Pengujian Unit (`__tests__/lib/cart-utils.test.ts`)**:
+     - 4 skenario pengujian komprehensif untuk kalkulasi harga varian, batas stok varian, resolusi SKU, dan fallback produk tanpa varian.
+
+2. **Pemisahan Status Pembayaran & SKU Faktur Pemesanan**:
+   * **Decoupling Status Pembayaran (`lib/orders/payment-status.ts`)**:
+     - Memisahkan status finansial/pembayaran (`paid`, `pending`, `failed`, `refunded`, `cancelled`) dari status fisik pengiriman (*fulfillment progress*: `processing`, `shipped`, `delivered`).
+     - Mencegah kekeliruan visual di mana status pesanan "processing" dianggap belum bayar, atau pesanan yang dibatalkan tetap tercatat dibayar.
+   * **Resolusi SKU Faktur (`lib/orders/order-item.ts`)**:
+     - Helper `getOrderItemSku` memastikan faktur pembelian menampilkan SKU varian yang dibeli konsumen, bukan generic parent SKU.
+   * **Perapian Faktur Pembelian (`components/invoice/OrderInvoice.tsx` & `app/checkout/success/page.tsx`)**:
+     - Grid layout pada tabel faktur dirapikan agar sejajar sempurna baik pada tampilan desktop maupun mobile.
+     - Penataan badge status pembayaran yang mandiri dari status pengiriman dengan visual yang bersih dan rapi.
+     - Pembaruan skenario tes di `__tests__/lib/order-invoice-scenarios.test.ts` (10 test cases lulus).
+
+3. **Optimasi Galeri Produk & Pengalaman Pemilihan Varian**:
+   * **Next.js Image Optimization (`features/product/ProductDetail.tsx`)**:
+     - Mengganti seluruh tag `<img>` HTML mentah dengan komponen `next/image` (`<Image />`) dengan rasio aspek terjaga dan optimasi otomatis dari CDN Next.js.
+   * **In-Stock Variant Preselection & Thumbnail Mapping**:
+     - Sistem secara cerdas memilih varian pertama yang masih memiliki stok (`stock > 0`) saat halaman dibuka, mencegah pengguna melihat tombol nonaktif secara default.
+     - Memetakan ID varian dengan galeri foto sehingga ketika varian dipilih, gambar utama langsung beralih ke foto varian tersebut.
+   * **Riwayat Pesanan Akun (`features/profile/ProfileDashboard.tsx` & `repositories/order.repository.ts`)**:
+     - Query repository pesanan diperluas untuk menyertakan `product_variants(image_url)`.
+     - Daftar pesanan di dashboard profil kini menampilkan gambar spesifik varian produk yang dipesan konsumen.
+
+4. **Pembersihan Kode Menyeluruh Menuju Zero Warning (0 Errors, 0 Warnings)**:
+   * **Migrasi Tag `<img>` Native ke `<Image />`**:
+     - Diterapkan pada `components/layouts/Footer.tsx`, `components/layouts/Navbar.tsx`, dan `features/admin/StorefrontSettingsManager.tsx`.
+   * **Pembersihan Import & Variabel Tak Digunakan**:
+     - Membersihkan seluruh *dead code*, icon yang tidak dipakai, dan variabel *unused* pada halaman admin (`app/admin/layout.tsx`, `app/admin/orders/page.tsx`, `app/admin/page.tsx`, `components/layouts/AdminShell.tsx`, `components/layouts/AdminSidebar.tsx`, `features/admin/AdminAuditLogsManager.tsx`, `features/admin/ProductTable.tsx`, `features/admin/StockSyncManager.tsx`).
+     - Merapikan penanganan search params di `app/category/[slug]/page.tsx` dan `app/products/page.tsx`.
+     - Merapikan pemanggilan import di `lib/bulk-image-upload.ts`, `lib/export-stock.ts`, dan `__tests__/lib/admin-product-import-stock.test.ts`.
+
+5. **Hasil Verifikasi Kualitas Mutlak**:
+   * **Unit Tests**: 26 test suites (266 tests) lulus 100% tanpa kegagalan (`npx vitest run`).
+   * **TypeScript Compilation**: `npx tsc --noEmit` lolos tanpa satu pun error (0 errors).
+   * **ESLint**: `npm run lint` lolos dengan status bersih **0 errors dan 0 warnings** (sebelumnya ada 40 warnings).
+   * **Production Build**: `npm run build` sukses mengompilasi seluruh **40/40 routes** dengan lancar.
+

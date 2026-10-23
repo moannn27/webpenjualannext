@@ -22,7 +22,6 @@ export default async function AdminLayout({
     <AdminShell
       isSuperAdmin={perms.isSuperAdmin}
       permissions={perms.permissions}
-      storeSettings={perms.settings}
     >
       <AdminHeader
         adminName={perms.adminName || "Admin"}

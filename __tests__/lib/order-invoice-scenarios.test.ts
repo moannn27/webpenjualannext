@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceOrderData, InvoiceStorefrontInfo } from '@/components/invoice/OrderInvoice';
+import { getOrderPaymentState } from '@/lib/orders/payment-status';
+import { getOrderItemSku } from '@/lib/orders/order-item';
 
 describe('Order Invoice Security & Multi-Scenario Suite', () => {
   const customerA = { id: 'usr-customer-a', full_name: 'Budi Santoso', email: 'budi@example.com', role: 'customer' };
@@ -209,15 +211,21 @@ describe('Order Invoice Security & Multi-Scenario Suite', () => {
 
   describe('Scenario 4: Payment Status & Pickup Mode Rendering', () => {
     it('correctly maps payment confirmation states', () => {
-      const isConfirmed = (status: string, orderStatus: string) =>
-        status === 'success' ||
-        orderStatus === 'processing' ||
-        orderStatus === 'shipped' ||
-        orderStatus === 'delivered';
+      expect(getOrderPaymentState([{ status: 'success' }])).toBe('paid');
+      expect(getOrderPaymentState([{ status: 'pending' }])).toBe('pending');
+      expect(getOrderPaymentState([{ status: 'pending' }, { status: 'success' }])).toBe('paid');
+      expect(getOrderPaymentState([{ status: 'expired' }])).toBe('failed');
+      expect(getOrderPaymentState([{ status: 'refunded' }])).toBe('refunded');
+      expect(getOrderPaymentState([])).toBe('pending');
+    });
 
-      expect(isConfirmed('success', 'processing')).toBe(true);
-      expect(isConfirmed('pending', 'shipped')).toBe(true);
-      expect(isConfirmed('pending', 'pending')).toBe(false);
+    it('uses the selected variant SKU ahead of the parent product SKU on invoices', () => {
+      expect(getOrderItemSku({
+        variantDetails: { sku: 'VARIANT-01' },
+        itemSku: 'ITEM-SNAPSHOT-01',
+        productSku: 'PARENT-01',
+      })).toBe('VARIANT-01');
+      expect(getOrderItemSku({ productSku: 'PARENT-01' })).toBe('PARENT-01');
     });
 
     it('properly differentiates pickup vs courier addresses', () => {

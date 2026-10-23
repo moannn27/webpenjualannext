@@ -40,7 +40,7 @@ interface ProductDetailData {
   price: number;
   stock: number;
   description?: string | null;
-  product_images?: { id: string; url: string; alt_text?: string | null; is_primary?: boolean }[];
+  product_images?: { id: string; url: string; alt_text?: string | null; is_primary?: boolean; display_order?: number }[];
   product_specifications?: { id: string; key: string; value: string; display_order?: number }[];
   product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null }[];
 }
@@ -59,11 +59,24 @@ interface ProductDetailProps {
   initialCartQuantities?: { variant_id: string | null; quantity: number }[];
 }
 
+type ProductGalleryImage = {
+  id: string;
+  url: string;
+  alt_text?: string | null;
+  is_primary?: boolean;
+  display_order?: number;
+  variantIds: string[];
+};
+
+const FALLBACK_PRODUCT_IMAGE = "https://images.unsplash.com/photo-1496181133206-80ce9b88a853";
+
 export function ProductDetail({ product, reviews = [], initialCartQuantities = [] }: ProductDetailProps) {
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
   const variants = useMemo(() => product.product_variants ?? [], [product.product_variants]);
-  const [selectedVariantId, setSelectedVariantId] = useState(variants[0]?.id ?? "");
+  const [selectedVariantId, setSelectedVariantId] = useState(
+    variants.find((variant) => variant.stock > 0)?.id ?? variants[0]?.id ?? ""
+  );
   const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
   const availableStock = selectedVariant?.stock ?? product.stock;
   const [cartQuantityByVariant, setCartQuantityByVariant] = useState<Record<string, number>>(() => Object.fromEntries(initialCartQuantities.map((item) => [item.variant_id ?? "product", item.quantity])));
@@ -75,27 +88,45 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const [loading, setLoading] = useState(false);
   const [cartCountAfterAdd, setCartCountAfterAdd] = useState<number | null>(null);
   const [cartError, setCartError] = useState("");
-  const baseImages = useMemo(() => {
-    return product.product_images?.length ? product.product_images : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
+  const baseImages = useMemo<ProductGalleryImage[]>(() => {
+    const listedImages = product.product_images?.length
+      ? [...product.product_images].sort((a, b) =>
+          Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) ||
+          (a.display_order ?? 0) - (b.display_order ?? 0)
+        )
+      : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
+
+    return listedImages
+      .filter((image) => image.url?.trim())
+      .map((image) => ({ ...image, variantIds: [] }));
   }, [product.product_images, product.image, product.id, product.name]);
 
   const images = useMemo(() => {
-    const list = [...baseImages];
+    const variantImageUrls = new Set(variants.map((variant) => variant.image_url).filter(Boolean));
+    const list = baseImages.filter((image) => image.is_primary || !variantImageUrls.has(image.url));
     for (const v of variants) {
-      if (v.image_url && !list.some((img) => img.url === v.image_url)) {
-        const variantLabel = [v.color, v.ram, v.storage].filter(Boolean).join(" ");
-        list.push({
-          id: `variant-${v.id}`,
-          url: v.image_url,
-          alt_text: `${product.name}${variantLabel ? ` - ${variantLabel}` : ""}`,
-          is_primary: false,
-        });
+      if (!v.image_url) continue;
+      const existingImageIndex = list.findIndex((image) => image.url === v.image_url);
+      if (existingImageIndex >= 0) {
+        const existingImage = list[existingImageIndex];
+        list[existingImageIndex] = { ...existingImage, variantIds: [...existingImage.variantIds, v.id] };
+        continue;
       }
+
+      const variantLabel = [v.color, v.ram, v.storage].filter(Boolean).join(" ");
+      list.push({
+        id: `variant-${v.id}`,
+        url: v.image_url,
+        alt_text: `${product.name}${variantLabel ? ` - ${variantLabel}` : ""}`,
+        is_primary: false,
+        variantIds: [v.id],
+      });
     }
     return list;
   }, [baseImages, variants, product.name]);
 
-  const [activeImage, setActiveImage] = useState(() => selectedVariant?.image_url || images[0]?.url || "");
+  const primaryProductImage = baseImages.find((image) => image.is_primary)?.url || baseImages[0]?.url || "";
+  const [activeImage, setActiveImage] = useState(() => selectedVariant?.image_url || primaryProductImage);
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -245,14 +276,8 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       setCartError("");
       if (next.image_url) {
         setActiveImage(next.image_url);
-      } else if (key === "color") {
-        const norm = value.toLowerCase();
-        const matched = images.find(
-          (img) => img.alt_text?.toLowerCase().includes(norm) || img.url.toLowerCase().includes(norm)
-        );
-        if (matched) {
-          setActiveImage(matched.url);
-        }
+      } else {
+        setActiveImage(primaryProductImage);
       }
     }
   };
@@ -291,7 +316,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             className="relative aspect-square w-full bg-white dark:bg-card/60 rounded-[32px] overflow-hidden border border-border flex items-center justify-center p-6 sm:p-8 group cursor-zoom-in shadow-xs transition-all hover:border-primary/40"
           >
             <Image
-              src={activeImage || product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
+              src={activeImage || product.image || FALLBACK_PRODUCT_IMAGE}
               alt={product.name}
               fill
               priority
@@ -316,13 +341,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   onClick={() => {
                     setActiveImage(image.url);
                     setLightboxIndex(idx);
-                    const matchingVariant = variants.find(
-                      (v) => (v.image_url && v.image_url === image.url) ||
-                             (v.color && image.alt_text?.toLowerCase().includes(v.color.toLowerCase()))
-                    );
-                    if (matchingVariant && matchingVariant.id !== selectedVariantId) {
-                      setSelectedVariantId(matchingVariant.id);
+                    const matchingVariantId = image.variantIds.length === 1 ? image.variantIds[0] : null;
+                    if (matchingVariantId && matchingVariantId !== selectedVariantId) {
+                      setSelectedVariantId(matchingVariantId);
                       setQuantity(1);
+                      setCartCountAfterAdd(null);
+                      setCartError("");
                     }
                   }}
                   aria-label={`Tampilkan gambar ${image.alt_text || product.name}`}
@@ -736,9 +760,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             )}
 
             <div className="relative w-full h-full max-h-[75vh] flex items-center justify-center p-2">
-              <img
-                src={images[lightboxIndex]?.url || activeImage || product.image || ""}
+              <Image
+                src={images[lightboxIndex]?.url || activeImage || product.image || FALLBACK_PRODUCT_IMAGE}
                 alt={images[lightboxIndex]?.alt_text || product.name}
+                fill
+                unoptimized
+                sizes="90vw"
                 className="max-h-[75vh] max-w-[90vw] object-contain rounded-2xl drop-shadow-2xl animate-in zoom-in-95 duration-200"
               />
             </div>
@@ -781,9 +808,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   )}
                   aria-label={`Pilih gambar ${idx + 1}`}
                 >
-                  <img
+                  <Image
                     src={img.url}
                     alt={img.alt_text || product.name}
+                    fill
+                    unoptimized
+                    sizes="64px"
                     className="size-full object-contain p-1"
                   />
                 </button>

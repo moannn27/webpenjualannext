@@ -1,12 +1,8 @@
 import { getAdminOrdersAction } from "@/actions/admin";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { updateAdminOrderStatusAction, updateAdminPaymentStatusAction } from "@/actions/admin";
 import { getAdminAccess } from "@/lib/auth/admin";
 import { requireModulePermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { OrderSortSelect } from "@/features/admin/OrderSortSelect";
 import { OrderActionModal } from "@/features/admin/OrderActionModal";
@@ -15,47 +11,20 @@ import {
   Search, 
   MessageCircle, 
   FileText, 
-  Plus, 
-  SlidersHorizontal, 
-  ArrowUpDown, 
+  Plus,
   TrendingUp, 
   Clock, 
   CheckCircle2, 
   Truck, 
   Store, 
-  AlertCircle,
-  Eye,
-  ExternalLink,
-  ChevronDown
+  AlertCircle
 } from "lucide-react";
-
-const statusLabels: Record<string, string> = {
-  pending: "Menunggu pembayaran",
-  processing: "Pembayaran dikonfirmasi · disiapkan",
-  shipped: "Dikirim",
-  ready_for_pickup: "Siap diambil di toko",
-  delivered: "Selesai (Diterima)",
-  cancelled: "Dibatalkan (Refund)",
-};
 
 const paymentLabels: Record<string, string> = { 
   pending: "Menunggu", 
   success: "Terkonfirmasi", 
   failed: "Gagal", 
   refunded: "Refund" 
-};
-
-const statusChoices: Record<string, { value: string; label: string }[]> = {
-  pending: [{ value: "cancelled", label: "Batalkan pesanan" }],
-  processing: [
-    { value: "shipped", label: "Tandai dikirim" },
-    { value: "ready_for_pickup", label: "Siap diambil di toko" },
-    { value: "cancelled", label: "Batalkan pesanan" }
-  ],
-  shipped: [{ value: "delivered", label: "Tandai selesai" }],
-  ready_for_pickup: [{ value: "delivered", label: "Tandai selesai" }],
-  delivered: [],
-  cancelled: [],
 };
 
 const money = (value: number) => `Rp ${Number(value ?? 0).toLocaleString("id-ID")}`;
@@ -352,9 +321,6 @@ export default async function AdminOrdersPage({
               {sortedOrders.map((order) => {
                 const payment = order.payments?.[0];
                 const isPickup = order.courier === "pickup";
-                const choices = (statusChoices[order.status] ?? []).filter((option) =>
-                  isPickup ? option.value !== "shipped" : option.value !== "ready_for_pickup"
-                );
                 const address = order.shipping_address as Record<string, unknown> | null;
                 const customer = resolveOrderCustomerIdentity({
                   shippingAddress: address,

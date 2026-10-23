@@ -3,7 +3,6 @@ import {
   ChevronRight,
   Home,
   Layers,
-  Sparkles,
   ShieldCheck,
   Zap,
   Package,

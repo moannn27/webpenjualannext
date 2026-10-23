@@ -22,6 +22,7 @@ export interface CartVariant {
   price: number | null;
   discount_price: number | null;
   stock: number;
+  image_url?: string | null;
 }
 
 export interface CartItem {

@@ -8,14 +8,13 @@ import {
   Clock,
   HelpCircle,
   AlertCircle,
-  AlertTriangle,
-  ExternalLink,
-  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { formatDisplayPhone } from "@/lib/phone";
 import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
+import { getOrderPaymentState } from "@/lib/orders/payment-status";
+import { getOrderItemSku } from "@/lib/orders/order-item";
 
 export interface InvoiceOrderItem {
   id: string;
@@ -248,12 +247,14 @@ export function OrderInvoice({
     : order.created_at;
 
   const payment = order.payments?.[0];
-  const paymentStatus = payment?.status || "pending";
-  const isPaymentConfirmed =
-    paymentStatus === "success" ||
-    order.status === "processing" ||
-    order.status === "shipped" ||
-    order.status === "delivered";
+  const paymentState = getOrderPaymentState(order.payments);
+  const isPaymentConfirmed = paymentState === "paid";
+  const paymentStateLabel = {
+    paid: "LUNAS - TERVERIFIKASI",
+    pending: "PENDING - MENUNGGU VERIFIKASI ADMIN",
+    failed: "PEMBAYARAN GAGAL / KEDALUWARSA",
+    refunded: "PEMBAYARAN DIKEMBALIKAN",
+  }[paymentState];
 
   const paymentMethodRaw = payment?.payment_method?.toLowerCase() || "";
   const paymentMethodName =
@@ -420,7 +421,6 @@ export function OrderInvoice({
               variant="outline"
               className="gap-2 rounded-xl h-10 px-4 border-amber-300 dark:border-amber-700/50 bg-amber-50/70 hover:bg-amber-100 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-semibold"
             >
-              <AlertTriangle className="size-4 text-amber-600" />
               Ajukan Komplain
             </Button>
 
@@ -438,7 +438,6 @@ export function OrderInvoice({
                 variant="outline"
                 className="gap-2 rounded-xl h-10 px-4 border-emerald-300 dark:border-emerald-700/50 text-emerald-800 dark:text-emerald-300 font-medium"
               >
-                <ExternalLink className="size-4 text-emerald-600" />
                 Hubungi Pembeli
               </Button>
             )}
@@ -448,9 +447,6 @@ export function OrderInvoice({
         {/* Complaint & Warranty Notification Card - Hidden in Print */}
         <div className="print:hidden rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
-            <div className="size-9 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-              <ShieldAlert className="size-5" />
-            </div>
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 Punya Kendala atau Keluhan pada Pesanan?
@@ -556,9 +552,9 @@ export function OrderInvoice({
                     <span>DIBATALKAN</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-900 border border-amber-300 print:text-[8.5px] print:py-0.5 print:px-2">
-                    <Clock className="size-3.5 text-amber-600 print:size-3" />
-                    <span>PENDING - MENUNGGU VERIFIKASI ADMIN</span>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border print:text-[8.5px] print:py-0.5 print:px-2 ${paymentState === "pending" ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-rose-50 text-rose-800 border-rose-300"}`}>
+                    {paymentState === "pending" ? <Clock className="size-3.5 text-amber-600 print:size-3" /> : <AlertCircle className="size-3.5 text-rose-600 print:size-3" />}
+                    <span>{paymentStateLabel}</span>
                   </span>
                 )}
 
@@ -642,11 +638,11 @@ export function OrderInvoice({
           {/* TABLE: SOLID INDIGO HEADER BAR & PURE TEXT ROWS (NO IMAGES) */}
           <div className="mt-6">
             {/* Solid Table Header Bar */}
-            <div className="invoice-table-header bg-[#3730A3] text-white rounded-t-lg px-4 sm:px-6 py-3 flex items-center text-xs font-bold uppercase tracking-wider print:py-2 print:text-[9.5px]">
-              <div className="flex-1">Items Description</div>
-              <div className="w-28 sm:w-36 text-right">Unit Price</div>
-              <div className="w-14 sm:w-16 text-center">Qty</div>
-              <div className="w-28 sm:w-36 text-right">Total</div>
+            <div className="invoice-table-header bg-[#3730A3] text-white rounded-t-lg px-3 sm:px-6 py-3 grid grid-cols-[minmax(0,1fr)_4rem_2rem_4.5rem] gap-2 items-center text-[9px] sm:grid-cols-[minmax(0,1fr)_9rem_4rem_9rem] sm:gap-3 sm:text-xs font-bold uppercase tracking-wide print:py-2 print:text-[9.5px]">
+              <div>Produk</div>
+              <div className="text-right"><span className="sm:hidden">Harga</span><span className="hidden sm:inline">Harga Satuan</span></div>
+              <div className="text-center">Jml.</div>
+              <div className="text-right">Total</div>
             </div>
 
             {/* Table Rows: Pure Text Description, SKU, Specs & Numbers */}
@@ -656,9 +652,12 @@ export function OrderInvoice({
                 const liveTitle = productData?.name || item.product_name;
                 const brandName = productData?.brands?.name || item.brand_name;
                 const categoryName = productData?.categories?.name || item.category_name;
-                const skuCode = productData?.sku || item.sku;
-
                 const variant = item.variant_details;
+                const skuCode = getOrderItemSku({
+                  variantDetails: variant,
+                  itemSku: item.sku,
+                  productSku: productData?.sku,
+                });
                 const variantText =
                   variant && typeof variant === "object"
                     ? [
@@ -880,8 +879,8 @@ export function OrderInvoice({
 
                 <span className="text-slate-500">Status</span>
                 <span className="text-slate-400 select-none">:</span>
-                <span className={`font-bold ${isPaymentConfirmed ? "text-emerald-700" : "text-amber-700"}`}>
-                  {isPaymentConfirmed ? "LUNAS (DIVERIFIKASI)" : "MENUNGGU PEMBAYARAN"}
+                <span className={`font-bold ${paymentState === "paid" ? "text-emerald-700" : paymentState === "pending" ? "text-amber-700" : "text-rose-700"}`}>
+                  {paymentStateLabel}
                 </span>
               </div>
             </div>

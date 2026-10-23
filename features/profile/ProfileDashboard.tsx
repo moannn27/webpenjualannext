@@ -76,6 +76,7 @@ type Order = {
     price: number;
     quantity: number;
     variant_details?: { sku?: string; color?: string; ram?: string; storage?: string } | null;
+    product_variants?: { image_url?: string | null } | { image_url?: string | null }[] | null;
     products?: OrderedProduct | OrderedProduct[];
   }[];
   payments?: { id: string; amount: number; payment_method: string | null; status: string }[];
@@ -755,6 +756,10 @@ export function ProfileDashboard({
                                   const images = [...(product?.product_images ?? [])].sort(
                                     (a, b) => Number(b.is_primary) - Number(a.is_primary)
                                   );
+                                  const variantRecord = Array.isArray(item.product_variants)
+                                    ? item.product_variants[0]
+                                    : item.product_variants;
+                                  const itemImage = variantRecord?.image_url || images[0]?.url;
                                   const variantLabel = [
                                     item.variant_details?.color,
                                     item.variant_details?.ram,
@@ -771,13 +776,13 @@ export function ProfileDashboard({
                                       <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="flex items-center gap-3 min-w-0">
                                           <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted border">
-                                            {images[0]?.url ? (
+                                            {itemImage ? (
                                               <Image
-                                                src={images[0].url}
-                                                alt={item.product_name}
+                                                src={itemImage}
+                                                alt={variantLabel ? `${item.product_name} - ${variantLabel}` : item.product_name}
                                                 fill
                                                 sizes="64px"
-                                                className="object-cover"
+                                                className="object-contain p-1"
                                               />
                                             ) : (
                                               <div className="grid size-full place-items-center text-[10px] text-muted-foreground">
@@ -789,6 +794,11 @@ export function ProfileDashboard({
                                             <p className="font-semibold text-foreground">{item.product_name}</p>
                                             {variantLabel && (
                                               <p className="mt-0.5 text-xs text-muted-foreground">{variantLabel}</p>
+                                            )}
+                                            {item.variant_details?.sku && (
+                                              <p className="mt-1 text-xs text-muted-foreground">
+                                                SKU: <span className="font-mono font-medium text-foreground">{item.variant_details.sku}</span>
+                                              </p>
                                             )}
                                             <p className="mt-0.5 text-xs text-muted-foreground">
                                               Jumlah: {item.quantity} · Rp {Number(item.price).toLocaleString("id-ID")} / barang

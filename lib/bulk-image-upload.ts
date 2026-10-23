@@ -865,7 +865,6 @@ export async function executeBulkImageUpload(params: {
         updatedProductsCount++;
       } else if (item.status === "matched_variant" && item.matchedVariantId) {
         const variantId = item.matchedVariantId;
-        const productId = item.matchedProductId;
 
         // If overwrite or variant has no image yet, update variant image_url
         if (overwriteExisting || !item.hasExistingImage) {
@@ -875,23 +874,6 @@ export async function executeBulkImageUpload(params: {
             .eq("id", variantId);
 
           if (varError) throw new Error(`Gagal memperbarui foto varian: ${varError.message}`);
-        }
-
-        // Also add to product gallery if product exists
-        if (productId) {
-          const { data: newImg } = await supabase
-            .from("product_images")
-            .insert({
-              product_id: productId,
-              url: publicUrl,
-              alt_text: `${item.matchedProductName || ""} - ${item.matchedVariantDetails || item.extractedSku}`,
-              is_primary: false,
-              display_order: 50,
-            })
-            .select("id")
-            .maybeSingle();
-
-          if (newImg?.id) insertedImageRecordIds.push(newImg.id);
         }
 
         updatedVariantsCount++;

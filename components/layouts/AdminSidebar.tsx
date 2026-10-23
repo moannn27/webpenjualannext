@@ -8,7 +8,6 @@ import {
   getAdminLockedAccountsNotificationAction,
 } from "@/actions/admin";
 import { type AdminModuleKey } from "@/types/admin-permissions";
-import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
@@ -38,13 +37,11 @@ export function AdminSidebar({
   permissions = [],
   collapsed = false,
   onToggleCollapse,
-  storeSettings: _storeSettings,
 }: {
   isSuperAdmin?: boolean;
   permissions?: AdminModuleKey[];
   collapsed?: boolean;
   onToggleCollapse?: () => void;
-  storeSettings?: StorefrontSettings;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);

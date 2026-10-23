@@ -16,6 +16,7 @@ export interface StoredCartItem {
   quantity: number;
   variantId?: string | null;
   variantLabel?: string | null;
+  variantSku?: string | null;
 }
 
 interface CartStoreState {
@@ -144,11 +145,11 @@ export const useCartStore = create<CartStoreState>()(
           items: state.items.map((item) => {
             if (item.id !== id) return item;
             const master = getMasterProductById(item.productId);
-            const maxStock = master ? master.stock : item.stock;
+            const maxStock = item.variantId ? item.stock : master ? master.stock : item.stock;
             return {
               ...item,
               quantity: Math.min(maxStock, quantity),
-              price: master ? (master.discountPrice ?? master.price) : item.price,
+              price: item.variantId ? item.price : master ? (master.discountPrice ?? master.price) : item.price,
             };
           }),
         }));
@@ -250,7 +251,9 @@ export const useCartStore = create<CartStoreState>()(
           // Security fix: NEVER trust price values saved in localStorage.
           // Always re-lookup the item's id from the master product data to get the real price.
           const master = getMasterProductById(item.productId || item.id);
-          const verifiedPrice = master
+          const verifiedPrice = item.variantId
+            ? Number(item.price || 0)
+            : master
             ? Number(master.discountPrice ?? master.price)
             : Number(item.price || 0);
 

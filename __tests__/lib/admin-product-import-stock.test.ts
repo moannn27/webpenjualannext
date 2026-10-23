@@ -393,44 +393,13 @@ describe('Admin Product Import - Stock Policy & Re-import Test Suite', () => {
       const buf = fs.readFileSync(filePath);
       const wb = await loadExcelWorkbook(buf);
       const tables = importTablesFromWorkbook(wb);
-      const { products, sheetSummary } = analyzeAndNormalizeImportTables(tables);
-
-      console.log('Total products parsed:', products.length);
-      console.log('Sheet summary:', JSON.stringify(sheetSummary));
-
-      const allVariants = products.flatMap((p) => p.variants);
-      const allSkus = [
-        ...products.map((p) => ({ sku: p.sku, name: p.name, stock: p.stock, fileStock: p.fileStock, type: 'parent' })),
-        ...allVariants.map((v) => ({ sku: v.sku, stock: v.stock, fileStock: v.fileStock, type: 'variant' })),
-      ];
-
-      let productsWithNullFileStock = 0;
-      let variantsWithNullFileStock = 0;
-      let standaloneCount = 0;
-      let variantGroupCount = 0;
-
-      for (const p of products) {
-        if (p.variants.length > 0) {
-          variantGroupCount++;
-          if (p.fileStock === null || p.fileStock === undefined) productsWithNullFileStock++;
-          for (const v of p.variants) {
-            if (v.fileStock === null || v.fileStock === undefined) variantsWithNullFileStock++;
-          }
-        } else {
-          standaloneCount++;
-          if (p.fileStock === null || p.fileStock === undefined) productsWithNullFileStock++;
-        }
-      }
+      const { products } = analyzeAndNormalizeImportTables(tables);
 
       const totalAccountedRows = products.reduce(
         (sum, p) => sum + (p.variants.length > 0 ? p.variants.length : 1),
         0
       );
-      console.log('Total accounted rows across all 71 products:', totalAccountedRows);
       expect(totalAccountedRows).toBe(102);
-
-      const nullStockStandalone = products.filter((p) => p.variants.length === 0 && (p.fileStock === null || p.fileStock === undefined));
-      console.log('Sample standalone with null fileStock:', nullStockStandalone.slice(0, 3).map((p) => ({ name: p.name, sku: p.sku, fileStock: p.fileStock, stock: p.stock })));
 
       // Verify Target SKU 1: 91CF001VID (15 units)
       const prod91 = products.find((p) => p.sku === '91CF001VID' || p.variants.some((v) => v.sku === '91CF001VID'));
