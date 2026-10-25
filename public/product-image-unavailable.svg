@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title desc">
+  <title id="title">Foto produk belum tersedia</title>
+  <desc id="desc">Ilustrasi kamera dengan keterangan foto produk belum tersedia</desc>
+  <rect width="640" height="480" rx="32" fill="#f4f4f5"/>
+  <g fill="none" stroke="#a1a1aa" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M210 164h54l24-34h64l24 34h54a30 30 0 0 1 30 30v128a30 30 0 0 1-30 30H210a30 30 0 0 1-30-30V194a30 30 0 0 1 30-30Z"/>
+    <circle cx="320" cy="254" r="54"/>
+  </g>
+  <text x="320" y="407" fill="#71717a" font-family="Arial,sans-serif" font-size="23" text-anchor="middle">Foto produk belum tersedia</text>
+</svg>

@@ -1,5 +1,6 @@
 import { getMasterProductById } from "@/constants/products";
 import { type StoredCartItem } from "@/store/useCartStore";
+import { getSafeProductImageUrl, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 
 interface RawCartItem {
   id: string;
@@ -29,6 +30,7 @@ interface RawCartItem {
     discount_price?: number | null;
     stock?: number;
     image_url?: string | null;
+    product_variant_images?: { id: string; url: string; display_order?: number }[];
   } | null;
 }
 
@@ -71,13 +73,12 @@ export function formatCartItemToStored(it: RawCartItem): StoredCartItem {
   const verifiedPrice = getCartItemUnitPrice(it);
   const availableStock = getCartItemAvailableStock(it) ?? 10;
 
-  const primaryImage =
-    variant?.image_url ||
-    product?.product_images?.find((img) => img.is_primary)?.url ||
-    product?.product_images?.[0]?.url ||
-    product?.image ||
-    master?.image ||
-    "";
+  const variantGallery = variant?.product_variant_images?.slice().sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  const primaryImage = variantGallery?.find((image) => isValidProductImageUrl(image.url) && !isKnownPromotionalArtwork(image.url))?.url
+    ?? (variant?.image_url && isValidProductImageUrl(variant.image_url) && !isKnownPromotionalArtwork(variant.image_url)
+      ? variant.image_url
+      : null)
+    ?? getSafeProductImageUrl(product?.product_images, product?.image || master?.image);
 
   const variantLabel = variant
     ? [variant.color, variant.ram, variant.storage].filter(Boolean).join(" · ")

@@ -7,6 +7,7 @@ import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getRecommendationSubtitle, type ProductCandidate } from "@/lib/product-recommendations";
 import { notFound } from "next/navigation";
 import { buildProductJsonLd } from "@/lib/seo";
+import { isKnownPromotionalArtwork } from "@/lib/product-gallery";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,7 +16,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     return null;
   });
   if (!product) return { title: "Produk Tidak Ditemukan" };
-  const imageUrl = product.product_images?.[0]?.url;
+  const productImages = product.product_images as { url: string; is_primary?: boolean }[] | undefined;
+  const imageUrl = productImages?.find((image) => image.is_primary && !isKnownPromotionalArtwork(image.url))?.url
+    ?? productImages?.find((image) => !isKnownPromotionalArtwork(image.url))?.url;
   const title = product.name;
   const description = product.description
     ? String(product.description).slice(0, 160)

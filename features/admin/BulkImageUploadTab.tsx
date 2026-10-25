@@ -190,9 +190,9 @@ export function BulkImageUploadTab({ onImagesImported }: BulkImageUploadTabProps
             <p className="text-xs text-muted-foreground leading-relaxed">
               Unggah file ZIP yang berisi kumpulan foto produk. Sistem akan mencocokkan nama file foto dengan{" "}
               <strong className="text-foreground">SKU / MTM produk induk</strong> atau{" "}
-              <strong className="text-foreground">variant_sku</strong> secara persis (contoh:{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground font-mono text-[11px]">F0HN00Q3ID.jpg</code>
-              ).
+              <strong className="text-foreground">SKU varian</strong> (kolom <code>product_variants.sku</code>) secara persis. Untuk beberapa foto SKU yang sama, tambahkan urutan seperti{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground font-mono text-[11px]">F0HN00Q3ID__1.jpg</code> dan{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 text-foreground font-mono text-[11px]">F0HN00Q3ID__2.jpg</code>.
             </p>
           </div>
           <div className="shrink-0 flex items-center gap-2">

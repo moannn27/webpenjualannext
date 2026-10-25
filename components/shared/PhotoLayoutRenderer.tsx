@@ -125,14 +125,14 @@ function FloatingBadge({
 }) {
   if (!badgeText && !badgeSubtext) return null;
   return (
-    <div className="text-center">
+    <div className="w-fit max-w-full rounded-xl border border-slate-200/90 bg-white/95 px-3.5 py-2.5 text-left shadow-md backdrop-blur dark:border-white/15 dark:bg-slate-900/95">
         {badgeText && (
-          <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 leading-tight">
+          <p className="text-xs sm:text-sm font-semibold leading-tight text-[#0A4EA3] dark:text-blue-300">
             {badgeText.replace(/^[\s⭐✨🌟★☆]+/u, "")}
           </p>
         )}
         {badgeSubtext && (
-          <p className="mt-1 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-tight">
+          <p className="mt-1 text-[11px] leading-tight text-slate-600 dark:text-slate-300 sm:text-xs">
             {badgeSubtext}
           </p>
         )}

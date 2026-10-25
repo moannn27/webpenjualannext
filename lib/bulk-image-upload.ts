@@ -40,6 +40,7 @@ export interface BulkImageCatalogVariant {
   ram: string;
   storage: string;
   imageUrl?: string | null;
+  imageUrls?: string[];
 }
 
 export interface BulkImageMatchItem {
@@ -64,6 +65,7 @@ export interface BulkImageMatchItem {
   matchedVariantDetails?: string;
   hasExistingImage: boolean;
   existingImageUrl?: string | null;
+  legacyImageUrl?: string | null;
   previewDataUrl?: string;
 }
 
@@ -371,7 +373,7 @@ export async function extractZipImages(
 }
 
 /**
- * Matches extracted ZIP images strictly against catalog products and variants by SKU/variant_sku,
+ * Matches extracted ZIP images strictly against catalog products and product_variants.sku,
  * while automatically compressing, auto-orienting, stripping metadata, and converting images to WebP.
  */
 export async function matchZipImagesWithCatalog(
@@ -381,24 +383,27 @@ export async function matchZipImagesWithCatalog(
   includeThumbnailDataUrl = true
 ): Promise<BulkImagePreviewResult> {
   // Build lookup maps (exact uppercase trimmed)
-  const productBySku = new Map<string, BulkImageCatalogProduct>();
+  const productBySku = new Map<string, BulkImageCatalogProduct[]>();
   for (const prod of products) {
     if (prod.sku && prod.sku.trim()) {
-      productBySku.set(prod.sku.trim().toUpperCase(), prod);
+      const sku = prod.sku.trim().toUpperCase();
+      productBySku.set(sku, [...(productBySku.get(sku) ?? []), prod]);
     }
   }
 
-  const variantBySku = new Map<string, BulkImageCatalogVariant>();
+  const variantBySku = new Map<string, BulkImageCatalogVariant[]>();
   for (const v of variants) {
     if (v.sku && v.sku.trim()) {
-      variantBySku.set(v.sku.trim().toUpperCase(), v);
+      const sku = v.sku.trim().toUpperCase();
+      variantBySku.set(sku, [...(variantBySku.get(sku) ?? []), v]);
     }
   }
 
   // Count SKU frequencies in the uploaded ZIP to detect duplicates
   const skuCounts = new Map<string, number>();
+  const getSkuFromFileName = (fileName: string) => fileName.replace(/\.[^.]+$/, "").replace(/__\d+$/, "").trim();
   for (const entry of entries) {
-    const rawSku = entry.fileName.replace(/\.[^.]+$/, "").trim().toUpperCase();
+    const rawSku = getSkuFromFileName(entry.fileName).toUpperCase();
     if (rawSku) {
       skuCounts.set(rawSku, (skuCounts.get(rawSku) ?? 0) + 1);
     }
@@ -419,7 +424,7 @@ export async function matchZipImagesWithCatalog(
 
   for (const entry of entries) {
     const ext = entry.fileName.split(".").pop()?.toLowerCase() || "";
-    const rawSku = entry.fileName.replace(/\.[^.]+$/, "").trim();
+    const rawSku = getSkuFromFileName(entry.fileName);
     const normalizedSku = rawSku.toUpperCase();
 
     // 1. Check supported extension
@@ -513,10 +518,12 @@ export async function matchZipImagesWithCatalog(
     }
 
     // 5. Check duplicate in same ZIP
-    if ((skuCounts.get(normalizedSku) ?? 0) > 1) {
+    const sameSkuEntries = entries.filter((candidate) => getSkuFromFileName(candidate.fileName).toUpperCase() === normalizedSku);
+    const numberedMultiImageSet = sameSkuEntries.length > 1 && sameSkuEntries.every((candidate) => /__\d+\.[^.]+$/.test(candidate.fileName)) && new Set(sameSkuEntries.map((candidate) => candidate.fileName.replace(/^.*__(\d+)\.[^.]+$/, "$1"))).size === sameSkuEntries.length;
+    if ((skuCounts.get(normalizedSku) ?? 0) > 1 && !numberedMultiImageSet) {
       duplicateCount++;
-      const prodMatch = productBySku.get(normalizedSku);
-      const varMatch = variantBySku.get(normalizedSku);
+      const prodMatch = productBySku.get(normalizedSku)?.[0];
+      const varMatch = variantBySku.get(normalizedSku)?.[0];
       items.push({
         fileName: entry.fileName,
         entryPath: entry.entryPath,
@@ -530,10 +537,10 @@ export async function matchZipImagesWithCatalog(
         originalMimeType: entry.mimeType,
         extractedSku: rawSku,
         status: "duplicate",
-        statusMessage: `Duplikat di dalam berkas ZIP (terdapat ${skuCounts.get(normalizedSku)} gambar untuk SKU "${rawSku}"). Tandai untuk direview.`,
+        statusMessage: `Duplikat nama SKU di dalam berkas ZIP (terdapat ${skuCounts.get(normalizedSku)} gambar untuk SKU "${rawSku}"). Tandai untuk direview.`,
         matchedProductId: prodMatch?.id || varMatch?.productId,
         matchedProductName: prodMatch?.name || varMatch?.productName,
-        hasExistingImage: Boolean(prodMatch?.imagesCount || varMatch?.imageUrl),
+        hasExistingImage: Boolean(prodMatch?.imagesCount || varMatch?.imageUrl || varMatch?.imageUrls?.length),
         previewDataUrl,
       });
       unmatchedImages.push({
@@ -545,11 +552,13 @@ export async function matchZipImagesWithCatalog(
     }
 
     // 6. Exact matching against Catalog
-    const matchedProduct = productBySku.get(normalizedSku);
-    const matchedVariant = variantBySku.get(normalizedSku);
+    const productsForSku = productBySku.get(normalizedSku) ?? [];
+    const variantsForSku = variantBySku.get(normalizedSku) ?? [];
+    const matchedProduct = productsForSku.length === 1 ? productsForSku[0] : undefined;
+    const matchedVariant = variantsForSku.length === 1 ? variantsForSku[0] : undefined;
 
     // Ambiguity check: SKU exists as BOTH parent product and variant
-    if (matchedProduct && matchedVariant) {
+    if (productsForSku.length > 1 || variantsForSku.length > 1 || (matchedProduct && matchedVariant)) {
       ambiguousCount++;
       items.push({
         fileName: entry.fileName,
@@ -564,16 +573,14 @@ export async function matchZipImagesWithCatalog(
         originalMimeType: entry.mimeType,
         extractedSku: rawSku,
         status: "ambiguous",
-        statusMessage: `Ambigu: SKU "${rawSku}" digunakan oleh produk induk (${matchedProduct.name}) dan varian (${matchedVariant.productName}). Perlu review manual.`,
-        matchedProductId: matchedProduct.id,
-        matchedProductName: matchedProduct.name,
-        hasExistingImage: Boolean(matchedProduct.imagesCount || matchedVariant.imageUrl),
+        statusMessage: `Ambigu: SKU "${rawSku}" digunakan oleh lebih dari satu produk atau varian. Perlu review manual.`,
+        hasExistingImage: Boolean(matchedProduct?.imagesCount || matchedVariant?.imageUrl || matchedVariant?.imageUrls?.length),
         previewDataUrl,
       });
       unmatchedImages.push({
         fileName: entry.fileName,
         sku: rawSku,
-        reason: "SKU bentrok antara produk induk dan varian",
+        reason: "SKU tidak unik di katalog produk dan varian",
       });
       continue;
     }
@@ -624,14 +631,15 @@ export async function matchZipImagesWithCatalog(
         originalMimeType: entry.mimeType,
         extractedSku: rawSku,
         status: "matched_variant",
-        statusMessage: `Cocok dengan variant_sku: ${matchedVariant.productName}${varDetails ? ` (${varDetails})` : ""}`,
+        statusMessage: `Cocok dengan SKU varian: ${matchedVariant.productName}${varDetails ? ` (${varDetails})` : ""}`,
         matchedProductId: matchedVariant.productId,
         matchedProductName: matchedVariant.productName,
         matchedVariantId: matchedVariant.id,
         matchedVariantSku: matchedVariant.sku,
         matchedVariantDetails: varDetails,
-        hasExistingImage: Boolean(matchedVariant.imageUrl),
-        existingImageUrl: matchedVariant.imageUrl,
+        hasExistingImage: Boolean(matchedVariant.imageUrl || matchedVariant.imageUrls?.length),
+        existingImageUrl: matchedVariant.imageUrl ?? matchedVariant.imageUrls?.[0] ?? null,
+        legacyImageUrl: matchedVariant.imageUrl ?? null,
         previewDataUrl,
       });
       continue;
@@ -684,7 +692,7 @@ export async function matchZipImagesWithCatalog(
   }
 
   for (const v of variants) {
-    if (!v.imageUrl && !matchedVariantIds.has(v.id)) {
+    if (!v.imageUrl && !v.imageUrls?.length && !matchedVariantIds.has(v.id)) {
       const varDetails = [v.color, v.ram, v.storage].filter(Boolean).join(" / ");
       productsWithoutImages.push({
         id: v.id,
@@ -748,7 +756,14 @@ export async function executeBulkImageUpload(params: {
   // Filter only validly matched items
   const validItems = matchedItems.filter(
     (item) => item.status === "matched_product" || item.status === "matched_variant"
-  );
+  ).slice().sort((a, b) => {
+    const sameTarget = a.matchedVariantId && a.matchedVariantId === b.matchedVariantId
+      ? true
+      : a.matchedProductId && a.matchedProductId === b.matchedProductId;
+    if (!sameTarget) return 0;
+    const getNumber = (fileName: string) => Number(fileName.match(/__(\d+)\.[^.]+$/)?.[1] ?? 0);
+    return getNumber(a.fileName) - getNumber(b.fileName);
+  });
 
   if (!validItems.length) {
     throw new Error("Tidak ada gambar yang cocok dengan SKU produk atau varian untuk diupload.");
@@ -762,8 +777,12 @@ export async function executeBulkImageUpload(params: {
   const uploadedStoragePaths: string[] = [];
   const uploadedUrls: string[] = [];
   const insertedImageRecordIds: string[] = [];
+  const insertedVariantImageRecordIds: string[] = [];
+  const originalVariantImageUrls = new Map<string, string | null>();
+  const originalVariantImageOrders = new Map<string, { id: string; display_order: number }[]>();
   let updatedProductsCount = 0;
   let updatedVariantsCount = 0;
+  const variantPrimaryImagesUpdated = new Set<string>();
   let totalOriginalBytes = 0;
   let totalOptimizedBytes = 0;
 
@@ -865,15 +884,44 @@ export async function executeBulkImageUpload(params: {
         updatedProductsCount++;
       } else if (item.status === "matched_variant" && item.matchedVariantId) {
         const variantId = item.matchedVariantId;
-
-        // If overwrite or variant has no image yet, update variant image_url
-        if (overwriteExisting || !item.hasExistingImage) {
-          const { error: varError } = await supabase
-            .from("product_variants")
-            .update({ image_url: publicUrl })
-            .eq("id", variantId);
-
-          if (varError) throw new Error(`Gagal memperbarui foto varian: ${varError.message}`);
+        const { data: existingVariantImages, error: readVariantImagesError } = await supabase
+          .from("product_variant_images")
+          .select("id, display_order")
+          .eq("variant_id", variantId);
+        if (readVariantImagesError) throw new Error(`Gagal membaca galeri varian: ${readVariantImagesError.message}`);
+        const uploadedForVariant = validItems.filter((candidate) => candidate.matchedVariantId === variantId).length;
+        const hasUploadedVariantImage = variantPrimaryImagesUpdated.has(variantId);
+        const existingImages = existingVariantImages ?? [];
+        if (overwriteExisting && !hasUploadedVariantImage && existingImages.length) {
+          originalVariantImageOrders.set(variantId, existingImages.map((image) => ({
+            id: image.id,
+            display_order: image.display_order ?? 0,
+          })));
+          for (const image of existingImages) {
+            const { error } = await supabase.from("product_variant_images")
+              .update({ display_order: (image.display_order ?? 0) + uploadedForVariant })
+              .eq("id", image.id);
+            if (error) throw new Error(`Gagal mengurutkan ulang galeri varian: ${error.message}`);
+          }
+        }
+        const nextOrder = overwriteExisting
+          ? validItems.slice(0, validItems.indexOf(item)).filter((candidate) => candidate.matchedVariantId === variantId).length
+          : existingImages.reduce((max, image) => Math.max(max, image.display_order ?? 0), -1) + 1;
+        const { data: variantImage, error: variantImageError } = await supabase.from("product_variant_images").insert({
+          variant_id: variantId, url: publicUrl, display_order: nextOrder,
+        }).select("id").single();
+        if (variantImageError) throw new Error(`Gagal menyimpan foto galeri varian: ${variantImageError.message}`);
+        if (variantImage?.id) insertedVariantImageRecordIds.push(variantImage.id);
+        if (!variantPrimaryImagesUpdated.has(variantId)) {
+          const primaryUrl = overwriteExisting
+            ? publicUrl
+            : item.legacyImageUrl ?? item.existingImageUrl ?? publicUrl;
+          if (primaryUrl !== item.legacyImageUrl) {
+            const { error: varError } = await supabase.from("product_variants").update({ image_url: primaryUrl }).eq("id", variantId);
+            if (varError) throw new Error(`Gagal memperbarui foto varian: ${varError.message}`);
+            originalVariantImageUrls.set(variantId, item.legacyImageUrl ?? null);
+          }
+          variantPrimaryImagesUpdated.add(variantId);
         }
 
         updatedVariantsCount++;
@@ -908,6 +956,35 @@ export async function executeBulkImageUpload(params: {
         await supabase.from("product_images").delete().in("id", insertedImageRecordIds);
       } catch (dbCleanupErr) {
         console.error("Gagal membersihkan baris product_images saat rollback:", dbCleanupErr);
+      }
+    }
+
+    if (insertedVariantImageRecordIds.length > 0) {
+      try {
+        await supabase.from("product_variant_images").delete().in("id", insertedVariantImageRecordIds);
+      } catch (dbCleanupErr) {
+        console.error("Gagal membersihkan baris product_variant_images saat rollback:", dbCleanupErr);
+      }
+    }
+
+    for (const [variantId, imageUrl] of originalVariantImageUrls) {
+      try {
+        const { error } = await supabase.from("product_variants").update({ image_url: imageUrl }).eq("id", variantId);
+        if (error) console.error("Gagal memulihkan foto utama varian saat rollback:", error);
+      } catch (restoreErr) {
+        console.error("Gagal memulihkan foto utama varian saat rollback:", restoreErr);
+      }
+    }
+
+    for (const rows of originalVariantImageOrders.values()) {
+      for (const row of rows) {
+        try {
+          const { error } = await supabase.from("product_variant_images")
+            .update({ display_order: row.display_order }).eq("id", row.id);
+          if (error) console.error("Gagal memulihkan urutan galeri varian saat rollback:", error);
+        } catch (restoreErr) {
+          console.error("Gagal memulihkan urutan galeri varian saat rollback:", restoreErr);
+        }
       }
     }
 

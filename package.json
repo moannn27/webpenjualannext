@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "catalog:images:audit": "node scripts/audit-product-images.js --verify-urls",
+    "catalog:images:sync": "node scripts/seed-product-images.js",
     "db:push": "npx supabase db push"
   },
   "dependencies": {

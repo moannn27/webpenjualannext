@@ -27,6 +27,7 @@ import { toggleWishlistAction } from "@/actions/wishlist";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
+import { getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 
 interface ProductDetailData {
   id: string;
@@ -42,7 +43,7 @@ interface ProductDetailData {
   description?: string | null;
   product_images?: { id: string; url: string; alt_text?: string | null; is_primary?: boolean; display_order?: number }[];
   product_specifications?: { id: string; key: string; value: string; display_order?: number }[];
-  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null }[];
+  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null; product_variant_images?: { id: string; url: string; display_order?: number }[] }[];
 }
 
 interface ProductReview {
@@ -68,7 +69,7 @@ type ProductGalleryImage = {
   variantIds: string[];
 };
 
-const FALLBACK_PRODUCT_IMAGE = "https://images.unsplash.com/photo-1496181133206-80ce9b88a853";
+const FALLBACK_PRODUCT_IMAGE = "/product-image-unavailable.svg";
 
 export function ProductDetail({ product, reviews = [], initialCartQuantities = [] }: ProductDetailProps) {
   const router = useRouter();
@@ -77,7 +78,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const [selectedVariantId, setSelectedVariantId] = useState(
     variants.find((variant) => variant.stock > 0)?.id ?? variants[0]?.id ?? ""
   );
-  const selectedVariant = variants.find((variant) => variant.id === selectedVariantId) ?? variants[0] ?? null;
+  const selectedVariant = getSelectedProductVariant(variants, selectedVariantId);
   const availableStock = selectedVariant?.stock ?? product.stock;
   const [cartQuantityByVariant, setCartQuantityByVariant] = useState<Record<string, number>>(() => Object.fromEntries(initialCartQuantities.map((item) => [item.variant_id ?? "product", item.quantity])));
   const selectedCartQuantity = cartQuantityByVariant[selectedVariant?.id ?? "product"] ?? 0;
@@ -96,37 +97,26 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         )
       : [{ id: product.id, url: product.image ?? "", alt_text: product.name }];
 
-    return listedImages
-      .filter((image) => image.url?.trim())
+    const usableImages = listedImages
+      .filter((image) => isValidProductImageUrl(image.url) && !isKnownPromotionalArtwork(image.url))
       .map((image) => ({ ...image, variantIds: [] }));
+    if (!usableImages.length && isValidProductImageUrl(product.image) && !isKnownPromotionalArtwork(product.image)) {
+      return [{ id: `${product.id}-fallback`, url: product.image, alt_text: product.name, variantIds: [] }];
+    }
+    return usableImages;
   }, [product.product_images, product.image, product.id, product.name]);
 
-  const images = useMemo(() => {
-    const variantImageUrls = new Set(variants.map((variant) => variant.image_url).filter(Boolean));
-    const list = baseImages.filter((image) => image.is_primary || !variantImageUrls.has(image.url));
-    for (const v of variants) {
-      if (!v.image_url) continue;
-      const existingImageIndex = list.findIndex((image) => image.url === v.image_url);
-      if (existingImageIndex >= 0) {
-        const existingImage = list[existingImageIndex];
-        list[existingImageIndex] = { ...existingImage, variantIds: [...existingImage.variantIds, v.id] };
-        continue;
-      }
-
-      const variantLabel = [v.color, v.ram, v.storage].filter(Boolean).join(" ");
-      list.push({
-        id: `variant-${v.id}`,
-        url: v.image_url,
-        alt_text: `${product.name}${variantLabel ? ` - ${variantLabel}` : ""}`,
-        is_primary: false,
-        variantIds: [v.id],
-      });
-    }
-    return list;
-  }, [baseImages, variants, product.name]);
+  const images = useMemo<ProductGalleryImage[]>(
+    () => getProductGalleryImages(baseImages, product.name, selectedVariant),
+    [baseImages, selectedVariant, product.name]
+  );
 
   const primaryProductImage = baseImages.find((image) => image.is_primary)?.url || baseImages[0]?.url || "";
-  const [activeImage, setActiveImage] = useState(() => selectedVariant?.image_url || primaryProductImage);
+  const initialVariantGallery = getProductGalleryImages(baseImages, product.name, selectedVariant);
+  const [activeImage, setActiveImage] = useState(() => initialVariantGallery[0]?.url || primaryProductImage);
+  const safeFallbackImage = isValidProductImageUrl(product.image) && !isKnownPromotionalArtwork(product.image)
+    ? product.image
+    : FALLBACK_PRODUCT_IMAGE;
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -265,20 +255,15 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     }).format(price);
   const variantOptions = (key: "color" | "ram" | "storage") => [...new Set(variants.map((variant) => variant[key]).filter(Boolean))];
   const chooseVariant = (key: "color" | "ram" | "storage", value: string) => {
-    const current = selectedVariant;
-    const otherKeys = (["color", "ram", "storage"] as const).filter((option) => option !== key);
-    const exactMatch = variants.find((variant) => variant[key] === value && otherKeys.every((option) => variant[option] === current?.[option]));
-    const next = exactMatch ?? variants.find((variant) => variant[key] === value);
+    const next = getVariantForAvailableOption(variants, selectedVariant, key, value);
     if (next) {
       setSelectedVariantId(next.id);
       setQuantity(1);
       setCartCountAfterAdd(null);
       setCartError("");
-      if (next.image_url) {
-        setActiveImage(next.image_url);
-      } else {
-        setActiveImage(primaryProductImage);
-      }
+      const nextGallery = getProductGalleryImages(baseImages, product.name, next);
+      setActiveImage(nextGallery[0]?.url || primaryProductImage);
+      setLightboxIndex(0);
     }
   };
   const variantFields = [
@@ -316,7 +301,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             className="relative aspect-square w-full bg-white dark:bg-card/60 rounded-[32px] overflow-hidden border border-border flex items-center justify-center p-6 sm:p-8 group cursor-zoom-in shadow-xs transition-all hover:border-primary/40"
           >
             <Image
-              src={activeImage || product.image || FALLBACK_PRODUCT_IMAGE}
+              src={activeImage || primaryProductImage || safeFallbackImage}
               alt={product.name}
               fill
               priority
@@ -416,16 +401,16 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
 
           <div className="space-y-5 mb-8">
             {variants.length > 0 && (
-              <div className="space-y-4 rounded-2xl border border-border/80 bg-muted/20 p-4">
+              <div className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5">
                 {variantFields.map(({ key, label }) => {
                   const options = variantOptions(key);
                   if (!options.length) return null;
                   const currentVal = selectedVariant?.[key];
                   return (
                     <div key={key} className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
-                        <span className="font-semibold text-foreground">{currentVal || "Pilih"}</span>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="font-medium text-muted-foreground">{label}</span>
+                        <span className="text-right font-medium text-foreground">{currentVal || "Pilih"}</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {options.map((option) => {
@@ -435,14 +420,15 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                               key={option}
                               type="button"
                               onClick={() => chooseVariant(key, option)}
+                              aria-pressed={isSelected}
                               className={cn(
-                                "px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
+                                "min-h-9 rounded-lg border px-3 py-2 text-sm font-medium transition-colors cursor-pointer",
                                 isSelected
-                                  ? "border-primary bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/20"
-                                  : "border-border bg-card text-foreground hover:bg-muted hover:border-primary/40"
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border bg-background text-foreground hover:bg-muted"
                               )}
                             >
-                              {key === "storage" ? `💾 ${option}` : option}
+                              {option}
                             </button>
                           );
                         })}
@@ -554,8 +540,10 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             <div className="max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xs">
               <dl className="divide-y divide-border/60">
                 {product.product_specifications?.length ? (
-                  [...product.product_specifications]
-                    .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+                  getSpecificationsForVariant(
+                    [...product.product_specifications].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
+                    selectedVariant,
+                  )
                     .map((spec, index) => (
                       <div
                         key={spec.id}

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
+import { getVariantGallerySaveBlockReason } from "@/lib/admin-product-variants";
 import {
   deleteAdminProductAction,
   getAdminProductsAction,
@@ -43,11 +44,12 @@ type AdminProduct = {
   stock: number; status: string; is_best_seller?: boolean; is_new_arrival?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
   product_images?: { url: string; is_primary: boolean }[];
   product_specifications?: { key: string; value: string; display_order?: number }[];
-  product_variants?: Variant[];
+  product_variants?: (Variant & { product_variant_images?: { id: string; url: string; display_order: number }[] })[];
+  variant_gallery_error?: string;
 };
 type Option = { id: string; name: string };
 type Specification = { key: string; value: string };
-type Variant = { id?: string; sku?: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number };
+type Variant = { id?: string; sku?: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null; images: string[] };
 
 export function ProductTable({ initialProducts, categories, brands, initialSearch = "" }: { initialProducts: AdminProduct[]; categories: Option[]; brands: Option[]; initialSearch?: string }) {
   const [products, setProducts] = useState(initialProducts);
@@ -193,8 +195,20 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const refresh = async () => setProducts(await getAdminProductsAction());
   const save = async (formData: FormData) => {
     setError("");
+    const gallerySaveBlockReason = getVariantGallerySaveBlockReason(editing ? editing.variant_gallery_error : undefined);
+    if (gallerySaveBlockReason && formData.get("variants") !== null) {
+      setError(gallerySaveBlockReason);
+      return;
+    }
     startTransition(async () => {
-      try { await saveAdminProductAction(formData); await refresh(); setEditing(false); }
+      try {
+        const label = String(formData.get("name") ?? "Produk");
+        const wasEditing = Boolean(formData.get("id"));
+        await saveAdminProductAction(formData);
+        await refresh();
+        setBulkSuccess(`${wasEditing ? "Perubahan produk" : "Produk baru"} "${label}" berhasil disimpan.`);
+        setEditing(false);
+      }
       catch (cause) { setError(cause instanceof Error ? cause.message : "Produk gagal disimpan."); }
     });
   };
@@ -639,6 +653,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     </div>
 
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {products.find((product) => product.variant_gallery_error)?.variant_gallery_error && (
+      <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+        {products.find((product) => product.variant_gallery_error)?.variant_gallery_error}
+      </p>
+    )}
     {bulkSuccess && (
       <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
         <span className="flex items-center gap-1.5"><CheckCheck className="size-4" /> {bulkSuccess}</span>
@@ -905,7 +924,15 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                       onClick={() => {
                         setError("");
                         setSpecifications((product.product_specifications ?? []).map(({ key, value }) => ({ key, value })));
-                        setVariants((product.product_variants ?? []).map((variant) => ({ ...variant })));
+                        setVariants((product.product_variants ?? []).map((variant) => ({
+                          ...variant,
+                          images: (variant.product_variant_images ?? [])
+                            .slice()
+                            .sort((a, b) => a.display_order - b.display_order)
+                            .map((image) => image.url)
+                            .filter((url) => Boolean(url))
+                            .concat(variant.product_variant_images?.length || !variant.image_url ? [] : [variant.image_url]),
+                        })));
                         setDiscountEnabled(product.discount_price != null);
                         setDirectStock(product.stock ?? 0);
                         setEditing(product);
@@ -1166,7 +1193,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             </div>
 
             <div className="space-y-3">
-              {variants.map((variant, index) => (
+                  {variants.map((variant, index) => (
                 <div
                   key={variant.id ?? `variant-${index}`}
                   className="rounded-xl border border-border bg-background p-4 space-y-3 shadow-xs"
@@ -1313,6 +1340,12 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                       </div>
                     </div>
                   </div>
+                  <ProductImagePicker
+                    key={`variant-gallery-${variant.id ?? index}`}
+                    title={`Galeri varian ${index + 1}`}
+                    initialImages={(variant.images ?? []).map((url, imageIndex) => ({ url, display_order: imageIndex }))}
+                    onChange={(images) => updateVariantField(index, "images", images)}
+                  />
                 </div>
               ))}
             </div>
@@ -1324,7 +1357,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
               onClick={() =>
                 setVariants((current) => [
                   ...current,
-                  { color: "", ram: "", storage: "", price: null, discount_price: null, stock: 0 },
+                  { color: "", ram: "", storage: "", price: null, discount_price: null, stock: 0, images: [] },
                 ])
               }
               className="cursor-pointer"

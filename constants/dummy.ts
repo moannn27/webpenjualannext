@@ -50,7 +50,7 @@ export const CATEGORIES = [
   {
     id: "laptops",
     name: "Laptops",
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=500&auto=format&fit=crop",
+    image: "/product-image-unavailable.svg",
     href: "/category/laptops"
   },
   {

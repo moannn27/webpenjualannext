@@ -431,7 +431,7 @@ export function PromoBanner({
 
                             <div className="relative flex size-full items-center justify-center">
                               <Image
-                                src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
+                                src={product.image || "/product-image-unavailable.svg"}
                                 alt={product.name}
                                 fill
                                 sizes="(max-width: 640px) 100vw, 340px"

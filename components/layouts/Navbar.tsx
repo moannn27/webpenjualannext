@@ -219,7 +219,10 @@ export function Navbar({
                   width={120}
                   height={32}
                   unoptimized
-                  className="h-8 max-w-[120px] object-contain"
+                  className={cn(
+                    "h-8 object-contain",
+                    displayMode === "both" ? "w-8 shrink-0" : "max-w-[120px]"
+                  )}
                 />
               )}
               {showText && (
@@ -240,7 +243,10 @@ export function Navbar({
                   width={160}
                   height={36}
                   unoptimized
-                  className="h-9 max-w-[160px] object-contain"
+                  className={cn(
+                    "h-9 object-contain",
+                    displayMode === "both" ? "w-9 shrink-0" : "max-w-[160px]"
+                  )}
                 />
               )}
               {showText && (

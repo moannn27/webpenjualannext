@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSafeProductImageUrl } from "@/lib/product-gallery";
 
 type Candidate = {
   id: string;
@@ -530,10 +531,7 @@ Katalog yang cocok: ${JSON.stringify(
     aiGenerated,
     products: products.map((product) => ({
       ...product,
-      image:
-        product.product_images?.find((item) => item.is_primary)?.url ??
-        product.product_images?.[0]?.url ??
-        null,
+      image: getSafeProductImageUrl(product.product_images),
       price: Number(product.price),
       discount_price: product.discount_price == null ? null : Number(product.discount_price),
     })),

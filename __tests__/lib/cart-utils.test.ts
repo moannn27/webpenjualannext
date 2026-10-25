@@ -13,7 +13,7 @@ describe("cart variant mapping", () => {
       price: 1000,
       discount_price: 900,
       stock: 20,
-      product_images: [{ url: "parent-image.jpg", is_primary: true }],
+      product_images: [{ url: "https://cdn.example.com/parent-image.jpg", is_primary: true }],
       categories: { name: "Laptop" },
     },
     product_variants: {
@@ -25,7 +25,7 @@ describe("cart variant mapping", () => {
       price: 1400,
       discount_price: 1300,
       stock: 3,
-      image_url: "variant-image.jpg",
+      image_url: "https://cdn.example.com/variant-image.jpg",
     },
   };
 
@@ -39,7 +39,7 @@ describe("cart variant mapping", () => {
       name: "Nama produk dari database",
       price: 1300,
       stock: 3,
-      image: "variant-image.jpg",
+      image: "https://cdn.example.com/variant-image.jpg",
       variantId: "variant-1",
       variantLabel: "Graphite · 16GB · 1TB",
       variantSku: "SKU-VARIAN-01",
@@ -61,7 +61,22 @@ describe("cart variant mapping", () => {
       },
     });
 
-    expect(stored.image).toBe("parent-image.jpg");
+    expect(stored.image).toBe("https://cdn.example.com/parent-image.jpg");
     expect(stored.variantSku).toBe("SKU-VARIAN-01");
+  });
+
+  it("uses the first valid ordered image from the selected variant gallery for cart display", () => {
+    const stored = formatCartItemToStored({
+      ...variantCartItem,
+      product_variants: {
+        ...variantCartItem.product_variants,
+        image_url: null,
+        product_variant_images: [
+          { id: "later", url: "https://cdn.example.com/second.webp", display_order: 1 },
+          { id: "first", url: "https://cdn.example.com/first.webp", display_order: 0 },
+        ],
+      },
+    });
+    expect(stored.image).toBe("https://cdn.example.com/first.webp");
   });
 });

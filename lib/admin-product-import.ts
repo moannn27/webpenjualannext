@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { normalizeLaptopSpecKey } from '@/lib/product-specifications'
+import { isKnownPromotionalArtwork } from '@/lib/product-gallery'
 
 export type StockPolicy = 'keep_existing' | 'replace_with_file' | 'adjustment' | 'manual'
 
@@ -674,6 +675,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       const rowNumber = index + 1
       const warnings: string[] = []
       const errors: string[] = []
+      if (isKnownPromotionalArtwork(r.image_url)) warnings.push('Gambar promosi Acer dilewati; unggah foto produk yang cocok dengan SKU/MTM.')
       if (!name) errors.push('Nama produk / TYPE belum terisi.')
       if (!sku) errors.push('SKU / MTM belum terisi.')
       if (!sourceDescription) warnings.push('Deskripsi sumber kosong.')
@@ -705,7 +707,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
         status: (r.status || 'draft').toLowerCase() as ImportedProduct['status'],
         isBestSeller: bool(r.is_best_seller ?? ''),
         isNewArrival: bool(r.is_new_arrival ?? ''),
-        imageUrl: r.image_url ?? '',
+        imageUrl: isKnownPromotionalArtwork(r.image_url) ? '' : r.image_url ?? '',
         sourceDescription,
         specs,
         color,
@@ -1058,11 +1060,13 @@ export function normalizeProductRows(rows: string[][]): ImportedProduct[] {
     const discount = money(record.promo_price ?? '', 'Harga promo', row, true)
     if (discount !== null && (discount <= 0 || (price > 0 && discount >= price))) throw new Error(`Baris ${row}: harga promo harus lebih besar dari nol dan lebih rendah dari harga utama.`)
     const imageUrl = record.image_url ?? found?.image_url ?? ''
+    const safeImageUrl = isKnownPromotionalArtwork(imageUrl) ? '' : imageUrl
     if (imageUrl && !/^https:\/\//i.test(imageUrl)) throw new Error(`Baris ${row}: URL foto harus menggunakan HTTPS.`)
     const status = (record.status || found?.status || 'published').toLowerCase() as ImportedProduct['status']
     if (!['published','draft','archived'].includes(status)) throw new Error(`Baris ${row}: status harus published, draft, atau archived.`)
     const legacySpecs = (record.specifications ?? '').split(/[;\n]/).map((part) => { const [k, ...v] = part.split(':'); return { key: text(k), value: text(v.join(':')), display_order: 0 } }).filter((spec) => spec.key && spec.value)
-    const product = found ?? { name, sku, description: description || name, price, discount_price: discount, stock: 0, category, brand, status, is_best_seller: bool(record.is_best_seller ?? ''), is_new_arrival: bool(record.is_new_arrival ?? ''), image_url: imageUrl, specifications: legacySpecs, variants: [], priceCandidates: [{ column: 'price', raw: record.price ?? '', amount: price }], discountCandidates: record.promo_price ? [{ column: 'discount_price', raw: record.promo_price, amount: discount }] : [], priceConfirmed: false, discountPriceConfirmed: false, importAction: 'create' as const }
+    const product = found ?? { name, sku, description: description || name, price, discount_price: discount, stock: 0, category, brand, status, is_best_seller: bool(record.is_best_seller ?? ''), is_new_arrival: bool(record.is_new_arrival ?? ''), image_url: safeImageUrl, specifications: legacySpecs, variants: [], priceCandidates: [{ column: 'price', raw: record.price ?? '', amount: price }], discountCandidates: record.promo_price ? [{ column: 'discount_price', raw: record.promo_price, amount: discount }] : [], priceConfirmed: false, discountPriceConfirmed: false, importAction: 'create' as const }
+    if (found && safeImageUrl !== imageUrl) product.warnings = [...(product.warnings ?? []), 'Gambar promosi Acer dilewati; unggah foto produk yang cocok dengan SKU/MTM.']
     if (found && (product.name !== name || product.brand.toLowerCase() !== brand.toLowerCase() || product.category.toLowerCase() !== category.toLowerCase())) throw new Error(`Baris ${row}: data produk harus konsisten di semua baris varian.`)
     const color = record.color ?? '', ram = record.ram ?? '', storage = record.storage ?? ''
     if (color || ram || storage || record.variant_stock || record.variant_sku) {

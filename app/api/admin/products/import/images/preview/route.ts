@@ -57,7 +57,7 @@ export async function POST(request: Request) {
         .not("sku", "is", null),
       supabase
         .from("product_variants")
-        .select("id, product_id, sku, color, ram, storage, image_url, products(name)")
+        .select("id, product_id, sku, color, ram, storage, image_url, product_variant_images(url, display_order), products(name)")
         .not("sku", "is", null),
     ]);
 
@@ -83,6 +83,8 @@ export async function POST(request: Request) {
 
     const catalogVariants: BulkImageCatalogVariant[] = (varsRes.data ?? []).map((v) => {
       const prodName = (v.products as unknown as { name?: string })?.name || "Produk";
+      const images = ((v.product_variant_images as unknown as { url: string; display_order: number }[]) ?? [])
+        .slice().sort((a, b) => a.display_order - b.display_order);
       return {
         id: v.id,
         productId: v.product_id,
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
         ram: v.ram || "",
         storage: v.storage || "",
         imageUrl: v.image_url ?? null,
+        imageUrls: images.map((image) => image.url),
       };
     });
 

@@ -242,7 +242,7 @@ describe("Bulk Image Upload & Optimization Suite", () => {
       expect(result.totalOptimizedBytes).toBeDefined();
     });
 
-    it("matches variant SKU (variant_sku) and associates with parent product details", async () => {
+    it("matches the exact product_variants.sku and associates with parent product details", async () => {
       const entries: ExtractedImageFile[] = [
         {
           fileName: "F0HN00Q3ID-VAR-GREY.webp",
@@ -360,6 +360,47 @@ describe("Bulk Image Upload & Optimization Suite", () => {
       expect(result.items[0].status).toBe("ambiguous");
     });
 
+    it("matches multiple explicitly numbered images to the same variant SKU", async () => {
+      const entries: ExtractedImageFile[] = [1, 2, 3].map((number) => ({
+        fileName: `F0HN00Q3ID-VAR-GREY__${number}.webp`,
+        entryPath: `F0HN00Q3ID-VAR-GREY__${number}.webp`,
+        buffer: VALID_WEBP,
+        mimeType: "image/webp",
+        size: VALID_WEBP.length,
+      }));
+      const result = await matchZipImagesWithCatalog(entries, sampleProducts, sampleVariants, false);
+      expect(result.matchedVariantCount).toBe(3);
+      expect(result.items.map((item) => item.matchedVariantId)).toEqual(["var-1", "var-1", "var-1"]);
+    });
+
+    it("uses the existing variant gallery as the fallback when the legacy image_url is empty", async () => {
+      const entry: ExtractedImageFile = {
+        fileName: "F0HN00Q3ID-VAR-GREY.jpg", entryPath: "F0HN00Q3ID-VAR-GREY.jpg",
+        buffer: VALID_JPEG, mimeType: "image/jpeg", size: VALID_JPEG.length,
+      };
+      const result = await matchZipImagesWithCatalog([entry], sampleProducts, [
+        { ...sampleVariants[0], imageUrl: null, imageUrls: ["https://example.com/gallery-first.webp"] },
+      ], false);
+      expect(result.items[0]).toMatchObject({
+        status: "matched_variant",
+        hasExistingImage: true,
+        existingImageUrl: "https://example.com/gallery-first.webp",
+        legacyImageUrl: null,
+      });
+    });
+
+    it("rejects duplicate catalog SKUs as ambiguous instead of choosing the last record", async () => {
+      const duplicateVariants = [sampleVariants[0], { ...sampleVariants[0], id: "var-duplicate", productId: "prod-2" }];
+      const entry: ExtractedImageFile = {
+        fileName: "F0HN00Q3ID-VAR-GREY.jpg", entryPath: "F0HN00Q3ID-VAR-GREY.jpg",
+        buffer: VALID_JPEG, mimeType: "image/jpeg", size: VALID_JPEG.length,
+      };
+      const result = await matchZipImagesWithCatalog([entry], sampleProducts, duplicateVariants, false);
+      expect(result.ambiguousCount).toBe(1);
+      expect(result.items[0].status).toBe("ambiguous");
+      expect(result.items[0].matchedVariantId).toBeUndefined();
+    });
+
     it("marks corrupt files as 'invalid_format' and excludes them from matched items", async () => {
       const entries: ExtractedImageFile[] = [
         {
@@ -406,11 +447,19 @@ describe("Bulk Image Upload & Optimization Suite", () => {
     let uploadedPaths: string[];
     let uploadedContentTypes: string[];
     let removedPaths: string[];
+    let variantImageRows: { id: string; variant_id: string; url: string; display_order: number }[];
+    let variantPrimaryUrls: string[];
+    let variantInsertCount: number;
+    let failVariantInsertAt: number;
 
     beforeEach(() => {
       uploadedPaths = [];
       uploadedContentTypes = [];
       removedPaths = [];
+      variantImageRows = [];
+      variantPrimaryUrls = [];
+      variantInsertCount = 0;
+      failVariantInsertAt = 0;
 
       mockSupabase = {
         storage: {
@@ -448,9 +497,36 @@ describe("Bulk Image Upload & Optimization Suite", () => {
           }
           if (table === "product_variants") {
             return {
-              update: vi.fn(() => ({
-                eq: vi.fn(async () => ({ error: null })),
+              update: vi.fn((values: { image_url?: string }) => ({
+                eq: vi.fn(async () => {
+                  if (Object.hasOwn(values, "image_url")) variantPrimaryUrls.push(values.image_url ?? "<null>");
+                  return { error: null };
+                }),
               })),
+            };
+          }
+          if (table === "product_variant_images") {
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(async () => ({ data: variantImageRows, error: null })),
+              })),
+              insert: vi.fn((row: Omit<(typeof variantImageRows)[number], "id">) => ({
+                select: vi.fn(() => ({
+                  single: vi.fn(async () => {
+                    variantInsertCount += 1;
+                    if (failVariantInsertAt === variantInsertCount) {
+                      return { data: null, error: { message: "variant gallery insert failed" } };
+                    }
+                    const record = { ...row, id: `variant-image-${variantImageRows.length + 1}` };
+                    variantImageRows.push(record);
+                    return { data: { id: record.id }, error: null };
+                  }),
+                })),
+              })),
+              delete: vi.fn(() => ({ in: vi.fn(async (_column: string, ids: string[]) => {
+                variantImageRows = variantImageRows.filter((row) => !ids.includes(row.id));
+                return { error: null };
+              }) })),
             };
           }
           return {};
@@ -485,6 +561,54 @@ describe("Bulk Image Upload & Optimization Suite", () => {
       expect(uploadedPaths[0]).toMatch(/\.webp$/);
       expect(uploadedContentTypes[0]).toBe("image/webp");
       expect(removedPaths).toHaveLength(0); // No rollback when successful
+    });
+
+    it("saves multiple numbered images to one variant and keeps the first as its primary image", async () => {
+      const entries: ExtractedImageFile[] = [1, 2].map((number) => ({
+        fileName: `F0HN00Q3ID-VAR-GREY__${number}.webp`,
+        entryPath: `F0HN00Q3ID-VAR-GREY__${number}.webp`,
+        buffer: VALID_WEBP,
+        mimeType: "image/webp",
+        size: VALID_WEBP.length,
+      }));
+      const match = await matchZipImagesWithCatalog(entries, sampleProducts, sampleVariants, false);
+      const result = await executeBulkImageUpload({
+        supabase: mockSupabase,
+        entries,
+        matchedItems: match.items,
+        overwriteExisting: false,
+      });
+      expect(result.uploadedCount).toBe(2);
+      expect(variantImageRows).toHaveLength(2);
+      expect(variantImageRows.map((row) => row.display_order)).toEqual([0, 1]);
+      expect(variantPrimaryUrls).toHaveLength(1);
+      expect(variantPrimaryUrls[0]).toContain(uploadedPaths[0]);
+    });
+
+    it("syncs a pre-existing gallery's first image_url when the legacy column is empty", async () => {
+      const entries: ExtractedImageFile[] = [{
+        fileName: "F0HN00Q3ID-VAR-GREY.jpg", entryPath: "F0HN00Q3ID-VAR-GREY.jpg",
+        buffer: VALID_JPEG, mimeType: "image/jpeg", size: VALID_JPEG.length,
+      }];
+      const match = await matchZipImagesWithCatalog(entries, sampleProducts, [
+        { ...sampleVariants[0], imageUrl: null, imageUrls: ["https://example.com/gallery-first.webp"] },
+      ], false);
+      await executeBulkImageUpload({ supabase: mockSupabase, entries, matchedItems: match.items, overwriteExisting: false });
+      expect(variantPrimaryUrls).toEqual(["https://example.com/gallery-first.webp"]);
+    });
+
+    it("rolls back variant gallery records, storage, and legacy image_url after a later insert fails", async () => {
+      const entries: ExtractedImageFile[] = [1, 2].map((number) => ({
+        fileName: `F0HN00Q3ID-VAR-GREY__${number}.webp`, entryPath: `F0HN00Q3ID-VAR-GREY__${number}.webp`,
+        buffer: VALID_WEBP, mimeType: "image/webp", size: VALID_WEBP.length,
+      }));
+      const match = await matchZipImagesWithCatalog(entries, sampleProducts, sampleVariants, false);
+      failVariantInsertAt = 2;
+      await expect(executeBulkImageUpload({ supabase: mockSupabase, entries, matchedItems: match.items, overwriteExisting: false }))
+        .rejects.toThrow("Gagal menyimpan foto galeri varian");
+      expect(variantImageRows).toHaveLength(0);
+      expect(removedPaths).toEqual(uploadedPaths);
+      expect(variantPrimaryUrls.at(-1)).toBe("<null>");
     });
 
     it("aborts and never uploads unoptimized files if optimization fails during execute", async () => {
@@ -522,6 +646,21 @@ describe("Bulk Image Upload & Optimization Suite", () => {
 
       // Verify that no storage file remained!
       expect(uploadedPaths).toHaveLength(0);
+    });
+
+    it("reports storage upload failures without writing database records", async () => {
+      const entries: ExtractedImageFile[] = [{
+        fileName: "F0HN00Q3ID.jpg", entryPath: "F0HN00Q3ID.jpg", buffer: VALID_JPEG,
+        mimeType: "image/jpeg", size: VALID_JPEG.length,
+      }];
+      const match = await matchZipImagesWithCatalog(entries, sampleProducts, sampleVariants, false);
+      mockSupabase.storage.from = vi.fn(() => ({
+        upload: vi.fn(async () => ({ data: null, error: { message: "storage unavailable" } })),
+        remove: vi.fn(async () => ({ data: [], error: null })),
+      }));
+      await expect(executeBulkImageUpload({ supabase: mockSupabase, entries, matchedItems: match.items, overwriteExisting: false }))
+        .rejects.toThrow(/storage unavailable/);
+      expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
     it("rolls back all uploaded storage files if database operation fails midway", async () => {

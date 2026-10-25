@@ -335,6 +335,38 @@ describe('analyzeAndNormalizeImportTables and multi-sheet handling', () => {
 })
 
 describe('variant grouping, duplicates, pricing, and legacy compatibility', () => {
+  it('keeps AL14-36P MTMs as configuration variants and ignores the known Acer campaign poster', () => {
+    const productRow = (sku: string, color: string, storage: string, stock: string) => {
+      const row = [...baseRow]
+      row[0] = 'Acer Aspire Lite 14 AL14-36P'
+      row[1] = 'ACER-AL14-36P'
+      row[6] = 'Laptops'
+      row[7] = 'Acer'
+      row[11] = 'https://store.example/products/official-acer-aspire-lite-gray.webp'
+      row[13] = color
+      row[14] = '8GB'
+      row[15] = storage
+      row[16] = sku
+      row[19] = stock
+      return row
+    }
+    const rows = [
+      productRow('NX.DT7SN.001', 'Fresh Blue', '512GB SSD', '2'),
+      productRow('NX.DFJSN.001', 'Lunar Grey', '512GB SSD', '3'),
+      productRow('NX.DT6SN.001', 'Rose Sakura', '512GB SSD', '4'),
+    ]
+    const [product] = normalizeProductRows([productImportHeaders, ...rows])
+    expect(product.variants.map((variant) => variant.sku)).toEqual(['NX.DT7SN.001', 'NX.DFJSN.001', 'NX.DT6SN.001'])
+    expect(product.variants.map((variant) => variant.color)).toEqual(['Fresh Blue', 'Lunar Grey', 'Rose Sakura'])
+    expect(product.variants.map((variant) => variant.stock)).toEqual([2, 3, 4])
+    expect(product.image_url).toBe('')
+    expect(product.warnings).toContain('Gambar promosi Acer dilewati; unggah foto produk yang cocok dengan SKU/MTM.')
+
+    const reimport = normalizeProductRows([productImportHeaders, ...rows])[0]
+    expect(reimport.sku).toBe(product.sku)
+    expect(reimport.variants.map((variant) => variant.sku)).toEqual(product.variants.map((variant) => variant.sku))
+  })
+
   it('groups multiple color rows with different MTMs into 1 parent product with distinct variants', () => {
     const rows = [
       ['TYPE', 'MTM', 'Processor', 'RAM', 'Storage', 'NEW PRICE USER', 'STOK', 'KETERANGAN'],

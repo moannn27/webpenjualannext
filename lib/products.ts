@@ -1,4 +1,5 @@
 import type { Product } from "@/store/useProductStore";
+import { getSafeProductImageUrl } from "@/lib/product-gallery";
 
 export type StoreProduct = {
   id: string;
@@ -36,7 +37,7 @@ export function toStorefrontProduct(row: StoreProduct): Product {
     isNewArrival: Boolean(row.is_new_arrival),
     category: row.categories?.name ?? "",
     brand: row.brands?.name ?? "",
-    image: row.product_images?.find((image) => image.is_primary)?.url ?? row.product_images?.[0]?.url ?? "",
+    image: getSafeProductImageUrl(row.product_images),
     specifications: row.product_specifications ?? [],
     badges,
   };

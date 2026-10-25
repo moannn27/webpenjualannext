@@ -69,7 +69,7 @@ export class CartRepository extends BaseRepository {
     const supabase = await this.getClient()
     const query = supabase
       .from('cart')
-      .select('*, cart_items(*, products(*, product_images(*), product_specifications(*), categories(id, name), brands(id, name)), product_variants(*))')
+      .select('*, cart_items(*, products(*, product_images(*), product_specifications(*), categories(id, name), brands(id, name)), product_variants(*, product_variant_images(id, url, display_order)))')
       .eq('user_id', userId)
 
     const { data, error } = typeof query.maybeSingle === 'function' ? await query.maybeSingle() : await query.single()

@@ -11,6 +11,7 @@ import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin
 import { requireModulePermission, getCurrentAdminPermissions } from '@/lib/auth/permissions'
 import { recordAdminActivity } from '@/lib/audit-log'
 import { DEFAULT_FAQS } from '@/constants/defaultFaqs'
+import { findSkuConflict, parseManualVariants, planVariantGallerySync } from '@/lib/admin-product-variants'
 
 const adminService = new AdminService()
 
@@ -295,7 +296,27 @@ export async function getAdminProductsAction() {
     .select('*, categories(name), brands(name), product_images(*), product_specifications(*), product_variants(*)')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return data ?? []
+  const products = data ?? []
+  const variantIds = products.flatMap((product) => (product.product_variants ?? []).map((variant: { id: string }) => variant.id))
+  if (!variantIds.length) return products
+  const { data: images, error: galleryError } = await supabase
+    .from('product_variant_images')
+    .select('id, variant_id, url, display_order')
+    .in('variant_id', variantIds)
+    .order('display_order')
+  if (galleryError) {
+    console.warn('Unable to load admin variant galleries; retaining variants and legacy image URLs.', galleryError.message)
+    return products.map((product) => ({ ...product, variant_gallery_error: 'Galeri gambar varian belum dapat dimuat. Periksa ketersediaan schema product_variant_images sebelum mengedit galeri.' }))
+  }
+  const imagesByVariant = new Map<string, typeof images>()
+  for (const image of images ?? []) imagesByVariant.set(image.variant_id, [...(imagesByVariant.get(image.variant_id) ?? []), image])
+  return products.map((product) => ({
+    ...product,
+    product_variants: (product.product_variants ?? []).map((variant: { id: string; [key: string]: unknown }) => ({
+      ...variant,
+      product_variant_images: imagesByVariant.get(variant.id) ?? [],
+    })),
+  }))
 }
 
 export async function getAdminProductOptionsAction() {
@@ -1025,27 +1046,14 @@ export async function saveAdminProductAction(formData: FormData) {
       specifications = parsed.map((item) => ({ key: item.key.trim(), value: item.value.trim() })).filter((item) => item.key && item.value).slice(0, 50)
     } catch { throw new Error('Daftar spesifikasi tidak valid.') }
   }
-  type VariantInput = { id?: string; sku?: string; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }
-  let variants: VariantInput[] = []
+  let variants: ReturnType<typeof parseManualVariants> = []
   const variantsRaw = formData.get('variants')
   if (typeof variantsRaw === 'string') {
     try {
-      const parsed: unknown = JSON.parse(variantsRaw)
-      if (!Array.isArray(parsed) || parsed.length > 50 || parsed.some((item) => !item || typeof item.color !== 'string' || typeof item.ram !== 'string' || typeof item.storage !== 'string' || typeof item.stock !== 'number')) throw new Error()
-      variants = parsed.map((item) => ({
-        ...(typeof item.id === 'string' ? { id: item.id } : {}),
-        sku: typeof item.sku === 'string' ? item.sku.trim() : '',
-        color: item.color.trim(), ram: item.ram.trim(), storage: item.storage.trim(),
-        price: typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : null,
-        discount_price: typeof item.discount_price === 'number' && Number.isFinite(item.discount_price) ? item.discount_price : null,
-        stock: item.stock,
-      }))
-      if (variants.some((item) => (!item.color && !item.ram && !item.storage) || !Number.isInteger(item.stock) || item.stock < 0 || (item.price !== null && item.price < 0) || (item.discount_price !== null && (item.discount_price <= 0 || item.discount_price >= (item.price ?? price))))) throw new Error()
-      const optionKeys = variants.map((item) => [item.color, item.ram, item.storage].map((value) => value.toLowerCase()).join('|'))
-      if (new Set(optionKeys).size !== optionKeys.length) throw new Error()
-      const variantSkus = variants.map((item) => item.sku?.toLowerCase()).filter(Boolean)
-      if (new Set(variantSkus).size !== variantSkus.length) throw new Error()
-    } catch { throw new Error('Daftar varian tidak valid. Pastikan setiap varian punya warna, RAM, atau storage dan stok yang benar.') }
+      variants = parseManualVariants(JSON.parse(variantsRaw), price)
+    } catch (cause) {
+      throw new Error(cause instanceof Error ? cause.message : 'Daftar varian tidak valid.')
+    }
   }
   const id = String(formData.get('id') ?? '').trim()
   if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice <= 0 || discountPrice >= price)) || !['draft', 'published', 'archived'].includes(status)) {
@@ -1054,6 +1062,11 @@ export async function saveAdminProductAction(formData: FormData) {
   const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
   const supabase = await createClient()
   const totalStock = variants.length ? variants.reduce((sum, variant) => sum + variant.stock, 0) : stock
+  if (sku) {
+    const { data: productSkus, error: productSkuError } = await supabase.from('products').select('id, sku').not('sku', 'is', null)
+    if (productSkuError) throw new Error(productSkuError.message)
+    if (findSkuConflict(sku, productSkus ?? [], id || undefined)) throw new Error('SKU produk sudah dipakai produk lain.')
+  }
   let existingVariants: { id: string; sku: string | null }[] = []
   if (typeof variantsRaw === 'string' && id) {
     const { data, error } = await supabase.from('product_variants').select('id, sku').eq('product_id', id)
@@ -1071,12 +1084,13 @@ export async function saveAdminProductAction(formData: FormData) {
   }
   const variantSkus = [...new Set(variants.map((variant) => variant.sku).filter((value): value is string => Boolean(value)))]
   if (variantSkus.length) {
-    const { data: matchingSkus, error: skuReadError } = await supabase.from('product_variants').select('id, sku').in('sku', variantSkus)
+    const { data: matchingSkus, error: skuReadError } = await supabase.from('product_variants').select('id, sku').not('sku', 'is', null)
     if (skuReadError) throw new Error(skuReadError.message)
-    if ((matchingSkus ?? []).some((existing) => {
-      const submitted = variants.find((variant) => variant.sku?.toLowerCase() === existing.sku?.toLowerCase())
-      return !submitted || submitted.id !== existing.id
-    })) throw new Error('SKU varian sudah dipakai varian lain. Gunakan SKU unik untuk setiap varian.')
+    if (variants.some((variant) => findSkuConflict(variant.sku, matchingSkus ?? [], variant.id))) throw new Error('SKU varian sudah dipakai varian lain. Gunakan SKU unik untuk setiap varian.')
+  }
+  if (variants.length) {
+    const { error: gallerySchemaError } = await supabase.from('product_variant_images').select('id').limit(1)
+    if (gallerySchemaError) throw new Error('Galeri varian belum tersedia. Pastikan tabel product_variant_images sudah ada sebelum menyimpan varian.')
   }
   const payload = { name, slug: id ? undefined : `${slug}-${crypto.randomUUID().slice(0, 8)}`, description, sku: sku || null, price, discount_price: discountPrice, stock: totalStock, category_id: categoryId, brand_id: brandId, status, is_best_seller: isBestSeller, is_new_arrival: isNewArrival }
   let productId = id
@@ -1133,7 +1147,33 @@ export async function saveAdminProductAction(formData: FormData) {
         const { data, error } = await supabase.from('product_variants').insert({ ...variantPayload, product_id: productId }).select('id').single()
         if (error) throw new Error(error.message)
         retainedIds.push(data.id)
+        variant.id = data.id
       }
+      const variantId = variant.id
+      if (!variantId) throw new Error('ID varian tidak tersedia setelah penyimpanan.')
+      const { data: currentGallery, error: galleryReadError } = await supabase
+        .from('product_variant_images')
+        .select('id, url, display_order')
+        .eq('variant_id', variantId)
+      if (galleryReadError) throw new Error(galleryReadError.message)
+      const galleryPlan = planVariantGallerySync(currentGallery ?? [], variant.images)
+      for (const image of galleryPlan.updates) {
+        const { error } = await supabase.from('product_variant_images').update({ display_order: image.display_order }).eq('id', image.id).eq('variant_id', variantId)
+        if (error) throw new Error(error.message)
+      }
+      if (galleryPlan.inserts.length) {
+        const { error } = await supabase.from('product_variant_images').insert(galleryPlan.inserts.map((image) => ({ ...image, variant_id: variantId })))
+        if (error) throw new Error(error.message)
+      }
+      if (galleryPlan.deletes.length) {
+        const { error } = await supabase.from('product_variant_images').delete().in('id', galleryPlan.deletes).eq('variant_id', variantId)
+        if (error) throw new Error(error.message)
+      }
+      const { error: primaryImageError } = await supabase.from('product_variants')
+        .update({ image_url: galleryPlan.primaryImageUrl })
+        .eq('id', variantId)
+        .eq('product_id', productId)
+      if (primaryImageError) throw new Error(primaryImageError.message)
     }
     const removedIds = (existingVariants ?? []).map((variant) => variant.id).filter((variantId) => !retainedIds.includes(variantId))
     if (removedIds.length) {

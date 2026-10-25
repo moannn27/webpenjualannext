@@ -40,6 +40,37 @@ export function matchesProductSearch(
 }
 
 export class ProductRepository extends BaseRepository {
+  private async includeVariantImages<T>(product: T | null) {
+    if (!product || typeof product !== 'object') return product
+    const row = product as T & { product_variants?: { id: string; product_variant_images?: { id: string; url: string; display_order: number }[] }[] }
+    const variants = row.product_variants
+    if (!variants?.length) return product
+
+    const supabase = await this.getClient()
+    const { data, error } = await supabase
+      .from('product_variant_images')
+      .select('id, variant_id, url, display_order')
+      .in('variant_id', variants.map((variant) => variant.id))
+      .order('display_order')
+    if (error) {
+      // Gallery data is supplemental; retain valid variant rows on any gallery read failure.
+      console.warn('Unable to load product variant gallery; retaining variant data.', error.message)
+      return product
+    }
+
+    const imagesByVariant = new Map<string, { id: string; url: string; display_order: number }[]>()
+    for (const image of data ?? []) {
+      imagesByVariant.set(image.variant_id, [...(imagesByVariant.get(image.variant_id) ?? []), image])
+    }
+    return {
+      ...row,
+      product_variants: variants.map((variant) => ({
+        ...variant,
+        product_variant_images: imagesByVariant.get(variant.id) ?? [],
+      })),
+    } as T
+  }
+
   async findPage(options: {
     page: number
     pageSize: number
@@ -277,7 +308,7 @@ export class ProductRepository extends BaseRepository {
       .eq('status', 'published')
       .maybeSingle()
     if (error && error.code !== 'PGRST116') throw error
-    return data ?? null
+    return this.includeVariantImages(data ?? null)
   }
 
   async findById(id: string) {
@@ -290,16 +321,16 @@ export class ProductRepository extends BaseRepository {
         .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
         .eq('id', id)
         .maybeSingle()
-      if (data) return data
+      if (data) return this.includeVariantImages(data)
 
       // 2. Resilient fallback without product_variants if relationship was unresolvable
       if (error && error.code !== 'PGRST116') {
         const { data: fallbackData } = await supabase
           .from('products')
-          .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+          .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
           .eq('id', id)
           .maybeSingle()
-        if (fallbackData) return { ...fallbackData, product_variants: [] }
+        if (fallbackData) return this.includeVariantImages(fallbackData)
       }
     }
 
@@ -309,15 +340,15 @@ export class ProductRepository extends BaseRepository {
       .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
       .eq('slug', id)
       .maybeSingle()
-    if (bySlug) return bySlug
+    if (bySlug) return this.includeVariantImages(bySlug)
 
     if (slugErr && slugErr.code !== 'PGRST116') {
       const { data: fbSlug } = await supabase
         .from('products')
-        .select('*, product_images(*), product_specifications(*), categories(*), brands(*)')
+        .select('*, product_images(*), product_specifications(*), product_variants(*), categories(*), brands(*)')
         .eq('slug', id)
         .maybeSingle()
-      if (fbSlug) return { ...fbSlug, product_variants: [] }
+      if (fbSlug) return this.includeVariantImages(fbSlug)
     }
 
     return null

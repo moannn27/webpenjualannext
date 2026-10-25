@@ -32,6 +32,8 @@ const groups = [
     links: [
       ["Tentang Kami", "/about"],
       ["FAQ", "/faq"],
+      ["Syarat & Ketentuan", "/terms"],
+      ["Kebijakan Privasi", "/privacy"],
       ["Login", "/login"],
       ["Buat akun", "/register"],
     ],
@@ -104,10 +106,10 @@ export function Footer({
   const columnCount = 4 + Number(hasContact) + Number(hasBranches);
   const columnsClass =
     columnCount >= 6
-      ? "lg:grid-cols-6"
+      ? "lg:grid-cols-[minmax(0,0.9fr)_repeat(5,minmax(0,1fr))]"
       : columnCount === 5
-      ? "lg:grid-cols-5"
-      : "lg:grid-cols-4";
+      ? "lg:grid-cols-[minmax(0,0.9fr)_repeat(4,minmax(0,1fr))]"
+      : "lg:grid-cols-[minmax(0,0.9fr)_repeat(3,minmax(0,1fr))]";
 
   const mainMapsLink =
     store.maps_url ||
@@ -129,7 +131,7 @@ export function Footer({
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Bordered Card Container */}
         <div className="rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1A1C23] p-4 sm:p-7 lg:p-10 shadow-xs mb-8">
-          <div className={`grid gap-6 sm:gap-8 pb-8 border-b border-slate-100 dark:border-white/5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${columnsClass}`}>
+          <div className={`grid gap-5 sm:gap-6 pb-8 border-b border-slate-100 dark:border-white/5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${columnsClass}`}>
             {/* 1. Store Brand & Value Props */}
             <div className="space-y-4">
               <Link href="/" className="inline-flex items-center gap-2.5">
@@ -140,11 +142,11 @@ export function Footer({
                     width={160}
                     height={36}
                     unoptimized
-                    className="h-9 max-w-[160px] object-contain"
+                    className={`h-9 object-contain ${displayMode === "both" ? "w-9 shrink-0" : "max-w-[160px]"}`}
                   />
                 )}
                 {showText && (
-                  <span className="text-2xl font-bold tracking-tight text-primary">
+                  <span className="whitespace-nowrap text-2xl font-bold tracking-tight text-primary">
                     {storeName}
                   </span>
                 )}

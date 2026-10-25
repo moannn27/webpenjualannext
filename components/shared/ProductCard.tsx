@@ -133,7 +133,7 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
           className="relative w-full h-full flex items-center justify-center cursor-pointer"
         >
           <Image
-            src={product.image || "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"}
+            src={product.image || "/product-image-unavailable.svg"}
             alt={product.name}
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, 50vw"
