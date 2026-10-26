@@ -89,13 +89,17 @@ export class CheckoutService {
         is_new_customer_only: Boolean(targeting?.is_new_customer_only),
       };
 
-      // Anti-abuse: First-time customer check
+      // Anti-abuse: First-time customer check (Fail-closed on query error)
       if (voucherWithTargeting.is_new_customer_only) {
-        const { count: priorUserOrders } = await supabase
+        const { count: priorUserOrders, error: userOrdersErr } = await supabase
           .from('orders')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .neq('status', 'cancelled');
+
+        if (userOrdersErr) {
+          throw new Error('Gagal memverifikasi status kelayakan voucher pelanggan baru. Silakan coba beberapa saat lagi.');
+        }
 
         if (priorUserOrders && priorUserOrders > 0) {
           throw new Error('Voucher ini khusus untuk transaksi pertama pengguna baru.');
@@ -104,18 +108,26 @@ export class CheckoutService {
         if (input.phone) {
           const variants = getPhoneVariants(input.phone);
           const adminClient = getSupabaseAdminClient();
-          const { data: usersWithPhone } = await adminClient
+          const { data: usersWithPhone, error: phoneUsersErr } = await adminClient
             .from('users')
             .select('id')
             .in('phone', variants);
 
+          if (phoneUsersErr) {
+            throw new Error('Gagal memverifikasi nomor telepon untuk kelayakan voucher pelanggan baru. Silakan coba beberapa saat lagi.');
+          }
+
           if (usersWithPhone && usersWithPhone.length > 0) {
             const userIds = usersWithPhone.map((u) => u.id);
-            const { count: priorOrdersForPhone } = await adminClient
+            const { count: priorOrdersForPhone, error: phoneOrdersErr } = await adminClient
               .from('orders')
               .select('id', { count: 'exact', head: true })
               .in('user_id', userIds)
               .neq('status', 'cancelled');
+
+            if (phoneOrdersErr) {
+              throw new Error('Gagal memverifikasi riwayat transaksi nomor telepon untuk kelayakan voucher. Silakan coba beberapa saat lagi.');
+            }
 
             if (priorOrdersForPhone && priorOrdersForPhone > 0) {
               throw new Error('Voucher ini khusus untuk transaksi pertama pengguna baru. Nomor HP ini sudah pernah digunakan dalam transaksi.');
@@ -228,16 +240,6 @@ export class CheckoutService {
           throw new Error(`Gagal menerapkan diskon voucher ke pesanan: ${orderUpdateErr.message}`);
         }
 
-        // Mark voucher reservation as permanently consumed by this order
-        const { data: consumed, error: consumeErr } = await adminClient.rpc('consume_voucher_reservation', {
-          p_reservation_id: reservationId,
-          p_order_id: orderId,
-        });
-
-        if (consumeErr || consumed === false) {
-          throw new Error('Reservasi kuota voucher telah kadaluarsa atau tidak valid.');
-        }
-
         const { error: paymentUpdateErr } = await adminClient
           .from('payments')
           .update({
@@ -249,15 +251,116 @@ export class CheckoutService {
         if (paymentUpdateErr) {
           throw new Error(`Gagal memperbarui tagihan pembayaran: ${paymentUpdateErr.message}`);
         }
+
+        // Mark voucher reservation as permanently consumed only AFTER order and payment succeed
+        let isConsumed = false;
+        let isAmbiguous = false;
+        let ambiguousMessage = '';
+
+        try {
+          const { data: consumed, error: consumeErr } = await adminClient.rpc('consume_voucher_reservation', {
+            p_reservation_id: reservationId,
+            p_order_id: orderId,
+          });
+
+          if (!consumeErr && consumed === true) {
+            isConsumed = true;
+          } else if (consumeErr) {
+            // Ambiguous network/RPC error: verify database truth before assuming failure
+            const { data: resCheck, error: resCheckErr } = await adminClient
+              .from('voucher_reservations')
+              .select('status, order_id')
+              .eq('id', reservationId)
+              .maybeSingle();
+
+            if (!resCheckErr && resCheck?.status === 'consumed' && resCheck?.order_id === orderId) {
+              isConsumed = true;
+            } else if (!resCheckErr && resCheck?.status === 'reserved') {
+              // Retry consumption once using idempotent RPC
+              const { data: retryConsumed, error: retryErr } = await adminClient.rpc('consume_voucher_reservation', {
+                p_reservation_id: reservationId,
+                p_order_id: orderId,
+              });
+              if (!retryErr && retryConsumed === true) {
+                isConsumed = true;
+              } else if (retryErr) {
+                isAmbiguous = true;
+                ambiguousMessage = retryErr.message;
+              }
+            } else if (resCheckErr) {
+              isAmbiguous = true;
+              ambiguousMessage = resCheckErr.message;
+            }
+          }
+        } catch {
+          // If network exception occurred during RPC call, verify if it was already committed in DB
+          try {
+            const { data: resCheck, error: resCheckErr } = await adminClient
+              .from('voucher_reservations')
+              .select('status, order_id')
+              .eq('id', reservationId)
+              .maybeSingle();
+
+            if (!resCheckErr && resCheck?.status === 'consumed' && resCheck?.order_id === orderId) {
+              isConsumed = true;
+            } else if (resCheckErr) {
+              isAmbiguous = true;
+              ambiguousMessage = resCheckErr.message;
+            }
+          } catch (checkException) {
+            isAmbiguous = true;
+            ambiguousMessage = checkException instanceof Error ? checkException.message : 'Gangguan koneksi database';
+          }
+        }
+
+        if (!isConsumed) {
+          if (isAmbiguous) {
+            throw new Error(
+              `Pesanan #${orderId} berhasil dibuat, tetapi verifikasi status voucher terganggu: ${ambiguousMessage || 'koneksi tidak stabil'}. Pesanan tidak dibatalkan secara otomatis.`
+            );
+          }
+          throw new Error('Reservasi kuota voucher telah kadaluarsa atau tidak valid.');
+        }
       }
 
       return { id: orderId! };
     } catch (err: unknown) {
       const adminClient = getSupabaseAdminClient();
+      const isAmbiguousError = err instanceof Error && err.message.includes('Pesanan #') && err.message.includes('tidak dibatalkan secara otomatis');
+
+      // Guard: If the reservation was actually successfully consumed for this order, do NOT cancel the order!
+      if (reservationId && orderId) {
+        try {
+          const { data: verifiedReservation, error: verifyErr } = await adminClient
+            .from('voucher_reservations')
+            .select('status, order_id')
+            .eq('id', reservationId)
+            .maybeSingle();
+
+          if (!verifyErr && verifiedReservation?.status === 'consumed' && verifiedReservation?.order_id === orderId) {
+            // The transaction was actually completed and committed in the database; return orderId safely
+            return { id: orderId };
+          }
+        } catch {
+          // Ignore verification query exceptions when checking for committed success
+        }
+
+        if (isAmbiguousError) {
+          // Database is unreachable or status is ambiguous: do NOT cancel the order or release voucher quota!
+          // Preserve the order for reconciliation.
+          throw err;
+        }
+      }
 
       if (orderId) {
         try {
-          await adminClient.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
+          const { error: cancelErr } = await adminClient
+            .from('orders')
+            .update({ status: 'cancelled' })
+            .eq('id', orderId);
+          if (cancelErr) {
+            console.error('Gagal membatalkan pesanan setelah error checkout:', cancelErr);
+          }
         } catch (cancelErr) {
           console.error('Gagal membatalkan pesanan setelah error checkout:', cancelErr);
         }
@@ -266,9 +369,12 @@ export class CheckoutService {
       // Safe, non-replayable release: only decrements if status is still 'reserved'
       if (reservationId) {
         try {
-          await adminClient.rpc('release_voucher_reservation', {
+          const { error: releaseErr } = await adminClient.rpc('release_voucher_reservation', {
             p_reservation_id: reservationId,
           });
+          if (releaseErr) {
+            console.error('Gagal melepaskan kuota voucher setelah error checkout:', releaseErr);
+          }
         } catch (releaseErr) {
           console.error('Gagal melepaskan kuota voucher setelah error checkout:', releaseErr);
         }
@@ -278,4 +384,3 @@ export class CheckoutService {
     }
   }
 }
-

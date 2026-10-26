@@ -3,6 +3,15 @@ import Link from "next/link";
 import { ChevronDown, MessageCircleQuestion } from "lucide-react";
 import { getFAQsAction } from "@/actions/content";
 
+interface FaqItem {
+  id?: string;
+  question: string;
+  answer: string;
+  category?: string | null;
+  display_order?: number;
+  is_active?: boolean;
+}
+
 export const metadata: Metadata = {
   title: "Tanya Jawab (FAQ)",
   description: "Jawaban seputar produk, pemesanan, pembayaran, pengiriman, dan layanan Next Solution Store.",
@@ -15,12 +24,16 @@ export const metadata: Metadata = {
 };
 
 export default async function FAQPage() {
-  const faqs = await getFAQsAction().catch(() => []);
-  const groups = faqs.reduce<Record<string, typeof faqs>>((result, faq) => {
+  const rawFaqs = (await getFAQsAction().catch(() => [])) as FaqItem[];
+  const faqs: FaqItem[] = Array.isArray(rawFaqs) ? rawFaqs : [];
+  const groups: Record<string, FaqItem[]> = {};
+  for (const faq of faqs) {
     const category = faq.category?.trim() || "Informasi Umum";
-    (result[category] ??= []).push(faq);
-    return result;
-  }, {});
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(faq);
+  }
 
   return (
     <main className="container mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
@@ -42,7 +55,7 @@ export default async function FAQPage() {
               <h2 className="mb-3 text-lg font-semibold">{category}</h2>
               <div className="divide-y divide-border rounded-2xl border border-border bg-card px-5 sm:px-6">
                 {items.map((faq) => (
-                  <details key={faq.id} className="group py-5">
+                  <details key={faq.id || faq.question} className="group py-5">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
                       <span>{faq.question}</span>
                       <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />

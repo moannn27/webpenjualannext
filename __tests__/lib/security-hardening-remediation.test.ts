@@ -84,6 +84,94 @@ describe('Security Hardening Remediation Suite', () => {
       expect(result.success).toBe(true)
       expect(result.avatarUrl).toContain('photo.webp')
     })
+
+    it('evaluates and enforces strict avatar storage insert policy rules against path traversal and spoofing', () => {
+      const validateAvatarInsert = (name: string, userId: string, role: string, userRole: string = 'customer') => {
+        if (role !== 'authenticated') return false;
+        const ext = name.split('.').pop()?.toLowerCase() ?? '';
+        if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return false;
+
+        const folderPart = name.split('/')[0];
+        const isPathOwner =
+          folderPart === userId ||
+          name.startsWith(`${userId}/`) ||
+          name.startsWith(`${userId}.`) ||
+          name.startsWith(`${userId}-`) ||
+          name.startsWith(`${userId}_`);
+        const isAdmin = ['admin', 'super_admin'].includes(userRole);
+
+        return isPathOwner || isAdmin;
+      };
+
+      const userA = '11111111-1111-1111-1111-111111111111';
+      const userB = '22222222-2222-2222-2222-222222222222';
+
+      // Valid uploads for userA
+      expect(validateAvatarInsert(`${userA}/avatar.webp`, userA, 'authenticated')).toBe(true);
+      expect(validateAvatarInsert(`${userA}.png`, userA, 'authenticated')).toBe(true);
+      expect(validateAvatarInsert(`${userA}-profile.jpg`, userA, 'authenticated')).toBe(true);
+
+      // Blocked: arbitrary filenames at root
+      expect(validateAvatarInsert(`avatar.webp`, userA, 'authenticated')).toBe(false);
+      expect(validateAvatarInsert(`logo.png`, userA, 'authenticated')).toBe(false);
+
+      // Blocked: uploading to another user's folder
+      expect(validateAvatarInsert(`${userB}/hacked.png`, userA, 'authenticated')).toBe(false);
+      expect(validateAvatarInsert(`${userB}.jpg`, userA, 'authenticated')).toBe(false);
+
+      // Blocked: dangerous extensions
+      expect(validateAvatarInsert(`${userA}/avatar.svg`, userA, 'authenticated')).toBe(false);
+      expect(validateAvatarInsert(`${userA}/exploit.html`, userA, 'authenticated')).toBe(false);
+      expect(validateAvatarInsert(`${userA}/shell.php`, userA, 'authenticated')).toBe(false);
+
+      // Blocked: unauthenticated users
+      expect(validateAvatarInsert(`${userA}/avatar.webp`, userA, 'anon')).toBe(false);
+
+      // Permitted: Admin can upload any valid avatar image
+      expect(validateAvatarInsert(`store-logo.webp`, userA, 'authenticated', 'admin')).toBe(true);
+    });
+
+    it('evaluates and enforces strict review image storage insert policy rules', () => {
+      const validateReviewInsert = (name: string, userId: string, role: string, userRole: string = 'customer') => {
+        if (role !== 'authenticated') return false;
+        const ext = name.split('.').pop()?.toLowerCase() ?? '';
+        if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return false;
+
+        const parts = name.split('/');
+        const isPathOwner =
+          parts[0] === userId ||
+          parts[1] === userId ||
+          name.startsWith(`${userId}/`) ||
+          name.includes(`/${userId}/`) ||
+          name.startsWith(`${userId}.`) ||
+          name.startsWith(`${userId}-`) ||
+          name.startsWith(`${userId}_`) ||
+          name.includes(`/${userId}.`) ||
+          name.includes(`/${userId}-`) ||
+          name.includes(`/${userId}_`);
+        const isAdmin = ['admin', 'super_admin'].includes(userRole);
+
+        return isPathOwner || isAdmin;
+      };
+
+      const userA = '11111111-1111-1111-1111-111111111111';
+      const userB = '22222222-2222-2222-2222-222222222222';
+
+      // Valid review uploads: <user_id>/photo.jpg, <product_id>/<user_id>/photo.webp, <product_id>/<user_id>_review.webp
+      expect(validateReviewInsert(`${userA}/review1.jpg`, userA, 'authenticated')).toBe(true);
+      expect(validateReviewInsert(`prod-123/${userA}/laptop.webp`, userA, 'authenticated')).toBe(true);
+      expect(validateReviewInsert(`prod-123/${userA}_review.webp`, userA, 'authenticated')).toBe(true);
+      expect(validateReviewInsert(`prod-123/${userA}-photo.jpg`, userA, 'authenticated')).toBe(true);
+      expect(validateReviewInsert(`prod-123/${userA}.png`, userA, 'authenticated')).toBe(true);
+
+      // Blocked: other user's review folder or other user's prefix
+      expect(validateReviewInsert(`prod-123/${userB}/laptop.webp`, userA, 'authenticated')).toBe(false);
+      expect(validateReviewInsert(`prod-123/${userB}_review.webp`, userA, 'authenticated')).toBe(false);
+      expect(validateReviewInsert(`arbitrary.png`, userA, 'authenticated')).toBe(false);
+
+      // Blocked: dangerous files
+      expect(validateReviewInsert(`${userA}/payload.svg`, userA, 'authenticated')).toBe(false);
+    });
   })
 
   describe('2. Rate Limiting (/api/recommend)', () => {

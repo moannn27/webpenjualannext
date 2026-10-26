@@ -751,6 +751,13 @@ describe('Checkout Voucher Concurrency, Reservation Safety & RBAC Suite', () => 
               }),
             };
           }
+          if (table === 'payments') {
+            return {
+              update: () => ({
+                eq: async () => ({ error: null }),
+              }),
+            };
+          }
           return {} as any;
         },
         rpc: async (fn: string, args: any) => {
@@ -847,6 +854,526 @@ describe('Checkout Voucher Concurrency, Reservation Safety & RBAC Suite', () => 
         { usage_count: -1, usage_limit: 10 }
       )
     ).toThrowError(/cannot be negative/);
+  });
+
+  describe('New Customer Voucher Eligibility & Compensation Scenarios (FIX B & FIX C)', () => {
+    const newCustomerVoucher = {
+      id: 'voucher-new-cust-1',
+      code: 'NEWBIE100',
+      description: 'Voucher Pelanggan Baru',
+      discount_type: 'fixed_amount',
+      discount_value: 100000,
+      min_purchase: 1000000,
+      max_discount: null,
+      start_date: null,
+      end_date: null,
+      is_active: true,
+      usage_limit: 100,
+      usage_count: 5,
+    };
+
+    const newCustSettings = {
+      voucher_targeting: {
+        'voucher-new-cust-1': {
+          scope: 'all',
+          is_new_customer_only: true,
+        },
+      },
+    };
+
+    it('Scenario 1: allows eligible new customer without prior orders to use the voucher', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: newCustSettings }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          if (table === 'orders') {
+            return { select: () => ({ eq: () => ({ neq: async () => ({ count: 0, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-newbie-1', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      vi.mocked(getSupabaseAdminClient).mockImplementation(() => ({
+        from: (table: string) => {
+          if (table === 'users') {
+            return { select: () => ({ in: async () => ({ data: [], error: null }) }) };
+          }
+          if (table === 'orders') {
+            return {
+              select: () => ({ in: () => ({ neq: async () => ({ count: 0, error: null }) }), eq: () => ({ single: async () => ({ data: { total_amount: 15000000, shipping_amount: 25000 }, error: null }) }) }),
+              update: () => ({ eq: async () => ({ error: null }) }),
+            };
+          }
+          if (table === 'payments') {
+            return { update: () => ({ eq: async () => ({ error: null }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'claim_voucher_quota') return { data: 'reservation-newbie-1', error: null };
+          if (fn === 'consume_voucher_reservation') return { data: true, error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      const res = await checkoutService.checkout('user-brand-new', validCheckoutInput, 'NEWBIE100');
+      expect(res.id).toBe('order-newbie-1');
+    });
+
+    it('Scenario 2: rejects customer who already has prior non-cancelled orders', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: newCustSettings }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          if (table === 'orders') {
+            return { select: () => ({ eq: () => ({ neq: async () => ({ count: 2, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+      } as any));
+
+      await expect(
+        checkoutService.checkout('user-existing-buyer', validCheckoutInput, 'NEWBIE100')
+      ).rejects.toThrow(/khusus untuk transaksi pertama/i);
+    });
+
+    it('Scenario 3: fails closed when database query for user order history fails with error', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: newCustSettings }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          if (table === 'orders') {
+            return { select: () => ({ eq: () => ({ neq: async () => ({ count: null, error: { message: 'Database connection timeout' } }) }) }) };
+          }
+          return {} as any;
+        },
+      } as any));
+
+      await expect(
+        checkoutService.checkout('user-db-timeout', validCheckoutInput, 'NEWBIE100')
+      ).rejects.toThrow(/Gagal memverifikasi status kelayakan voucher pelanggan baru/i);
+    });
+
+    it('Scenario 4: checkout without voucher succeeds smoothly without voucher checks', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-no-voucher-99', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      const res = await checkoutService.checkout('user-regular', validCheckoutInput);
+      expect(res.id).toBe('order-no-voucher-99');
+    });
+
+    it('Scenario 5: triggers order cancellation and releases reservation if payment update fails', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+
+      let cancelledId: string | null = null;
+      let releasedResId: string | null = null;
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: {} }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-fail-payment', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      vi.mocked(getSupabaseAdminClient).mockImplementation(() => ({
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({ eq: () => ({ single: async () => ({ data: { total_amount: 15000000, shipping_amount: 25000 }, error: null }) }) }),
+              update: (fields: any) => ({
+                eq: async (_col: string, val: string) => {
+                  if (fields.status === 'cancelled') cancelledId = val;
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          if (table === 'payments') {
+            return {
+              update: () => ({
+                eq: async () => ({ error: { message: 'Database lock timeout on payments' } }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string, args: any) => {
+          if (fn === 'claim_voucher_quota') return { data: 'res-to-be-released', error: null };
+          if (fn === 'release_voucher_reservation') {
+            releasedResId = args.p_reservation_id;
+            return { data: true, error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any));
+
+      await expect(
+        checkoutService.checkout('user-pay-err', validCheckoutInput, 'NEWBIE100')
+      ).rejects.toThrow(/Gagal memperbarui tagihan pembayaran/i);
+
+      expect(cancelledId).toBe('order-fail-payment');
+      expect(releasedResId).toBe('res-to-be-released');
+    });
+
+    it('Scenario 6: recovers seamlessly when consume_voucher_reservation encounters a network timeout/exception but DB already committed consumed state', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+
+      let cancelledId: string | null = null;
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: {} }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-network-timeout-1', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      vi.mocked(getSupabaseAdminClient).mockImplementation(() => ({
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({ eq: () => ({ single: async () => ({ data: { total_amount: 15000000, shipping_amount: 25000 }, error: null }) }) }),
+              update: (fields: any) => ({
+                eq: async (_col: string, val: string) => {
+                  if (fields.status === 'cancelled') cancelledId = val;
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          if (table === 'payments') {
+            return { update: () => ({ eq: async () => ({ error: null }) }) };
+          }
+          if (table === 'voucher_reservations') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    // Simulates that DB committed consumed state before network socket dropped
+                    data: { status: 'consumed', order_id: 'order-network-timeout-1' },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'claim_voucher_quota') return { data: 'res-timeout-uuid', error: null };
+          if (fn === 'consume_voucher_reservation') {
+            // Simulates network drop after PostgreSQL execution
+            throw new Error('fetch failed: network timeout at client socket');
+          }
+          return { data: null, error: null };
+        },
+      } as any));
+
+      const res = await checkoutService.checkout('user-timeout-test', validCheckoutInput, 'NEWBIE100');
+      // Verifies order is NOT cancelled, and returns successful orderId
+      expect(res.id).toBe('order-network-timeout-1');
+      expect(cancelledId).toBeNull();
+    });
+
+    it('Scenario 7: retries consume_voucher_reservation successfully when initial attempt encounters transient error and reservation was still reserved', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+
+      let consumeAttempt = 0;
+      let cancelledId: string | null = null;
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: {} }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-retry-success-1', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      vi.mocked(getSupabaseAdminClient).mockImplementation(() => ({
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({ eq: () => ({ single: async () => ({ data: { total_amount: 15000000, shipping_amount: 25000 }, error: null }) }) }),
+              update: (fields: any) => ({
+                eq: async (_col: string, val: string) => {
+                  if (fields.status === 'cancelled') cancelledId = val;
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          if (table === 'payments') {
+            return { update: () => ({ eq: async () => ({ error: null }) }) };
+          }
+          if (table === 'voucher_reservations') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    // Still reserved in database
+                    data: { status: 'reserved', order_id: null },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'claim_voucher_quota') return { data: 'res-retry-uuid', error: null };
+          if (fn === 'consume_voucher_reservation') {
+            consumeAttempt += 1;
+            if (consumeAttempt === 1) {
+              return { data: null, error: { message: 'temporary database connection glitch' } };
+            }
+            // 2nd call (retry) succeeds!
+            return { data: true, error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any));
+
+      const res = await checkoutService.checkout('user-retry-test', validCheckoutInput, 'NEWBIE100');
+      expect(res.id).toBe('order-retry-success-1');
+      expect(consumeAttempt).toBe(2);
+      expect(cancelledId).toBeNull();
+    });
+
+    it('Scenario 8: preserves order and refuses automatic cancellation when consume fails AND verification query also fails (ambiguous network outage)', async () => {
+      const { createClient } = await import('@/lib/supabase/server');
+      const { getSupabaseAdminClient } = await import('@/lib/supabase/admin');
+
+      let cancelledId: string | null = null;
+      let releasedReservationId: string | null = null;
+
+      vi.mocked(createClient).mockImplementation(async () => ({
+        from: (table: string) => {
+          if (table === 'vouchers') {
+            return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: newCustomerVoucher, error: null }) }) }) }) };
+          }
+          if (table === 'storefront_settings') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: {} }, error: null }) }) }) };
+          }
+          if (table === 'cart') {
+            return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: dummyCart, error: null }) }) }) };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string) => {
+          if (fn === 'process_checkout') return { data: 'order-ambiguous-123', error: null };
+          return { data: null, error: null };
+        },
+      } as any));
+
+      vi.mocked(getSupabaseAdminClient).mockImplementation(() => ({
+        from: (table: string) => {
+          if (table === 'orders') {
+            return {
+              select: () => ({ eq: () => ({ single: async () => ({ data: { total_amount: 15000000, shipping_amount: 25000 }, error: null }) }) }),
+              update: (fields: any) => ({
+                eq: async (_col: string, val: string) => {
+                  if (fields.status === 'cancelled') cancelledId = val;
+                  return { error: null };
+                },
+              }),
+            };
+          }
+          if (table === 'payments') {
+            return { update: () => ({ eq: async () => ({ error: null }) }) };
+          }
+          if (table === 'voucher_reservations') {
+            return {
+              select: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({
+                    // Simulates complete database disconnection during verification
+                    data: null,
+                    error: { message: '504 Gateway Timeout: database unreachable' },
+                  }),
+                }),
+              }),
+            };
+          }
+          return {} as any;
+        },
+        rpc: async (fn: string, args: any) => {
+          if (fn === 'claim_voucher_quota') return { data: 'res-ambiguous-uuid', error: null };
+          if (fn === 'consume_voucher_reservation') {
+            return { data: null, error: { message: '504 Gateway Timeout' } };
+          }
+          if (fn === 'release_voucher_reservation') {
+            releasedReservationId = args?.p_reservation_id;
+            return { data: true, error: null };
+          }
+          return { data: null, error: null };
+        },
+      } as any));
+
+      await expect(
+        checkoutService.checkout('user-ambiguous-test', validCheckoutInput, 'NEWBIE100')
+      ).rejects.toThrow(/Pesanan #order-ambiguous-123 berhasil dibuat, tetapi.*tidak dibatalkan secara otomatis/i);
+
+      // CRITICAL ASSERTION: The order MUST NOT be cancelled and voucher reservation MUST NOT be released!
+      expect(cancelledId).toBeNull();
+      expect(releasedReservationId).toBeNull();
+    });
+
+    it('Scenario 9: simulates SQL idempotent consume logic matching same order vs different order', () => {
+      // Simulates public.consume_voucher_reservation SQL RPC logic
+      const simulateConsumeRpc = (
+        reservation: { id: string; status: 'reserved' | 'consumed' | 'released'; order_id: string | null },
+        p_order_id: string
+      ): { success: boolean; newStatus: string; newOrderId: string | null } => {
+        // Idempotent check: If already consumed by this exact order, succeed safely
+        if (reservation.status === 'consumed' && reservation.order_id === p_order_id) {
+          return { success: true, newStatus: reservation.status, newOrderId: reservation.order_id };
+        }
+
+        if (reservation.status !== 'reserved') {
+          return { success: false, newStatus: reservation.status, newOrderId: reservation.order_id };
+        }
+
+        return { success: true, newStatus: 'consumed', newOrderId: p_order_id };
+      };
+
+      // 1. Initial reserved consumption
+      const res1 = { id: 'res-1', status: 'reserved' as const, order_id: null };
+      const outcome1 = simulateConsumeRpc(res1, 'order-A');
+      expect(outcome1.success).toBe(true);
+      expect(outcome1.newStatus).toBe('consumed');
+      expect(outcome1.newOrderId).toBe('order-A');
+
+      // 2. Retry with SAME order: idempotent success!
+      const resConsumedByA = { id: 'res-1', status: 'consumed' as const, order_id: 'order-A' };
+      const outcomeRetrySame = simulateConsumeRpc(resConsumedByA, 'order-A');
+      expect(outcomeRetrySame.success).toBe(true);
+      expect(outcomeRetrySame.newStatus).toBe('consumed');
+      expect(outcomeRetrySame.newOrderId).toBe('order-A');
+
+      // 3. Retry with DIFFERENT order: rejected!
+      const outcomeRetryDifferent = simulateConsumeRpc(resConsumedByA, 'order-B');
+      expect(outcomeRetryDifferent.success).toBe(false);
+
+      // 4. Retry on already released reservation: rejected!
+      const resReleased = { id: 'res-1', status: 'released' as const, order_id: null };
+      const outcomeReleased = simulateConsumeRpc(resReleased, 'order-C');
+      expect(outcomeReleased.success).toBe(false);
+    });
+
+    it('Scenario 10: simulates SQL idempotent release logic preventing duplicate decrements', () => {
+      // Simulates public.release_voucher_reservation SQL RPC logic
+      const simulateReleaseRpc = (
+        reservation: { id: string; status: 'reserved' | 'consumed' | 'released'; voucher_id: string },
+        voucher: { id: string; usage_count: number }
+      ): { success: boolean; newStatus: string; newUsageCount: number } => {
+        if (reservation.status !== 'reserved') {
+          return { success: false, newStatus: reservation.status, newUsageCount: voucher.usage_count };
+        }
+
+        return {
+          success: true,
+          newStatus: 'released',
+          newUsageCount: Math.max(0, voucher.usage_count - 1),
+        };
+      };
+
+      const initialVoucher = { id: 'vouch-1', usage_count: 5 };
+      const resReserved = { id: 'res-1', status: 'reserved' as const, voucher_id: 'vouch-1' };
+
+      // 1. First release succeeds and decrements usage_count 5 -> 4
+      const release1 = simulateReleaseRpc(resReserved, initialVoucher);
+      expect(release1.success).toBe(true);
+      expect(release1.newStatus).toBe('released');
+      expect(release1.newUsageCount).toBe(4);
+
+      // 2. Second release on the same reservation fails safely and does NOT decrement again
+      const resNowReleased = { id: 'res-1', status: 'released' as const, voucher_id: 'vouch-1' };
+      const release2 = simulateReleaseRpc(resNowReleased, { ...initialVoucher, usage_count: release1.newUsageCount });
+      expect(release2.success).toBe(false);
+      expect(release2.newUsageCount).toBe(4);
+
+      // 3. Attempting release on an already consumed reservation also fails safely
+      const resConsumed = { id: 'res-1', status: 'consumed' as const, voucher_id: 'vouch-1' };
+      const releaseConsumed = simulateReleaseRpc(resConsumed, { ...initialVoucher, usage_count: release1.newUsageCount });
+      expect(releaseConsumed.success).toBe(false);
+      expect(releaseConsumed.newUsageCount).toBe(4);
+    });
   });
 
 });

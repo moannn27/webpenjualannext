@@ -210,7 +210,16 @@ BEGIN
     WHERE id = p_reservation_id
     FOR UPDATE;
 
-    IF NOT FOUND OR v_res.status <> 'reserved' THEN
+    IF NOT FOUND THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Idempotent check: If already consumed by this exact order, succeed safely
+    IF v_res.status = 'consumed' AND v_res.order_id = p_order_id THEN
+        RETURN TRUE;
+    END IF;
+
+    IF v_res.status <> 'reserved' THEN
         RETURN FALSE;
     END IF;
 
@@ -240,7 +249,7 @@ CREATE OR REPLACE FUNCTION public.release_voucher_reservation(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
     v_voucher_id UUID;
 BEGIN
@@ -277,7 +286,7 @@ BEGIN
 
     RETURN TRUE;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.release_voucher_reservation(UUID) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.release_voucher_reservation(UUID) TO service_role;
@@ -296,7 +305,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_expired_voucher_reservations(
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $$
 DECLARE
     v_voucher_id UUID;
     v_reclaimed_count INT := 0;
@@ -347,7 +356,7 @@ BEGIN
 
     RETURN v_total_cleaned;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.cleanup_expired_voucher_reservations(INT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_voucher_reservations(INT) TO service_role;
