@@ -9,6 +9,7 @@ import {
   Banknote,
   Check,
   CheckCheck,
+  ChevronRight,
   Clock3,
   Copy,
   FileText,
@@ -26,6 +27,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { proceedToCheckoutAction } from "@/actions/checkout";
@@ -861,71 +863,93 @@ export function CheckoutClient({
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-8 sm:px-6 lg:px-8">
-      <CheckoutProgressHeader currentStep={2} className="mb-8" />
-      <Link
-        href="/cart"
-        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Kembali ke keranjang
-      </Link>
+      <CheckoutProgressHeader currentStep={2} className="mb-6" />
 
-      <ol className="mb-10 flex items-center justify-between text-sm sm:justify-start sm:gap-8">
-        {(["Alamat", fulfillmentStepLabel, "Pembayaran"] as const).map((label, index) => {
-          const stepNumber = (index + 1) as 1 | 2 | 3;
-          const isCurrent = currentStep === stepNumber;
-          const isDone = currentStep > stepNumber;
+      {/* Toolbar Navigasi & Alur Checkout dengan Aksen Border dan Panah */}
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-4 sm:p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/cart"
+          className="inline-flex items-center gap-2 rounded-xl border border-border/80 bg-muted/30 px-3.5 py-2 text-xs font-semibold text-muted-foreground transition-all hover:bg-muted hover:text-foreground hover:border-border shrink-0 self-start sm:self-auto"
+        >
+          <ArrowLeft className="size-4" />
+          <span>Kembali ke keranjang</span>
+        </Link>
 
-          return (
-            <Fragment key={label}>
-              {index > 0 && <li aria-hidden="true" className="h-px flex-1 bg-border sm:w-16 sm:flex-none" />}
-              <li className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => goToStep(stepNumber)}
-                  disabled={stepNumber > currentStep}
-                  className={`flex size-7 items-center justify-center rounded-full text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
-                    isCurrent
-                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
-                      : isDone
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border text-muted-foreground"
-                  }`}
-                  aria-current={isCurrent ? "step" : undefined}
-                >
-                  {isDone ? <Check className="size-4" /> : stepNumber}
-                </button>
-                <span className={`text-xs font-medium sm:text-sm ${isCurrent ? "font-semibold text-foreground" : isDone ? "text-foreground" : "text-muted-foreground"}`}>
-                  {label}
-                </span>
-              </li>
-            </Fragment>
-          );
-        })}
-      </ol>
+        <nav aria-label="Alur Pengisian Checkout" className="overflow-x-auto pb-1 sm:pb-0">
+          <ol className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
+            {(["Alamat", fulfillmentStepLabel, "Pembayaran"] as const).map((label, index) => {
+              const stepNumber = (index + 1) as 1 | 2 | 3;
+              const isCurrent = currentStep === stepNumber;
+              const isDone = currentStep > stepNumber;
 
-      <div className="grid gap-10 lg:grid-cols-12">
+              return (
+                <Fragment key={label}>
+                  {index > 0 && (
+                    <li aria-hidden="true" className="flex items-center text-muted-foreground/40 px-0.5">
+                      <ChevronRight className="size-4 stroke-[2.5]" />
+                    </li>
+                  )}
+                  <li className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => goToStep(stepNumber)}
+                      disabled={stepNumber > currentStep}
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-all text-xs font-medium whitespace-nowrap",
+                        isCurrent
+                          ? "bg-primary text-primary-foreground font-semibold shadow-xs ring-2 ring-primary/20"
+                          : isDone
+                          ? "text-foreground hover:bg-muted cursor-pointer font-medium"
+                          : "text-muted-foreground cursor-not-allowed opacity-60"
+                      )}
+                      aria-current={isCurrent ? "step" : undefined}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-5 items-center justify-center rounded-full text-[11px] font-bold transition-colors",
+                          isCurrent
+                            ? "bg-primary-foreground text-primary"
+                            : isDone
+                            ? "bg-primary text-primary-foreground"
+                            : "border border-border text-muted-foreground"
+                        )}
+                      >
+                        {isDone ? <Check className="size-3 stroke-[3]" /> : stepNumber}
+                      </span>
+                      <span>{label}</span>
+                    </button>
+                  </li>
+                </Fragment>
+              );
+            })}
+          </ol>
+        </nav>
+      </div>
+
+      {/* Header Utama Checkout diletakkan di atas kolom agar Card Kiri dan Card Kanan Sejajar */}
+      <header className="mb-6 space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Checkout</h1>
+        <p className="text-sm text-muted-foreground">
+          {currentStep === 1
+            ? "Tentukan metode penerimaan dan identitas pemesan."
+            : currentStep === 2
+            ? fulfillmentMode === "pickup"
+              ? "Pilih lokasi pengambilan pesanan di toko."
+              : "Tentukan jasa pengiriman yang tersedia."
+            : "Periksa rekening pembayaran sebelum membuat pesanan."}
+        </p>
+      </header>
+
+      {errorMessage && (
+        <p role="alert" className="mb-6 rounded-xl border-l-4 border-destructive bg-destructive/10 p-4 text-sm font-medium text-destructive">
+          {errorMessage}
+        </p>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
         <form onSubmit={handleSubmit} id="checkout-form" className="space-y-8 lg:col-span-7">
           {appliedVoucher && (
             <input type="hidden" name="voucherCode" value={appliedVoucher.code} />
-          )}
-          <header className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
-            <p className="text-sm text-muted-foreground">
-              {currentStep === 1
-                ? "Tentukan metode penerimaan dan identitas pemesan."
-                : currentStep === 2
-                ? fulfillmentMode === "pickup"
-                  ? "Pilih lokasi pengambilan pesanan di toko."
-                  : "Tentukan jasa pengiriman yang tersedia."
-                : "Periksa rekening pembayaran sebelum membuat pesanan."}
-            </p>
-          </header>
-
-          {errorMessage && (
-            <p role="alert" className="rounded-xl border-l-4 border-destructive bg-destructive/10 p-4 text-sm font-medium text-destructive">
-              {errorMessage}
-            </p>
           )}
 
           {/* STEP 1: Identitas & Pilihan Pengantaran / Pickup */}
