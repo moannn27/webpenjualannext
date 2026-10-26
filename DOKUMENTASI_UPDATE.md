@@ -418,3 +418,51 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
    * **ESLint**: `npm run lint` lolos dengan status bersih **0 errors dan 0 warnings** (sebelumnya ada 40 warnings).
    * **Production Build**: `npm run build` sukses mengompilasi seluruh **40/40 routes** dengan lancar.
 
+---
+
+## 21. Hardening Concurrency Voucher Checkout, Keamanan Storage RLS, Peningkatan UX Reset Password & Polish Checkout
+
+1. **Hardening Concurrency Voucher Checkout (`services/checkout.service.ts`)**:
+   * **Idempotent & Ambiguous Network Protection**:
+     - Menangani error timeout atau koneksi ambigu saat eksekusi RPC `consume_voucher_reservation`.
+     - Sebelum membatalkan pesanan, sistem secara otomatis memverifikasi status reservasi di database (`status === 'consumed' && order_id === orderId`).
+     - Jika transaksi voucher sebenarnya sudah ter-commit di database, pesanan tidak lagi dibatalkan secara keliru (*prevent false order cancellation*).
+     - Jika status masih `reserved`, sistem melakukan retry aman sebanyak 1 kali menggunakan RPC idempoten.
+   * **Pengecekan Fail-Closed Voucher Pengguna Baru**:
+     - Jika query riwayat pesanan pengguna atau nomor telepon mengalami kegagalan/timeout, sistem menolak penggunaan voucher pelanggan baru secara fail-closed demi mencegah *voucher abuse*.
+   * **Safe Non-Replayable Release**:
+     - Pelepasan kuota reservasi voucher saat rollback error hanya mengurangi `usage_count` jika reservasi masih berstatus `reserved`.
+
+2. **Perbaikan Delimiter RPC & Migrasi Korektif Supabase (`supabase/migrations/`)**:
+   * **Normalisasi Delimiter PostgreSQL (`20261110000000_repair_voucher_reservation_rpc_delimiters.sql`)**:
+     - Memperbaiki fungsi PL/pgSQL `consume_voucher_reservation`, `release_voucher_reservation`, dan `cleanup_expired_voucher_reservations` dengan syntax delimiter standar `$$` yang kompatibel di semua versi Supabase CLI dan dashboard remote.
+   * **Hardening RLS Storage Policy Avatars & Reviews (`20261111000000_harden_avatars_and_reviews_storage_policies.sql`)**:
+     - Isolasi ketat folder upload per UID pengguna (`auth.uid()`) untuk mencegah manipulasi/upload berkas ke path pengguna lain.
+     - Pembatasan ekstensi file hanya untuk format gambar aman (`jpg`, `jpeg`, `png`, `webp`) dan memblokir ekstensi berbahaya (`svg`, `html`, dll.).
+
+3. **Peningkatan UX Halaman Reset Kata Sandi (`app/reset-password/page.tsx`)**:
+   * **Toggle Visibilitas Password**:
+     - Ditambahkan tombol intip kata sandi (`Eye` / `EyeOff`) pada kolom Kata Sandi Baru dan Konfirmasi Kata Sandi.
+   * **Daftar Ketentuan Real-time**:
+     - Checklist interaktif real-time untuk validasi minimal 6 karakter dan kesesuaian kedua kata sandi dengan indikator visual checklist/silang yang jelas.
+   * **Auto-Redirect dengan Hitung Mundur (Countdown Timer)**:
+     - Setelah kata sandi berhasil diubah, halaman menampilkan status sukses disertai hitung mundur live 10 detik otomatis ke halaman `/login`.
+     - Disediakan tombol "Masuk Sekarang (Login)" untuk navigasi instan tanpa menunggu countdown selesai.
+
+4. **Penyempurnaan Tampilan & Alur Checkout (`features/checkout/CheckoutClient.tsx`)**:
+   * **Toolbar Navigasi & Alur Bertahap**:
+     - Toolbar checkout dibungkus dalam kartu beraksen bersih dengan tombol "Kembali ke keranjang" dan alur tahapan ("Alamat" → "Pengiriman/Pickup" → "Pembayaran").
+     - Antar-tahapan dihubungkan dengan panah penunjuk `ChevronRight` yang jelas.
+   * **Kesejajaran Kolom Horizontal**:
+     - Judul header "Checkout" diposisikan di atas grid sehingga Card Formulir Kiri (step input) dan Card Ringkasan Belanja Kanan (order summary) sejajar secara sempurna dari atas ke bawah.
+
+5. **Stabilitas Build Turbopack (`next.config.ts`)**:
+   * Menonaktifkan cache filesystem eksperimental Turbopack (`turbopackFileSystemCacheForBuild: false`) untuk menghindari kegagalan *stale cache* saat build produksi Next.js.
+
+6. **Hasil Pengujian & Verifikasi Kualitas**:
+   * **Unit Tests**: **30 test suites (312 tests)** lulus 100% (`npx vitest run`), mencakup tes baru di `__tests__/services/checkout-voucher-concurrency.test.ts` dan `__tests__/lib/security-hardening-remediation.test.ts`.
+   * **TypeScript Compilation**: `npx tsc --noEmit` lolos bersih (0 errors).
+   * **ESLint**: `npm run lint` lolos bersih (0 errors, 0 warnings).
+   * **Production Build**: `npm run build` sukses mengompilasi seluruh **42/42 routes**.
+
+
