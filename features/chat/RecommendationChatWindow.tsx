@@ -18,20 +18,81 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-type Product = {
+export type Product = {
   id: string;
   name: string;
-  description: string;
   price: number;
   discount_price: number | null;
   stock: number;
   image: string | null;
   brands: { name: string } | null;
+  highlights?: { key: string; value: string }[];
+  graphicsLabel?: string | null;
 };
 
-type Message = { role: "user" | "assistant"; text: string; products?: Product[] };
+type Message = {
+  role: "user" | "assistant";
+  text: string;
+  products?: Product[];
+  alternatives?: Product[];
+  alternativeLabel?: string;
+  isError?: boolean;
+};
+
+export function toRecommendationHistory(messages: Message[]) {
+  return messages.slice(-20).map(({ role, text, products, alternatives }) => ({
+    role,
+    text,
+    ...(role === "assistant" && (products?.length || alternatives?.length)
+      ? { productIds: [...(products ?? []), ...(alternatives ?? [])].map(({ id }) => id) }
+      : {}),
+  }));
+}
 
 const suggestions = ["Buat kuliah", "Buat kerja", "Belum tahu, bantu tentukan"];
+
+export function ProductCards({ products, isExpanded, title }: { products: Product[]; isExpanded: boolean; title?: string }) {
+  if (!products.length) return null;
+  return (
+    <section className="mt-1 w-full max-w-full space-y-2">
+      {title && <h3 className="text-xs font-semibold text-muted-foreground">{title}</h3>}
+      <div className={isExpanded ? "grid grid-cols-1 gap-2.5 sm:grid-cols-2" : "space-y-2.5"}>
+        {products.map((product) => (
+          <Link
+            key={product.id}
+            href={`/product/${product.id}`}
+            className="group flex min-w-0 gap-3 rounded-2xl border border-border/80 bg-card p-3 text-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md"
+          >
+            {product.image && (
+              <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-border/40 bg-muted">
+                <Image src={product.image} alt={product.name} fill className="object-cover transition-transform duration-300 group-hover:scale-105" sizes="64px" />
+              </div>
+            )}
+            <span className="flex min-w-0 flex-1 flex-col justify-between">
+              <span>
+                <span className="block truncate text-xs font-semibold transition-colors group-hover:text-primary">{product.name}</span>
+                <span className="block text-[11px] text-muted-foreground">{product.brands?.name || ""} · stok {product.stock}</span>
+                {product.graphicsLabel !== undefined && (
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    Grafis: {product.graphicsLabel || "belum dicantumkan di katalog"}
+                  </span>
+                )}
+                {product.highlights?.length ? (
+                  <span className="mt-0.5 block line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {product.highlights.map(({ key, value }) => `${key}: ${value}`).join(" · ")}
+                  </span>
+                ) : null}
+              </span>
+              <span className="block text-sm font-bold text-primary">
+                Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 const markdownComponents: Components = {
   p: ({ children }) => <p className="my-2 leading-relaxed first:mt-0 last:mb-0">{children}</p>,
@@ -69,36 +130,7 @@ export function RecommendationChatWindow({
       text: "Halo! Selamat datang di Next Solution. Aku siap membantu kamu menemukan perangkat elektronik yang paling sesuai. Supaya saranku tepat, perangkat apa yang sedang kamu cari dan akan digunakan untuk apa?",
     },
   ]);
-  const hasStartedChat = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (hasStartedChat.current) return;
-    hasStartedChat.current = true;
-    setBusy(true);
-    void fetch("/api/recommend", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message:
-          "Mulai percakapan. Sapa pelanggan dengan ramah dan tanyakan perangkat serta tujuan pemakaiannya. Jangan tampilkan katalog dulu.",
-      }),
-    })
-      .then(async (response) => {
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Chat tidak dapat menjawab saat ini.");
-        setMessages([{ role: "assistant", text: result.answer }]);
-      })
-      .catch(() => {
-        setMessages([
-          {
-            role: "assistant",
-            text: "Halo! Selamat datang di Next Solution. Aku siap membantu kamu memilih perangkat yang sesuai. Kamu sedang mencari perangkat apa dan akan digunakan untuk apa?",
-          },
-        ]);
-      })
-      .finally(() => setBusy(false));
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -107,7 +139,7 @@ export function RecommendationChatWindow({
   const sendMessage = async (rawMessage: string) => {
     const message = rawMessage.trim();
     if (!message || busy) return;
-    const history = messages.slice(-8).map(({ role, text }) => ({ role, text }));
+    const history = toRecommendationHistory(messages);
     setInput("");
     setMessages((current) => [...current, { role: "user", text: message }]);
     setBusy(true);
@@ -119,11 +151,17 @@ export function RecommendationChatWindow({
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Chat tidak dapat menjawab saat ini.");
-      setMessages((current) => [...current, { role: "assistant", text: result.answer, products: result.products }]);
+      setMessages((current) => [...current, {
+        role: "assistant",
+        text: result.answer,
+        products: result.products,
+        alternatives: result.alternatives,
+        alternativeLabel: result.alternativeLabel,
+      }]);
     } catch (error) {
       setMessages((current) => [
         ...current,
-        { role: "assistant", text: error instanceof Error ? error.message : "Koneksi chat bermasalah." },
+        { role: "assistant", text: error instanceof Error ? error.message : "Koneksi chat bermasalah.", isError: true },
       ]);
     } finally {
       setBusy(false);
@@ -136,38 +174,38 @@ export function RecommendationChatWindow({
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex items-end gap-3">
+  <div className="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-3 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:justify-end sm:px-0">
       <a
         href={whatsappHref}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Tanya langsung ke admin lewat WhatsApp"
         title="Tanya langsung lewat WhatsApp"
-        className="mb-1 flex size-12 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl transition-transform hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2"
+        className="mb-1 hidden size-12 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl transition-transform hover:scale-110 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2 sm:flex"
       >
         <MessageCircle className="size-6" />
       </a>
 
       <section
         aria-label="Chat rekomendasi produk"
-        className={`flex flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl transition-[width,height] duration-300 ease-in-out ${
+        className={`flex flex-col overflow-hidden rounded-[1.4rem] border border-border/80 bg-background shadow-[0_24px_80px_-24px_rgba(15,23,42,0.55)] transition-[width,height] duration-300 ease-in-out ${
           isExpanded
-            ? "h-[min(780px,calc(100vh-28px))] w-[min(700px,calc(100vw-32px))]"
-            : "h-[min(650px,calc(100vh-36px))] w-[min(400px,calc(100vw-100px))] sm:w-[410px]"
+            ? "h-[min(780px,calc(100dvh-24px-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full max-w-[700px]"
+            : "h-[min(650px,calc(100dvh-24px-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-full max-w-[410px]"
         }`}
       >
         {/* Header */}
-        <header className="flex items-center justify-between bg-primary p-3.5 text-primary-foreground shadow-xs">
+        <header className="flex items-center justify-between bg-gradient-to-br from-primary via-primary to-primary/85 p-3.5 text-primary-foreground shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="flex size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-xs">
               <Bot className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-semibold tracking-tight">Next Assistant</h2>
+                <h2 className="text-sm font-semibold tracking-tight">AI Assistant</h2>
                 <span className="flex size-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/20" />
               </div>
-              <p className="text-[11px] text-primary-foreground/80">Rekomendasi Cerdas & Akurat</p>
+              <p className="text-[11px] text-primary-foreground/80">Asisten Next Solution Store</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -193,7 +231,7 @@ export function RecommendationChatWindow({
         </header>
 
         {/* Messages Body */}
-        <div className="flex-1 space-y-3.5 overflow-y-auto p-4 text-xs sm:text-sm">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-muted/25 to-background p-3.5 text-sm sm:p-5">
           {messages.map((message, index) => (
             <div
               key={index}
@@ -202,10 +240,12 @@ export function RecommendationChatWindow({
               }`}
             >
               <div
-                className={`max-w-[85%] rounded-2xl p-3.5 leading-relaxed shadow-2xs ${
+                className={`max-w-[90%] rounded-2xl px-4 py-3 leading-7 shadow-sm sm:max-w-[84%] ${
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-tr-xs"
-                    : "bg-muted/80 text-foreground rounded-tl-xs border border-border/50"
+                    ? "rounded-br-md bg-primary text-primary-foreground"
+                    : message.isError
+                      ? "rounded-bl-md border border-destructive/25 bg-destructive/5 text-foreground"
+                      : "rounded-bl-md border border-border/70 bg-card text-foreground"
                 }`}
               >
                 {message.role === "assistant" ? (
@@ -220,48 +260,10 @@ export function RecommendationChatWindow({
               </div>
 
               {/* Product Cards Attachment */}
-              {message.products && message.products.length > 0 && (
-                <div
-                  className={`mt-1 w-full max-w-[95%] ${
-                    isExpanded
-                      ? "grid grid-cols-1 sm:grid-cols-2 gap-2.5"
-                      : "space-y-2.5"
-                  }`}
-                >
-                  {message.products.map((product) => (
-                    <Link
-                      key={product.id}
-                      href={`/product/${product.id}`}
-                      className="group flex gap-3 rounded-xl border border-border/80 bg-background/95 p-2.5 text-foreground transition-all duration-200 hover:border-primary hover:shadow-md hover:bg-accent/5"
-                    >
-                      {product.image && (
-                        <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-muted border border-border/40">
-                          <Image
-                            src={product.image}
-                            alt={product.name}
-                            fill
-                            className="object-cover transition-transform duration-300 group-hover:scale-105"
-                            sizes="64px"
-                          />
-                        </div>
-                      )}
-                      <span className="min-w-0 flex-1 flex flex-col justify-between">
-                        <div>
-                          <span className="block truncate text-xs font-semibold group-hover:text-primary transition-colors">
-                            {product.name}
-                          </span>
-                          <span className="block text-[11px] text-muted-foreground">
-                            {product.brands?.name || ""} · stok {product.stock}
-                          </span>
-                        </div>
-                        <span className="block text-xs font-bold text-primary">
-                          Rp {Number(product.discount_price ?? product.price).toLocaleString("id-ID")}
-                        </span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {message.products?.length ? <ProductCards products={message.products} isExpanded={isExpanded} /> : null}
+              {message.alternatives?.length ? (
+                <ProductCards products={message.alternatives} isExpanded={isExpanded} title={message.alternativeLabel ?? "Alternatif"} />
+              ) : null}
             </div>
           ))}
 
@@ -292,7 +294,7 @@ export function RecommendationChatWindow({
                 <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
                 <span className="size-1.5 rounded-full bg-primary animate-bounce" />
               </div>
-              <span className="text-xs font-medium">Next Assistant sedang berpikir...</span>
+              <span className="text-xs font-medium">AI Assistant sedang berpikir...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
@@ -343,7 +345,7 @@ export function RecommendationChatWindow({
         )}
 
         {/* Input Form */}
-        <form onSubmit={send} className="flex gap-2 border-t border-border/80 p-3 bg-card/60 backdrop-blur-xs">
+        <form onSubmit={send} className="flex gap-2 border-t border-border/80 bg-card/90 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:pb-3">
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}

@@ -18,6 +18,7 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -87,6 +88,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const regularPrice = selectedVariant?.price ?? product.price;
   const [activeTab, setActiveTab] = useState<"specs" | "reviews">("specs");
   const [loading, setLoading] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
   const [cartCountAfterAdd, setCartCountAfterAdd] = useState<number | null>(null);
   const [cartError, setCartError] = useState("");
   const baseImages = useMemo<ProductGalleryImage[]>(() => {
@@ -225,6 +227,8 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   };
 
   const handleWishlist = async () => {
+    if (wishlistLoading) return;
+    setWishlistLoading(true);
     try {
       const result = await toggleWishlistAction(product.id);
       setSaved(result.action === "added");
@@ -243,6 +247,8 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         toast.error("Gagal Wishlist", "Wishlist gagal diperbarui.");
         setFeedback("Wishlist gagal diperbarui.");
       }
+    } finally {
+      setWishlistLoading(false);
     }
   };
 
@@ -365,8 +371,8 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               <Button variant="ghost" size="icon" aria-label="Bagikan produk" onClick={handleShare} className="rounded-full">
                 <Share2 className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" aria-label={saved ? "Hapus dari wishlist" : "Tambahkan ke wishlist"} aria-pressed={saved} onClick={handleWishlist} className="rounded-full">
-                <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />
+              <Button variant="ghost" size="icon" aria-label={wishlistLoading ? "Memperbarui wishlist" : saved ? "Hapus dari wishlist" : "Tambahkan ke wishlist"} aria-pressed={saved} aria-busy={wishlistLoading} disabled={wishlistLoading} onClick={handleWishlist} className="rounded-full">
+                {wishlistLoading ? <LoaderCircle className="size-5 animate-spin" /> : <Heart className={`h-5 w-5 ${saved ? "fill-destructive text-destructive" : ""}`} />}
               </Button>
             </div>
           </div>

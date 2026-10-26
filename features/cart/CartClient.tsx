@@ -232,7 +232,9 @@ export function CartClient({
                       >
                         <Minus className="h-4 w-4" />
                       </button>
-                      <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                      <span className="flex w-8 items-center justify-center text-sm font-semibold" aria-live="polite">
+                        {isUpdating ? <LoaderCircle className="size-4 animate-spin text-primary" aria-label="Memperbarui jumlah" /> : item.quantity}
+                      </span>
                       <button
                         type="button"
                         aria-label={`Tambah ${item.name}`}
@@ -256,7 +258,7 @@ export function CartClient({
                       className="p-2 rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors active:scale-95 cursor-pointer"
                       title="Hapus dari keranjang"
                     >
-                      <Trash2 className="h-4.5 w-4.5" />
+                      {isUpdating ? <LoaderCircle className="size-4.5 animate-spin" /> : <Trash2 className="h-4.5 w-4.5" />}
                     </button>
                   </div>
                 </div>

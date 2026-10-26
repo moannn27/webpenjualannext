@@ -1,192 +1,68 @@
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import { FunctionCallingConfigMode, GoogleGenAI, Type, type Content, type Part } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeProductImageUrl } from "@/lib/product-gallery";
+import {
+  effectiveVariantPrice,
+  findRelevantFaq,
+  type GraphicsAlternativeKind,
+  getCatalogGraphicsLabel,
+  getMatchingVariant,
+  graphicsFollowUpAnswer,
+  getProductCriteria,
+  isWithinBudget,
+  searchGraphicsProducts,
+  recommendationPrice,
+  selectAssistantAnswer,
+  selectConversationalAnswer,
+  type AssistantProduct,
+} from "@/lib/recommendation-assistant";
+import { FAQService } from "@/services/faq.service";
 
 type Candidate = {
   id: string;
   name: string;
+  slug: string;
+  status: "published";
   description: string;
   price: number;
   discount_price: number | null;
   stock: number;
-  categories: { name: string } | null;
-  brands: { name: string } | null;
-  product_images: { url: string; is_primary: boolean }[];
+  sku?: string | null;
+  categories: { name: string; slug: string } | null;
+  brands: { name: string; slug: string } | null;
+  product_specifications?: { key: string; value: string; display_order?: number }[];
+  product_variants?: { id: string; sku: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number }[];
+  product_images: { url: string; alt_text?: string | null; is_primary: boolean }[];
+  is_featured?: boolean;
+  is_new_arrival?: boolean;
+  is_best_seller?: boolean;
 };
 
 type CategoryIntent = "laptop" | "monitor" | "desktop" | "smartphone" | "tablet" | "accessory";
-
-const KNOWN_SERIES = [
-  "yoga",
-  "zenbook",
-  "vivobook",
-  "ideapad",
-  "thinkpad",
-  "macbook",
-  "zephyrus",
-  "legion",
-  "loq",
-  "aspire",
-  "soulmate",
-  "workmate",
-  "nitro",
-  "tuf",
-  "rog",
-  "galaxy",
-];
-
-function detectMentionedSeries(text: string): string[] {
-  const lower = text.toLowerCase();
-  return KNOWN_SERIES.filter((s) => new RegExp(`\\b${s}\\b`, "i").test(lower));
-}
-
-function isPremiumIntent(text: string): boolean {
-  return /\b(premium|flagship|high[\s-]end|highend|mewah|kelas atas|spek dewa|spek tinggi|tertinggi|eksekutif|tipis mewah|ultrabook|sultan)\b/i.test(
-    text
-  );
-}
-
-function detectCategoryIntent(text: string): CategoryIntent | null {
-  const t = text.toLowerCase();
-  if (
-    /\b(laptop|laptops|notebook|notebooks|netbook|ultrabook|macbook|chromebook)\b/.test(t) ||
-    KNOWN_SERIES.some((s) => new RegExp(`\\b${s}\\b`, "i").test(t) && !["galaxy"].includes(s))
-  ) {
-    return "laptop";
-  }
-  if (/\b(monitor|monitors|layar|display)\b/.test(t)) {
-    return "monitor";
-  }
-  if (/\b(desktop|desktops|pc|all[\s-]in[\s-]one|aio|komputer)\b/.test(t)) {
-    return "desktop";
-  }
-  if (/\b(smartphone|smartphones|hp|handphone|ponsel|telepon)\b/.test(t)) {
-    return "smartphone";
-  }
-  if (/\b(tablet|tablets|tab|ipad)\b/.test(t)) {
-    return "tablet";
-  }
-  if (/\b(aksesoris|accessories|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|tas)\b/.test(t)) {
-    return "accessory";
-  }
-  return null;
-}
-
-function isItemMatchingCategory(item: Candidate, intent: CategoryIntent): boolean {
-  const cat = (item.categories?.name ?? "").toLowerCase();
-  const name = item.name.toLowerCase();
-  const desc = item.description.toLowerCase();
-
-  switch (intent) {
-    case "laptop": {
-      // If categories relation is populated and is not a laptop category, reject immediately
-      if (cat && !cat.includes("laptop")) {
-        return false;
-      }
-      // Strictly exclude monitors, desktops, accessories, phones, tablets
-      if (
-        cat.includes("monitor") ||
-        name.includes("monitor") ||
-        cat.includes("accessories") ||
-        cat.includes("smartphones") ||
-        cat.includes("tablet") ||
-        cat.includes("desktops") ||
-        cat.includes("all-in-one") ||
-        name.includes("one pc") ||
-        name.includes("aio")
-      ) {
-        return false;
-      }
-      return (
-        cat.includes("laptop") ||
-        name.includes("laptop") ||
-        name.includes("notebook") ||
-        name.includes("ideapad") ||
-        name.includes("thinkpad") ||
-        name.includes("yoga") ||
-        name.includes("aspire") ||
-        name.includes("soulmate") ||
-        name.includes("vivobook") ||
-        name.includes("zenbook") ||
-        name.includes("macbook") ||
-        desc.includes("laptop")
-      );
-    }
-
-    case "monitor": {
-      if (cat && !cat.includes("monitor")) return false;
-      return cat.includes("monitor") || name.includes("monitor") || name.includes("display") || desc.includes("monitor");
-    }
-
-    case "desktop": {
-      if (cat && !cat.includes("desktop") && !cat.includes("all-in-one")) return false;
-      if (cat.includes("laptop") || cat.includes("monitor")) return false;
-      return (
-        cat.includes("desktop") ||
-        cat.includes("all-in-one") ||
-        name.includes("tower") ||
-        name.includes("aio") ||
-        name.includes("desktop")
-      );
-    }
-
-    case "smartphone": {
-      if (cat && !cat.includes("smartphone")) return false;
-      return cat.includes("smartphone") || name.includes("phone") || name.includes("smartphone");
-    }
-
-    case "tablet": {
-      if (cat && !cat.includes("tablet")) return false;
-      return cat.includes("tablet") || name.includes("tablet") || name.includes("tab ");
-    }
-
-    case "accessory": {
-      if (cat && !cat.includes("accessori")) return false;
-      return (
-        cat.includes("accessories") ||
-        name.includes("keyboard") ||
-        name.includes("mouse") ||
-        name.includes("headset") ||
-        name.includes("earphone")
-      );
-    }
-
-    default:
-      return true;
-  }
-}
-
-function parseBudgetAndOperator(text: string) {
-  let budget: number | null = null;
-  const million = text.match(/(?:rp\s*)?(\d+(?:[.,]\d+)?)\s*(?:jt|juta)(?:an)?/i);
-  if (million) {
-    budget = Number(million[1].replace(",", ".")) * 1_000_000;
-  } else {
-    const raw = text.match(/(?:rp\s*)?(\d{6,})(?:\s*(?:rupiah|rb|ribu))?/i);
-    if (raw) {
-      budget = Number(raw[1]);
-    } else {
-      const thousand = text.match(/(\d+(?:[.,]\d+)?)\s*(?:rb|ribu)(?:an)?/i);
-      if (thousand) budget = Number(thousand[1].replace(",", ".")) * 1_000;
-    }
-  }
-
-  const isStrictUnder = /\b(dibawah|di bawah|kurang dari|maks|maksimal|max|mentok|paling mahal|dibawahnya)\b/i.test(text);
-  const isStrictAbove = /\b(diatas|di atas|lebih dari|minimal|min|paling murah|mulai dari)\b/i.test(text);
-
-  return { budget, isStrictUnder, isStrictAbove };
-}
 
 function fallbackAnswer(
   message: string,
   products: Candidate[],
   budget: number | null,
   categoryIntent: CategoryIntent | null,
-  isPremium: boolean = false,
-  mentionedSeries: string[] = []
+  mentionedSeries: string[] = [],
+  minBudget: boolean = false,
+  criteria: ReturnType<typeof getProductCriteria>,
+  alternativeKind: GraphicsAlternativeKind = null,
+  alternatives: Candidate[] = []
 ) {
+  if (criteria.graphicsQuestion || criteria.graphics || criteria.alternativeRequest || criteria.gaming || criteria.design) {
+    return graphicsFollowUpAnswer(products, criteria, alternativeKind, alternatives);
+  }
+  if (alternativeKind === "cheapest-over-budget") {
+    return `Belum ada pilihan dalam budget sebelumnya${criteria.comparisonBudget ? ` Rp${criteria.comparisonBudget.toLocaleString("id-ID")}` : ""}. Ini laptop ready termurah yang tersedia di atas batas itu; harga aktualnya ada di kartu alternatif.`;
+  }
+  if (alternativeKind === "near-target") {
+    return `Aku prioritaskan pilihan yang paling dekat dengan kisaran Rp${budget?.toLocaleString("id-ID")}. Ada juga alternatif sedikit di atas target; aku pisahkan di kartu supaya selisih budget terlihat jelas.`;
+  }
+
   const categoryLabel =
     categoryIntent === "laptop"
       ? "laptop"
@@ -205,44 +81,190 @@ function fallbackAnswer(
     return `Saat ini belum ada pilihan ${categoryLabel} yang cocok dan ready di toko kami untuk kriteria atau budget tersebut. Coba sesuaikan rentang budget atau tanyakan pilihan ${categoryLabel} lainnya.`;
   }
 
-  const comparison = /banding|compare|versus|\bvs\b/i.test(message);
-  const isYogaOrZenbook = mentionedSeries.includes("yoga") || mentionedSeries.includes("zenbook");
-  const lead = comparison
-    ? `Ini perbandingan ${categoryLabel} yang tersedia dan stoknya ready:`
-    : isYogaOrZenbook || isPremium
-    ? `Tentu ada! Di Next Solution kami memiliki koleksi laptop premium ready stock (seperti Lenovo Yoga & ASUS Zenbook) dengan spesifikasi tinggi dan build mewah:`
-    : budget
-    ? `Tentu ada! Untuk kategori ${categoryLabel} dengan anggaran di bawah Rp${budget.toLocaleString("id-ID")}, berikut adalah pilihan yang tersedia di Next Solution:`
-    : `Ini beberapa pilihan ${categoryLabel} yang ready dan paling sesuai di Next Solution:`;
-
-  return `${lead}\n\n${products
-    .map(
-      (p) =>
-        `• **${p.name}** - Rp${Number(p.discount_price ?? p.price).toLocaleString("id-ID")}\n  Brand: ${p.brands?.name ?? "-"} | Stok: ${p.stock} unit\n  ${p.description.slice(0, 180)}...`
-    )
-    .join("\n\n")}\n\nMau saya jelaskan spesifikasi detail, layar, atau perbandingannya?`;
-}
-
-function isProductSearch(text: string) {
-  return /\b(laptop|notebook|komputer|pc|smartphone|handphone|hp|tablet|aksesoris|monitor|produk|barang|rekomendasi|carikan|cari|bandingkan|bandingin|compare|vs|stok|ready|harga|budget|spesifikasi|spek|merek|brand|premium|yoga|zenbook|macbook|vivobook|ideapad|thinkpad|loq|legion)\b/i.test(
-    text
-  );
-}
-
-function fallbackChatReply(message: string) {
-  if (/\b(hai|halo|hello|hi|pagi|siang|sore|malam)\b/i.test(message)) {
-    return "Hai! Aku asisten AI Next Solution. Kita bisa ngobrol dulu soal kebutuhanmu, lalu kalau sudah siap aku bantu carikan produk yang cocok. Kamu lagi mempertimbangkan perangkat apa?";
+  const resultSubject = criteria.series.length ? `seri ${criteria.series.map((series) => series.toUpperCase()).join(" / ")}` : categoryLabel;
+  if (criteria.priceDirection === "lower") {
+    return `Ada ${products.length} pilihan ${resultSubject} yang tersedia. Aku urutkan dari harga terendah supaya gampang dibandingkan; kartu menampilkan detail dan stoknya.`;
   }
-  return "Siap, kita diskusi dulu aja 😊 Aku bisa bantu cari tahu perangkat yang cocok berdasarkan kebutuhanmu, tanpa harus langsung pilih barang. Kamu rencananya mau dipakai untuk apa?";
+  if (criteria.priceDirection === "higher") {
+    return `Ada ${products.length} pilihan ${resultSubject} yang tersedia. Aku urutkan dari harga tertinggi; kartu menampilkan harga dan detail tiap pilihan.`;
+  }
+  if (criteria.series.length) {
+    return `Ada, seri ${criteria.series.map((series) => series.toUpperCase()).join(" / ")} tersedia. Aku tampilkan pilihan yang stoknya ada; mau aku urutkan dari harga termurah atau cari yang paling cocok untuk kebutuhanmu?`;
+  }
+
+  const comparison = /banding|compare|versus|\bvs\b/i.test(message);
+  const count = products.length === 1 ? `1 pilihan ${categoryLabel}` : `${products.length} pilihan ${categoryLabel}`;
+  const budgetText = budget === null
+    ? ""
+    : minBudget
+      ? ` mulai Rp${budget.toLocaleString("id-ID")}`
+      : ` hingga Rp${budget.toLocaleString("id-ID")}`;
+  const usageText = criteria.work ? " untuk kerja" : "";
+  const opening = comparison
+    ? `Aku menemukan ${count}${usageText}${budgetText} yang bisa dibandingkan.`
+    : `Ada, aku menemukan ${count}${usageText}${budgetText} yang ready.`;
+  const nextQuestion = criteria.work
+    ? "Kamu lebih memprioritaskan laptop ringan, multitasking, atau kapasitas penyimpanan?"
+    : "Kalau mau, aku bisa bantu persempit berdasarkan kebutuhan utama atau spesifikasi tertentu.";
+  return `${opening} Kartu di bawah menampilkan ringkasan spesifikasi, harga, dan stok. ${nextQuestion}`;
+}
+
+function toChatProduct(product: Candidate, criteria: ReturnType<typeof getProductCriteria>) {
+  const selectedVariant = getMatchingVariant(product, criteria);
+  const graphicsFollowUp = criteria.graphicsQuestion || Boolean(criteria.graphics) || criteria.alternativeRequest || criteria.gaming || criteria.design;
+  return {
+    id: product.id,
+    name: product.name,
+    brands: product.brands,
+    image: getSafeProductImageUrl(product.product_images),
+    price: Number(recommendationPrice(product, criteria) ?? product.price),
+    discount_price: null,
+    stock: selectedVariant?.stock ?? (product.product_variants?.length
+      ? product.product_variants.reduce((total, variant) => total + Math.max(0, Number(variant.stock) || 0), 0)
+      : product.stock),
+    highlights: getProductHighlights(product, criteria),
+    ...(graphicsFollowUp ? { graphicsLabel: getCatalogGraphicsLabel(product) } : {}),
+  };
+}
+
+function getProductHighlights(product: Candidate, criteria: ReturnType<typeof getProductCriteria>) {
+  const graphicsFollowUp = criteria.graphicsQuestion || Boolean(criteria.graphics) || criteria.alternativeRequest || criteria.gaming || criteria.design;
+  const priority = graphicsFollowUp ? ["processor", "ram", "storage", "display"] : ["processor", "ram", "storage", "display", "gpu"];
+  return (product.product_specifications ?? [])
+    .filter((specification) => priority.includes(specification.key.toLowerCase()))
+    .sort((left, right) => priority.indexOf(left.key.toLowerCase()) - priority.indexOf(right.key.toLowerCase()))
+    .slice(0, 3)
+    .map(({ key, value }) => ({ key, value }));
+}
+
+function getAlternativeLabel(criteria: ReturnType<typeof getProductCriteria>, kind: GraphicsAlternativeKind) {
+  if (kind === "over-budget-match") return `${criteria.graphics?.toUpperCase() ?? "GPU yang diminta"} di atas budget`;
+  if (kind === "other-dedicated") return "Alternatif GPU dedicated dalam budget";
+  if (kind === "over-budget-dedicated") return "Alternatif GPU dedicated di atas budget";
+  if (kind === "integrated") return "Pilihan terdekat: grafis integrated, bukan dedicated";
+  if (kind === "near-target") return "Alternatif sedikit di atas kisaran budget";
+  if (kind === "graphics-inventory") return "Pilihan laptop di atas budget (tipe GPU ada di kartu)";
+  if (kind === "cheapest-over-budget") return "Pilihan termurah yang melebihi budget sebelumnya";
+  return undefined;
+}
+
+function toVerifiedCatalogRecord(product: Candidate, criteria: ReturnType<typeof getProductCriteria>) {
+  const matchingVariant = getMatchingVariant(product, criteria);
+  const variants = matchingVariant
+    ? [matchingVariant]
+    : (product.product_variants ?? []).filter((variant) => variant.stock > 0);
+  return {
+    id: product.id,
+    name: product.name,
+    slug: product.slug,
+    product_url: `/product/${product.id}`,
+    brand: product.brands,
+    category: product.categories,
+    status: product.status,
+    effective_price: matchingVariant ? effectiveVariantPrice(product, matchingVariant) : recommendationPrice(product, criteria),
+    stock: matchingVariant?.stock ?? (product.product_variants?.length
+      ? product.product_variants.reduce((total, variant) => total + Math.max(0, Number(variant.stock) || 0), 0)
+      : product.stock),
+    sku: matchingVariant?.sku ?? product.sku,
+    specifications: product.product_specifications ?? [],
+    variants: variants.map((variant) => ({
+      id: variant.id,
+      sku: variant.sku,
+      color: variant.color,
+      ram: variant.ram,
+      storage: variant.storage,
+      price: variant.price,
+      discount_price: variant.discount_price,
+      effective_price: effectiveVariantPrice(product, variant),
+      stock: variant.stock,
+      within_active_budget: isWithinBudget(effectiveVariantPrice(product, variant) ?? Number.POSITIVE_INFINITY, criteria),
+    })),
+    images: product.product_images.map(({ url, alt_text, is_primary }) => ({ url, alt_text, is_primary })),
+    is_featured: product.is_featured,
+    is_new_arrival: product.is_new_arrival,
+    is_best_seller: product.is_best_seller,
+    description: product.description,
+  };
+}
+
+function buildProductPrompt(
+  message: string,
+  history: { role: "user" | "assistant"; text: string }[],
+  criteria: ReturnType<typeof getProductCriteria>,
+  products: Candidate[],
+  alternatives: Candidate[],
+  alternativeKind: GraphicsAlternativeKind,
+  faqContext: { question: string; answer: string }[]
+) {
+  return `Kamu adalah konsultan teknologi dan asisten AI resmi Next Solution Store. Perlakukan chat sebagai dialog konsultasi yang berlanjut: pahami maksud pesan terbaru dari bahasa sehari-hari dan riwayat relevan, akui koreksi pengguna, lalu jawab dengan nada yang natural dan tidak berulang.
+Saat pengguna meminta rekomendasi, pilih satu kandidat utama yang paling sesuai dengan kebutuhan aktif dan jelaskan singkat alasannya berdasarkan kebutuhan, spesifikasi, tipe produk, dan anggaran. Sebutkan trade-off yang relevan serta maksimal dua alternatif dari data terverifikasi bila memang membantu. Jangan hanya mengulang daftar hasil seperti halaman pencarian. Jika informasi penting belum cukup untuk memilih, ajukan satu pertanyaan klarifikasi yang ringkas.
+Gunakan hanya fakta dari data katalog di bawah. Jangan mengarang atau menebak nama, ID, slug, SKU/MTM, harga, stok, spesifikasi, varian, gambar, atau URL. Jangan menyatakan alternatif di luar budget sebagai cocok budget. Integrated graphics bukan GPU dedicated. Bila spesifikasi kosong, katakan belum tercantum. Harga boleh disebut saat membantu membandingkan rekomendasi atau budget, tetapi harus sama persis dengan harga efektif katalog. SKU/MTM tampilkan hanya saat ditanya, dan gunakan kode yang benar-benar tercatat. Jangan mengulang detail lengkap yang sudah ada di kartu produk.
+Jika butuh pencarian yang lebih spesifik (brand, seri, slug, SKU/MTM produk atau varian, GPU/model, harga, atau atribut varian), panggil search_catalog_products satu kali. Kode MTM yang masuk pada katalog disimpan sebagai SKU; cocokkan persis ke SKU produk/varian dan jangan menganggap kode yang tidak ditemukan valid. Jika data yang tersedia sudah cukup, jawab tanpa tool.
+Riwayat relevan: ${JSON.stringify(history)}
+Pesan terbaru: ${message}
+Kriteria aktif: ${JSON.stringify(criteria)}
+Produk utama terverifikasi: ${JSON.stringify(products.map((product) => toVerifiedCatalogRecord(product, criteria)))}
+Alternatif terverifikasi: ${JSON.stringify(alternatives.map((product) => toVerifiedCatalogRecord(product, criteria)))}
+Tipe alternatif: ${alternativeKind ?? "tidak ada"}
+FAQ/panduan website: ${JSON.stringify(faqContext)}`;
+}
+
+function fallbackChatReply(message: string, criteria: ReturnType<typeof getProductCriteria>) {
+  if (criteria.needsCategoryClarification) {
+    const budget = criteria.budget ? `Budget sekitar Rp${criteria.budget.toLocaleString("id-ID")} sudah aku catat. ` : "";
+    return `${budget}Kamu sedang mencari perangkat apa: laptop, PC, monitor, smartphone, atau aksesori?`;
+  }
+  if (criteria.capabilityQuestion) {
+    return "Aku bisa bantu mencari dan membandingkan produk di katalog, menyaring pilihan berdasarkan budget dan spesifikasi, serta menjawab pertanyaan layanan toko.";
+  }
+  if (/makasih|terima kasih|thanks|thank you/i.test(message)) {
+    return "Sama-sama! Kalau ada yang mau dicari, tinggal bilang ya.";
+  }
+  return "Hai bang! Siap bantu. Lagi ada yang mau ditanyain atau dicari?";
+}
+
+function catalogUnavailableAnswer(criteria: ReturnType<typeof getProductCriteria>) {
+  const category = criteria.category ?? "produk yang kamu cari";
+  const budget = criteria.budget === null ? "" : ` dengan budget Rp${criteria.budget.toLocaleString("id-ID")}`;
+  const graphics = criteria.graphics ? ` dan GPU ${criteria.graphics.toUpperCase()}` : criteria.requiresDedicatedGpu ? " dengan GPU dedicated" : "";
+  return `Aku belum bisa memeriksa katalog ${category}${budget}${graphics} sekarang. Kriteria pencarianmu tetap tercatat; coba lagi sebentar ya.`;
+}
+
+async function generateAssistantAnswer(
+  prompt: string,
+  fallback: string,
+  candidates: AssistantProduct[],
+  criteria: ReturnType<typeof getProductCriteria>,
+  conversational = false
+) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return { answer: fallback, generated: false };
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        httpOptions: { timeout: 15_000 },
+        maxOutputTokens: 900,
+        temperature: 0.3,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+    return conversational
+      ? selectConversationalAnswer(response.text, fallback)
+      : selectAssistantAnswer(response.text, fallback, candidates, criteria);
+  } catch {
+    return { answer: fallback, generated: false };
+  }
 }
 
 export async function POST(request: Request) {
-  // 1. Enforce payload size limit (max 32 KB)
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > 32 * 1024) {
     return NextResponse.json({ error: "Payload permintaan terlalu besar (maksimal 32 KB)." }, { status: 413 });
   }
-
   // 2. Serverless-safe persistent rate limiting per IP (15 requests / 60 seconds)
   const clientIp = getClientIp(request);
   let rateLimit;
@@ -303,237 +325,187 @@ export async function POST(request: Request) {
   }
 
   const history = Array.isArray(body.history)
-    ? body.history.slice(-8).flatMap((item) => {
+    ? body.history.slice(-20).flatMap((item) => {
         if (!item || typeof item !== "object") return [];
-        const entry = item as { role?: unknown; text?: unknown };
+        const entry = item as { role?: unknown; text?: unknown; productIds?: unknown };
         if ((entry.role !== "user" && entry.role !== "assistant") || typeof entry.text !== "string") return [];
-        return [{ role: entry.role, text: entry.text.trim().slice(0, 500) }];
+        const productIds = entry.role === "assistant" && Array.isArray(entry.productIds)
+          ? entry.productIds.filter((id): id is string => typeof id === "string").slice(0, 10)
+          : undefined;
+        return [{ role: entry.role as "user" | "assistant", text: entry.text.trim().slice(0, 500), ...(productIds?.length ? { productIds } : {}) }];
       })
     : [];
+  const dialogueHistory = history.map(({ role, text }) => ({ role, text }));
 
-  const previousUserMessages = history.filter((entry) => entry.role === "user").map((entry) => entry.text);
-  const conversationContext = [...previousUserMessages, message].join(" ");
-  const wantsProducts = isProductSearch(conversationContext);
-
-  const mentionedSeries = detectMentionedSeries(message);
-  const isPremium = isPremiumIntent(message);
-
-  // Category Intent: Current message first, then series detected, then conversation history
-  let categoryIntent = detectCategoryIntent(message);
-  if (!categoryIntent && (mentionedSeries.length > 0 || isPremium)) {
-    categoryIntent = "laptop";
-  }
-  if (!categoryIntent) {
-    categoryIntent = detectCategoryIntent(conversationContext);
-  }
-
-  // Parse Budget & Operator from current message
-  const { budget: currentBudget, isStrictUnder, isStrictAbove } = parseBudgetAndOperator(message);
-
-  // Determine if previous budget should be cleared / ignored:
-  // If user says "premium", mentions high-end series (Yoga, Zenbook, MacBook, etc.),
-  // or uses budget pivot phrases, NEVER inherit old budget from history!
-  const isBudgetReset =
-    isPremium ||
-    mentionedSeries.length > 0 ||
-    /\b(bukan|ganti|naik|naikin|tambah|bebas|tanpa|mahal|bagus|lain|beda|itu kan|ada tuh|tapi kan)\b/i.test(message);
-
-  let effectiveBudget = currentBudget;
-  if (!effectiveBudget && !isBudgetReset) {
-    effectiveBudget = parseBudgetAndOperator(conversationContext).budget;
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("id,name,description,price,discount_price,stock,categories(name),brands(name),product_images(url,is_primary)")
-    .eq("status", "published")
-    .gt("stock", 0)
-    .limit(200);
-
-  if (error) return NextResponse.json({ error: "Katalog belum bisa dimuat. Coba lagi sebentar." }, { status: 503 });
-
-  const all = (data ?? []) as unknown as Candidate[];
-  const brands = all.map((item) => item.brands?.name).filter((name): name is string => Boolean(name));
-
-  // Inferred brands from current message
-  const brandsInCurrent = brands.filter((name) => new RegExp(`\\b${name}\\b`, "i").test(message));
-  const inferredBrandsFromSeries = [
-    ...(mentionedSeries.some((s) => ["yoga", "ideapad", "thinkpad", "loq", "legion"].includes(s)) ? ["Lenovo"] : []),
-    ...(mentionedSeries.some((s) => ["zenbook", "vivobook", "rog", "zephyrus", "tuf"].includes(s)) ? ["Asus"] : []),
-    ...(mentionedSeries.some((s) => ["aspire", "nitro"].includes(s)) ? ["Acer"] : []),
-    ...(mentionedSeries.some((s) => ["macbook"].includes(s)) ? ["Apple"] : []),
-    ...(mentionedSeries.some((s) => ["soulmate", "workmate"].includes(s)) ? ["Advan"] : []),
-  ];
-  const targetBrands = [...new Set([...brandsInCurrent, ...inferredBrandsFromSeries])];
-
-  let matches = wantsProducts ? [...all] : [];
-
-  // 1. Strict Category Matching
-  if (categoryIntent) {
-    matches = matches.filter((item) => isItemMatchingCategory(item, categoryIntent));
-  }
-
-  // 2. Series / Model Matching (Highest Priority if user mentions specific series like Yoga, Zenbook)
-  if (mentionedSeries.length > 0) {
-    const seriesMatches = matches.filter((item) => {
-      const text = `${item.name} ${item.description}`.toLowerCase();
-      return mentionedSeries.some((s) => text.includes(s));
-    });
-    if (seriesMatches.length > 0) {
-      matches = seriesMatches;
+  let criteria = getProductCriteria(message, history, ["ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"]);
+  if (criteria.generalQuestion || criteria.outOfScope) {
+    const priorUserMessage = [...dialogueHistory].reverse().find((turn) => turn.role === "user")?.text;
+    const fallback = priorUserMessage
+      ? `Aku belum bisa menjawab “${message}” sekarang. Tadi kita sempat membahas “${priorUserMessage.slice(0, 100)}”; coba kirim pertanyaannya sekali lagi ya.`
+      : `Aku belum bisa menjawab “${message}” sekarang. Coba kirim pertanyaannya sekali lagi ya.`;
+    const prompt = `Kamu adalah asisten percakapan AI yang ramah dan berpengetahuan luas. Jawab pertanyaan terbaru secara langsung, natural, dan sesuai konteks yang masih relevan dalam riwayat.\n` +
+      `Ini mode percakapan umum: jangan mengarahkan pengguna ke produk atau layanan toko kecuali pertanyaan terbarunya memang meminta itu. Jangan query atau mengklaim isi katalog.\n` +
+      `Jika permintaan berbahaya atau melanggar privasi, tolak dengan singkat dan tawarkan alternatif yang aman. Untuk pertanyaan biasa, bantu sebaik mungkin tanpa fallback toko.\n` +
+      `Riwayat percakapan: ${JSON.stringify(dialogueHistory)}\nPesan terbaru pengguna: ${message}`;
+    let answer = fallback;
+    let aiGenerated = false;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+          contents: prompt,
+          config: { httpOptions: { timeout: 15_000 }, maxOutputTokens: 900, temperature: 0.5, thinkingConfig: { thinkingBudget: 0 } },
+        });
+        const selected = selectConversationalAnswer(response.text, fallback);
+        answer = selected.answer;
+        aiGenerated = selected.generated;
+      } catch {
+        // Use the concise conversational fallback when Gemini is unavailable.
+      }
     }
-  } else if (isPremium) {
-    // 3. Premium Intent (If user specifically asks for premium/flagship laptops)
-    const premiumMatches = matches.filter((item) => {
-      const text = `${item.name} ${item.description}`.toLowerCase();
-      const isPremiumModel = /yoga|zenbook|macbook|zephyrus|thinkpad|legion/i.test(text);
-      const isPremiumPrice = Number(item.discount_price ?? item.price) >= 15_000_000;
-      return isPremiumModel || isPremiumPrice;
-    });
-    if (premiumMatches.length > 0) {
-      matches = premiumMatches;
-    }
-  } else if (targetBrands.length > 0) {
-    // 4. Target Brands Matching
-    const brandMatches = matches.filter((item) =>
-      targetBrands.some((b) => item.brands?.name?.toLowerCase() === b.toLowerCase())
-    );
-    if (brandMatches.length > 0) {
-      matches = brandMatches;
+    return NextResponse.json({ answer, aiGenerated, products: [], alternatives: [] });
+  }
+  if (criteria.smallTalk || criteria.capabilityQuestion || criteria.needsCategoryClarification) {
+    const fallback = fallbackChatReply(message, criteria);
+    const prompt = `Kamu adalah Sales AI Assistant Next Solution Store. Balas satu atau dua kalimat dengan bahasa Indonesia yang santai dan profesional.\n` +
+      `Jangan membuat klaim tentang produk, harga, stok, atau spesifikasi katalog. Jangan tampilkan kartu produk.\n` +
+      `Jika pengguna bertanya kemampuanmu, jelaskan bahwa kamu dapat membantu pencarian/perbandingan katalog, budget, spesifikasi, dan informasi layanan toko.\n` +
+      `Jika kategori belum ditentukan, minta satu klarifikasi kategori (laptop, PC, monitor, smartphone, atau aksesori) dan pertahankan budget yang sudah disebut.\n` +
+      `Riwayat percakapan: ${JSON.stringify(dialogueHistory)}\nPesan terbaru: ${message}\nKonteks kriteria: ${JSON.stringify(criteria)}`;
+    const generated = await generateAssistantAnswer(prompt, fallback, [], criteria, true);
+    return NextResponse.json({ answer: generated.answer, aiGenerated: generated.generated, products: [], alternatives: [] });
+  }
+  let supabase: Awaited<ReturnType<typeof createClient>>;
+  try {
+    supabase = await createClient();
+  } catch {
+    return NextResponse.json({ error: catalogUnavailableAnswer(criteria) }, { status: 503 });
+  }
+  const all: Candidate[] = [];
+  if (criteria.wantsProducts) {
+    const pageSize = 400;
+    for (let offset = 0; ; offset += pageSize) {
+      let data: unknown[] | null;
+      let error: unknown;
+      try {
+        const page = await supabase
+          .from("products")
+          .select("id,name,slug,status,description,price,discount_price,stock,sku,is_featured,is_new_arrival,is_best_seller,categories(name,slug),brands(name,slug),product_images(url,alt_text,is_primary),product_specifications(key,value,display_order),product_variants(id,sku,color,ram,storage,price,discount_price,stock)")
+          .eq("status", "published")
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        data = page.data;
+        error = page.error;
+      } catch {
+        return NextResponse.json({ error: catalogUnavailableAnswer(criteria) }, { status: 503 });
+      }
+      if (error) return NextResponse.json({ error: catalogUnavailableAnswer(criteria) }, { status: 503 });
+      all.push(...((data ?? []) as unknown as Candidate[]));
+      if (!data || data.length < pageSize) break;
     }
   }
+  const brands = [...new Set(all.map((item) => item.brands?.name).filter((name): name is string => Boolean(name)))];
+  criteria = getProductCriteria(message, history, [...new Set(brands), "ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"]);
+  const wantsProducts = criteria.wantsProducts;
+  const categoryIntent = criteria.category;
+  const mentionedSeries = criteria.series;
+  const effectiveBudget = criteria.budget;
+  const graphicsSearch = searchGraphicsProducts(all as AssistantProduct[], criteria, message);
+  let products = graphicsSearch.products as Candidate[];
+  let alternatives = graphicsSearch.alternatives as Candidate[];
+  let alternativeKind = graphicsSearch.alternativeKind;
+  let alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
 
-  // 5. Budget Matching
-  if (effectiveBudget) {
-    let budgetFiltered: Candidate[] = [];
-    if (isStrictUnder) {
-      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) <= effectiveBudget);
-    } else if (isStrictAbove) {
-      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) >= effectiveBudget);
-    } else {
-      budgetFiltered = matches.filter((item) => Number(item.discount_price ?? item.price) <= effectiveBudget * 1.15);
-    }
-
-    if (budgetFiltered.length > 0) {
-      matches = budgetFiltered;
-    } else if (currentBudget) {
-      // User explicitly typed a budget in THIS message and nothing met the criteria
-      matches = [];
-    }
-    // If budgetFiltered was empty solely due to an inherited fallback budget, ignore the stale budget
-  }
-
-  // 6. Relevance Ranking & Sorting
-  const stopWords = new Set([
-    "yang", "buat", "untuk", "dengan", "dong", "bang", "berapa", "harga", "cari", "mau",
-    "saya", "aku", "ada", "atau", "dan", "dari", "lebih", "sama", "tolong", "produk", "budget", "kalo", "apa"
-  ]);
-  const queryWords = [
-    ...new Set(
-      (conversationContext.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((word) => !stopWords.has(word))
-    ),
-  ];
-
-  matches.sort((a, b) => {
-    const priceA = Number(a.discount_price ?? a.price);
-    const priceB = Number(b.discount_price ?? b.price);
-    const textA = `${a.name} ${a.description} ${a.categories?.name ?? ""} ${a.brands?.name ?? ""}`.toLowerCase();
-    const textB = `${b.name} ${b.description} ${b.categories?.name ?? ""} ${b.brands?.name ?? ""}`.toLowerCase();
-
-    // If specific series requested, prioritize exact series matches
-    if (mentionedSeries.length > 0) {
-      const aMatches = mentionedSeries.some((s) => textA.includes(s)) ? 1 : 0;
-      const bMatches = mentionedSeries.some((s) => textB.includes(s)) ? 1 : 0;
-      if (bMatches !== aMatches) return bMatches - aMatches;
-    }
-
-    // If premium requested, sort higher tier first
-    if (isPremium) {
-      return priceB - priceA;
-    }
-
-    const relevance =
-      queryWords.filter((word) => textB.includes(word)).length -
-      queryWords.filter((word) => textA.includes(word)).length;
-    return (
-      relevance ||
-      (effectiveBudget ? Math.abs(priceA - effectiveBudget) - Math.abs(priceB - effectiveBudget) : priceA - priceB)
-    );
-  });
-
-  // Limit to top 5 candidates
-  const products = matches.slice(0, 5);
-
+  const serviceQuestion = !wantsProducts && /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|order|refund|garansi|retur|kebijakan|website|situs|faq/i.test(message);
+  const faqRows = serviceQuestion ? await new FAQService().getActiveFAQs() : [];
+  const faqContext = faqRows.map((faq) => ({ question: faq.question, answer: faq.answer }));
   let answer = wantsProducts
-    ? fallbackAnswer(message, products, effectiveBudget, categoryIntent, isPremium, mentionedSeries)
-    : fallbackChatReply(message);
+    ? fallbackAnswer(message, products, effectiveBudget, categoryIntent, mentionedSeries, criteria.minBudget, criteria, alternativeKind, alternatives)
+    : fallbackChatReply(message, criteria);
+  if (serviceQuestion) {
+    const faq = findRelevantFaq(message, faqContext);
+    answer = faq ? `${faq.answer}\n\nInfo lainnya ada di [Halaman FAQ](/faq).` : "Aku belum menemukan panduan yang memastikan informasi itu. Coba cek [Halaman FAQ](/faq) atau hubungi admin Next Solution.";
+  }
   let aiGenerated = false;
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey) {
+  if (apiKey && wantsProducts) {
     const ai = new GoogleGenAI({ apiKey });
-    const models = [...new Set([process.env.GEMINI_MODEL || "gemini-2.5-flash", "gemini-2.0-flash"])];
-    for (const model of models) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: `Kamu adalah konsultan teknologi dan asisten AI resmi toko Next Solution.
-Aturan Penting:
-1. Rekomendasikan produk dari daftar 'Katalog yang cocok'. Jelaskan spesifikasi utama, keunggulan, harga, dan ketersediaan stoknya secara ramah dan profesional.
-2. JANGAN PERNAH mengklaim bahwa toko Next Solution tidak menjual atau tidak punya stok Lenovo Yoga, ASUS Zenbook, Apple MacBook, Acer, dll jika produk tersebut ada di katalog atau ditanyakan oleh pengguna. Next Solution adalah toko resmi yang menjual produk-produk ini!
-3. Klasifikasi Kategori Laptop:
-   - Budget / Entry-Level: di bawah 8-10 juta (seperti Advan Soulmate, Acer Aspire Lite Celeron).
-   - Mainstream / Produktivitas: 10 - 18 juta (seperti ASUS Vivobook, Lenovo IdeaPad).
-   - Premium / Flagship / Ultrabook: 18 juta ke atas (seperti Lenovo Yoga 2-in-1 / Slim, ASUS Zenbook, Apple MacBook Pro, ASUS ROG Zephyrus).
-4. Jika pengguna meminta laptop premium atau menanyakan seri tertentu (seperti Yoga, Zenbook, MacBook), HANYA fokus pada lini premium/seri tersebut dari 'Katalog yang cocok'. JANGAN menyarankan laptop budget entry-level (seperti Advan / Celeron) jika pengguna mencari laptop premium.
-5. Jika pengguna sebelumnya membahas budget murah namun kemudian bertanya tentang lini premium (misal: "itu ada tuh yoga bang, kan itu premium, zenbook juga ada"), jelaskan dengan sopan dan antusias bahwa seri premium tersebut memang tersedia di toko Next Solution di rentang harga kelas atas dengan fitur-fitur flagship (layar OLED touchscreen, prosesor Intel Core Ultra / AMD Ryzen AI, build tipis premium).
-6. Format jawaban dengan rapi: gunakan Markdown standar, **tebalkan** nama produk dan harga, gunakan daftar berpoin.
-
-Riwayat chat: ${JSON.stringify(history)}
-Pesan terbaru pengguna: ${message}
-Kategori produk: ${categoryIntent ?? "laptop"}
-Intent Premium: ${isPremium ? "Ya (Laptop Flagship / Premium)" : "Biasa"}
-Seri yang ditanyakan: ${mentionedSeries.length > 0 ? mentionedSeries.join(", ") : "Umum"}
-Budget terdeteksi: ${effectiveBudget ? `Rp${effectiveBudget.toLocaleString("id-ID")}` : "tidak dibatasi"}
-Katalog yang cocok: ${JSON.stringify(
-            products.map((p) => ({
-              name: p.name,
-              brand: p.brands?.name,
-              category: p.categories?.name,
-              price: p.price,
-              discount_price: p.discount_price,
-              stock: p.stock,
-              description: p.description,
-            }))
-          )}`,
-          config: {
-            httpOptions: { timeout: 15_000 },
-            maxOutputTokens: 450,
-            temperature: 0.3,
-            thinkingConfig: { thinkingBudget: 0 },
+    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+    const toolDeclaration = {
+      name: "search_catalog_products",
+      description: "Cari ulang katalog publik berdasarkan seri/model, brand, SKU/MTM produk atau varian, tipe/GPU, harga, atau atribut varian. MTM katalog dicocokkan ke SKU tersimpan. Pencarian wajib menghormati kriteria aktif dan stok; jangan mencari fakta di luar katalog.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: { query: { type: Type.STRING, description: "Kata kunci yang diambil dari kebutuhan pengguna, maksimal 100 karakter." } },
+        required: ["query"],
+      },
+    };
+    const prompt = buildProductPrompt(message, dialogueHistory, criteria, products, alternatives, alternativeKind, faqContext);
+    try {
+      let response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          httpOptions: { timeout: 15_000 },
+          maxOutputTokens: 900,
+          temperature: 0.3,
+          thinkingConfig: { thinkingBudget: 0 },
+          tools: [{ functionDeclarations: [toolDeclaration] }],
+          toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
+        },
+      });
+      const functionCall = response.functionCalls?.find((call) => call.name === toolDeclaration.name);
+      const query = typeof functionCall?.args?.query === "string" ? functionCall.args.query.trim().slice(0, 100) : "";
+      if (functionCall && query) {
+        const verified = searchGraphicsProducts(all as AssistantProduct[], criteria, query);
+        products = verified.products as Candidate[];
+        alternatives = verified.alternatives as Candidate[];
+        alternativeKind = verified.alternativeKind;
+        alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
+        answer = fallbackAnswer(message, products, criteria.budget, criteria.category, criteria.series, criteria.minBudget, criteria, alternativeKind, alternatives);
+        const modelTurn: Content = response.candidates?.[0]?.content ?? {
+          role: "model",
+          parts: [{ functionCall: { name: functionCall.name, args: functionCall.args, id: functionCall.id } } as Part],
+        };
+        const toolConversation: Content[] = [
+          { role: "user", parts: [{ text: prompt }] },
+          modelTurn,
+          {
+            role: "function",
+            parts: [{ functionResponse: {
+              name: functionCall.name,
+              id: functionCall.id,
+              response: {
+                products: products.map((product) => toVerifiedCatalogRecord(product, criteria)),
+                alternatives: alternatives.map((product) => toVerifiedCatalogRecord(product, criteria)),
+                alternativeLabel,
+              },
+            } }],
           },
+        ];
+        response = await ai.models.generateContent({
+          model,
+          contents: toolConversation,
+          config: { httpOptions: { timeout: 15_000 }, maxOutputTokens: 900, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
         });
-        const generatedText = response.text?.trim();
-        if (generatedText && generatedText.length >= 24) {
-          answer = generatedText;
-          aiGenerated = true;
-          break;
-        }
-      } catch {
-        /* Try backup model or use fallback answer */
       }
+      const selected = selectAssistantAnswer(response.text, answer, products.length ? products : alternatives, criteria);
+      if (selected.generated) {
+        answer = selected.answer;
+        aiGenerated = true;
+      }
+    } catch {
+      // Keep the validated catalog summary if Gemini or a tool call fails.
     }
   }
-
   return NextResponse.json({
     answer,
     aiGenerated,
-    products: products.map((product) => ({
-      ...product,
-      image: getSafeProductImageUrl(product.product_images),
-      price: Number(product.price),
-      discount_price: product.discount_price == null ? null : Number(product.discount_price),
-    })),
+    products: products.map((product) => toChatProduct(product, criteria)),
+    alternatives: alternatives.map((product) => toChatProduct(product, criteria)),
+    alternativeLabel,
   });
 }

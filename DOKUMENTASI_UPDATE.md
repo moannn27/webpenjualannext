@@ -465,4 +465,50 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
    * **ESLint**: `npm run lint` lolos bersih (0 errors, 0 warnings).
    * **Production Build**: `npm run build` sukses mengompilasi seluruh **42/42 routes**.
 
+---
+
+## 22. AI Recommendation Assistant Berbasis Domain, Floating UI Safe-Area Anti-Tumpang-Tindih, dan Penguatan Status Pemuatan (Loading States & A11y)
+
+1. **AI Recommendation Assistant Terstruktur (`lib/recommendation-assistant.ts` & `app/api/recommend/route.ts`)**:
+   * **Pemisahan Modul Domain (`lib/recommendation-assistant.ts`)**:
+     - Ekstraksi seluruh logika rekomendasi cerdas ke modul domain independen yang teruji penuh secara unit test.
+     - Parsing budget yang cerdas dan fleksibel: mendukung rentang harga (misal: "Rp 5-7 juta"), jutaan/ribuan ("10 jutaan", "500 ribuan"), maupun angka nominal bertitik.
+     - Deteksi kebutuhan grafis yang komprehensif: membedakan GPU diskrit (RTX, GeForce, Radeon) dengan iGPU/grafis terintegrasi, mendeteksi kebutuhan software (gaming, editing, desain, kerja harian), serta merek dan seri laptop terpopuler (ThinkPad, IdeaPad, Legion, LOQ, Yoga, ZenBook, ROG, TUF, dll.).
+     - Penanganan pertanyaan non-produk / operasional toko (FAQ seputar metode pembayaran, opsi pengiriman, garansi, retur, akun).
+   * **Integrasi Gemini Function Calling & Verifikasi Katalog Ketat**:
+     - API route menggunakan Gemini Function Calling (`search_catalog_products`) untuk memastikan model AI mencari dan memverifikasi produk berdasarkan data riil katalog (hanya menampilkan produk `published` dengan stok tersedia).
+     - Menghadirkan saran produk alternatif (`alternatives` & `alternativeLabel`) jika produk yang dicari tidak tersedia dalam batas budget yang diinginkan pengguna.
+   * **Antarmuka Chat Interaktif (`features/chat/RecommendationChatWindow.tsx`)**:
+     - Kartu produk rekomendasi dan alternatif terpasang rapi dengan gambar thumbnail, spesifikasi kunci/highlights, label grafis, status stok, dan harga diskon.
+     - Penanganan pesan error yang elegan dengan batasan border yang lembut dan visual yang tidak mengintimidasi pengguna.
+   * **Test Suites Baru**:
+     - `__tests__/lib/recommendation-assistant.test.ts` (40 tests)
+     - `__tests__/api/recommend-route.test.ts` (16 tests)
+     - `__tests__/features/recommendation-chat-window.test.tsx` (3 tests)
+
+2. **Koordinasi Posisi Floating Controls Anti-Tumpang-Tindih di Mobile (`components/layouts/floating-positions.ts`)**:
+   * Helper terpusat `getFloatingControlBottom(hasBottomBar, control)` menghitung elevasi vertikal (`bottom`) secara dinamis untuk:
+     - Tombol peluncur Chat Rekomendasi AI ([`RecommendationChat.tsx`](file:///c:/web%20next%20penjualan/features/chat/RecommendationChat.tsx))
+     - Tombol kembali ke atas ([`ScrollToTopButton.tsx`](file:///c:/web%20next%20penjualan/components/shared/ScrollToTopButton.tsx))
+     - Mengakomodasi Quick Cart Bar ([`MobileStickyCartBar.tsx`](file:///c:/web%20next%20penjualan/components/layouts/MobileStickyCartBar.tsx)) dan Bar Bandingkan Produk saat aktif.
+   * Menghitung offset secara presisi dengan dukungan `env(safe-area-inset-bottom)` agar elemen melayang tidak menutupi satu sama lain maupun terhalang bilah navigasi perangkat iPhone/Android.
+   * Unit test: `__tests__/components/floating-positions.test.ts` (3 tests).
+
+3. **Global Loading State & Indikator Aksi Asinkron (A11y)**:
+   * **Global Fallback Loader ([`app/loading.tsx`](file:///c:/web%20next%20penjualan/app/loading.tsx))**:
+     - Komponen loading suspense global Next.js dengan spinner animasi `LoaderCircle`, semantic `role="status"`, `aria-live="polite"`, dan teks ramah screen-reader `sr-only`.
+   * **Feedback Loading Otentikasi ([`app/login/page.tsx`](file:///c:/web%20next%20penjualan/app/login/page.tsx) & [`app/register/page.tsx`](file:///c:/web%20next%20penjualan/app/register/page.tsx))**:
+     - Tombol "Masuk", "Daftar Akun", dan "Masuk dengan Akun Google" menampilkan spinner animasi `LoaderCircle` dan status `aria-busy` saat proses autentikasi berlangsung untuk mencegah klik ganda.
+   * **Proteksi Double-Action Wishlist ([`ProductDetail.tsx`](file:///c:/web%20next%20penjualan/features/product/ProductDetail.tsx) & [`WishlistClient.tsx`](file:///c:/web%20next%20penjualan/features/profile/WishlistClient.tsx))**:
+     - State `wishlistLoading` / `busyId` dengan spinner loading otomatis mengunci tombol favorit dan hapus wishlist saat request ke server sedang berjalan, mencegah *race condition*.
+   * **Perapian Touch Target & Padding Checkout/Cart ([`CartClient.tsx`](file:///c:/web%20next%20penjualan/features/cart/CartClient.tsx) & [`CheckoutClient.tsx`](file:///c:/web%20next%20penjualan/features/checkout/CheckoutClient.tsx))**:
+     - Perbaikan padding, touch target tombol voucher, dan ringkasan order pada resolusi layar sempit.
+
+4. **Hasil Verifikasi Kualitas Menyeluruh**:
+   * **Unit Tests**: **34 test suites (374 tests)** lulus 100% tanpa kegagalan (`npx vitest run`).
+   * **TypeScript Compilation**: `npx tsc --noEmit` lolos bersih tanpa kesalahan (0 errors).
+   * **ESLint**: `npm run lint` lolos bersih (0 errors, 0 warnings).
+   * **Production Build**: `npm run build` sukses mengompilasi seluruh **42/42 routes**.
+
+
 

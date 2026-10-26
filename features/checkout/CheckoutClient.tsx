@@ -946,8 +946,8 @@ export function CheckoutClient({
         </p>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
-        <form onSubmit={handleSubmit} id="checkout-form" className="space-y-8 lg:col-span-7">
+      <div className="grid min-w-0 gap-8 lg:grid-cols-12 lg:items-start">
+        <form onSubmit={handleSubmit} id="checkout-form" className="min-w-0 space-y-8 lg:col-span-7">
           {appliedVoucher && (
             <input type="hidden" name="voucherCode" value={appliedVoucher.code} />
           )}
@@ -956,7 +956,7 @@ export function CheckoutClient({
           <section
             hidden={currentStep !== 1}
             aria-labelledby="fulfillment-heading"
-            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="min-w-0 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-4 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             <div className="flex items-center gap-3">
               <MapPin className="size-5 text-primary" />
@@ -971,7 +971,7 @@ export function CheckoutClient({
                 <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "delivery" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
                   <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "delivery"} onChange={() => setFulfillmentMode("delivery")} />
                   <Truck className="mt-0.5 size-4 text-primary" />
-                  <span>
+                  <span className="min-w-0 flex-1">
                     <span className="block font-semibold">Diantar ke alamat</span>
                     <span className="mt-1 block text-xs text-muted-foreground">Pilih alamat tujuan dan jasa pengiriman kurir.</span>
                   </span>
@@ -992,7 +992,7 @@ export function CheckoutClient({
                 <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-all ${fulfillmentMode === "pickup" ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20" : "border-border hover:border-foreground/30 bg-card"}`}>
                   <input className="mt-1 size-4 accent-primary" type="radio" name="fulfillmentMode" checked={fulfillmentMode === "pickup"} onChange={() => setFulfillmentMode("pickup")} />
                   <Store className="mt-0.5 size-4 text-primary" />
-                  <span>
+                  <span className="min-w-0 flex-1">
                     <span className="block font-semibold">Ambil di toko</span>
                     <span className="mt-1 block text-xs text-muted-foreground">
                       Gratis ongkir. Pilih lokasi toko dan ambil setelah dikonfirmasi admin.
@@ -1057,7 +1057,7 @@ export function CheckoutClient({
           <section
             hidden={currentStep !== 2}
             aria-labelledby="shipping-heading"
-            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="min-w-0 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-4 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             <div className="flex items-center gap-3">
               {fulfillmentMode === "pickup" ? <Store className="size-5 text-primary" /> : <Truck className="size-5 text-primary" />}
@@ -1178,7 +1178,7 @@ export function CheckoutClient({
           <section
             hidden={currentStep !== 3}
             aria-labelledby="payment-heading"
-            className="rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="min-w-0 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-4 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             <div className="flex items-center gap-3">
               <Banknote className="size-5 text-primary" />
@@ -1215,7 +1215,7 @@ export function CheckoutClient({
         </form>
 
         {/* SIDEBAR: Ringkasan Pesanan */}
-        <aside aria-labelledby="summary-heading" className="h-fit rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-6 sm:p-8 shadow-sm lg:col-span-5">
+        <aside aria-labelledby="summary-heading" className="h-fit min-w-0 rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-4 sm:p-8 shadow-sm lg:col-span-5">
           <h2 id="summary-heading" className="text-lg font-semibold">Ringkasan pesanan</h2>
 
           <div className="mt-6 max-h-72 divide-y divide-border overflow-y-auto pr-1">

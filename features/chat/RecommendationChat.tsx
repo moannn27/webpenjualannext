@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useMountedCart } from "@/store/useCartStore";
+import { useProductCompareStore } from "@/store/useProductCompareStore";
+import { getFloatingControlBottom } from "@/components/layouts/floating-positions";
 
 const RecommendationChatWindow = dynamic(
   () => import("./RecommendationChatWindow").then((m) => m.RecommendationChatWindow),
@@ -12,6 +16,12 @@ const RecommendationChatWindow = dynamic(
 
 export function RecommendationChat({ whatsappNumber }: { whatsappNumber: string }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const { mounted, totalItems } = useMountedCart();
+  const compareIds = useProductCompareStore((state) => state.ids);
+  const hasCartBar = mounted && totalItems > 0 && !pathname.startsWith("/cart") && !pathname.startsWith("/checkout");
+  const hasCompareBar = pathname !== "/compare" && compareIds.length > 0;
+  const launcherBottom = getFloatingControlBottom(hasCartBar || hasCompareBar, "chat");
   const normalizedWhatsapp = whatsappNumber.replace(/\D/g, "");
   const whatsappHref = `https://wa.me/${normalizedWhatsapp}?text=${encodeURIComponent(
     "Halo Next Solution, saya ingin bertanya tentang produk."
@@ -21,7 +31,7 @@ export function RecommendationChat({ whatsappNumber }: { whatsappNumber: string 
     <>
       {!open && (
         <Button
-          className="fixed bottom-5 right-5 z-50 size-14 rounded-full shadow-xl bg-primary hover:bg-primary/90 text-primary-foreground transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+          className={`fixed ${launcherBottom} right-5 z-50 size-14 rounded-full bg-primary text-primary-foreground shadow-xl transition-transform hover:scale-105 hover:bg-primary/90 active:scale-95 cursor-pointer sm:bottom-5`}
           aria-label="Buka chat rekomendasi"
           onClick={() => setOpen(true)}
         >

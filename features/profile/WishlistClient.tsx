@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Heart, Trash2, ArrowRight } from "lucide-react";
+import { Heart, Trash2, ArrowRight, LoaderCircle } from "lucide-react";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shared/ProductCard";
@@ -105,7 +105,7 @@ export function WishlistClient({ initialWishlist }: { initialWishlist: WishlistI
                     className="absolute top-2.5 right-2.5 z-20 size-8 rounded-full bg-white/95 dark:bg-slate-900/95 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-slate-200/80 dark:border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-110 cursor-pointer disabled:opacity-50"
                     title="Hapus dari Wishlist"
                   >
-                    <Trash2 className="size-4" />
+                    {busyId === item.product_id ? <LoaderCircle className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                   </button>
                 </div>
               );
