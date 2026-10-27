@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { FunctionCallingConfigMode, GoogleGenAI, Type, type Content, type Part } from "@google/genai";
+import {
+  type FunctionDeclaration,
+} from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeProductImageUrl } from "@/lib/product-gallery";
@@ -19,6 +21,517 @@ import {
   type AssistantProduct,
 } from "@/lib/recommendation-assistant";
 import { FAQService } from "@/services/faq.service";
+import { DEFAULT_STOREFRONT_SETTINGS, normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { DEFAULT_FAQS } from "@/constants/defaultFaqs";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
+import { normalizePhoneNumber } from "@/lib/phone";
+import {
+  executeWithFailover,
+  openAIToolsToGemini,
+  type ChatMessage,
+  type OpenAITool,
+} from "@/lib/llm-provider";
+
+export const OPENAI_TOOLS: OpenAITool[] = [
+  {
+    type: "function",
+    function: {
+      name: "cari_produk",
+      description: "Cari produk di katalog toko Next Solution Store berdasarkan kata kunci pencarian (nama, seri, processor, RAM, GPU/VGA, spesifikasi), kategori, brand, rentang harga, atau urutan.",
+      parameters: {
+        type: "object",
+        properties: {
+          kata_kunci: { type: "string", description: "Kata kunci nama produk, seri, processor, GPU, atau spesifikasi (contoh: 'LOQ', 'Vivobook', 'RTX 4060', 'Core i5', 'Ryzen 7')." },
+          kategori: { type: "string", description: "Kategori produk: 'laptop', 'desktop', 'monitor', 'smartphone', 'tablet', atau 'aksesori'." },
+          brand: { type: "string", description: "Nama brand/merek (contoh: 'Lenovo', 'ASUS', 'Acer', 'Apple', 'MSI', 'HP')." },
+          rentang_harga: {
+            type: "object",
+            properties: {
+              min: { type: "number", description: "Harga minimum dalam Rupiah." },
+              max: { type: "number", description: "Harga maksimum dalam Rupiah." },
+            },
+          },
+          urutan: {
+            type: "string",
+            description: "Urutan hasil: 'termurah', 'termahal', atau 'relevansi'.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_catalog_products",
+      description: "Cari ulang katalog publik berdasarkan kata kunci, seri/model, brand, SKU/MTM produk atau varian, tipe/GPU, atau harga.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Kata kunci yang diambil dari kebutuhan pengguna, maksimal 100 karakter." } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "info_toko",
+      description: "Ambil informasi resmi toko Next Solution Store dan panduan FAQ (tentang toko, cara pesan, metode pembayaran, pengiriman, Store Pickup, garansi & retur, jam operasional, kontak WhatsApp admin, alamat toko).",
+      parameters: {
+        type: "object",
+        properties: {
+          topik: {
+            type: "string",
+            description: "Topik info toko yang dicari: 'tentang_toko', 'cara_pesan', 'pembayaran', 'pengiriman', 'retur_dan_garansi', 'jam_operasional', 'kontak', 'cabang_dan_pickup', atau 'semua'.",
+          },
+        },
+        required: ["topik"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cek_pesanan",
+      description: "Cek status pesanan pelanggan secara read-only. WAJIB membutuhkan nomor pesanan DAN email atau nomor HP yang terdaftar pada pesanan tersebut untuk verifikasi keamanan dan privasi.",
+      parameters: {
+        type: "object",
+        properties: {
+          nomor_pesanan: { type: "string", description: "Nomor pesanan pelanggan (contoh: 'ORD-271026-01' atau format ID pesanan)." },
+          email_atau_hp: { type: "string", description: "Email atau nomor handphone/WhatsApp pelanggan yang digunakan saat pemesanan untuk verifikasi kepemilikan." },
+        },
+        required: ["nomor_pesanan", "email_atau_hp"],
+      },
+    },
+  },
+];
+
+export const ALL_CHATBOT_TOOLS: FunctionDeclaration[] = openAIToolsToGemini(OPENAI_TOOLS);
+export const TOOL_CARI_PRODUK: FunctionDeclaration = ALL_CHATBOT_TOOLS[0];
+export const TOOL_SEARCH_CATALOG: FunctionDeclaration = ALL_CHATBOT_TOOLS[1];
+export const TOOL_INFO_TOKO: FunctionDeclaration = ALL_CHATBOT_TOOLS[2];
+export const TOOL_CEK_PESANAN: FunctionDeclaration = ALL_CHATBOT_TOOLS[3];
+
+const STORE_SYSTEM_INSTRUCTION = `Kamu adalah asisten toko AI resmi Next Solution Store (toko spesialis laptop, PC desktop, monitor, gadget, dan aksesori teknologi).
+Tugasmu adalah membantu calon pembeli dan pelanggan dengan ramah, santai, solutif, dan profesional dalam bahasa Indonesia.
+
+INFORMASI PENTING TOKO (GUNAKAN LANGSUNG UNTUK PERTANYAAN UMUM TANPA TOOL):
+- Toko: Next Solution Store (Spesialis Komputer, Laptop, PC Desktop, Monitor, dan Gadget Resmi)
+- Alamat Cabang Fisik: ${DEFAULT_STOREFRONT_SETTINGS.store.address}, ${DEFAULT_STOREFRONT_SETTINGS.store.city}
+- WhatsApp Admin: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (Bisa hubungi untuk bantuan langsung / pesanan khusus)
+- Jam Operasional Toko: Senin - Sabtu: 09.00 - 18.00 WIB. Hari Minggu & Libur Nasional toko fisik tutup. Transaksi web aktif 24 jam.
+- Cara Pesan di Web: Pilih produk di katalog web -> Masukkan ke Keranjang -> Buka Checkout -> Masukkan alamat pengiriman atau pilih Ambil di Tempat (Store Pickup) -> Pilih metode pembayaran (Transfer Bank / QRIS) -> Selesaikan transaksi dan simpan nomor pesanan (contoh: ORD-271026-01).
+- Metode Pembayaran: Transfer Bank Manual/Virtual Account (BCA, Mandiri, BRI, BNI), QRIS instan otomatis, atau tunai/kartu debit saat Store Pickup di cabang toko.
+- Pengiriman: Kurir reguler & kargo ke seluruh Indonesia, kurir instant/same-day untuk area lokal. Standar aman: bubble wrap tebal berlapis, asuransi penuh, dan opsi packing kayu.
+- Ambil di Tempat (Store Pickup): Bebas ongkir, bisa periksa fisik unit dan konsultasi langsung dengan teknisi di cabang Jl. Kartini No. 9 Bandung.
+- Garansi & Retur: 100% Original Brand New In Box (BNIB) garansi resmi distributor Indonesia (ASUS, Lenovo, Acer, Apple, HP, MSI, dll). Jaminan toko tukar unit baru 7 hari jika cacat pabrik (wajib sertakan video unboxing utuh tanpa jeda 2x24 jam sejak paket tiba).
+- Halaman FAQ Resmi: [Halaman FAQ](/faq)
+
+PENGGUNAAN FUNCTION CALLING (TOOLS):
+1. PRODUK & KATALOG: Bila pengguna mencari, meminta rekomendasi, mengecek harga/stok/spesifikasi (processor, RAM, GPU/VGA, storage, display), atau membandingkan produk, PANGGIL tool 'cari_produk'. DILARANG mengarang nama produk, spesifikasi, atau harga di luar data tool.
+2. CEK STATUS PESANAN: Bila pengguna ingin mengecek status pesanan (contoh: nomor pesanan ORD-271026-01), PANGGIL tool 'cek_pesanan'.
+   PENTING: Masukkan 'nomor_pesanan' dan 'email_atau_hp'.
+   Jika pengguna sedang login di website atau email/HP sudah diketahui dari riwayat percakapan/sesi akun, langsung panggil tool 'cek_pesanan'.
+   Hanya minta email atau nomor HP jika pengguna belum login dan belum memberikan informasi kontak verifikasi sama sekali.
+3. INFO TOKO & FAQ: Informasi dasar toko sudah tercantum lengkap di atas. Panggil tool 'info_toko' HANYA bila pengguna menanyakan detail FAQ spesifik yang belum ada di ringkasan.
+
+PRINSIP KOMUNIKASI & GAYA BAHASA:
+1. Nada Bicara: Santai, ramah, dan bersahabat ("Halo!", "Siap kak/bang!"), to the point, dan solutif.
+2. Teman Diskusi Belanja: Bantu pengguna memilih produk yang tepat sesuai kebutuhan software/tugas dan anggaran keuangannya. Beri saran spesifikasi yang relevan (processor, RAM, GPU/VGA).
+3. Jawaban Ringkas: Berikan penjelasan padat dan jelas (1-3 paragraf singkat). Jangan bertele-tele.
+4. Tanya Balik yang Terarah: Jika kebutuhan pengguna belum spesifik, ajukan maksimal 1 pertanyaan klarifikasi yang ringkas.
+5. Strict Grounding: Gunakan HANYA informasi terverifikasi dari katalog dan info toko. DILARANG KERAS mengarang produk, harga, stok, atau spesifikasi palsu. Integrated Graphics (seperti Intel UHD/Iris Xe/Radeon Graphics) BUKAN GPU dedicated (seperti RTX/GTX/Radeon RX).`;
+
+export function executeCariProduk(
+  catalog: Candidate[],
+  params: {
+    kata_kunci?: string;
+    kategori?: string;
+    brand?: string;
+    rentang_harga?: { min?: number | string; max?: number | string };
+    urutan?: string;
+  },
+  criteria: ReturnType<typeof getProductCriteria>
+) {
+  let filtered = [...catalog].filter((p) => !p.status || p.status === "published");
+
+  if (params.kategori) {
+    const kat = params.kategori.toLowerCase();
+    filtered = filtered.filter((p) =>
+      Boolean(p.categories?.name?.toLowerCase().includes(kat) ||
+      p.categories?.slug?.toLowerCase().includes(kat))
+    );
+  }
+
+  if (params.brand) {
+    const br = params.brand.toLowerCase();
+    filtered = filtered.filter((p) =>
+      Boolean(p.brands?.name?.toLowerCase() === br ||
+      p.brands?.slug?.toLowerCase() === br)
+    );
+  }
+
+  const minPrice = params.rentang_harga?.min !== undefined && params.rentang_harga?.min !== null ? Number(params.rentang_harga.min) : null;
+  const maxPrice = params.rentang_harga?.max !== undefined && params.rentang_harga?.max !== null ? Number(params.rentang_harga.max) : null;
+
+  if (minPrice !== null && !isNaN(minPrice)) {
+    filtered = filtered.filter((p) => (p.discount_price ?? p.price) >= minPrice);
+  }
+  if (maxPrice !== null && !isNaN(maxPrice)) {
+    filtered = filtered.filter((p) => (p.discount_price ?? p.price) <= maxPrice);
+  }
+
+  const query = params.kata_kunci?.trim();
+  let alternatives: Candidate[] = [];
+  let alternativeKind: GraphicsAlternativeKind = null;
+
+  if (query) {
+    const verified = searchGraphicsProducts(filtered as AssistantProduct[], criteria, query);
+    filtered = verified.products as Candidate[];
+    alternatives = verified.alternatives as Candidate[];
+    alternativeKind = verified.alternativeKind;
+
+    if (!filtered.length && !alternatives.length && criteria.requiresDedicatedGpu) {
+      const allBrandVerified = searchGraphicsProducts(catalog as AssistantProduct[], { ...criteria, budget: null, brand: null }, query);
+      filtered = allBrandVerified.products as Candidate[];
+      alternatives = allBrandVerified.alternatives as Candidate[];
+      alternativeKind = allBrandVerified.alternativeKind;
+    }
+  } else if (criteria.requiresDedicatedGpu && !filtered.length) {
+    const fallbackSearch = searchGraphicsProducts(catalog as AssistantProduct[], { ...criteria, budget: null, brand: null }, "");
+    filtered = fallbackSearch.products as Candidate[];
+    alternatives = fallbackSearch.alternatives as Candidate[];
+    alternativeKind = fallbackSearch.alternativeKind;
+  }
+
+  if (params.urutan === "termurah") {
+    filtered.sort((a, b) => (a.discount_price ?? a.price) - (b.discount_price ?? b.price));
+  } else if (params.urutan === "termahal") {
+    filtered.sort((a, b) => (b.discount_price ?? b.price) - (a.discount_price ?? a.price));
+  }
+
+  return {
+    products: filtered.slice(0, 5),
+    alternatives: alternatives.slice(0, 5),
+    alternativeKind,
+  };
+}
+
+export function executeInfoToko(topik?: string, faqContext: { question: string; answer: string }[] = []) {
+  const t = (topik || "").toLowerCase();
+  const baseStoreInfo = {
+    topik: "semua_info_toko",
+    nama_toko: "Next Solution Store",
+    kategori_toko: "Spesialis Komputer, Laptop, PC Desktop, Monitor, dan Gadget Resmi",
+    alamat: `${DEFAULT_STOREFRONT_SETTINGS.store.address}, ${DEFAULT_STOREFRONT_SETTINGS.store.city}`,
+    whatsapp_admin: `+${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp}`,
+    email: DEFAULT_STOREFRONT_SETTINGS.store.email,
+    jam_operasional: "Senin - Sabtu: 09.00 - 18.00 WIB (Hari Minggu & Libur Nasional toko fisik tutup. Transaksi web aktif 24 jam).",
+    cara_pesan: "Pilih produk di katalog web -> Masukkan ke Keranjang -> Buka halaman Checkout -> Masukkan alamat pengiriman atau pilih Ambil di Tempat (Store Pickup) -> Pilih metode pembayaran (Transfer Bank / QRIS) -> Selesaikan transaksi dan simpan nomor pesanan.",
+    metode_pembayaran: [
+      "Transfer Bank Manual/Virtual Account (BCA, Mandiri, BRI, BNI)",
+      "QRIS instan otomatis",
+      "Pembayaran tunai atau kartu debit langsung di toko saat Store Pickup",
+    ],
+    layanan_pengiriman: [
+      "Kurir Reguler & Kargo antarkota ke seluruh wilayah Indonesia",
+      "Kurir Instant / Same-Day (GoSend / GrabExpress) untuk wilayah terdekat",
+      "Standar proteksi: Bubble wrap tebal berlapis, asuransi penuh, dan opsi packing kayu",
+    ],
+    ambil_di_toko: "Pelanggan dapat memilih opsi Ambil di Tempat (Store Pickup) saat checkout. Cek fisik unit dan konsultasi langsung dengan teknisi toko di cabang Jl. Kartini No. 9 Bandung tanpa biaya kirim.",
+    garansi_dan_retur: [
+      "100% Original Brand New In Box (BNIB) bergaransi resmi distributor Indonesia (ASUS, Lenovo, Acer, Apple, HP, MSI, dll).",
+      "Jaminan toko tukar unit baru 7 hari jika terdapat cacat pabrik.",
+      "Klaim komplain wajib menyertakan video unboxing utuh tanpa jeda maksimal 2x24 jam sejak paket tiba.",
+    ],
+    faq_relevan: faqContext.length ? faqContext : DEFAULT_FAQS.map((f) => ({ question: f.question, answer: f.answer })),
+    link_faq_resmi: "/faq",
+  };
+
+  if (t.includes("bayar") || t.includes("pembayaran")) {
+    return { topik: "pembayaran", metode: baseStoreInfo.metode_pembayaran };
+  }
+  if (t.includes("kirim") || t.includes("pengiriman") || t.includes("ongkir") || t.includes("kurir")) {
+    return { topik: "pengiriman", layanan: baseStoreInfo.layanan_pengiriman };
+  }
+  if (t.includes("pickup") || t.includes("ambil") || t.includes("cabang")) {
+    return { topik: "ambil_di_toko", panduan: baseStoreInfo.ambil_di_toko, alamat: baseStoreInfo.alamat };
+  }
+  if (t.includes("garansi") || t.includes("retur") || t.includes("komplain")) {
+    return { topik: "garansi_dan_retur", kebijakan: baseStoreInfo.garansi_dan_retur };
+  }
+  if (t.includes("jam") || t.includes("buka") || t.includes("operasional")) {
+    return { topik: "jam_operasional", jam: baseStoreInfo.jam_operasional };
+  }
+  if (t.includes("kontak") || t.includes("wa") || t.includes("admin")) {
+    return { topik: "kontak", whatsapp: baseStoreInfo.whatsapp_admin, email: baseStoreInfo.email, alamat: baseStoreInfo.alamat };
+  }
+  if (t.includes("pesan") || t.includes("cara")) {
+    return { topik: "cara_pesan", panduan: baseStoreInfo.cara_pesan };
+  }
+
+  return baseStoreInfo;
+}
+
+export async function executeCekPesanan(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  nomorPesananRaw: string,
+  emailAtauHpRaw: string,
+  sessionUser?: { id: string; email?: string; phone?: string } | null
+) {
+  const nomorPesanan = (nomorPesananRaw || "").trim().replace(/^#/, "");
+  const emailAtauHp = (emailAtauHpRaw || "").trim();
+
+  if (!nomorPesanan) {
+    return {
+      success: false,
+      message: "Nomor pesanan harus dicantumkan untuk melakukan pengecekan.",
+    };
+  }
+
+  if (!emailAtauHp && !sessionUser) {
+    return {
+      success: false,
+      message: "Demi menjaga privasi dan keamanan data pesanan, mohon sertakan juga email atau nomor HP yang digunakan saat pemesanan.",
+    };
+  }
+
+  let client: Awaited<ReturnType<typeof createClient>> = supabase;
+  try {
+    client = getSupabaseAdminClient() as unknown as Awaited<ReturnType<typeof createClient>>;
+  } catch {
+    client = supabase;
+  }
+
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(nomorPesanan);
+    let query = client
+      .from("orders")
+      .select(`
+        id,
+        user_id,
+        order_number,
+        status,
+        grand_total,
+        total_amount,
+        shipping_amount,
+        discount_amount,
+        courier,
+        shipping_address,
+        created_at,
+        updated_at,
+        order_items (
+          id,
+          product_name,
+          price,
+          quantity,
+          variant_details
+        ),
+        payments (
+          payment_method,
+          status
+        )
+      `);
+
+    if (isUuid) {
+      query = query.or(`id.eq.${nomorPesanan},order_number.eq.${nomorPesanan}`);
+    } else {
+      query = query.eq("order_number", nomorPesanan);
+    }
+
+    const { data: order, error } = await query.maybeSingle();
+
+    if (error || !order) {
+      return {
+        success: false,
+        message: "Nomor pesanan tidak ditemukan atau data verifikasi tidak cocok. Mohon periksa kembali nomor pesanan Anda.",
+      };
+    }
+
+    let accountEmail = "";
+    let accountPhone = "";
+    if (order.user_id) {
+      try {
+        const adminClient = getSupabaseAdminClient();
+        const { data: userData } = await adminClient.auth.admin.getUserById(order.user_id);
+        if (userData?.user?.email) accountEmail = userData.user.email.toLowerCase();
+        if (userData?.user?.phone) accountPhone = userData.user.phone;
+        const { data: profile } = await adminClient.from("profiles").select("email, phone").eq("id", order.user_id).maybeSingle();
+        if (profile?.email) accountEmail = profile.email.toLowerCase();
+        if (profile?.phone) accountPhone = profile.phone;
+      } catch {
+        // Fallback
+      }
+    }
+
+    const rawAddress = (order.shipping_address && typeof order.shipping_address === "object"
+      ? (order.shipping_address as Record<string, unknown>)
+      : null);
+    const rawSnapshot = (rawAddress?.customer_snapshot && typeof rawAddress.customer_snapshot === "object"
+      ? (rawAddress.customer_snapshot as Record<string, unknown>)
+      : null);
+
+    const identity = resolveOrderCustomerIdentity({
+      shippingAddress: rawAddress,
+    });
+
+    const orderEmail = (identity.email || "").toLowerCase();
+    const rawSnapshotEmail = (
+      (typeof rawSnapshot?.email === "string" ? rawSnapshot.email : "") ||
+      (typeof rawAddress?.email === "string" ? rawAddress.email : "")
+    ).toLowerCase();
+
+    const orderPhone = normalizePhoneNumber(identity.phone || "");
+    const rawSnapshotPhone = normalizePhoneNumber(
+      (typeof rawSnapshot?.phone === "string" ? rawSnapshot.phone : "") ||
+      (typeof rawAddress?.phone === "string" ? rawAddress.phone : "")
+    );
+    const normalizedAccountPhone = normalizePhoneNumber(accountPhone);
+
+    let verified = false;
+
+    // 1. Logged in session user match
+    if (sessionUser) {
+      if (order.user_id && sessionUser.id === order.user_id) {
+        verified = true;
+      } else if (sessionUser.email && (
+        (accountEmail && sessionUser.email.toLowerCase() === accountEmail) ||
+        (orderEmail && sessionUser.email.toLowerCase() === orderEmail) ||
+        (rawSnapshotEmail && sessionUser.email.toLowerCase() === rawSnapshotEmail)
+      )) {
+        verified = true;
+      }
+    }
+
+    // 2. User-provided email or phone verification
+    if (emailAtauHp) {
+      const isEmailInput = emailAtauHp.includes("@");
+      if (isEmailInput) {
+        const inputEmail = emailAtauHp.toLowerCase();
+        if (
+          (accountEmail && accountEmail === inputEmail) ||
+          (orderEmail && orderEmail === inputEmail) ||
+          (rawSnapshotEmail && rawSnapshotEmail === inputEmail)
+        ) {
+          verified = true;
+        }
+      } else {
+        const inputPhone = normalizePhoneNumber(emailAtauHp);
+        if (
+          inputPhone && (
+            (normalizedAccountPhone && (normalizedAccountPhone === inputPhone || normalizedAccountPhone.endsWith(inputPhone) || inputPhone.endsWith(normalizedAccountPhone))) ||
+            (orderPhone && (orderPhone === inputPhone || orderPhone.endsWith(inputPhone) || inputPhone.endsWith(orderPhone))) ||
+            (rawSnapshotPhone && (rawSnapshotPhone === inputPhone || rawSnapshotPhone.endsWith(inputPhone) || inputPhone.endsWith(rawSnapshotPhone)))
+          )
+        ) {
+          verified = true;
+        }
+      }
+    }
+
+    if (!verified) {
+      return {
+        success: false,
+        message: "Nomor pesanan tidak cocok dengan email atau nomor HP yang dimasukkan. Mohon pastikan data yang diberikan sesuai dengan data saat transaksi.",
+      };
+    }
+
+    const statusMap: Record<string, string> = {
+      pending: "Menunggu Pembayaran",
+      processing: "Sedang Diproses Toko",
+      shipped: "Dalam Pengiriman",
+      delivered: "Pesanan Selesai / Terkirim",
+      cancelled: "Pesanan Dibatalkan",
+    };
+
+    const friendlyStatus = statusMap[order.status] ?? order.status;
+    const trackingNumber = typeof rawAddress?.tracking_number === "string"
+      ? rawAddress.tracking_number
+      : (typeof rawAddress?.resi === "string" ? rawAddress.resi : null);
+
+    let formattedDate = order.created_at;
+    try {
+      formattedDate = new Intl.DateTimeFormat("id-ID", {
+        dateStyle: "full",
+        timeStyle: "short",
+        timeZone: "Asia/Jakarta",
+      }).format(new Date(order.created_at));
+    } catch {
+      // Fallback
+    }
+
+    const rawItems = (Array.isArray(order.order_items) ? order.order_items : []) as Array<{
+      product_name?: string;
+      quantity?: number;
+      price?: number;
+      variant_details?: unknown;
+    }>;
+    const itemsSummary = rawItems.map((item) => ({
+      nama_produk: item.product_name ?? "Produk",
+      kuantitas: item.quantity ?? 1,
+      harga: item.price ?? 0,
+      varian: item.variant_details ?? null,
+    }));
+
+    const paymentList = (Array.isArray(order.payments) ? order.payments : []) as Array<{
+      status?: string;
+    }>;
+
+    return {
+      success: true,
+      nomor_pesanan: order.order_number,
+      status: friendlyStatus,
+      status_kode: order.status,
+      tanggal_pesanan: formattedDate,
+      kurir: order.courier,
+      nomor_resi: trackingNumber,
+      total_pembayaran: order.grand_total ?? order.total_amount,
+      status_pembayaran: paymentList[0]?.status ?? "menunggu",
+      item_pesanan: itemsSummary,
+      penerima: identity.name ?? "Pelanggan",
+      kota_tujuan: typeof rawAddress?.city === "string" ? rawAddress.city : null,
+    };
+  } catch (err) {
+    console.error("[Cek Pesanan Error]", err);
+    return {
+      success: false,
+      message: "Terjadi kendala teknis saat memeriksa database pesanan. Silakan coba kembali sesaat lagi.",
+    };
+  }
+}
+
+function handleGeminiError(error: unknown, fallbackText: string): { answer: string; aiGenerated: boolean; isRateLimit?: boolean } {
+  const err = error as { status?: number; statusCode?: number; message?: string; name?: string };
+  const status = err?.status || err?.statusCode;
+  const rawMessage = err?.message || String(error);
+
+  console.error("[Gemini Chatbot Error]", {
+    name: err?.name,
+    status,
+    message: rawMessage.replace(/key=[^&\s]+/gi, "key=[REDACTED]").replace(/api[_-]?key[:=]\s*[^\s]+/gi, "api_key=[REDACTED]"),
+  });
+
+  const isRateLimited = status === 429 || /429|quota|resource exhausted/i.test(rawMessage);
+  const isTimeout = /timeout|timed out|abort/i.test(rawMessage) || /deadline/i.test(rawMessage);
+
+  if (isRateLimited) {
+    return {
+      answer: "Mohon maaf, antrean chat asisten kami saat ini sedang penuh (mencapai batas kuota sesaat). Silakan coba kembali beberapa menit ke depan, atau hubungi admin WhatsApp toko kami untuk bantuan langsung.",
+      aiGenerated: false,
+      isRateLimit: true,
+    };
+  }
+
+  if (isTimeout) {
+    return {
+      answer: "Koneksi ke asisten AI membutuhkan waktu terlalu lama. Silakan coba kirim kembali pertanyaan Anda.",
+      aiGenerated: false,
+      isRateLimit: false,
+    };
+  }
+
+  return { answer: fallbackText, aiGenerated: false, isRateLimit: false };
+}
 
 type Candidate = {
   id: string;
@@ -104,8 +617,8 @@ function fallbackAnswer(
     ? `Aku menemukan ${count}${usageText}${budgetText} yang bisa dibandingkan.`
     : `Ada, aku menemukan ${count}${usageText}${budgetText} yang ready.`;
   const nextQuestion = criteria.work
-    ? "Kamu lebih memprioritaskan laptop ringan, multitasking, atau kapasitas penyimpanan?"
-    : "Kalau mau, aku bisa bantu persempit berdasarkan kebutuhan utama atau spesifikasi tertentu.";
+    ? "Beri tahu jika kamu punya preferensi bobot, multitasking, atau kapasitas penyimpanan."
+    : "Beri tahu jika kamu ingin mempersempit pilihan atau membandingkan spesifikasi tertentu.";
   return `${opening} Kartu di bawah menampilkan ringkasan spesifikasi, harga, dan stok. ${nextQuestion}`;
 }
 
@@ -236,28 +749,37 @@ async function generateAssistantAnswer(
   candidates: AssistantProduct[],
   criteria: ReturnType<typeof getProductCriteria>,
   conversational = false
-) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return { answer: fallback, generated: false };
-
+): Promise<{ answer: string; generated: boolean; isRateLimit?: boolean }> {
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        httpOptions: { timeout: 15_000 },
-        maxOutputTokens: 900,
-        temperature: 0.3,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
+    const response = await executeWithFailover({
+      systemInstruction: STORE_SYSTEM_INSTRUCTION,
+      messages: [{ role: "user", content: prompt }],
+      maxTokens: 500,
+      temperature: 0.3,
     });
-    return conversational
-      ? selectConversationalAnswer(response.text, fallback)
-      : selectAssistantAnswer(response.text, fallback, candidates, criteria);
-  } catch {
-    return { answer: fallback, generated: false };
+    const selected = conversational
+      ? selectConversationalAnswer(response.content, fallback)
+      : selectAssistantAnswer(response.content, fallback, candidates, criteria);
+    return { ...selected, isRateLimit: false };
+  } catch (err) {
+    const handled = handleGeminiError(err, fallback);
+    return { answer: handled.answer, generated: handled.aiGenerated, isRateLimit: handled.isRateLimit };
   }
+}
+
+export function sanitizeChatHistory(
+  rawHistory: unknown
+): Array<{ role: "user" | "assistant"; text: string; productIds?: string[] }> {
+  if (!Array.isArray(rawHistory)) return [];
+  return rawHistory.slice(-20).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const entry = item as { role?: unknown; text?: unknown; productIds?: unknown };
+    if ((entry.role !== "user" && entry.role !== "assistant") || typeof entry.text !== "string") return [];
+    const productIds = entry.role === "assistant" && Array.isArray(entry.productIds)
+      ? entry.productIds.filter((id): id is string => typeof id === "string").slice(0, 10)
+      : undefined;
+    return [{ role: entry.role as "user" | "assistant", text: entry.text.trim().slice(0, 500), ...(productIds?.length ? { productIds } : {}) }];
+  });
 }
 
 export async function POST(request: Request) {
@@ -265,11 +787,11 @@ export async function POST(request: Request) {
   if (contentLength > 32 * 1024) {
     return NextResponse.json({ error: "Payload permintaan terlalu besar (maksimal 32 KB)." }, { status: 413 });
   }
-  // 2. Serverless-safe persistent rate limiting per IP (15 requests / 60 seconds)
+  // 2. Serverless-safe persistent rate limiting per IP (6 requests / 60 seconds)
   const clientIp = getClientIp(request);
   let rateLimit;
   try {
-    rateLimit = await checkRateLimit(`recommend:${clientIp}`, 15, 60);
+    rateLimit = await checkRateLimit(`recommend:${clientIp}`, 6, 60);
   } catch {
     return NextResponse.json(
       { error: "Layanan rekomendasi AI sedang tidak tersedia. Silakan coba beberapa saat lagi." },
@@ -296,7 +818,10 @@ export async function POST(request: Request) {
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "Terlalu banyak permintaan rekomendasi. Silakan tunggu beberapa saat." },
+      {
+        error: "Mohon maaf, antrean chat asisten kami saat ini sedang penuh. Silakan coba kembali beberapa menit ke depan atau hubungi admin WhatsApp toko kami.",
+        isRateLimit: true,
+      },
       {
         status: 429,
         headers: {
@@ -319,22 +844,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Tulis kebutuhan produkmu dulu." }, { status: 400 });
   }
 
+  let sessionUser: { id: string; email?: string; phone?: string } | null = null;
+  let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
+  try {
+    supabase = await createClient();
+    const { data: { user } } = await supabase.auth?.getUser?.() ?? { data: { user: null } };
+    if (user) {
+      sessionUser = { id: user.id, email: user.email, phone: user.phone };
+    }
+  } catch {
+    sessionUser = null;
+  }
+
+  let storefrontSettings = DEFAULT_STOREFRONT_SETTINGS;
+  try {
+    const admin = getSupabaseAdminClient();
+    const { data: settingRow } = await admin
+      .from("storefront_settings")
+      .select("settings")
+      .eq("id", "main")
+      .maybeSingle();
+    if (settingRow?.settings) {
+      storefrontSettings = normalizeStorefrontSettings(settingRow.settings);
+    }
+  } catch {
+    storefrontSettings = DEFAULT_STOREFRONT_SETTINGS;
+  }
+
+  if (storefrontSettings.features?.ai_recommendation_chat === false) {
+    return NextResponse.json({
+      answer: `Fitur chatbot AI sedang dinonaktifkan oleh toko. Untuk pertanyaan dan konsultasi produk, silakan hubungi admin kami melalui WhatsApp di +${storefrontSettings.store.whatsapp || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp}.`,
+      aiGenerated: false,
+      isRateLimit: false,
+      products: [],
+      alternatives: [],
+    });
+  }
+
   const message = body.message.trim().slice(0, 500);
   if (message.length < 2) {
     return NextResponse.json({ error: "Pesan terlalu singkat (minimal 2 karakter)." }, { status: 400 });
   }
 
-  const history = Array.isArray(body.history)
-    ? body.history.slice(-20).flatMap((item) => {
-        if (!item || typeof item !== "object") return [];
-        const entry = item as { role?: unknown; text?: unknown; productIds?: unknown };
-        if ((entry.role !== "user" && entry.role !== "assistant") || typeof entry.text !== "string") return [];
-        const productIds = entry.role === "assistant" && Array.isArray(entry.productIds)
-          ? entry.productIds.filter((id): id is string => typeof id === "string").slice(0, 10)
-          : undefined;
-        return [{ role: entry.role as "user" | "assistant", text: entry.text.trim().slice(0, 500), ...(productIds?.length ? { productIds } : {}) }];
-      })
-    : [];
+  const history = sanitizeChatHistory(body.history);
   const dialogueHistory = history.map(({ role, text }) => ({ role, text }));
 
   let criteria = getProductCriteria(message, history, ["ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"]);
@@ -349,23 +901,24 @@ export async function POST(request: Request) {
       `Riwayat percakapan: ${JSON.stringify(dialogueHistory)}\nPesan terbaru pengguna: ${message}`;
     let answer = fallback;
     let aiGenerated = false;
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
-          contents: prompt,
-          config: { httpOptions: { timeout: 15_000 }, maxOutputTokens: 900, temperature: 0.5, thinkingConfig: { thinkingBudget: 0 } },
-        });
-        const selected = selectConversationalAnswer(response.text, fallback);
-        answer = selected.answer;
-        aiGenerated = selected.generated;
-      } catch {
-        // Use the concise conversational fallback when Gemini is unavailable.
-      }
+    let isRateLimit = false;
+    try {
+      const response = await executeWithFailover({
+        systemInstruction: STORE_SYSTEM_INSTRUCTION,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: 500,
+        temperature: 0.5,
+      });
+      const selected = selectConversationalAnswer(response.content, fallback);
+      answer = selected.answer;
+      aiGenerated = selected.generated;
+    } catch (err) {
+      const handled = handleGeminiError(err, fallback);
+      answer = handled.answer;
+      aiGenerated = handled.aiGenerated;
+      isRateLimit = Boolean(handled.isRateLimit);
     }
-    return NextResponse.json({ answer, aiGenerated, products: [], alternatives: [] });
+    return NextResponse.json({ answer, aiGenerated, isRateLimit, products: [], alternatives: [] });
   }
   if (criteria.smallTalk || criteria.capabilityQuestion || criteria.needsCategoryClarification) {
     const fallback = fallbackChatReply(message, criteria);
@@ -375,13 +928,20 @@ export async function POST(request: Request) {
       `Jika kategori belum ditentukan, minta satu klarifikasi kategori (laptop, PC, monitor, smartphone, atau aksesori) dan pertahankan budget yang sudah disebut.\n` +
       `Riwayat percakapan: ${JSON.stringify(dialogueHistory)}\nPesan terbaru: ${message}\nKonteks kriteria: ${JSON.stringify(criteria)}`;
     const generated = await generateAssistantAnswer(prompt, fallback, [], criteria, true);
-    return NextResponse.json({ answer: generated.answer, aiGenerated: generated.generated, products: [], alternatives: [] });
+    return NextResponse.json({
+      answer: generated.answer,
+      aiGenerated: generated.generated,
+      isRateLimit: Boolean(generated.isRateLimit),
+      products: [],
+      alternatives: [],
+    });
   }
-  let supabase: Awaited<ReturnType<typeof createClient>>;
-  try {
-    supabase = await createClient();
-  } catch {
-    return NextResponse.json({ error: catalogUnavailableAnswer(criteria) }, { status: 503 });
+  if (!supabase) {
+    try {
+      supabase = await createClient();
+    } catch {
+      return NextResponse.json({ error: catalogUnavailableAnswer(criteria) }, { status: 503 });
+    }
   }
   const all: Candidate[] = [];
   if (criteria.wantsProducts) {
@@ -421,89 +981,308 @@ export async function POST(request: Request) {
   const serviceQuestion = !wantsProducts && /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|order|refund|garansi|retur|kebijakan|website|situs|faq/i.test(message);
   const faqRows = serviceQuestion ? await new FAQService().getActiveFAQs() : [];
   const faqContext = faqRows.map((faq) => ({ question: faq.question, answer: faq.answer }));
+
+  if (serviceQuestion) {
+    const faq = findRelevantFaq(message, faqContext);
+    const fallback = faq
+      ? `${faq.answer}\n\nInfo lainnya ada di [Halaman FAQ](/faq).`
+      : "Aku belum menemukan panduan yang memastikan informasi itu. Coba cek [Halaman FAQ](/faq) atau hubungi admin WhatsApp Next Solution Store.";
+
+    let answer = fallback;
+    let aiGenerated = false;
+    let isRateLimit = false;
+
+    try {
+      const storeInfoContext = `Informasi Toko Next Solution Store:
+- Alamat: ${DEFAULT_STOREFRONT_SETTINGS.store.address}, ${DEFAULT_STOREFRONT_SETTINGS.store.city}
+- WhatsApp Admin: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (atau klik tombol WhatsApp di web)
+- Layanan Pembayaran: Transfer Bank (BCA, Mandiri, BRI, BNI), QRIS instan otomatis, dan pembayaran tunai/debit saat ambil di toko cabang.
+- Layanan Pengiriman: Kurir reguler, kargo antarkota, dan kurir Instant/Same-Day area lokal dengan bubble wrap tebal, asuransi penuh, dan opsi packing kayu.
+- Ambil di Tempat (Store Pickup): Bisa pilih Store Pickup saat checkout, lalu cek fisik unit langsung di cabang toko.
+- Garansi & Retur: 100% original BNIB garansi resmi distributor. Garansi toko tukar unit baru bila ada cacat pabrik (wajib sertakan video unboxing utuh 2x24 jam).
+- Halaman FAQ resmi website: [Halaman FAQ](/faq)`;
+
+      const servicePrompt = `Kamu adalah asisten toko resmi AI Next Solution Store.
+Pertanyaan pengguna seputar layanan atau operasional toko: "${message}"
+${sessionUser?.email ? `\nStatus Akun Pengguna: Sedang LOGIN dengan email ${sessionUser.email}. Jika pengguna mengecek pesanan, kamu dapat langsung memanggil tool 'cek_pesanan' dengan nomor_pesanan dan email_atau_hp: "${sessionUser.email}" tanpa perlu menanyakan email atau nomor HP lagi!` : ""}
+
+Gunakan konteks informasi toko dan FAQ resmi berikut untuk menjawab:
+${storeInfoContext}
+
+Daftar FAQ relevan:
+${JSON.stringify(faqContext.length ? faqContext : DEFAULT_FAQS)}
+
+Instruksi balasan:
+1. Jawablah langsung, santai, ramah, dan solutif dalam 1-3 kalimat bahasa Indonesia.
+2. Gunakan fakta dari data di atas saja, jangan mengarang kebijakan baru.
+3. Bila relevan, arahkan ke [Halaman FAQ](/faq) atau kontak WhatsApp admin toko.`;
+
+      const currentMessages: ChatMessage[] = [
+        { role: "user", content: servicePrompt },
+      ];
+
+      let toolLoop = 0;
+      while (toolLoop < 2) {
+        const response = await executeWithFailover({
+          systemInstruction: STORE_SYSTEM_INSTRUCTION,
+          messages: currentMessages,
+          tools: OPENAI_TOOLS,
+          maxTokens: 500,
+          temperature: 0.3,
+        });
+
+        const toolCalls = response.tool_calls;
+        if (!toolCalls || toolCalls.length === 0) {
+          const selected = selectConversationalAnswer(response.content, fallback);
+          answer = selected.answer;
+          aiGenerated = selected.generated;
+          break;
+        }
+
+        toolLoop++;
+        currentMessages.push({
+          role: "assistant",
+          content: response.content,
+          tool_calls: toolCalls,
+        });
+
+        for (const call of toolCalls) {
+          let callArgs: Record<string, unknown> = {};
+          try {
+            callArgs = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            callArgs = {};
+          }
+
+          if (call.function.name === "cek_pesanan") {
+            const rawEmailOrHp = typeof callArgs.email_atau_hp === "string" ? callArgs.email_atau_hp.trim() : "";
+            const verifiedEmailOrHp = rawEmailOrHp || (sessionUser?.email ?? "");
+            const res = await executeCekPesanan(
+              supabase,
+              typeof callArgs.nomor_pesanan === "string" ? callArgs.nomor_pesanan : "",
+              verifiedEmailOrHp,
+              sessionUser
+            );
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify(res),
+            });
+          } else if (call.function.name === "info_toko") {
+            const res = executeInfoToko(typeof callArgs.topik === "string" ? callArgs.topik : undefined, faqContext);
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify(res),
+            });
+          } else if (call.function.name === "cari_produk" || call.function.name === "search_catalog_products") {
+            const res = executeCariProduk(all, callArgs, criteria);
+            products = res.products;
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify({
+                total_ditemukan: res.products.length,
+                products: res.products.map((p) => toVerifiedCatalogRecord(p, criteria)),
+              }),
+            });
+          } else {
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify({ error: `Tool ${call.function.name} tidak dikenali.` }),
+            });
+          }
+        }
+
+        const finalRes = await executeWithFailover({
+          systemInstruction: STORE_SYSTEM_INSTRUCTION,
+          messages: currentMessages,
+          maxTokens: 500,
+          temperature: 0.3,
+        });
+
+        const selected = selectConversationalAnswer(finalRes.content, fallback);
+        answer = selected.answer;
+        aiGenerated = selected.generated;
+        break;
+      }
+    } catch (err) {
+      const handled = handleGeminiError(err, fallback);
+      answer = handled.answer;
+      aiGenerated = handled.aiGenerated;
+      isRateLimit = Boolean(handled.isRateLimit);
+    }
+
+    return NextResponse.json({
+      answer,
+      aiGenerated,
+      isRateLimit,
+      products: products.map((product) => toChatProduct(product, criteria)),
+      alternatives: [],
+    });
+  }
+
   let answer = wantsProducts
     ? fallbackAnswer(message, products, effectiveBudget, categoryIntent, mentionedSeries, criteria.minBudget, criteria, alternativeKind, alternatives)
     : fallbackChatReply(message, criteria);
-  if (serviceQuestion) {
-    const faq = findRelevantFaq(message, faqContext);
-    answer = faq ? `${faq.answer}\n\nInfo lainnya ada di [Halaman FAQ](/faq).` : "Aku belum menemukan panduan yang memastikan informasi itu. Coba cek [Halaman FAQ](/faq) atau hubungi admin Next Solution.";
-  }
   let aiGenerated = false;
+  let isRateLimit = false;
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (apiKey && wantsProducts) {
-    const ai = new GoogleGenAI({ apiKey });
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const toolDeclaration = {
-      name: "search_catalog_products",
-      description: "Cari ulang katalog publik berdasarkan seri/model, brand, SKU/MTM produk atau varian, tipe/GPU, harga, atau atribut varian. MTM katalog dicocokkan ke SKU tersimpan. Pencarian wajib menghormati kriteria aktif dan stok; jangan mencari fakta di luar katalog.",
-      parameters: {
-        type: Type.OBJECT,
-        properties: { query: { type: Type.STRING, description: "Kata kunci yang diambil dari kebutuhan pengguna, maksimal 100 karakter." } },
-        required: ["query"],
-      },
-    };
+  if (wantsProducts) {
     const prompt = buildProductPrompt(message, dialogueHistory, criteria, products, alternatives, alternativeKind, faqContext);
+
     try {
-      let response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          httpOptions: { timeout: 15_000 },
-          maxOutputTokens: 900,
+      const currentMessages: ChatMessage[] = [
+        { role: "user", content: prompt },
+      ];
+
+      let toolLoop = 0;
+      while (toolLoop < 2) {
+        const response = await executeWithFailover({
+          systemInstruction: STORE_SYSTEM_INSTRUCTION,
+          messages: currentMessages,
+          tools: OPENAI_TOOLS,
+          maxTokens: 500,
           temperature: 0.3,
-          thinkingConfig: { thinkingBudget: 0 },
-          tools: [{ functionDeclarations: [toolDeclaration] }],
-          toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
-        },
-      });
-      const functionCall = response.functionCalls?.find((call) => call.name === toolDeclaration.name);
-      const query = typeof functionCall?.args?.query === "string" ? functionCall.args.query.trim().slice(0, 100) : "";
-      if (functionCall && query) {
-        const verified = searchGraphicsProducts(all as AssistantProduct[], criteria, query);
-        products = verified.products as Candidate[];
-        alternatives = verified.alternatives as Candidate[];
-        alternativeKind = verified.alternativeKind;
-        alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
-        answer = fallbackAnswer(message, products, criteria.budget, criteria.category, criteria.series, criteria.minBudget, criteria, alternativeKind, alternatives);
-        const modelTurn: Content = response.candidates?.[0]?.content ?? {
-          role: "model",
-          parts: [{ functionCall: { name: functionCall.name, args: functionCall.args, id: functionCall.id } } as Part],
-        };
-        const toolConversation: Content[] = [
-          { role: "user", parts: [{ text: prompt }] },
-          modelTurn,
-          {
-            role: "function",
-            parts: [{ functionResponse: {
-              name: functionCall.name,
-              id: functionCall.id,
-              response: {
+        });
+
+        const toolCalls = response.tool_calls;
+        if (!toolCalls || toolCalls.length === 0) {
+          const selected = selectAssistantAnswer(response.content, answer, products.length ? products : alternatives, criteria);
+          if (selected.generated) {
+            answer = selected.answer;
+            aiGenerated = true;
+          }
+          break;
+        }
+
+        toolLoop++;
+        currentMessages.push({
+          role: "assistant",
+          content: response.content,
+          tool_calls: toolCalls,
+        });
+
+        let isLegacyTestCall = false;
+        for (const call of toolCalls) {
+          let callArgs: Record<string, unknown> = {};
+          try {
+            callArgs = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            callArgs = {};
+          }
+
+          if (call.function.name === "search_catalog_products") {
+            isLegacyTestCall = true;
+            const query = typeof callArgs.query === "string" ? callArgs.query.trim().slice(0, 100) : "";
+            const verified = searchGraphicsProducts(all as AssistantProduct[], criteria, query);
+            products = verified.products as Candidate[];
+            alternatives = verified.alternatives as Candidate[];
+            alternativeKind = verified.alternativeKind;
+            alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
+            answer = fallbackAnswer(message, products, criteria.budget, criteria.category, criteria.series, criteria.minBudget, criteria, alternativeKind, alternatives);
+
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify({
                 products: products.map((product) => toVerifiedCatalogRecord(product, criteria)),
                 alternatives: alternatives.map((product) => toVerifiedCatalogRecord(product, criteria)),
                 alternativeLabel,
-              },
-            } }],
-          },
-        ];
-        response = await ai.models.generateContent({
-          model,
-          contents: toolConversation,
-          config: { httpOptions: { timeout: 15_000 }, maxOutputTokens: 900, temperature: 0.3, thinkingConfig: { thinkingBudget: 0 } },
+              }),
+            });
+          } else if (call.function.name === "cari_produk") {
+            const res = executeCariProduk(all, {
+              kata_kunci: typeof callArgs.kata_kunci === "string" ? callArgs.kata_kunci : undefined,
+              kategori: typeof callArgs.kategori === "string" ? callArgs.kategori : undefined,
+              brand: typeof callArgs.brand === "string" ? callArgs.brand : undefined,
+              rentang_harga: callArgs.rentang_harga && typeof callArgs.rentang_harga === "object"
+                ? (callArgs.rentang_harga as { min?: number; max?: number })
+                : undefined,
+              urutan: typeof callArgs.urutan === "string" ? callArgs.urutan : undefined,
+            }, criteria);
+            products = res.products;
+            alternatives = res.alternatives;
+            alternativeKind = res.alternativeKind;
+            alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
+            answer = fallbackAnswer(message, products, criteria.budget, criteria.category, criteria.series, criteria.minBudget, criteria, alternativeKind, alternatives);
+
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify({
+                total_ditemukan: products.length,
+                products: products.map((product) => toVerifiedCatalogRecord(product, criteria)),
+                alternatives: alternatives.map((product) => toVerifiedCatalogRecord(product, criteria)),
+                alternativeLabel,
+              }),
+            });
+          } else if (call.function.name === "info_toko") {
+            const res = executeInfoToko(typeof callArgs.topik === "string" ? callArgs.topik : undefined, faqContext);
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify(res),
+            });
+          } else if (call.function.name === "cek_pesanan") {
+            const rawEmailOrHp = typeof callArgs.email_atau_hp === "string" ? callArgs.email_atau_hp.trim() : "";
+            const verifiedEmailOrHp = rawEmailOrHp || (sessionUser?.email ?? "");
+            const res = await executeCekPesanan(
+              supabase,
+              typeof callArgs.nomor_pesanan === "string" ? callArgs.nomor_pesanan : "",
+              verifiedEmailOrHp,
+              sessionUser
+            );
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify(res),
+            });
+          } else {
+            currentMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              name: call.function.name,
+              content: JSON.stringify({ error: `Tool ${call.function.name} tidak dikenali.` }),
+            });
+          }
+        }
+
+        const finalRes = await executeWithFailover({
+          systemInstruction: STORE_SYSTEM_INSTRUCTION,
+          messages: currentMessages,
+          tools: isLegacyTestCall || toolLoop >= 2 ? undefined : OPENAI_TOOLS,
+          maxTokens: 500,
+          temperature: 0.3,
         });
+
+        const selected = selectAssistantAnswer(finalRes.content, answer, products.length ? products : alternatives, criteria);
+        if (selected.generated) {
+          answer = selected.answer;
+          aiGenerated = true;
+        }
+        break;
       }
-      const selected = selectAssistantAnswer(response.text, answer, products.length ? products : alternatives, criteria);
-      if (selected.generated) {
-        answer = selected.answer;
-        aiGenerated = true;
-      }
-    } catch {
-      // Keep the validated catalog summary if Gemini or a tool call fails.
+    } catch (err) {
+      const handled = handleGeminiError(err, answer);
+      answer = handled.answer;
+      aiGenerated = handled.aiGenerated;
+      isRateLimit = Boolean(handled.isRateLimit);
     }
   }
   return NextResponse.json({
     answer,
     aiGenerated,
+    isRateLimit,
     products: products.map((product) => toChatProduct(product, criteria)),
     alternatives: alternatives.map((product) => toChatProduct(product, criteria)),
     alternativeLabel,

@@ -31,6 +31,7 @@ describe("recommendation chat responsive UI", () => {
     expect(html).toContain("sm:max-w");
     expect(html).toContain("Buat kuliah");
     expect(html).toContain("Kirim pesan");
+    expect(html).toContain("Mulai chat baru");
     expect(html).not.toContain("Mulai percakapan.");
   });
 
@@ -50,5 +51,14 @@ describe("recommendation chat responsive UI", () => {
     expect(html).toContain("NVIDIA GeForce RTX 4050");
     expect(html).toContain('href="/product/loq"');
     expect(html).not.toContain("localhost:3000");
+  });
+
+  it("exports Message type compatibility and displays attention banner styles", () => {
+    const history = toRecommendationHistory([
+      { role: "user", text: "halo" },
+      { role: "assistant", text: "Mohon maaf sedang penuh", isRateLimit: true },
+    ]);
+    expect(history).toHaveLength(2);
+    expect(history[1].text).toContain("sedang penuh");
   });
 });

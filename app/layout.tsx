@@ -63,6 +63,16 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  icons: {
+    icon: [
+      { url: "/icon.png?v=20261027", type: "image/png" },
+      { url: "/favicon.ico?v=20261027", sizes: "any" },
+    ],
+    apple: [
+      { url: "/apple-icon.png?v=20261027", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/icon.png?v=20261027",
+  },
 };
 
 export default async function RootLayout({
@@ -102,6 +112,9 @@ export default async function RootLayout({
   return (
     <html lang="id" className={`${outfit.variable} antialiased`} suppressHydrationWarning>
       <head>
+        <link rel="icon" type="image/png" href="/icon.png?v=20261027" />
+        <link rel="shortcut icon" href="/icon.png?v=20261027" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon.png?v=20261027" />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem("next-solution-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark");document.documentElement.style.colorScheme="dark";}else{document.documentElement.classList.remove("dark");document.documentElement.style.colorScheme="light";}}catch(e){}})();`,

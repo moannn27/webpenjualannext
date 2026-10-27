@@ -480,13 +480,13 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
 }
 
 export async function updateAdminOrderDetailsAction(formData: FormData) {
-  await requireSuperAdmin()
+  const { user, adminName, role } = await requireModulePermission('orders')
   const id = String(formData.get('order_id') ?? '').trim()
   const recipientName = String(formData.get('recipient_name') ?? '').trim()
   const phone = String(formData.get('phone') ?? '').trim()
   if (!id || recipientName.length < 2 || !/^[0-9+()\s-]{8,24}$/.test(phone)) throw new Error('Nama penerima dan nomor telepon harus diisi dengan benar.')
   const supabase = await createClient()
-  const { data: order, error: readError } = await supabase.from('orders').select('courier, shipping_address').eq('id', id).single()
+  const { data: order, error: readError } = await supabase.from('orders').select('courier, shipping_address, order_number').eq('id', id).single()
   if (readError || !order) throw new Error('Pesanan tidak ditemukan.')
   const current = order.shipping_address && typeof order.shipping_address === 'object' ? order.shipping_address as Record<string, unknown> : {}
   const updatedAddress: Record<string, unknown> = { ...current, recipient_name: recipientName, phone }
@@ -503,7 +503,124 @@ export async function updateAdminOrderDetailsAction(formData: FormData) {
   const { error } = await supabase.from('orders').update({ shipping_address: updatedAddress }).eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/admin/orders')
+  revalidatePath(`/orders/${id}/invoice`)
   revalidatePath('/profile')
+}
+
+export async function updateAdminOrderInvoiceAction(formData: FormData) {
+  const { user, adminName, role } = await requireModulePermission('orders')
+  const id = String(formData.get('order_id') ?? '').trim()
+  const recipientName = String(formData.get('recipient_name') ?? '').trim()
+  const phone = String(formData.get('phone') ?? '').trim()
+  if (!id || recipientName.length < 2 || !/^[0-9+()\s-]{8,24}$/.test(phone)) {
+    throw new Error('Nama pelanggan/penerima dan nomor telepon harus diisi dengan benar.')
+  }
+  const supabase = await createClient()
+  const { data: order, error: readError } = await supabase
+    .from('orders')
+    .select('courier, shipping_address, order_number')
+    .eq('id', id)
+    .single()
+  if (readError || !order) throw new Error('Pesanan tidak ditemukan.')
+
+  const current = order.shipping_address && typeof order.shipping_address === 'object'
+    ? (order.shipping_address as Record<string, unknown>)
+    : {}
+
+  const storeName = String(formData.get('store_name') ?? '').trim()
+  const orderNumberOverride = String(formData.get('order_number') ?? '').trim()
+  const invoiceNotes = String(formData.get('invoice_notes') ?? '').trim()
+
+  const updatedAddress: Record<string, unknown> = {
+    ...current,
+    recipient_name: recipientName,
+    phone,
+    invoice_override: {
+      customer_name: recipientName,
+      phone,
+      ...(storeName ? { store_name: storeName } : {}),
+      ...(orderNumberOverride ? { order_number: orderNumberOverride } : {}),
+      ...(invoiceNotes ? { notes: invoiceNotes } : {}),
+    },
+  }
+
+  if (order.courier === 'pickup') {
+    const pickupLoc = String(formData.get('pickup_location') ?? '').trim()
+    if (pickupLoc) updatedAddress.pickup_location = pickupLoc
+    const pickupAddr = String(formData.get('pickup_address') ?? '').trim()
+    if (pickupAddr) updatedAddress.pickup_address = pickupAddr
+  } else {
+    const streetAddress = String(formData.get('street_address') ?? '').trim()
+    const city = String(formData.get('city') ?? '').trim()
+    const province = String(formData.get('province') ?? '').trim()
+    const postalCode = String(formData.get('postal_code') ?? '').trim()
+    if (streetAddress) updatedAddress.street_address = streetAddress
+    if (city) updatedAddress.city = city
+    if (province) updatedAddress.province = province
+    if (postalCode) updatedAddress.postal_code = postalCode
+  }
+
+  const { error } = await supabase.from('orders').update({ shipping_address: updatedAddress }).eq('id', id)
+  if (error) throw new Error(error.message)
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role || 'admin',
+    action: 'update',
+    entity_type: 'order',
+    entity_name: order.order_number || id,
+    details: `Memperbarui data faktur pesanan #${order.order_number || id} (Pelanggan: ${recipientName}, No. Telp: ${phone})`,
+  })
+
+  revalidatePath('/admin/orders')
+  revalidatePath(`/orders/${id}/invoice`)
+  revalidatePath('/profile')
+  return { success: true }
+}
+
+export async function deleteAdminOrderAction(orderId: string) {
+  const { user, isSuperAdmin, adminName, role, permissions } = await getCurrentAdminPermissions()
+  if (!user || (!isSuperAdmin && !permissions.includes('delete_orders'))) {
+    throw new Error('Akses ditolak: Anda tidak memiliki izin untuk menghapus pesanan.')
+  }
+  const cleanId = String(orderId ?? '').trim()
+  if (!cleanId) throw new Error('ID pesanan tidak valid.')
+
+  const adminClient = getSupabaseAdminClient()
+  const { data: order, error: readError } = await adminClient
+    .from('orders')
+    .select('id, order_number')
+    .eq('id', cleanId)
+    .single()
+
+  if (readError || !order) {
+    throw new Error('Pesanan tidak ditemukan atau sudah dihapus.')
+  }
+
+  // Delete associated records first (payments, items) to ensure clean cascade
+  await adminClient.from('payments').delete().eq('order_id', cleanId)
+  await adminClient.from('order_items').delete().eq('order_id', cleanId)
+  const { error: deleteError } = await adminClient.from('orders').delete().eq('id', cleanId)
+
+  if (deleteError) {
+    throw new Error(`Gagal menghapus pesanan: ${deleteError.message}`)
+  }
+
+  await recordAdminActivity({
+    admin_id: user.id,
+    admin_name: adminName,
+    admin_role: role || 'admin',
+    action: 'delete',
+    entity_type: 'order',
+    entity_name: order.order_number || cleanId,
+    details: `Menghapus pesanan #${order.order_number || cleanId} secara permanen`,
+  })
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin/reports')
+  revalidatePath('/admin')
+  return { success: true }
 }
 
 export async function updateAdminPaymentStatusAction(formData: FormData) {
@@ -1405,7 +1522,7 @@ export async function deleteAdminProductAction(productId: string) {
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
-    admin_role: role,
+    admin_role: role || 'admin',
     action: 'delete',
     entity_type: 'product',
     entity_name: productId,

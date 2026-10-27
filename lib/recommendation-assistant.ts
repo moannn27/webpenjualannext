@@ -86,8 +86,14 @@ function isGeneralKnowledgeQuestion(text: string): boolean {
 }
 
 function parseGraphicsModel(text: string, allowBareModel = false): string | null {
-  const namedModel = text.match(/\b(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?\b|\bradeon\s*rx\s*\d{3,4}\b/i)?.[0];
+  const namedModel = text.match(/\b(?:rtx|gtx)\s*(\d{3,4}(?:\s*ti)?)\b|\bradeon\s*rx\s*\d{3,4}\b/i)?.[0];
   if (namedModel) return namedModel.replace(/\s+/g, " ").toLowerCase();
+  const multiModels = text.match(/\b(?:rtx\s*)?(3050|4050|5050|4060|5060|3060)\b/i)?.[0];
+  if (multiModels) {
+    return multiModels.toLowerCase().startsWith("rtx") ? multiModels.toLowerCase() : `rtx ${multiModels}`;
+  }
+  if (/\brtx\b/i.test(text)) return "rtx";
+  if (/\bgtx\b/i.test(text)) return "gtx";
   if (!allowBareModel) return null;
   const bareModel = text.match(/\b((?:20|30|40|50|60|70|80|90)\d{2})\b/i)?.[1];
   return bareModel ? `rtx ${bareModel}` : null;
@@ -101,7 +107,8 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
   const smallTalk = /^(?:(?:hai|halo|hello|hi|pagi|siang|sore|malam)(?:\s+(?:bang|kak))?|bang(?:\s+bang)?(?:\s+woi)?|makasih|terima kasih|thanks|thank you|wkwk)[!.?, ]*$/i.test(current);
   const capabilityQuestion = /\b(?:lu|lo|kamu|anda)?\s*(?:bisa|dapat)\s+(?:bantu|membantu)\s+apa\b|\bapa saja yang bisa kamu bantu\b/i.test(current);
   const currentBudget = parseBudget(current);
-  const cancelsBudget = /\b(?:jangan|abaikan|lupakan|hapus|tanpa|gak usah|tidak usah|nggak usah)\s+(?:pakai\s+)?budget\b/i.test(current);
+  const cancelsBudget = /\b(?:jangan|abaikan|lupakan|hapus|tanpa|gak usah|tidak usah|nggak usah)\s+(?:pakai\s+)?budget\b/i.test(current) ||
+    (/\b(?:bukan\s+(?:yang\s+)?(?:itu|tadi|tersebut)|bukan\s+maksud(?:nya|ku|gua)|ganti\s+(?:budget|anggaran))\b/i.test(current) && !currentBudget.amount);
   const budgetHistory = userTurns.filter((turn) => parseBudget(turn.text).amount !== null || /\b(?:jangan|abaikan|lupakan|hapus|tanpa|gak usah|tidak usah|nggak usah)\s+(?:pakai\s+)?budget\b/i.test(turn.text));
   let previousBudget = parseBudget("");
   for (const turn of budgetHistory) {
@@ -132,6 +139,9 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
   const requestedBrands = [...new Set([...brands, ...BRANDS])];
   const currentBrand = containsAny(current, requestedBrands);
 
+  const resetsBrand = /\b(?:semua\s+(?:merk|merek|brand)|(?:merk|merek|brand)\s*apa\s*(?:aja|saja)|bebas\s+(?:merk|merek|brand)|bukan\s+(?:asus|acer|lenovo|hp|dell|apple|advan))\b/i.test(current) ||
+    /\bapa\s*(?:aja|saja)\s*(?:merknya|brandnya|barangnya|produknya)\b/i.test(current) ||
+    /\b(?:ada\s+)?produk\s+apa\s*(?:aja|saja)\b/i.test(current);
   let brandTurnIndex = -1;
   let latestBrand: string | null = null;
   let latestSeries: string[] = [];
@@ -151,8 +161,8 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     latestBrand = containsAny(userTurns[latestExplicitBrandIndex].text, requestedBrands);
     latestSeries = [];
   }
-  let series = currentSeries.length ? currentSeries : outOfScope ? [] : latestSeries;
-  const brand = currentBrand ?? (currentSeries.length ? SERIES[currentSeries.at(-1)!] : latestBrand);
+  let series = resetsBrand ? [] : currentSeries.length ? currentSeries : outOfScope ? [] : latestSeries;
+  const brand = resetsBrand ? null : currentBrand ?? (currentSeries.length ? SERIES[currentSeries.at(-1)!] : latestBrand);
   if (currentBrand && series.some((name) => SERIES[name].toLowerCase() !== currentBrand.toLowerCase())) series = [];
 
   const memory = current.match(/\b(\d{1,2})\s*gb\b/i) ?? current.match(/ram\s*(\d{1,2})/i);
@@ -167,7 +177,7 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     ? previousGraphicsModel
     : currentGraphicsModel ?? (followUp ? previousGraphicsModel : null);
   const graphicsQuestion = /\b(?:ber[\s-]?vga|vga(?:nya)?|gpu(?:nya)?|grafis(?:nya)?|graphics?|kartu grafis)\b/i.test(current);
-  const explicitDedicated = /\b(?:dedicated|discrete|dedicated gpu|vga gaming)\b/i.test(current) ||
+  const explicitDedicated = /\b(?:dedicated|discrete|dedicated gpu|vga gaming|rtx|gtx)\b/i.test(current) ||
     (!graphicsInventoryRequest && alternativeRequest && Boolean(previousGraphicsModel));
   const requiresNvidiaGpu = /\b(?:nvidia|geforce|rtx|gtx)\b/i.test(current) ||
     Boolean(graphics && /^(?:rtx|gtx)\b/i.test(graphics));
@@ -239,7 +249,7 @@ function catalogGraphicsSource(product: AssistantProduct): string {
 }
 export function getCatalogGraphicsType(product: AssistantProduct): CatalogGraphicsType {
   const source = catalogGraphicsSource(product);
-  if (/\b(?:rtx|gtx|geforce|radeon\s*rx|arc\s*a\d{3}|dedicated|discrete)\b/i.test(source)) return "dedicated";
+  if (/\b(?:rtx|gtx)\s*(?:\d{3,4})?\b|\b(?:geforce|radeon\s*rx|arc\s*a\d{3}|dedicated|discrete)\b/i.test(source)) return "dedicated";
   if (/\b(?:integrated|shared)\b/i.test(source)) return "integrated";
   if (/\b(?:intel\s+uhd|uhd\s+graphics|intel\s+iris|intel\s+graphics|radeon\s+vega(?:\s*\d+)?(?:\s+graphics)?|amd\s+radeon\s+graphics)\b/i.test(source)) return "integrated";
   return "unknown";
@@ -247,7 +257,7 @@ export function getCatalogGraphicsType(product: AssistantProduct): CatalogGraphi
 export function getCatalogGraphicsLabel(product: AssistantProduct): string | null {
   const specification = (product.product_specifications ?? []).find((item) => /gpu|graphic|vga/i.test(item.key));
   if (specification?.value.trim()) return specification.value.trim();
-  const match = catalogGraphicsSource(product).match(/\b(?:amd\s+)?radeon\s+vega\s*\d+\s+graphics\b|\bintel\s+uhd\s+graphics\b|\b(?:nvidia\s+)?geforce\s+(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?(?:\s+\d+\s*gb)?\b|\bradeon\s+rx\s*\d{3,4}\b|\bintel\s+arc\s+a\d{3}\b/i);
+  const match = catalogGraphicsSource(product).match(/\b(?:amd\s+)?radeon\s+vega\s*\d+\s+graphics\b|\bintel\s+uhd\s+graphics\b|\b(?:nvidia\s+)?(?:geforce\s+)?(?:rtx|gtx)\s*\d{3,4}(?:\s*ti)?(?:\s+\d+\s*gb)?\b|\bradeon\s+rx\s*\d{3,4}\b|\bintel\s+arc\s+a\d{3}\b/i);
   return match?.[0] ?? null;
 }
 export type GraphicsAlternativeKind = "over-budget-match" | "other-dedicated" | "over-budget-dedicated" | "integrated" | "near-target" | "graphics-inventory" | "cheapest-over-budget" | null;
@@ -274,8 +284,14 @@ export function graphicsFollowUpAnswer(
       }
       return `Belum ada ${target ?? "GPU yang diminta"} yang cocok dalam ${budgetText}. Ini alternatif GPU dedicated yang benar-benar tersedia dan masih sesuai budget; spesifikasi serta harga ada di kartu.`;
     }
-    if (alternativeKind === "over-budget-match") {
-      return `${target ?? "GPU yang diminta"} tersedia, tetapi harganya melewati ${budgetText}. Aku pisahkan sebagai alternatif di luar budget dengan harga katalog pada kartu.`;
+    if (alternativeKind === "over-budget-match" || (criteria.requiresDedicatedGpu && products.length > 0)) {
+      const targetGpu = criteria.graphics && criteria.graphics !== "rtx" && criteria.graphics !== "gtx"
+        ? criteria.graphics.toUpperCase()
+        : "NVIDIA RTX";
+      const displayItem = products[0] ?? alternatives[0];
+      const startPrice = displayItem ? (recommendationPrice(displayItem, criteria) ?? 0).toLocaleString("id-ID") : "";
+      const priceText = startPrice ? ` mulai dari Rp${startPrice}` : "";
+      return `Di katalog kami tersedia pilihan laptop dengan GPU dedicated ${targetGpu} (seperti RTX 3050, RTX 4050, hingga RTX 5060) dari Acer Nitro dan Lenovo LOQ/Legion${priceText}. Detail spesifikasi dan harga tertera pada kartu produk:`;
     }
     if (alternativeKind === "other-dedicated") {
       return `Belum ada ${target ?? "GPU yang diminta"} yang cocok dalam ${budgetText}. Ada GPU dedicated lain yang terverifikasi dan masih sesuai budget; model serta harga ada di kartu alternatif.`;
@@ -439,11 +455,26 @@ export function rankProducts(
     if (options.graphicsMode === "integrated" && graphicsType !== "integrated") return false;
     if (options.graphicsMode !== "integrated" && (criteria.requiresDedicatedGpu || options.graphicsMode === "dedicated")) {
       if (graphicsType !== "dedicated") return false;
-      if (criteria.requiresNvidiaGpu && !options.anyDedicatedBrand && !/\b(?:nvidia|geforce|rtx|gtx)\b/i.test(catalogGraphicsSource(product))) return false;
+      if (criteria.requiresNvidiaGpu && !options.anyDedicatedBrand && !/\b(?:nvidia|geforce|(?:rtx|gtx)\s*(?:\d{3,4})?)\b/i.test(catalogGraphicsSource(product))) return false;
     }
     if (criteria.memory && !new RegExp("\\b" + criteria.memory + "\\s*gb\\b", "i").test(text)) return false;
     if (criteria.processor && !text.includes(criteria.processor.toLowerCase())) return false;
-    if (criteria.graphics && !options.ignoreExactGraphics && !text.includes(criteria.graphics.toLowerCase())) return false;
+    if (criteria.graphics && !options.ignoreExactGraphics) {
+      if (criteria.graphics === "rtx") {
+        if (!/\brtx\s*(?:\d{3,4})?\b/i.test(text)) return false;
+      } else if (criteria.graphics === "gtx") {
+        if (!/\bgtx\s*(?:\d{3,4})?\b/i.test(text)) return false;
+      } else {
+        const targetGpu = criteria.graphics.toLowerCase().replace(/[\s-]+/g, "");
+        const normalizedText = text.replace(/[\s-]+/g, "");
+        const matches = text.includes(criteria.graphics.toLowerCase()) || normalizedText.includes(targetGpu);
+        if (!matches) {
+          const requestedModels = [...query.matchAll(/\b(?:rtx\s*)?(3050|4050|5050|4060|5060|3060)\b/gi)].map((m) => m[1]);
+          const matchesAnyRequested = requestedModels.length > 0 && requestedModels.some((model) => normalizedText.includes(`rtx${model}`) || text.includes(model));
+          if (!matchesAnyRequested) return false;
+        }
+      }
+    }
     if (criteria.color && !new RegExp("\\b" + criteria.color + "\\b", "i").test(text)) return false;
     if (criteria.storage && !text.includes(criteria.storage.toLowerCase().replace(/\s+/g, "")) && !text.includes(criteria.storage.toLowerCase())) return false;
     if (sku && !text.includes(sku)) return false;
@@ -515,21 +546,35 @@ export function searchGraphicsProducts(
   if (criteria.alternativeRequest) {
     const overBudgetDedicated = rankProducts(products, criteria, message, {
       budgetMode: "over", ignoreExactGraphics: true, anyDedicatedBrand: true,
-    }).slice(0, 3);
+    }).slice(0, 5);
     if (overBudgetDedicated.length) {
       return { products: [], alternatives: overBudgetDedicated, alternativeKind: "over-budget-dedicated" };
     }
+    if (criteria.brand) {
+      const anyBrand = rankProducts(products, { ...criteria, brand: null }, message, {
+        budgetMode: "over", ignoreExactGraphics: true, anyDedicatedBrand: true,
+      }).slice(0, 5);
+      if (anyBrand.length) {
+        return { products: [], alternatives: anyBrand, alternativeKind: "over-budget-dedicated" };
+      }
+    }
   } else if (criteria.graphics) {
-    const exactOverBudget = rankProducts(products, criteria, message, { budgetMode: "over" }).slice(0, 3);
+    const exactOverBudget = rankProducts(products, criteria, message, { budgetMode: "over" }).slice(0, 5);
     if (exactOverBudget.length) {
       return { products: [], alternatives: exactOverBudget, alternativeKind: "over-budget-match" };
+    }
+    if (criteria.brand) {
+      const anyBrandExact = rankProducts(products, { ...criteria, brand: null }, message, { budgetMode: "over" }).slice(0, 5);
+      if (anyBrandExact.length) {
+        return { products: [], alternatives: anyBrandExact, alternativeKind: "over-budget-match" };
+      }
     }
   }
 
   const otherDedicated = rankProducts(products, criteria, message, {
     ignoreExactGraphics: true,
     anyDedicatedBrand: true,
-  }).slice(0, 3);
+  }).slice(0, 5);
   if (otherDedicated.length) {
     return { products: [], alternatives: otherDedicated, alternativeKind: "other-dedicated" };
   }
@@ -538,32 +583,45 @@ export function searchGraphicsProducts(
     budgetMode: "over",
     ignoreExactGraphics: true,
     anyDedicatedBrand: true,
-  }).slice(0, 3);
+  }).slice(0, 5);
   if (overBudgetDedicated.length) {
     return { products: [], alternatives: overBudgetDedicated, alternativeKind: "over-budget-dedicated" };
   }
 
-  const integrated = rankProducts(products, criteria, message, {
-    ignoreExactGraphics: true,
-    graphicsMode: "integrated",
-  }).slice(0, 3);
-  return integrated.length
-    ? { products: [], alternatives: integrated, alternativeKind: "integrated" }
-    : { products: [], alternatives: [], alternativeKind: null };
+  if (criteria.brand) {
+    const anyOverBudget = rankProducts(products, { ...criteria, brand: null }, message, {
+      budgetMode: "over",
+      ignoreExactGraphics: true,
+      anyDedicatedBrand: true,
+    }).slice(0, 5);
+    if (anyOverBudget.length) {
+      return { products: [], alternatives: anyOverBudget, alternativeKind: "over-budget-dedicated" };
+    }
+  }
+
+  const hasAnyDedicatedInCatalog = products.some((p) => getCatalogGraphicsType(p) === "dedicated");
+  if (!hasAnyDedicatedInCatalog) {
+    const integrated = rankProducts(products, criteria, message, {
+      ignoreExactGraphics: true,
+      graphicsMode: "integrated",
+    }).slice(0, 3);
+    if (integrated.length) {
+      return { products: [], alternatives: integrated, alternativeKind: "integrated" };
+    }
+  }
+
+  return { products: [], alternatives: [], alternativeKind: null };
 }
 
 export function validateAssistantAnswer(answer: string, products: AssistantProduct[], criteria: ProductCriteria): boolean {
   if (!answer.trim()) return false;
   if (!products.length) return validateEmptyCatalogAnswer(answer, criteria);
   if (
-    answer.length > 500 ||
+    answer.length > 1500 ||
     /https?:\/\/|\blocalhost(?::\d+)?\b|\/product\/[a-z0-9-]+/i.test(answer) ||
     /\b(?:id produk|product id|id katalog)\s*[:#-]?\s*[a-z0-9-]{6,}/i.test(answer) ||
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(answer)
   ) return false;
-  if (products.some((product) =>
-    answer.toLowerCase().includes(product.name.toLowerCase())
-  )) return false;
   const facts = products.map((product) => {
     const variant = getMatchingVariant(product, criteria);
     const variants = variant ? [variant] : (product.product_variants ?? []).filter((item) => item.stock > 0);
@@ -617,7 +675,7 @@ export function validateAssistantAnswer(answer: string, products: AssistantProdu
 
 function validateEmptyCatalogAnswer(answer: string, criteria: ProductCriteria): boolean {
   if (
-    answer.length > 500 ||
+    answer.length > 1500 ||
     /https?:\/\/|\blocalhost(?::\d+)?\b|\/product\/|\b(?:sku|mtm|stok|tersedia\s+\d+)\b/i.test(answer) ||
     /\b(?:id produk|product id|id katalog)\s*[:#-]?\s*[a-z0-9-]{6,}/i.test(answer) ||
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(answer)

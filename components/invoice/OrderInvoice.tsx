@@ -220,15 +220,19 @@ export function OrderInvoice({
           },
         ];
 
-  const address = order.shipping_address;
+  const address = order.shipping_address as any;
   const isPickup = order.courier === "pickup";
   const customerIdentity = resolveOrderCustomerIdentity({
     shippingAddress: address,
     userProfile: order.users,
   });
-  const recipientName = customerIdentity.name || "Nama tidak tercatat";
-  const recipientPhone = customerIdentity.phone || "-";
+  const invoiceOverride = address?.invoice_override;
+  const recipientName = invoiceOverride?.customer_name || customerIdentity.name || "Nama tidak tercatat";
+  const recipientPhone = invoiceOverride?.phone || customerIdentity.phone || "-";
   const customerEmail = customerIdentity.email;
+  const displayStoreName = invoiceOverride?.store_name || storeName;
+  const displayOrderNumber = invoiceOverride?.order_number || order.order_number;
+  const invoiceCustomNotes = invoiceOverride?.notes;
 
   // Format date in Indonesian WIB (Asia/Jakarta)
   const orderDateObj = new Date(order.created_at);
@@ -530,7 +534,7 @@ export function OrderInvoice({
 
               {/* Order Number */}
               <p className="break-all text-lg sm:text-xl font-mono font-black text-slate-900 tracking-tight print:text-base">
-                {order.order_number}
+                {displayOrderNumber}
               </p>
 
               {/* Date in Full WIB Format */}
@@ -749,13 +753,19 @@ export function OrderInvoice({
               <p className="font-bold text-slate-900 uppercase tracking-wider text-[11px] print:text-[9px]">
                 Note:
               </p>
-              <p className="leading-relaxed">
-                {order.status === "cancelled"
-                  ? "Pesanan ini telah dibatalkan."
-                  : isPaymentConfirmed
-                  ? guaranteeNote
-                  : "Silakan selesaikan pembayaran ke rekening resmi yang tertera di bawah. Setelah melakukan transfer, kirimkan bukti pembayaran melalui WhatsApp atau tombol konfirmasi agar pesanan segera diproses."}
-              </p>
+              {invoiceCustomNotes ? (
+                <p className="leading-relaxed font-semibold text-slate-800 dark:text-slate-200">
+                  {invoiceCustomNotes}
+                </p>
+              ) : (
+                <p className="leading-relaxed">
+                  {order.status === "cancelled"
+                    ? "Pesanan ini telah dibatalkan."
+                    : isPaymentConfirmed
+                    ? guaranteeNote
+                    : "Silakan selesaikan pembayaran ke rekening resmi yang tertera di bawah. Setelah melakukan transfer, kirimkan bukti pembayaran melalui WhatsApp atau tombol konfirmasi agar pesanan segera diproses."}
+                </p>
+              )}
               {isPickup && (
                 <p className="text-[11px] text-[#3730A3] font-semibold print:text-[8.5px]">
                   • Pengambilan barang dapat dilakukan di gerai toko dengan menunjukkan faktur ini.

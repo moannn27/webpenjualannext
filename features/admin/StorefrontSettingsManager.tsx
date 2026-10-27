@@ -1474,8 +1474,8 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {settings.features.ai_recommendation_chat
-                    ? "Aktif: Pengunjung dapat berkonsultasi dengan asisten AI pintar untuk memilih laptop sesuai kebutuhan."
-                    : "Nonaktif: Fitur asisten AI disembunyikan."}
+                    ? "Aktif: Chatbot AI asisten toko aktif di pojok layar untuk konsultasi produk, spesifikasi, dan cek status pesanan."
+                    : "Nonaktif: Chatbot AI dimatikan sepenuhnya dan digantikan tombol mengambang WhatsApp langsung ke admin toko."}
                 </p>
               </div>
             </div>

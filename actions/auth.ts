@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { loginSchema, registerSchema } from '@/validators/auth.validator'
 import { normalizePhoneNumber, isValidIndonesianPhone, getPhoneVariants } from '@/lib/phone'
 
@@ -85,13 +86,13 @@ export async function register(formData: FormData) {
     }
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const redirectCallbackUrl = await getOAuthRedirect('/profile')
 
   const { data: authData, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
-      emailRedirectTo: `${siteUrl.replace(/\/$/, '')}/auth/callback?next=/profile`,
+      emailRedirectTo: redirectCallbackUrl,
       data: {
         full_name: parsed.data.full_name,
         phone: cleanPhone,
@@ -122,20 +123,46 @@ export async function register(formData: FormData) {
   redirect('/login?message=Check your email to verify your account')
 }
 
-function getOAuthRedirect(redirectPath: string) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-  const callback = new URL('/auth/callback', siteUrl)
+async function getOAuthRedirect(redirectPath: string) {
+  let origin = ''
+  const isDev = process.env.NODE_ENV === 'development'
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.URL
+
+  // In production, prioritize the configured public domain (e.g. Netlify)
+  if (!isDev && envSiteUrl && !envSiteUrl.includes('localhost')) {
+    origin = envSiteUrl.startsWith('http') ? envSiteUrl : `https://${envSiteUrl}`
+  } else {
+    try {
+      const headersList = await headers()
+      const host = headersList.get('x-forwarded-host') || headersList.get('host')
+      const proto = headersList.get('x-forwarded-proto') || (host && !host.includes('localhost') ? 'https' : 'http')
+      if (host) {
+        origin = `${proto}://${host}`
+      }
+    } catch {
+      // headers() might not be available in non-request contexts
+    }
+  }
+
+  if (!origin) {
+    const siteUrl = envSiteUrl || 'http://localhost:3000'
+    origin = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`
+  }
+
+  origin = origin.replace(/\/+$/, '')
+  const callback = new URL('/auth/callback', origin)
   callback.searchParams.set('next', redirectPath.startsWith('/') && !redirectPath.startsWith('//') ? redirectPath : '/profile')
   return callback.toString()
 }
 
 export async function loginWithGoogle(redirectPath: string = '/profile') {
   const supabase = await createClient()
+  const redirectUri = await getOAuthRedirect(redirectPath)
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: getOAuthRedirect(redirectPath)
+      redirectTo: redirectUri,
     }
   })
 
@@ -150,11 +177,12 @@ export async function loginWithGoogle(redirectPath: string = '/profile') {
 
 export async function loginWithGithub(redirectPath: string = '/profile') {
   const supabase = await createClient()
+  const redirectUri = await getOAuthRedirect(redirectPath)
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'github',
     options: {
-      redirectTo: getOAuthRedirect(redirectPath)
+      redirectTo: redirectUri,
     }
   })
 

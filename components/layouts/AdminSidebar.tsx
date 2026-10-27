@@ -30,6 +30,7 @@ import {
   Plus,
   RefreshCw,
   Info,
+  FileText,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -139,6 +140,7 @@ export function AdminSidebar({
         { name: "Kategori", href: "/admin/categories", icon: Tags, permission: "categories" as AdminModuleKey },
         { name: "Brand", href: "/admin/brands", icon: Store, permission: "brands" as AdminModuleKey },
         { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart, permission: "orders" as AdminModuleKey },
+        { name: "Faktur Manual", href: "/admin/invoices", icon: FileText, permission: "invoices" as AdminModuleKey },
         { name: "Voucher", href: "/admin/vouchers", icon: TicketPercent, permission: "vouchers" as AdminModuleKey },
         { name: "Pelanggan & Staf", href: "/admin/customers", icon: Users, permission: "customers" as AdminModuleKey },
       ],

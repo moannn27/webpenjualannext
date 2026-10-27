@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { getSupabaseCredentials } from '@/lib/supabase/config'
 import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(request: Request) {
@@ -10,8 +11,50 @@ export async function GET(request: Request) {
     ? requestedNext
     : '/profile'
 
+  // Resolve true public origin (essential for Netlify, Vercel, and reverse proxies)
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto') || (forwardedHost?.includes('localhost') ? 'http' : 'https')
+  const isLocalEnv = process.env.NODE_ENV === 'development'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.URL
+
+  let targetOrigin = origin
+  if (!isLocalEnv && siteUrl && !siteUrl.includes('localhost')) {
+    targetOrigin = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`
+  } else if (!isLocalEnv && forwardedHost) {
+    targetOrigin = `${forwardedProto}://${forwardedHost}`
+  } else if (!isLocalEnv && origin.startsWith('http://') && !origin.includes('localhost')) {
+    targetOrigin = origin.replace('http://', 'https://')
+  }
+
   if (code) {
-    const supabase = await createClient()
+    let redirectResponse = NextResponse.redirect(`${targetOrigin}${next}`)
+
+    const { url, key } = getSupabaseCredentials()
+    const supabase = createServerClient(url, key, {
+      cookies: {
+        getAll() {
+          const cookieHeader = request.headers.get('cookie') || ''
+          return cookieHeader
+            .split(';')
+            .map((c) => {
+              const [name, ...val] = c.trim().split('=')
+              return { name, value: val.join('=') }
+            })
+            .filter((c) => c.name)
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            redirectResponse.cookies.set(name, value, {
+              ...options,
+              path: options?.path ?? '/',
+              sameSite: options?.sameSite ?? 'lax',
+              secure: !isLocalEnv || options?.secure,
+            })
+          })
+        },
+      },
+    })
+
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
@@ -36,16 +79,22 @@ export async function GET(request: Request) {
           } else if (profile.role === 'admin' || profile.role === 'super_admin') {
             if (!requestedNext || requestedNext === '/profile') {
               next = '/admin'
+              redirectResponse.headers.set('Location', `${targetOrigin}${next}`)
             }
           }
         } catch (syncErr) {
           console.error('OAuth profile sync warning:', syncErr)
         }
       }
-      return NextResponse.redirect(`${origin}${next}`)
+
+      return redirectResponse
+    } else {
+      console.error('OAuth code exchange error:', error)
+      return NextResponse.redirect(`${targetOrigin}/login?error=${encodeURIComponent(error.message)}`)
     }
   }
 
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/login?error=Authentication_Failed`)
+  // Handle OAuth provider error params (e.g. error_description from Google / Supabase)
+  const errorDescription = searchParams.get('error_description') || searchParams.get('error') || 'Authentication_Failed'
+  return NextResponse.redirect(`${targetOrigin}/login?error=${encodeURIComponent(errorDescription)}`)
 }

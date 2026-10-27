@@ -18,12 +18,16 @@ import {
   UserRound,
   SlidersHorizontal,
   ChevronDown,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   updateAdminOrderStatusAction,
   updateAdminPaymentStatusAction,
+  updateAdminOrderInvoiceAction,
+  deleteAdminOrderAction,
 } from "@/actions/admin";
 
 export type AdminOrderItem = {
@@ -82,15 +86,20 @@ const money = (val: number) => `Rp ${Number(val ?? 0).toLocaleString("id-ID")}`;
 interface OrderActionModalProps {
   order: AdminOrderData;
   isSuperAdmin?: boolean;
+  canDeleteOrder?: boolean;
 }
 
-export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionModalProps) {
+export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder = false }: OrderActionModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [superAdminCorrectionOpen, setSuperAdminCorrectionOpen] = useState(false);
   const [correctionStatus, setCorrectionStatus] = useState(order.status);
   const [correctionStatusOptionsOpen, setCorrectionStatusOptionsOpen] = useState(false);
+  const [editInvoiceOpen, setEditInvoiceOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
   const router = useRouter();
 
   // Close on Escape key
@@ -149,6 +158,47 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
   };
 
   // Handle Order Status Transition
+  const handleSaveInvoice = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSavingInvoice(true);
+    setFeedback(null);
+    try {
+      const formData = new FormData(e.currentTarget);
+      formData.set("order_id", order.id);
+      await updateAdminOrderInvoiceAction(formData);
+      setFeedback({
+        type: "success",
+        message: "Data faktur pesanan berhasil diperbarui!",
+      });
+      setEditInvoiceOpen(false);
+      router.refresh();
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Gagal memperbarui faktur pesanan.",
+      });
+    } finally {
+      setIsSavingInvoice(false);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    setIsDeleting(true);
+    setFeedback(null);
+    try {
+      await deleteAdminOrderAction(order.id);
+      setDeleteConfirmOpen(false);
+      setIsOpen(false);
+      router.refresh();
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Gagal menghapus pesanan.",
+      });
+      setIsDeleting(false);
+    }
+  };
+
   const handleOrderStatusChange = (
     nextStatus: string,
     options?: { isCorrection?: boolean; fulfillmentCorrection?: "pickup" }
@@ -559,6 +609,212 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
                 </div>
               </div>
 
+              {/* FITUR EDIT FAKTUR ORDERAN */}
+              <div className="rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-950/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="size-7 rounded-lg bg-blue-500/10 text-[#2563EB] flex items-center justify-center">
+                      <FileText className="size-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                        Faktur &amp; Kustomisasi Nota
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Sesuaikan nama pelanggan, kontak, toko, atau catatan pada faktur pesanan ini.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditInvoiceOpen(!editInvoiceOpen)}
+                    className="h-7 text-xs font-bold gap-1 rounded-lg border-blue-200 dark:border-blue-900 text-[#2563EB] hover:bg-blue-50"
+                  >
+                    <Pencil className="size-3" />
+                    <span>{editInvoiceOpen ? "Tutup Editor" : "Edit Faktur"}</span>
+                  </Button>
+                </div>
+
+                {editInvoiceOpen && (
+                  <form onSubmit={handleSaveInvoice} className="pt-3 border-t border-blue-100 dark:border-blue-900/40 space-y-3 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                          Nama Pelanggan / Penerima:
+                        </label>
+                        <input
+                          type="text"
+                          name="recipient_name"
+                          defaultValue={String(
+                            (address?.invoice_override as any)?.customer_name ||
+                            address?.recipient_name ||
+                            customerName
+                          )}
+                          required
+                          className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                          Nomor Telepon / WhatsApp:
+                        </label>
+                        <input
+                          type="text"
+                          name="phone"
+                          defaultValue={String(
+                            (address?.invoice_override as any)?.phone ||
+                            address?.phone ||
+                            customerPhone
+                          )}
+                          required
+                          className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                          Nama Toko / Cabang (Kustom):
+                        </label>
+                        <input
+                          type="text"
+                          name="store_name"
+                          placeholder="Next Solution Store"
+                          defaultValue={String((address?.invoice_override as any)?.store_name || "")}
+                          className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                          No. Pesanan / Faktur Tampil:
+                        </label>
+                        <input
+                          type="text"
+                          name="order_number"
+                          placeholder={order.order_number}
+                          defaultValue={String((address?.invoice_override as any)?.order_number || "")}
+                          className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-mono font-medium focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {isPickup ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                            Nama Titik Ambil di Toko:
+                          </label>
+                          <input
+                            type="text"
+                            name="pickup_location"
+                            defaultValue={String(address?.pickup_location ?? "Toko Next Solution")}
+                            className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                            Alamat Gerai / Toko:
+                          </label>
+                          <input
+                            type="text"
+                            name="pickup_address"
+                            defaultValue={String(address?.pickup_address ?? "")}
+                            placeholder="Alamat gerai toko..."
+                            className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                            Alamat Jalan:
+                          </label>
+                          <input
+                            type="text"
+                            name="street_address"
+                            defaultValue={String(address?.street_address ?? "")}
+                            placeholder="Nama jalan, nomor rumah, RT/RW..."
+                            className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                              Kota / Kab:
+                            </label>
+                            <input
+                              type="text"
+                              name="city"
+                              defaultValue={String(address?.city ?? "")}
+                              className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                              Provinsi:
+                            </label>
+                            <input
+                              type="text"
+                              name="province"
+                              defaultValue={String(address?.province ?? "")}
+                              className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                              Kode Pos:
+                            </label>
+                            <input
+                              type="text"
+                              name="postal_code"
+                              defaultValue={String(address?.postal_code ?? "")}
+                              className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
+                        Catatan Khusus Faktur:
+                      </label>
+                      <textarea
+                        name="invoice_notes"
+                        rows={2}
+                        defaultValue={String((address?.invoice_override as any)?.notes || "")}
+                        placeholder="Contoh: Garansi resmi 2 tahun distributor. Nota asli wajib dibawa saat klaim service."
+                        className="w-full p-2 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditInvoiceOpen(false)}
+                        className="h-8 text-xs font-semibold"
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={isSavingInvoice}
+                        size="sm"
+                        className="h-8 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-lg px-4"
+                      >
+                        {isSavingInvoice ? "Menyimpan..." : "Simpan Perubahan Faktur"}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
               {/* 4. METODE & STATUS PEMBAYARAN */}
               <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div>
@@ -695,16 +951,29 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
 
             {/* Modal Footer */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-white/5 p-4 sm:px-7 bg-slate-50/70 dark:bg-white/[0.02]">
-              <a
-                href={`/orders/${order.id}/invoice`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2563EB] hover:underline"
-              >
-                <FileText className="size-4" />
-                <span>Buka Faktur / Invoice Resmi</span>
-                <ExternalLink className="size-3" />
-              </a>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/orders/${order.id}/invoice`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2563EB] hover:underline"
+                >
+                  <FileText className="size-4" />
+                  <span>Buka Faktur / Invoice Resmi</span>
+                  <ExternalLink className="size-3" />
+                </a>
+
+                {canDeleteOrder && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                  >
+                    <Trash2 className="size-3.5" />
+                    <span>Hapus Pesanan</span>
+                  </button>
+                )}
+              </div>
 
               <Button
                 type="button"
@@ -714,6 +983,56 @@ export function OrderActionModal({ order, isSuperAdmin = false }: OrderActionMod
                 className="rounded-full text-xs font-semibold px-4 h-8"
               >
                 Tutup
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Konfirmasi Hapus Pesanan */}
+      {deleteConfirmOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div className="relative w-full max-w-md rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-[#18191E] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="size-11 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="size-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Hapus Pesanan #{order.order_number}?
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Tindakan ini memerlukan izin khusus dan tidak dapat dibatalkan.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/30 p-3 text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
+              Semua data terkait transaksi ini termasuk rincian item produk dan verifikasi pembayaran akan dihapus secara permanen dari basis data toko.
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isDeleting}
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="text-xs font-semibold rounded-xl h-8 px-4"
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteOrder}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl h-8 px-4 flex items-center gap-1.5 shadow-sm"
+              >
+                <Trash2 className="size-3.5" />
+                <span>{isDeleting ? "Menghapus..." : "Ya, Hapus Pesanan"}</span>
               </Button>
             </div>
           </div>

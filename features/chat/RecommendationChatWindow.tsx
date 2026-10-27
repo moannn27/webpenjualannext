@@ -5,16 +5,19 @@ import Link from "next/link";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   MessageCircle,
   Send,
   X,
   Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +40,8 @@ type Message = {
   alternatives?: Product[];
   alternativeLabel?: string;
   isError?: boolean;
+  isRateLimit?: boolean;
+  aiGenerated?: boolean;
 };
 
 export function toRecommendationHistory(messages: Message[]) {
@@ -149,19 +154,59 @@ export function RecommendationChatWindow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, history }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Chat tidak dapat menjawab saat ini.");
-      setMessages((current) => [...current, {
-        role: "assistant",
-        text: result.answer,
-        products: result.products,
-        alternatives: result.alternatives,
-        alternativeLabel: result.alternativeLabel,
-      }]);
-    } catch (error) {
+      let result: {
+        error?: string;
+        answer?: string;
+        isRateLimit?: boolean;
+        products?: Product[];
+        alternatives?: Product[];
+        alternativeLabel?: string;
+        aiGenerated?: boolean;
+      } | null = null;
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
+      if (!response.ok || !result) {
+        const isLimit = response.status === 429 || Boolean(result?.isRateLimit);
+        setMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            text:
+              result?.error ||
+              result?.answer ||
+              (isLimit
+                ? "Batas pertanyaan tercapai. Silakan coba beberapa saat lagi atau hubungi admin kami via WhatsApp."
+                : "Maaf, sistem asisten sedang memproses permintaan lain atau mengalami kendala jaringan. Kamu juga bisa langsung chat admin via WhatsApp untuk respons instan."),
+            isError: !isLimit,
+            isRateLimit: isLimit,
+          },
+        ]);
+        return;
+      }
+      const isLimit = Boolean(result.isRateLimit);
       setMessages((current) => [
         ...current,
-        { role: "assistant", text: error instanceof Error ? error.message : "Koneksi chat bermasalah.", isError: true },
+        {
+          role: "assistant",
+          text: result.answer || "Ada yang bisa saya bantu lagi seputar produk laptop atau komputer kami?",
+          products: result.products,
+          alternatives: result.alternatives,
+          alternativeLabel: result.alternativeLabel,
+          aiGenerated: Boolean(result.aiGenerated),
+          isRateLimit: isLimit,
+        },
+      ]);
+    } catch {
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: "Koneksi chat sedang terputus. Silakan coba sesaat lagi atau langsung hubungi admin toko kami via WhatsApp.",
+          isError: true,
+        },
       ]);
     } finally {
       setBusy(false);
@@ -211,6 +256,22 @@ export function RecommendationChatWindow({
           <div className="flex items-center gap-1">
             <button
               type="button"
+              onClick={() => {
+                setMessages([
+                  {
+                    role: "assistant",
+                    text: "Halo! Selamat datang di Next Solution. Aku siap membantu kamu menemukan perangkat elektronik yang paling sesuai. Supaya saranku tepat, perangkat apa yang sedang kamu cari dan akan digunakan untuk apa?",
+                  },
+                ]);
+              }}
+              aria-label="Mulai chat baru"
+              title="Chat Baru"
+              className="flex size-8 items-center justify-center rounded-lg text-primary-foreground/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
+            >
+              <RotateCcw className="size-4" />
+            </button>
+            <button
+              type="button"
               onClick={() => setIsExpanded(!isExpanded)}
               aria-label={isExpanded ? "Perkecil chat" : "Perbesar chat"}
               title={isExpanded ? "Perkecil" : "Perbesar"}
@@ -243,9 +304,11 @@ export function RecommendationChatWindow({
                 className={`max-w-[90%] rounded-2xl px-4 py-3 leading-7 shadow-sm sm:max-w-[84%] ${
                   message.role === "user"
                     ? "rounded-br-md bg-primary text-primary-foreground"
-                    : message.isError
-                      ? "rounded-bl-md border border-destructive/25 bg-destructive/5 text-foreground"
-                      : "rounded-bl-md border border-border/70 bg-card text-foreground"
+                    : message.isRateLimit
+                      ? "rounded-bl-md border border-amber-500/35 bg-amber-500/10 text-foreground"
+                      : message.isError
+                        ? "rounded-bl-md border border-destructive/25 bg-destructive/5 text-foreground"
+                        : "rounded-bl-md border border-border/70 bg-card text-foreground"
                 }`}
               >
                 {message.role === "assistant" ? (
@@ -258,6 +321,36 @@ export function RecommendationChatWindow({
                   message.text
                 )}
               </div>
+
+              {message.isRateLimit && (
+                <div className="max-w-[90%] sm:max-w-[84%] flex items-start gap-2.5 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100 shadow-xs animate-in fade-in slide-in-from-bottom-1 duration-200">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-amber-900 dark:text-amber-200">
+                      Perhatian: Chat Asisten Sedang Penuh
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                      Saat ini kapasitas chat asisten AI sedang mencapai batas antrean. Kamu bisa mencoba kembali beberapa menit ke depan, atau langsung hubungi admin WhatsApp kami untuk bantuan instan.
+                    </p>
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400 hover:underline pt-1 text-[11px]"
+                    >
+                      <span>Chat Admin WhatsApp</span>
+                      <ExternalLink className="size-3" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {message.role === "assistant" && !message.isError && !message.isRateLimit && message.aiGenerated && (
+                <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 select-none">
+                  <Sparkles className="size-3 shrink-0" />
+                  <span>Dijawab oleh AI</span>
+                </div>
+              )}
 
               {/* Product Cards Attachment */}
               {message.products?.length ? <ProductCards products={message.products} isExpanded={isExpanded} /> : null}
@@ -359,8 +452,9 @@ export function RecommendationChatWindow({
             aria-label="Kirim pesan"
             disabled={busy || !input.trim()}
             className="rounded-full shadow-xs transition-transform active:scale-95"
+            aria-busy={busy}
           >
-            <Send className="size-4" />
+            {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </form>
       </section>

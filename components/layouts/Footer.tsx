@@ -103,13 +103,7 @@ export function Footer({
   const hasBranches = Boolean(store.branches?.length);
   const hasMarketplaces = activeMarketplaces.length > 0;
 
-  const columnCount = 4 + Number(hasContact) + Number(hasBranches);
-  const columnsClass =
-    columnCount >= 6
-      ? "lg:grid-cols-[minmax(0,0.9fr)_repeat(5,minmax(0,1fr))]"
-      : columnCount === 5
-      ? "lg:grid-cols-[minmax(0,0.9fr)_repeat(4,minmax(0,1fr))]"
-      : "lg:grid-cols-[minmax(0,0.9fr)_repeat(3,minmax(0,1fr))]";
+  // Responsive 12-column footer layout
 
   const mainMapsLink =
     store.maps_url ||
@@ -131,9 +125,9 @@ export function Footer({
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main Bordered Card Container */}
         <div className="rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1A1C23] p-4 sm:p-7 lg:p-10 shadow-xs mb-8">
-          <div className={`grid gap-5 sm:gap-6 pb-8 border-b border-slate-100 dark:border-white/5 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${columnsClass}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 pb-8 border-b border-slate-100 dark:border-white/5">
             {/* 1. Store Brand & Value Props */}
-            <div className="space-y-4">
+            <div className="sm:col-span-2 lg:col-span-4 space-y-4">
               <Link href="/" className="inline-flex items-center gap-2.5">
                 {showLogo && (
                   <Image
@@ -175,29 +169,31 @@ export function Footer({
             </div>
 
             {/* Navigation Column Groups */}
-            {groups.map((group) => (
-              <nav key={group.title} aria-label={group.title} className="space-y-3.5">
-                <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-white/5">
-                  <h2 className="text-xs font-black uppercase tracking-wider text-foreground">{group.title}</h2>
-                </div>
-                <ul className="space-y-2.5">
-                  {group.links.map(([label, href]) => (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors hover:translate-x-0.5 inline-block"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            ))}
+            <div className="sm:col-span-2 lg:col-span-5 grid grid-cols-2 sm:grid-cols-3 gap-6">
+              {groups.map((group) => (
+                <nav key={group.title} aria-label={group.title} className="space-y-3.5">
+                  <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-white/5">
+                    <h2 className="text-xs font-black uppercase tracking-wider text-foreground">{group.title}</h2>
+                  </div>
+                  <ul className="space-y-2.5">
+                    {group.links.map(([label, href]) => (
+                      <li key={href}>
+                        <Link
+                          href={href}
+                          className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors hover:translate-x-0.5 inline-block"
+                        >
+                          {label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              ))}
+            </div>
 
             {/* Contact Information Card */}
             {hasContact && (
-              <section className="space-y-3.5 sm:col-span-1">
+              <section className="sm:col-span-2 lg:col-span-3 space-y-3.5">
                 <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-white/5">
                   <h2 className="text-xs font-black uppercase tracking-wider text-foreground">Hubungi Kami</h2>
                 </div>
@@ -267,7 +263,7 @@ export function Footer({
 
             {/* Branch Locator Section */}
             {hasBranches && (
-              <section className="sm:col-span-1 space-y-3.5">
+              <section className="sm:col-span-2 lg:col-span-12 space-y-3.5 pt-4 border-t border-slate-100 dark:border-white/5">
                 <div className="flex items-center gap-2 pb-1 border-b border-slate-100 dark:border-white/5">
                   <h2 className="text-xs font-black uppercase tracking-wider text-foreground">Lokasi Cabang</h2>
                 </div>

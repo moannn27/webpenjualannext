@@ -3,6 +3,8 @@ export const ALL_ADMIN_MODULES = [
   { key: 'categories', label: 'Kategori', description: 'Kelola kategori produk toko' },
   { key: 'brands', label: 'Brand', description: 'Kelola brand & merek partner' },
   { key: 'orders', label: 'Pesanan', description: 'Kelola pesanan, update status, dan verifikasi transfer' },
+  { key: 'delete_orders', label: 'Hapus Pesanan', description: 'Izin menghapus data pesanan dari sistem' },
+  { key: 'invoices', label: 'Faktur Manual', description: 'Buat, cetak, dan kelola faktur/invoice kustom mandiri' },
   { key: 'vouchers', label: 'Voucher / Kupon', description: 'Buat dan kelola kupon diskon serta promo checkout' },
   { key: 'content', label: 'Konten & Toko', description: 'Kelola banner landing page, review produk, cabang & official marketplace' },
   { key: 'customers', label: 'Pelanggan & Staf', description: 'Kelola akun pengguna, tambah staf admin, dan atur izin akses' },
@@ -12,4 +14,3 @@ export const ALL_ADMIN_MODULES = [
 export type AdminModuleKey = typeof ALL_ADMIN_MODULES[number]['key'];
 
 export const DEFAULT_ADMIN_PERMISSIONS: AdminModuleKey[] = ['products', 'categories', 'orders'];
-

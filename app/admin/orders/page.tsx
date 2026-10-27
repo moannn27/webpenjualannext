@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { OrderSortSelect } from "@/features/admin/OrderSortSelect";
 import { OrderActionModal } from "@/features/admin/OrderActionModal";
+import { OrderRefreshButton } from "@/features/admin/OrderRefreshButton";
+import { getCurrentAdminPermissions } from "@/lib/auth/permissions";
 import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
 import { 
   Search, 
@@ -40,8 +42,9 @@ export default async function AdminOrdersPage({
     redirect("/admin?error=forbidden");
   }
 
-  const { role } = await getAdminAccess();
+  const { role, permissions } = await getCurrentAdminPermissions();
   const isSuperAdmin = role === "super_admin";
+  const canDeleteOrder = isSuperAdmin || permissions.includes("delete_orders");
   const { status: filterStatus = "", search: filterSearch = "", sort: sortOption = "date_desc" } = (await searchParams) ?? {};
   const orders = await getAdminOrdersAction();
 
@@ -483,7 +486,7 @@ export default async function AdminOrdersPage({
                           <FileText className="size-3.5" />
                         </a>
 
-                        <OrderActionModal order={order} isSuperAdmin={isSuperAdmin} />
+                        <OrderActionModal order={order} isSuperAdmin={isSuperAdmin} canDeleteOrder={canDeleteOrder} />
                       </div>
                     </TableCell>
                   </TableRow>

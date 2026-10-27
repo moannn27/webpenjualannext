@@ -107,35 +107,36 @@ export function CategorySection({
             <Link
               key={card.id}
               href={card.href}
-              className="group bg-[#F8F9FA] dark:bg-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-7 relative overflow-hidden flex flex-col justify-between min-h-[200px] sm:min-h-[240px] transition-all duration-300 hover:shadow-md hover:bg-[#F2F4F7] dark:hover:bg-white/10"
+              className="group bg-[#F8F9FA] dark:bg-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-7 relative overflow-hidden flex items-stretch justify-between gap-4 min-h-[190px] sm:min-h-[220px] transition-all duration-300 hover:shadow-md hover:bg-[#F2F4F7] dark:hover:bg-white/10"
             >
-              {/* Text content on left */}
-              <div className="z-10 max-w-[62%] sm:max-w-[240px]">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block mb-1">
-                  {card.badge}
-                </span>
-                <h3 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                  {card.headline}
-                </h3>
-                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                  {card.desc}
-                </p>
+              {/* Text content & CTA on left */}
+              <div className="z-10 flex-1 flex flex-col justify-between min-w-0 pr-1">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block mb-1">
+                    {card.badge}
+                  </span>
+                  <h3 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                    {card.headline}
+                  </h3>
+                  <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    {card.desc}
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-1">
+                  <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:gap-2.5 transition-all">
+                    Explore category <ArrowRight className="size-3.5" />
+                  </span>
+                </div>
               </div>
 
-              {/* Action link */}
-              <div className="z-10 mt-5">
-                <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover:gap-2.5 transition-all">
-                  Explore category <ArrowRight className="size-3.5" />
-                </span>
-              </div>
-
-              {/* Cutout real product image on right */}
-              <div className="absolute -right-3 -bottom-3 sm:right-2 sm:bottom-0 w-36 h-36 sm:w-48 sm:h-48 md:w-56 md:h-56 pointer-events-none transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-1">
+              {/* Cutout real product image on right - neatly contained, never overlapping text */}
+              <div className="relative shrink-0 w-32 h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 self-center flex items-center justify-center pointer-events-none transition-transform duration-300 group-hover:scale-105">
                 <Image
                   src={card.imgUrl}
                   alt={card.headline}
                   fill
-                  sizes="(min-width: 768px) 25vw, 50vw"
+                  sizes="(min-width: 768px) 220px, 140px"
                   className="object-contain drop-shadow-md"
                 />
               </div>

@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   catalog: [] as Record<string, unknown>[],
@@ -8,7 +8,9 @@ const mocks = vi.hoisted(() => ({
   rangeCalls: 0,
   modelCalls: 0,
   failGemini: false,
+  geminiError: null as (Error & { status?: number }) | null,
   functionQuery: null as string | null,
+  customFunctionCall: null as { name: string; id: string; args: Record<string, unknown> } | null,
   catalogError: false,
 }));
 
@@ -39,13 +41,19 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@google/genai", () => ({
   FunctionCallingConfigMode: { AUTO: "AUTO" },
-  Type: { OBJECT: "OBJECT", STRING: "STRING" },
+  Type: { OBJECT: "OBJECT", STRING: "STRING", NUMBER: "NUMBER" },
   GoogleGenAI: class {
     models = {
       generateContent: async ({ contents, config }: { contents: unknown; config?: { tools?: unknown[] } }) => {
         mocks.modelCalls += 1;
         mocks.prompts.push(typeof contents === "string" ? contents : JSON.stringify(contents));
+        if (mocks.geminiError) throw mocks.geminiError;
         if (mocks.failGemini) throw new Error("Gemini unavailable");
+        if (config?.tools?.length && mocks.customFunctionCall) {
+          const functionCall = mocks.customFunctionCall;
+          mocks.customFunctionCall = null;
+          return { functionCalls: [functionCall], candidates: [{ content: { role: "model", parts: [{ functionCall }] } }] };
+        }
         if (config?.tools?.length && mocks.functionQuery) {
           const functionCall = { name: "search_catalog_products", id: "catalog-search-1", args: { query: mocks.functionQuery } };
           return { functionCalls: [functionCall], candidates: [{ content: { role: "model", parts: [{ functionCall }] } }] };
@@ -61,6 +69,7 @@ vi.mock("@/services/faq.service", () => ({
 }));
 
 import { POST } from "@/app/api/recommend/route";
+import { resetProviderCooldowns } from "@/lib/llm-provider";
 
 const laptop = (id: string, name: string, price: number, gpu: string | null, stock = 4) => ({
   id,
@@ -116,6 +125,7 @@ async function send(message: string, history: { role: "user" | "assistant"; text
 
 describe("POST /api/recommend conversation flow", () => {
   beforeEach(() => {
+    resetProviderCooldowns();
     vi.stubEnv("GEMINI_API_KEY", "test-key");
     vi.stubEnv("GEMINI_MODEL", "gemini-test");
     mocks.catalog = catalog;
@@ -125,7 +135,9 @@ describe("POST /api/recommend conversation flow", () => {
     mocks.rangeCalls = 0;
     mocks.modelCalls = 0;
     mocks.failGemini = false;
+    mocks.geminiError = null;
     mocks.functionQuery = null;
+    mocks.customFunctionCall = null;
     mocks.catalogError = false;
   });
 
@@ -356,6 +368,31 @@ describe("POST /api/recommend conversation flow", () => {
     expect(mocks.modelCalls).toBe(1);
   });
 
+  it("handles Gemini 429 rate limit with a friendly quota message", async () => {
+    const error = new Error("Resource has been exhausted (e.g. check quota)") as Error & { status?: number };
+    error.status = 429;
+    mocks.geminiError = error;
+    const result = await send("Cari laptop budget Rp8 juta");
+    expect(result.body.answer).toContain("batas kuota sesaat");
+    expect(result.body.aiGenerated).toBe(false);
+  });
+
+  it("handles Gemini timeout with a friendly timeout message", async () => {
+    mocks.geminiError = new Error("The operation timed out");
+    const result = await send("Cari laptop budget Rp8 juta");
+    expect(result.body.answer).toContain("terlalu lama");
+    expect(result.body.aiGenerated).toBe(false);
+  });
+
+  it("answers service questions using Gemini with aiGenerated true", async () => {
+    mocks.aiText = "Metode pembayaran di Next Solution Store meliputi Transfer Bank (BCA, Mandiri, BRI, BNI), QRIS, serta bayar di toko saat pickup.";
+    const result = await send("Bisa bayar transfer bank apa aja?");
+    expect(result.body.aiGenerated).toBe(true);
+    expect(result.body.answer).toContain("Transfer Bank");
+    expect(result.body.products).toEqual([]);
+    expect(mocks.modelCalls).toBe(1);
+  });
+
   it("returns a safe catalog error that keeps the active product context", async () => {
     mocks.catalogError = true;
     const result = await send("Cari laptop budget Rp5 juta");
@@ -396,5 +433,32 @@ describe("POST /api/recommend conversation flow", () => {
     const result = await send("Cari laptop");
     expect(mocks.rangeCalls).toBe(2);
     expect(result.body.products.map(({ id }) => id)).toEqual(["catalog-400"]);
+  });
+
+  it("executes cari_produk function call and updates product cards", async () => {
+    mocks.customFunctionCall = {
+      name: "cari_produk",
+      id: "call-cari-1",
+      args: { brand: "Lenovo", kategori: "laptop", urutan: "termurah" },
+    };
+    mocks.aiText = "Berikut pilihan laptop Lenovo termurah dari katalog kami.";
+    const result = await send("Cari laptop Lenovo termurah");
+    expect(result.body.aiGenerated).toBe(true);
+    expect(result.body.products.length).toBeGreaterThan(0);
+    expect(result.body.products[0].id).toBe("laptop-integrated");
+    expect(mocks.modelCalls).toBe(2);
+  });
+
+  it("executes info_toko function call for store information", async () => {
+    mocks.customFunctionCall = {
+      name: "info_toko",
+      id: "call-info-1",
+      args: { topik: "pembayaran" },
+    };
+    mocks.aiText = "Metode pembayaran di Next Solution Store mendukung Transfer Bank dan QRIS.";
+    const result = await send("Metode pembayaran apa saja yang diterima?");
+    expect(result.body.aiGenerated).toBe(true);
+    expect(result.body.answer).toContain("Transfer Bank");
+    expect(mocks.modelCalls).toBe(2);
   });
 });
