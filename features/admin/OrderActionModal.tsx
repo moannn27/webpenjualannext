@@ -30,6 +30,14 @@ import {
   deleteAdminOrderAction,
 } from "@/actions/admin";
 
+interface InvoiceOverrideData {
+  customer_name?: string;
+  phone?: string;
+  store_name?: string;
+  order_number?: string;
+  notes?: string;
+}
+
 export type AdminOrderItem = {
   id: string;
   product_id?: string | null;
@@ -648,7 +656,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                           type="text"
                           name="recipient_name"
                           defaultValue={String(
-                            (address?.invoice_override as any)?.customer_name ||
+                            (address?.invoice_override as InvoiceOverrideData | undefined)?.customer_name ||
                             address?.recipient_name ||
                             customerName
                           )}
@@ -664,7 +672,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                           type="text"
                           name="phone"
                           defaultValue={String(
-                            (address?.invoice_override as any)?.phone ||
+                            (address?.invoice_override as InvoiceOverrideData | undefined)?.phone ||
                             address?.phone ||
                             customerPhone
                           )}
@@ -683,7 +691,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                           type="text"
                           name="store_name"
                           placeholder="Next Solution Store"
-                          defaultValue={String((address?.invoice_override as any)?.store_name || "")}
+                          defaultValue={String((address?.invoice_override as InvoiceOverrideData | undefined)?.store_name || "")}
                           className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
@@ -695,7 +703,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                           type="text"
                           name="order_number"
                           placeholder={order.order_number}
-                          defaultValue={String((address?.invoice_override as any)?.order_number || "")}
+                          defaultValue={String((address?.invoice_override as InvoiceOverrideData | undefined)?.order_number || "")}
                           className="w-full h-8 px-3 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-mono font-medium focus:ring-1 focus:ring-blue-500"
                         />
                       </div>
@@ -786,7 +794,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                       <textarea
                         name="invoice_notes"
                         rows={2}
-                        defaultValue={String((address?.invoice_override as any)?.notes || "")}
+                        defaultValue={String((address?.invoice_override as InvoiceOverrideData | undefined)?.notes || "")}
                         placeholder="Contoh: Garansi resmi 2 tahun distributor. Nota asli wajib dibawa saat klaim service."
                         className="w-full p-2 rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-[#1E2028] text-slate-900 dark:text-white text-xs font-medium"
                       />

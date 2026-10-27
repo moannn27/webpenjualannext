@@ -220,7 +220,27 @@ export function OrderInvoice({
           },
         ];
 
-  const address = order.shipping_address as any;
+  type OrderShippingAddress = {
+    recipient_name?: string | null;
+    phone?: string | null;
+    customer_snapshot?: unknown;
+    pickup_location?: string | null;
+    pickup_address?: string | null;
+    street_address?: string | null;
+    city?: string | null;
+    province?: string | null;
+    postal_code?: string | null;
+    fulfillment_change_note?: string | null;
+    invoice_override?: {
+      customer_name?: string;
+      phone?: string;
+      store_name?: string;
+      order_number?: string;
+      notes?: string;
+    };
+  };
+
+  const address = (order.shipping_address as unknown) as OrderShippingAddress | null | undefined;
   const isPickup = order.courier === "pickup";
   const customerIdentity = resolveOrderCustomerIdentity({
     shippingAddress: address,
@@ -282,7 +302,7 @@ export function OrderInvoice({
   // WhatsApp confirmation message
   const waTarget = storeWhatsapp.startsWith("0") ? "62" + storeWhatsapp.slice(1) : storeWhatsapp;
   const waMessage =
-    `Halo Admin ${storeName},\nSaya ingin konfirmasi pesanan:\n` +
+    `Halo Admin ${displayStoreName},\nSaya ingin konfirmasi pesanan:\n` +
     `• Nomor Faktur: *${order.order_number}*\n` +
     `• Nama Pembeli: *${recipientName}*\n` +
     `• Tanggal: ${formattedDateOnly}\n` +
@@ -490,7 +510,7 @@ export function OrderInvoice({
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       src={storefront!.logoUrl}
-                      alt={storeName}
+                      alt={displayStoreName}
                       className="h-10 sm:h-12 max-w-[200px] object-contain print:h-9"
                       crossOrigin="anonymous"
                     />
@@ -810,7 +830,7 @@ export function OrderInvoice({
               Thank you for your Business
             </h3>
             <p className="text-xs text-slate-500 mt-0.5 print:text-[8.5px]">
-              Terima kasih telah berbelanja dan mempercayakan kebutuhan komputer Anda kepada {storeName}.
+              Terima kasih telah berbelanja dan mempercayakan kebutuhan komputer Anda kepada {displayStoreName}.
             </p>
           </div>
 
@@ -838,7 +858,7 @@ export function OrderInvoice({
                 <div>
                   <div className="border-b border-slate-400 w-44 sm:w-52 mx-auto"></div>
                   <p className="mt-1.5 font-semibold text-slate-900 text-xs print:text-[8.5px] truncate px-2">
-                    ( {storeName} )
+                    ( {displayStoreName} )
                   </p>
                 </div>
               </div>

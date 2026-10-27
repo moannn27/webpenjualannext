@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    let redirectResponse = NextResponse.redirect(`${targetOrigin}${next}`)
+    const redirectResponse = NextResponse.redirect(`${targetOrigin}${next}`)
 
     const { url, key } = getSupabaseCredentials()
     const supabase = createServerClient(url, key, {

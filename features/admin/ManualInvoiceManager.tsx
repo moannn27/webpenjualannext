@@ -11,8 +11,6 @@ import {
   Building2,
   User,
   ShoppingBag,
-  CreditCard,
-  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -53,7 +51,6 @@ const generateInvoiceNumber = () => {
 
 export function ManualInvoiceManager({
   storeSettings,
-  isSuperAdmin = false,
 }: ManualInvoiceManagerProps) {
   // Store details
   const [storeName, setStoreName] = useState(
@@ -201,7 +198,7 @@ export function ManualInvoiceManager({
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date(invoiceDate || Date.now()));
+  }).format(new Date(invoiceDate || "1970-01-01"));
 
   return (
     <>
@@ -431,7 +428,7 @@ export function ManualInvoiceManager({
                     </label>
                     <select
                       value={paymentStatus}
-                      onChange={(e) => setPaymentStatus(e.target.value as any)}
+                      onChange={(e) => setPaymentStatus(e.target.value as "paid" | "pending" | "cancelled")}
                       className="w-full h-8 px-2 rounded-lg border border-input bg-background text-foreground text-xs font-medium"
                     >
                       <option value="paid">LUNAS</option>
@@ -460,7 +457,7 @@ export function ManualInvoiceManager({
                     </label>
                     <select
                       value={fulfillmentType}
-                      onChange={(e) => setFulfillmentType(e.target.value as any)}
+                      onChange={(e) => setFulfillmentType(e.target.value as "pickup" | "delivery")}
                       className="w-full h-8 px-2 rounded-lg border border-input bg-background text-foreground text-xs font-medium"
                     >
                       <option value="pickup">Ambil di Toko</option>

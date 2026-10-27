@@ -1,6 +1,5 @@
 import { getAdminOrdersAction } from "@/actions/admin";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getAdminAccess } from "@/lib/auth/admin";
 import { requireModulePermission } from "@/lib/auth/permissions";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -116,6 +115,7 @@ export default async function AdminOrdersPage({
         </div>
 
         <div className="flex items-center gap-3">
+          <OrderRefreshButton />
           <Link
             href="/admin/reports"
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#1E2028] px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 shadow-2xs hover:border-slate-300 dark:hover:border-white/20 hover:bg-slate-50 transition cursor-pointer"

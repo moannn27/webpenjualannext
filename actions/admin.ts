@@ -480,7 +480,7 @@ export async function updateAdminOrderStatusAction(formData: FormData) {
 }
 
 export async function updateAdminOrderDetailsAction(formData: FormData) {
-  const { user, adminName, role } = await requireModulePermission('orders')
+  await requireModulePermission('orders')
   const id = String(formData.get('order_id') ?? '').trim()
   const recipientName = String(formData.get('recipient_name') ?? '').trim()
   const phone = String(formData.get('phone') ?? '').trim()

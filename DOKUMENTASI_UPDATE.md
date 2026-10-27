@@ -510,5 +510,62 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
    * **ESLint**: `npm run lint` lolos bersih (0 errors, 0 warnings).
    * **Production Build**: `npm run build` sukses mengompilasi seluruh **42/42 routes**.
 
+---
+
+## 23. Pembuat Faktur Manual Admin, Pengelolaan & Kustomisasi Nota Pesanan, Arsitektur Failover LLM Multi-Provider, Perbaikan OAuth Netlify, dan Perapian Bento Layout & Footer
+
+1. **Fitur Pembuat Faktur Manual Admin (`app/admin/invoices/page.tsx` & `features/admin/ManualInvoiceManager.tsx`)**:
+   * **Manajer Faktur Mandiri**:
+     - Ditambahkan halaman baru di admin panel `/admin/invoices` untuk membuat, mengedit, dan mencetak faktur invoice toko secara fleksibel tanpa harus melalui alur checkout reguler (sangat berguna untuk transaksi offline toko / walk-in customer / pemesanan korporat).
+     - Menghasilkan nomor faktur unik otomatis berformat `INV-YYYYMMDD-XXXX`.
+     - Kustomisasi identitas toko (nama toko, alamat, kontak WhatsApp).
+     - Kustomisasi data pembeli (nama, kontak, alamat, metode penerimaan: ambil di toko / kurir).
+     - Tabel daftar item dinamis: tambah produk, input SKU, jumlah, harga satuan, dan kalkulasi subtotal otomatis.
+     - Penyesuaian diskon, biaya kirim, dan catatan garansi resmi toko.
+     - Desain faktur resmi ramah cetak (print-ready stylesheet `@media print` dengan margin cetak rapi, tanda tangan penerima/kasir, dan stempel digital).
+
+2. **Pengelolaan & Kustomisasi Nota Pesanan (`features/admin/OrderActionModal.tsx` & `actions/admin.ts`)**:
+   * **Kustomisasi Faktur Pesanan Masuk (`updateAdminOrderInvoiceAction`)**:
+     - Admin kini dapat mengedit data yang tercetak pada faktur pesanan riil: nama pembeli, nomor telepon, nama toko/cabang kustom, nomor pesanan tampil, dan catatan faktur khusus tanpa merusak integritas data akun auth pengguna.
+     - Disimpan secara elegan ke `shipping_address.invoice_override` dan langsung direfleksikan pada tampilan faktur resmi ([`OrderInvoice.tsx`](file:///c:/web%20next%20penjualan/components/invoice/OrderInvoice.tsx)).
+   * **Penghapusan Pesanan Terkendali (`deleteAdminOrderAction`)**:
+     - Super Admin atau staf dengan izin `delete_orders` kini dapat menghapus pesanan tertentu dengan konfirmasi dialog modal yang aman.
+     - Menghapus relasi terkait (`payments`, `order_items`) secara rapi dan mencatat audit aktivitas admin (*audit logging*).
+   * **Tombol Segarkan Pesanan Realtime ([`OrderRefreshButton.tsx`](file:///c:/web%20next%20penjualan/features/admin/OrderRefreshButton.tsx))**:
+     - Tombol "Segarkan" pada header manajemen pesanan untuk memuat ulang data tanpa harus me-refresh seluruh halaman browser.
+
+3. **Arsitektur Failover LLM Multi-Provider & Tool Calling (`lib/llm-provider.ts` & `app/api/recommend/route.ts`)**:
+   * **Multi-Provider Router (Groq ↔ Gemini)**:
+     - Dibuat abstraksi provider LLM cerdas [`lib/llm-provider.ts`](file:///c:/web%20next%20penjualan/lib/llm-provider.ts) dengan failover otomatis (`executeWithFailover`).
+     - Default urutan provider: Groq (kecepatan tinggi / `openai/gpt-oss-20b`) → Gemini (`gemini-2.5-flash`).
+     - **Manajemen Cooldown Cerdas**: Jika salah satu provider terkena *rate limit* (HTTP 429), sistem otomatis menerapkan jeda cooldown dan mengarahkan seluruh request berikutnya ke provider cadangan tanpa menunggu timeout berulang.
+     - **Parser Robust Llama Leaked Tools**: Mampu mendeteksi dan mengekstrak format tool-calling khusus model open-source (`<function=...>`, `<tool_call>`, `[TOOL_CALLS]`, blok JSON mandiri) menjadi format standar.
+   * **Dukungan Testing & Unit Tests Baru**:
+     - [`__tests__/api/llm-provider.test.ts`](file:///c:/web%20next%20penjualan/__tests__/api/llm-provider.test.ts) (10 tests)
+     - [`__tests__/api/chatbot-tools.test.ts`](file:///c:/web%20next%20penjualan/__tests__/api/chatbot-tools.test.ts) (16 tests)
+     - Sinkronisasi tes alur rekomendasi di [`__tests__/api/recommend-route.test.ts`](file:///c:/web%20next%20penjualan/__tests__/api/recommend-route.test.ts).
+
+4. **Perbaikan OAuth Netlify & Forwarded Headers (`actions/auth.ts` & `app/auth/callback/route.ts`)**:
+   * **Resolusi Asal Publik (Public Origin)**:
+     - Memperbaiki alur otentikasi Google/GitHub OAuth saat di-deploy ke Netlify atau reverse proxy.
+     - Menggunakan `x-forwarded-host` dan `x-forwarded-proto` serta `process.env.URL` / `NEXT_PUBLIC_SITE_URL` untuk menjamin redirect URL selalu menuju domain HTTPS publik yang valid, bukan `localhost` atau IP proxy internal.
+   * **Sinkronisasi Cookie Server Client**:
+     - Route callback menggunakan `createServerClient` (@supabase/ssr) dengan handler cookie eksplisit `getAll` dan `setAll` untuk menjamin token sesi Supabase tersimpan sempurna pada browser pengguna.
+
+5. **Perapian Bento Layout & Footer Rebalancing**:
+   * **Keseimbangan Kartu Bento Kategori ([`CategorySection.tsx`](file:///c:/web%20next%20penjualan/features/landing/CategorySection.tsx))**:
+     - Layout flexbox horizontal yang responsif (`flex-1` teks di kiri dan gambar produk di kanan) memastikan gambar produk tidak pernah menimpa teks judul atau tombol "Explore category".
+   * **Footer 12-Kolom Seimbang ([`Footer.tsx`](file:///c:/web%20next%20penjualan/components/layouts/Footer.tsx))**:
+     - Memperbaiki tata letak footer menggunakan grid 12 kolom (`lg:grid-cols-12`) agar proporsi brand toko (4 kolom), grup tautan navigasi (5 kolom), kontak kami (3 kolom), dan lokasi cabang (12 kolom) terdistribusi merata dan elegan di desktop dan tablet.
+   * **Aset Branding & Favicon Resmi**:
+     - Penambahan ikon resmi aplikasi di `app/icon.png`, `app/apple-icon.png`, `public/icon.png`, `public/apple-icon.png`, dan `public/logo.png`.
+
+6. **Hasil Pengujian & Verifikasi Kualitas Mutlak**:
+   * **Unit Tests**: **36 test suites (406 tests)** lulus 100% tanpa error (`npx vitest run`).
+   * **TypeScript Compilation**: `npx tsc --noEmit` bersih tanpa kesalahan (0 errors).
+   * **ESLint**: `npm run lint` bersih **0 errors dan 0 warnings**.
+   * **Production Build**: `npm run build` sukses mengompilasi seluruh **45/45 routes**.
+
+
 
 
