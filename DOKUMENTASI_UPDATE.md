@@ -569,3 +569,34 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
 
 
 
+
+---
+
+## 24. Perbaikan Kritis Google OAuth Login Loop, Sinkronisasi Sesi Supabase SSR, dan Auto-Provisioning Profil Akun
+
+1. **Penyesuaian Presisi Callback URI dengan Allowlist Supabase ([`actions/auth.ts`](file:///c:/web%20next%20penjualan/actions/auth.ts))**:
+   * **Penyebab**: Sebelumnya helper `getOAuthRedirect` selalu menambahkan query parameter paksa `?next=%2Fprofile` pada URL callback (`http://localhost:3000/auth/callback?next=%2Fprofile`). Hal ini menyebabkan URL ditolak oleh allowlist Supabase Dashboard yang didaftarkan sebagai `http://localhost:3000/auth/callback` (tanpa wildcard query), sehingga Supabase membatalkan callback otentikasi.
+   * **Solusi**: Menghapus query parameter redundant jika target redirect adalah default `/profile`. URL callback yang dikirim ke Google/Supabase kini persis `http://localhost:3000/auth/callback` yang 100% cocok dengan allowlist Supabase.
+
+2. **Sinkronisasi Sesi, Cookie SSR, dan Auto-Provisioning Profil ([`app/auth/callback/route.ts`](file:///c:/web%20next%20penjualan/app/auth/callback/route.ts))**:
+   * **Pengambilan Data User Langsung**:
+     - Mengambil `data.user` langsung dari hasil `exchangeCodeForSession(code)` (`const user = data?.user ?? (await supabase.auth.getUser()).data?.user`), mengatasi masalah kegagalan `getUser()` akibat cookie sesi yang belum ter-commit ke request headers awal.
+   * **Penyimpanan Sesi & Flag Cookie Dinamis**:
+     - Melacak cookie secara aktif menggunakan `cookieMap` internal dan `cookies()` dari `next/headers`.
+     - Menyematkan seluruh cookie sesi Supabase (`cookiesToSetList`) secara eksplisit ke header respons 302 redirect (`redirectResponse.cookies.set`).
+     - Mengatur flag `secure` secara dinamis: `false` pada `http://localhost:3000` (agar browser tidak menolak cookie di lingkungan HTTP) dan `true` pada domain HTTPS produksi.
+   * **Auto-Provisioning Profil Database & Keranjang**:
+     - Sebelum redirect selesai, server meng-upsert profil user baru ke tabel `public.users` (nama lengkap, avatar Google, role default `customer`).
+     - Memastikan record keranjang (`public.cart`) terinisialisasi untuk user tersebut, mencegah kegagalan foreign key saat menambah produk ke keranjang.
+     - Mencegah middleware menganggap akun sebagai `'missing'` yang sebelumnya memicu pembersihan sesi paksa (`clearDeletedUserSession`) dan menyebabkan looping login.
+     - Jika akun memiliki role `admin` atau `super_admin`, otomatis diarahkan ke `/admin`.
+
+3. **Visibilitas Pesan Kesalahan OAuth pada UI ([`app/login/page.tsx`](file:///c:/web%20next%20penjualan/app/login/page.tsx))**:
+   * State `error` pada form login diinisialisasi secara deklaratif membaca query parameter `?error=...` dari URL tanpa memicu render bertingkat (sesuai standar React 19).
+   * Menampilkan pesan kesalahan secara transparan pada banner alert jika Google OAuth atau Supabase mengalami penolakan otentikasi.
+
+4. **Hasil Verifikasi Kualitas**:
+   * **Unit Tests**: **36 test files, 406 tests lulus (100% pass)** (`npx vitest run`).
+   * **TypeScript Compilation**: Bersih tanpa kesalahan (`npx tsc --noEmit`).
+   * **ESLint**: Bersih **0 errors, 0 warnings** (`npm run lint`).
+   * **Production Build**: Seluruh **45/45 routes** sukses terkompilasi (`npm run build`).

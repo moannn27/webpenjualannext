@@ -11,7 +11,11 @@ import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 
 export default function LoginPage() {
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const err = new URLSearchParams(window.location.search).get("error");
+    return err ? decodeURIComponent(err) : "";
+  });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);

@@ -151,7 +151,9 @@ async function getOAuthRedirect(redirectPath: string) {
 
   origin = origin.replace(/\/+$/, '')
   const callback = new URL('/auth/callback', origin)
-  callback.searchParams.set('next', redirectPath.startsWith('/') && !redirectPath.startsWith('//') ? redirectPath : '/profile')
+  if (redirectPath && redirectPath !== '/profile' && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    callback.searchParams.set('next', redirectPath)
+  }
   return callback.toString()
 }
 
