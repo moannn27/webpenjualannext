@@ -20,6 +20,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trackAiRecommendationClick } from "@/lib/analytics/tracker";
 
 export type Product = {
   id: string;
@@ -66,6 +67,7 @@ export function ProductCards({ products, isExpanded, title }: { products: Produc
           <Link
             key={product.id}
             href={`/product/${product.id}`}
+            onClick={() => trackAiRecommendationClick(product.id, product.name)}
             className="group flex min-w-0 gap-3 rounded-2xl border border-border/80 bg-card p-3 text-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-md"
           >
             {product.image && (

@@ -260,12 +260,12 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150 text-left whitespace-normal font-sans"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsOpen(false);
           }}
         >
-          <div className="relative w-full max-w-2xl rounded-[28px] border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#18191E] shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-2xl rounded-[28px] border border-slate-200/90 dark:border-white/10 bg-white dark:bg-[#18191E] shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-150 text-left whitespace-normal font-sans">
             {/* Modal Header */}
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-white/5 p-5 sm:px-7 bg-slate-50/50 dark:bg-white/[0.02]">
               <div className="flex items-center gap-3">
@@ -1001,35 +1001,41 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 sm:p-6 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150 text-left whitespace-normal font-sans"
         >
-          <div className="relative w-full max-w-md rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-white dark:bg-[#18191E] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="size-11 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center shrink-0">
+          <div className="relative w-full max-w-md rounded-3xl border border-rose-200/90 dark:border-rose-900/60 bg-white dark:bg-[#18191E] p-6 sm:p-7 shadow-2xl space-y-4 text-left whitespace-normal font-sans animate-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3.5">
+              <div className="size-12 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
                 <Trash2 className="size-6" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
                   Hapus Pesanan #{order.order_number}?
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed font-normal">
                   Tindakan ini memerlukan izin khusus dan tidak dapat dibatalkan.
                 </p>
               </div>
             </div>
 
-            <div className="rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/30 p-3 text-xs text-rose-800 dark:text-rose-300 leading-relaxed">
-              Semua data terkait transaksi ini termasuk rincian item produk dan verifikasi pembayaran akan dihapus secara permanen dari basis data toko.
+            <div className="rounded-2xl bg-rose-50/90 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 p-4 text-xs text-rose-900 dark:text-rose-200 leading-relaxed space-y-1.5 whitespace-normal break-words">
+              <div className="flex items-center gap-1.5 font-bold text-rose-700 dark:text-rose-300">
+                <AlertCircle className="size-4 shrink-0" />
+                <span>Peringatan Penghapusan Permanen</span>
+              </div>
+              <p className="text-[12px] text-rose-800/90 dark:text-rose-300/90 leading-relaxed font-normal">
+                Semua data terkait transaksi ini termasuk rincian item produk dan verifikasi pembayaran akan dihapus secara permanen dari basis data toko.
+              </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 disabled={isDeleting}
                 onClick={() => setDeleteConfirmOpen(false)}
-                className="text-xs font-semibold rounded-xl h-8 px-4"
+                className="text-xs font-semibold rounded-xl h-9 px-4 border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5"
               >
                 Batal
               </Button>
@@ -1037,7 +1043,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                 type="button"
                 disabled={isDeleting}
                 onClick={handleDeleteOrder}
-                className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl h-8 px-4 flex items-center gap-1.5 shadow-sm"
+                className="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold rounded-xl h-9 px-4.5 flex items-center gap-2 shadow-xs transition"
               >
                 <Trash2 className="size-3.5" />
                 <span>{isDeleting ? "Menghapus..." : "Ya, Hapus Pesanan"}</span>

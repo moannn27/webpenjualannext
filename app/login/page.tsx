@@ -17,6 +17,7 @@ export default function LoginPage() {
     return err ? decodeURIComponent(err) : "";
   });
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("Memeriksa akun...");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
   const [email, setEmail] = useState("");
@@ -39,6 +40,10 @@ export default function LoginPage() {
   const handleLogin = async (formData: FormData) => {
     setError("");
     setLoading(true);
+    setLoadingText("Memeriksa akun & kata sandi...");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app:start-loading"));
+    }
 
     const requestedRedirect = new URLSearchParams(window.location.search).get("redirect");
     setEmail(String(formData.get("email") ?? ""));
@@ -49,12 +54,28 @@ export default function LoginPage() {
       const result = await login(formData);
       if (result?.error) {
         setError(result.error);
+        setLoading(false);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("app:stop-loading"));
+        }
+        return;
       }
+
+      // Login berhasil, proses redirect sedang berjalan
+      setLoadingText("Berhasil masuk! Membuka akun...");
+      // Pertahankan status loading agar tombol tidak kembali normal sebelum halaman berpindah
     } catch (error) {
       const message = error instanceof Error ? error.message : "Terjadi kesalahan saat masuk.";
-      if (!message.includes("NEXT_REDIRECT")) setError(message);
-    } finally {
+      if (message.includes("NEXT_REDIRECT")) {
+        // Next.js redirect sedang aktif, pertahankan status loading
+        setLoadingText("Berhasil masuk! Mengalihkan...");
+        return;
+      }
+      setError(message);
       setLoading(false);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app:stop-loading"));
+      }
     }
   };
 
@@ -158,9 +179,24 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <Button type="submit" disabled={loading || googleLoading} size="lg" className="w-full rounded-full h-12 text-base mt-2" aria-busy={loading}>
-            {loading ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
-            {loading ? "Memeriksa akun..." : "Masuk"} {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+          <Button
+            type="submit"
+            disabled={loading || googleLoading}
+            size="lg"
+            className="w-full rounded-full h-12 text-base mt-2 font-bold transition-all shadow-md disabled:opacity-85"
+            aria-busy={loading}
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoaderCircle className="size-5 animate-spin" />
+                <span>{loadingText}</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>Masuk</span>
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            )}
           </Button>
         </form>
 

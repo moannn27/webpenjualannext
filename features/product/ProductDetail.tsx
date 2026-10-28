@@ -29,6 +29,7 @@ import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
 import { getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
 interface ProductDetailData {
   id: string;
@@ -165,6 +166,14 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const reviewCount = reviews.length;
   const averageRating = reviewCount ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1) : "—";
 
+  useEffect(() => {
+    trackViewItem({
+      id: product.id,
+      name: product.name,
+      price: product.discount_price ?? product.price,
+    });
+  }, [product.id, product.name, product.discount_price, product.price]);
+
   const increment = () => { setCartCountAfterAdd(null); setQuantity(prev => remainingStock > 0 ? Math.min(remainingStock, prev + 1) : prev); };
   const decrement = () => { setCartCountAfterAdd(null); setQuantity(prev => (prev > 1 ? prev - 1 : 1)); };
 
@@ -182,6 +191,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         useCartStore.getState().addItemDirect(result.cartItem);
       }
 
+      trackAddToCart({
+        id: product.id,
+        name: product.name,
+        price: product.discount_price ?? product.price,
+        quantity,
+      });
       emitCartUpdated(result.cartCount);
       toast.success(
         "Berhasil Ditambahkan",

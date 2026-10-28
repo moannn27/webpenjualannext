@@ -7,6 +7,7 @@ import { createClient as createSupabaseAdminClient, type User } from '@supabase/
 import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { EcommerceReport } from '@/lib/admin-reports'
+import { getEnhancedAnalyticsReport, type EnhancedAnalyticsReport } from '@/lib/analytics-reporting'
 import { hasConfirmedImportPriceMapping, isValidImportPrices } from '@/lib/admin-product-import'
 import { requireModulePermission, getCurrentAdminPermissions } from '@/lib/auth/permissions'
 import { recordAdminActivity } from '@/lib/audit-log'
@@ -30,6 +31,11 @@ export async function getAdminEcommerceReportAction(days: number): Promise<Ecomm
   const { data, error } = await supabase.rpc('get_admin_ecommerce_report', { p_days: days })
   if (error) throw new Error('Laporan belum tersedia. Pastikan migrasi analitik ecommerce sudah diterapkan.')
   return data as EcommerceReport
+}
+
+export async function getAdminEnhancedAnalyticsReportAction(days: number): Promise<EnhancedAnalyticsReport> {
+  const baseReport = await getAdminEcommerceReportAction(days)
+  return await getEnhancedAnalyticsReport(baseReport, days)
 }
 
 export type AdminSaleItemDetail = {
@@ -2063,6 +2069,49 @@ export async function uploadAdminImageAction(formData: FormData) {
     publicUrl = `${baseUrl.replace(/\/$/, '')}/storage/${publicUrl.replace(/^\//, '')}`
   }
   return { url: publicUrl }
+}
+
+export async function saveExternalImageUrlAction(imageUrl: string, bucket: string = 'brands') {
+  await requireAdmin()
+  const trimmed = String(imageUrl || '').trim()
+  if (!trimmed) throw new Error('URL gambar tidak boleh kosong.')
+  if (!['products', 'brands', 'banners'].includes(bucket)) throw new Error('Bucket tidak valid.')
+
+  try {
+    const res = await fetch(trimmed, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      },
+    })
+    if (!res.ok) throw new Error(`Gagal mengunduh gambar dari link (HTTP ${res.status}). Pastikan link gambar dapat diakses secara publik.`)
+    const contentType = res.headers.get('content-type') || 'image/png'
+    const buffer = await res.arrayBuffer()
+    if (buffer.byteLength > 10 * 1024 * 1024) throw new Error('Ukuran gambar melebihi batas 10MB.')
+
+    let ext = 'png'
+    if (contentType.includes('webp')) ext = 'webp'
+    else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg'
+    else if (contentType.includes('svg')) ext = 'svg'
+    else if (contentType.includes('avif')) ext = 'avif'
+
+    const path = `ext-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`
+    const supabase = await createClient()
+    const { error } = await supabase.storage.from(bucket).upload(path, new Uint8Array(buffer), {
+      contentType,
+      cacheControl: '3600',
+      upsert: false,
+    })
+    if (error) throw new Error(error.message)
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    let publicUrl = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+    if (!publicUrl.startsWith('http')) {
+      publicUrl = `${baseUrl.replace(/\/$/, '')}/storage/${publicUrl.replace(/^\//, '')}`
+    }
+    return { url: publicUrl }
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : 'Gagal menyimpan gambar dari tautan eksternal.')
+  }
 }
 
 export async function cleanupUnusedStorageAction() {

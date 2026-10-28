@@ -3,7 +3,7 @@ import { ManualInvoiceManager } from "@/features/admin/ManualInvoiceManager";
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Faktur Manual | Admin Panel Next Solution Store",
+  title: "Faktur Manual | Admin Panel Next Solution",
   description: "Buat, kustomisasi, dan cetak faktur invoice pesanan toko secara manual.",
 };
 
@@ -26,4 +26,3 @@ export default async function AdminInvoicesPage() {
     </div>
   );
 }
-

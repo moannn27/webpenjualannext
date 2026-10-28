@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Outfit } from "next/font/google";
 import { StorefrontChrome } from "@/components/layouts/StorefrontChrome";
+import { NavigationProgress } from "@/components/providers/NavigationProgress";
 import { getCartAction } from "@/actions/cart";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
@@ -122,6 +124,9 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background text-foreground font-sans flex flex-col">
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <StorefrontChrome
           currentUserId={currentUserId}
           cartCount={cartCount}

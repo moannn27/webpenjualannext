@@ -600,3 +600,87 @@ Berdasarkan hasil audit keamanan, diterapkan penguatan keamanan pada alur transa
    * **TypeScript Compilation**: Bersih tanpa kesalahan (`npx tsc --noEmit`).
    * **ESLint**: Bersih **0 errors, 0 warnings** (`npm run lint`).
    * **Production Build**: Seluruh **45/45 routes** sukses terkompilasi (`npm run build`).
+
+
+---
+
+## 25. Sistem Analitik Bisnis Terintegrasi, Indikator Loading Global & Navigasi, Faktur Penjualan Modular, Kustomisasi Brand Multi-Warna, dan Manajemen Marketplace Multi-Sumber
+
+Dokumentasi ini merangkum pengembangan menyeluruh pada sistem analisis bisnis, pengalaman navigasi responsif, tata letak faktur penjualan presisi, standarisasi identitas brand visual, serta fleksibilitas pengelolaan gambar marketplace offline dan online.
+
+### 1. Sistem Analitik & Pelacakan First-Party Mandiri (`public.analytics_events`)
+* **Skema Database & Keamanan Ketat (`supabase/migrations/20261112000000_analytics_events_and_tracking.sql`)**:
+  - Dibuat tabel aditif `public.analytics_events` tanpa mengubah atau merusak skema e-commerce yang sudah ada.
+  - Memiliki indeks performa tinggi pada kolom `(created_at DESC)`, `(event_name, created_at DESC)`, `visitor_id`, `session_id`, `product_id`, dan `path`.
+  - Dilengkapi Row Level Security (RLS): Pembacaan data analitik hanya diizinkan bagi akun dengan status admin (`is_admin()`), sedangkan penulisan dibatasi ketat melalui validasi event name.
+* **Pipeline Event & Endpoint Terproteksi (`app/api/analytics/event/route.ts`)**:
+  - Endpoint dilengkapi Zod schema validation, sanitasi payload metadata, dan sliding-window rate limiter per IP/client untuk mencegah spam request.
+  - Tracker client-side (`lib/analytics/tracker.ts` & `components/providers/AnalyticsTracker.tsx`) mencatat alur interaksi belanja: `page_view`, `view_item`, `search`, `add_to_cart`, `begin_checkout`, dan `ai_recommendation_click` tanpa mencatat informasi pribadi (PII) sensitif.
+* **Mesin Agregasi & Visualisasi Laporan (`lib/analytics-reporting.ts` & `app/admin/reports/page.tsx`)**:
+  - Dashboard analitik interaktif di `/admin/reports` menampilkan:
+    * Corong Konversi (*Conversion Funnel*): dari kunjungan, lihat produk, tambah ke keranjang, hingga checkout.
+    * Tingkat Drop-off Pelanggan pada setiap tahapan belanja.
+    * Distribusi lalu lintas pengunjung berdasarkan jenis perangkat (*Device Type*), sumber perujuk (*Referrer Domain*), dan kampanye marketing (*UTM Parameters*).
+    * Analisis efektivitas rekomendasi Asisten AI dalam mendorong konversi penjualan.
+    * Ekspor multi-sheet Excel (.xlsx) komprehensif (`lib/analytics-exports.ts`) mencakup ringkasan KPI, funnel, traffic, dan rincian transaksi.
+
+### 2. Indikator Loading Global, Feedback Interaktif, dan Progress Bar Halaman
+* **Progress Bar Navigasi Atas (`components/providers/NavigationProgress.tsx`)**:
+  - Bar navigasi halus (*top loading bar*) terpasang di layout utama (`app/layout.tsx`), memberikan umpan balik visual instan saat pengunjung maupun admin berpindah rute antar-halaman.
+* **Loading State Rute Global & Admin (`app/loading.tsx` & `app/admin/loading.tsx`)**:
+  - Tampilan spinner modern dan indikator transisi rute halus saat menunggu data server siap.
+* **Feedback Loading Form Login & Register (`app/login/page.tsx` & `app/register/page.tsx`)**:
+  - Tombol submit "Masuk" dan "Daftar" kini menampilkan animasi spinner berputar dinamis dan teks "Memproses masuk..." saat proses otentikasi berlangsung.
+  - Tombol otomatis dalam kondisi `disabled` untuk mencegah submit ganda (*double request*).
+
+### 3. Penjelasan Otomatisasi Stok pada Pesanan Batal / Refund
+* **Mekanisme Database Trigger**:
+  - Pada sistem penjualan Next Solution, ketika pesanan dibatalkan atau status pembayaran beralih ke `cancelled` atau `refunded`, kuantitas stok dari setiap produk dalam pesanan tersebut **secara otomatis dikembalikan ke inventaris** oleh trigger database PostgreSQL (`restore_stock_on_order_cancel` / `update_stock_on_order_status_change`).
+  - Admin toko **tidak perlu melakukan penyesuaian manual**; stok produk langsung bertambah kembali secara akurat.
+
+### 4. Desain Ulang Faktur Penjualan Manual (`features/admin/ManualInvoiceManager.tsx`)
+* **Pencetakan / PDF Bersih Tanpa Header & Footer Browser**:
+  - Diterapkan styling scoped `@media print` dan `@page { size: A4 portrait; margin: 0mm !important; }` yang menghilangkan teks judul tab, URL `http://localhost:3000/...`, nomor halaman, dan waktu cetak dari browser.
+* **Border Rapi & Penyelarasan Presisi**:
+  - Seluruh tabel item produk kini dibungkus kontainer bersatu dengan border konsisten, tanpa garis yang terpotong.
+  - Kotak ringkasan Subtotal, Diskon, Ongkir, dan Total Akhir disejajarkan sempurna (*exact vertical alignment*) dengan tabel produk.
+* **Nama Toko Modular & Kustomisasi Warna Per Kata**:
+  - Nama toko di header faktur tidak lagi berupa gambar mati yang menyatu.
+  - Admin dapat mengonfigurasi:
+    * **Kata 1**: Teks (default: `NEXT`) + Pemilih warna hex / color picker (default: `#DC2626` merah).
+    * **Kata 2**: Teks (default: `SOLUTION`) + Pemilih warna hex / color picker (default: `#0048BA` biru).
+    * **Toggle Lambang Logo S**: Opsi menampilkan atau menyembunyikan simbol S resmi di samping teks.
+  - Identitas catatan kaki bawah faktur juga otomatis tersinkronisasi mengikuti pengaturan kata dan warna tersebut.
+* **Cap / Stempel Resmi Area Tanda Tangan**:
+  - Disediakan stempel lingkaran ganda berlogo resmi Next Solution (Lambang S + NEXT + SOLUTION + OFFICIAL STORE).
+  - Dilengkapi toggle aktif/nonaktif stempel, serta kolom isian judul penutup, nama penandatangan, dan jabatan kasir/admin yang dapat diketik bebas.
+
+### 5. Standarisasi Brand Visual & Fleksibilitas Content Manager
+* **Admin Sidebar Header (`components/layouts/AdminSidebar.tsx`)**:
+  - Logo lambang S di sisi kiri dipadukan dengan teks horizontal memanjang ke samping: <span style="color:#DC2626; font-weight:bold; font-style:italic;">NEXT</span> <span style="color:#0048BA; font-weight:bold; font-style:italic;">SOLUTION</span> dan label `ADMIN PANEL` di bawahnya. Tampilan tidak lagi bertumpuk sempit.
+* **Navbar Toko (`components/layouts/Navbar.tsx`)**:
+  - Mode tampilan header default disetel ke `logo_only`.
+  - Menampilkan **hanya gambar lambang logo S saja** di pojok kiri atas tanpa teks "Next Solution" yang menempel, menghasilkan tampilan navbar yang bersih dan modern.
+* **Footer Toko (`components/layouts/Footer.tsx`)**:
+  - Logo toko di area footer diperbesar secara proporsional (`h-16 sm:h-20` dengan batas lebar `max-w-[260px]`) agar jelas dan gagah.
+* **Admin Content Manager (`features/admin/StorefrontSettingsManager.tsx`)**:
+  - Tab "Logo & Identitas Toko" kini menyediakan kontrol pengaturan teks & warna per-kata (Kata 1 & Kata 2) lengkap dengan tombol *"Set Warna Asli (NEXT Merah / SOLUTION Biru)"*.
+  - Kotak Pratinjau Langsung (*Live Preview*) seketika merefleksikan perubahan warna brand untuk Header Toko maupun Header Admin.
+
+### 6. Manajemen Marketplace Multi-Sumber (Local Upload & Online Image)
+* **Upload Foto dari File Lokal**:
+  - Ditambahkan tombol **"Upload Foto"** pada setiap baris pengaturan marketplace di `/admin/content`.
+  - Admin dapat mengunggah gambar logo kustom langsung dari PC/HP lokal (mendukung PNG, JPG, WebP, AVIF, dan SVG yang otomatis dikonversi ke WebP tajam).
+  - File disimpan langsung ke bucket storage `brands` Supabase toko.
+* **Dukungan Link Gambar Online Bebas Blokir**:
+  - Komponen `PlatformLogo` (`components/shared/BrandLogos.tsx`) dilengkapi dengan `referrerPolicy="no-referrer"` dan `crossOrigin="anonymous"`. Hal ini mencegah pemblokiran hotlink 403 Forbidden saat menggunakan link gambar dari website luar (Tokopedia, Shopee, Google, dsb.).
+  - Jika link gambar online sewaktu-waktu mati, sistem secara otomatis beralih (*fallback*) ke logo SVG standar platform tanpa merusak tata letak.
+* **Fitur "Simpan Cloud"**:
+  - Ditambahkan server action `saveExternalImageUrlAction` (`actions/admin.ts`).
+  - Ketika link online dimasukkan, muncul tombol **"Simpan Cloud"** yang memungkinkan pengunduhan otomatis ke Supabase Storage toko Anda, memastikan aset gambar tetap tersimpan selamanya.
+* **Tombol "Reset Icon Standar"**:
+  - Opsi satu klik untuk mengembalikan logo ke SVG bawaan platform tanpa perlu menghapus isian secara manual.
+
+### 7. Hasil Pengujian & Verifikasi Kualitas
+* **Unit & Integration Tests**: Seluruh **37 file tes dan 423 pengujian lulus (100% Passed)** melalui `npx vitest run`.
+* **TypeScript Compilation**: Bersih tanpa kesalahan apapun (`npx tsc --noEmit` exit code 0).

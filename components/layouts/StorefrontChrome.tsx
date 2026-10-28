@@ -9,6 +9,7 @@ import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
 import { ToastNotification } from "@/components/shared/ToastNotification";
 import { ScrollToTopButton } from "@/components/shared/ScrollToTopButton";
 import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
+import { AnalyticsTracker } from "@/components/providers/AnalyticsTracker";
 import { useCartStore, type StoredCartItem } from "@/store/useCartStore";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
 import { AlertTriangle } from "lucide-react";
@@ -47,6 +48,7 @@ export function StorefrontChrome({
 
   return (
     <>
+      <AnalyticsTracker />
       {/* 1. Bar Pengumuman Atas (Announcement Bar) */}
       {features?.announcement_bar_enabled && features.announcement_bar_text && (
         <div className="bg-primary text-primary-foreground py-2 px-4 text-center text-xs font-semibold tracking-wide shadow-xs">

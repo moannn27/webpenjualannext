@@ -165,6 +165,10 @@ export type StorefrontSettings = {
     logo_url?: string;
     logo_display_mode?: "both" | "logo_only" | "text_only";
     admin_logo_url?: string;
+    brand_word1?: string;
+    brand_word2?: string;
+    brand_word1_color?: string;
+    brand_word2_color?: string;
     description: string;
     address: string;
     city?: string;
@@ -439,8 +443,12 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   store: {
     name: "Next Solution",
     logo_url: "",
-    logo_display_mode: "both",
+    logo_display_mode: "logo_only",
     admin_logo_url: "",
+    brand_word1: "NEXT",
+    brand_word2: "SOLUTION",
+    brand_word1_color: "#DC2626",
+    brand_word2_color: "#0048BA",
     description: "Temukan perangkat elektronik dan aksesori pilihan untuk kebutuhanmu.",
     address: "Jl. Kartini No. 9",
     city: "Bandung",
@@ -701,7 +709,7 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
   const logo_display_mode: "both" | "logo_only" | "text_only" =
     rawLogoMode === "logo_only" || rawLogoMode === "text_only" || rawLogoMode === "both"
       ? (rawLogoMode as "both" | "logo_only" | "text_only")
-      : "both";
+      : "logo_only";
 
   return {
     sections,
@@ -714,6 +722,10 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
       logo_url: String(input.store?.logo_url ?? "").trim(),
       logo_display_mode,
       admin_logo_url: String(input.store?.admin_logo_url ?? "").trim(),
+      brand_word1: String(input.store?.brand_word1 ?? DEFAULT_STOREFRONT_SETTINGS.store.brand_word1 ?? "NEXT").trim(),
+      brand_word2: String(input.store?.brand_word2 ?? DEFAULT_STOREFRONT_SETTINGS.store.brand_word2 ?? "SOLUTION").trim(),
+      brand_word1_color: String(input.store?.brand_word1_color ?? DEFAULT_STOREFRONT_SETTINGS.store.brand_word1_color ?? "#DC2626").trim(),
+      brand_word2_color: String(input.store?.brand_word2_color ?? DEFAULT_STOREFRONT_SETTINGS.store.brand_word2_color ?? "#0048BA").trim(),
       address: storeAddress,
       city: finalStoreCity,
       latitude: storeLat,

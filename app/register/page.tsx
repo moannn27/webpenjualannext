@@ -120,15 +120,29 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app:start-loading"));
+    }
     try {
       const result = await register(formData);
       if (result?.error) {
         setError(result.error);
+        setLoading(false);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("app:stop-loading"));
+        }
+        return;
       }
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("NEXT_REDIRECT")) {
+        return;
+      }
       setError("Terjadi kesalahan tidak terduga saat pendaftaran.");
-    } finally {
       setLoading(false);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app:stop-loading"));
+      }
     }
   };
 

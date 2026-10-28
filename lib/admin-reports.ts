@@ -21,3 +21,5 @@ export type EcommerceReport = {
   least_products: { id: string; name: string; units_sold: number; item_revenue: number; order_count: number }[];
   top_customers: { id: string; name: string; phone: string | null; completed_orders: number; spend: number; last_order_day: string | null }[];
 };
+
+export type { EnhancedAnalyticsReport } from "@/lib/analytics-reporting";

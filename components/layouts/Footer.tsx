@@ -6,6 +6,8 @@ import Image from "next/image";
 import { MapPin, ExternalLink } from "lucide-react";
 import type { StoreBranch, OfficialMarketplace, OfficialChannel } from "@/lib/storefront-settings";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
+import { BrandText } from "@/components/shared/BrandText";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { FooterBranchSelector } from "@/components/layouts/FooterBranchSelector";
 import { MarketplaceStoreModal } from "@/components/shared/MarketplaceStoreModal";
 
@@ -129,21 +131,7 @@ export function Footer({
             {/* 1. Store Brand & Value Props */}
             <div className="sm:col-span-2 lg:col-span-4 space-y-4">
               <Link href="/" className="inline-flex items-center gap-2.5">
-                {showLogo && (
-                  <Image
-                    src={logoUrl}
-                    alt={storeName}
-                    width={160}
-                    height={36}
-                    unoptimized
-                    className={`h-9 object-contain ${displayMode === "both" ? "w-9 shrink-0" : "max-w-[160px]"}`}
-                  />
-                )}
-                {showText && (
-                  <span className="whitespace-nowrap text-2xl font-bold tracking-tight text-primary">
-                    {storeName}
-                  </span>
-                )}
+                <BrandLogo storeName={storeName} size="xl" imageClassName="h-16 sm:h-20 w-auto object-contain max-w-[260px]" />
               </Link>
               <p className="text-xs sm:text-sm leading-relaxed text-muted-foreground">{store.description}</p>
               

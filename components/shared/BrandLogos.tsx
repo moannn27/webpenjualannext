@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 
 export function TokopediaLogo({ className = "size-6" }: { className?: string }) {
   return (
@@ -134,17 +136,22 @@ export function PlatformLogo({
   customIconUrl?: string;
   className?: string;
 }) {
-  if (customIconUrl && customIconUrl.trim()) {
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    setLoadError(false);
+  }, [customIconUrl]);
+
+  if (customIconUrl && customIconUrl.trim() && !loadError) {
     return (
       /* eslint-disable-next-line @next/next/no-img-element */
       <img
-        src={customIconUrl}
+        src={customIconUrl.trim()}
         alt={platform}
+        referrerPolicy="no-referrer"
+        crossOrigin="anonymous"
         className={`${className} object-contain rounded-xl shadow-xs`}
-        onError={(e) => {
-          // If custom image fails to load, hide or fallback
-          e.currentTarget.style.display = "none";
-        }}
+        onError={() => setLoadError(true)}
       />
     );
   }

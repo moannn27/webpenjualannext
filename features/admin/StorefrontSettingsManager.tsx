@@ -7,6 +7,7 @@ import {
   getAdminProductOptionsAction,
   saveStorefrontSettingsAction,
   uploadAdminImageAction,
+  saveExternalImageUrlAction,
   updateAdminAvatarAction,
   getCurrentAdminAvatarAction,
 } from "@/actions/admin";
@@ -33,6 +34,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   Save,
+  Upload,
+  CloudDownload,
   MapPin,
   ExternalLink,
   CheckCircle2,
@@ -68,6 +71,7 @@ import {
   FileText,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
+import { BrandText } from "@/components/shared/BrandText";
 
 const names: Record<string, string> = {
   categories: "Kategori",
@@ -178,6 +182,8 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [adminAvatarUrl, setAdminAvatarUrl] = useState("");
   const [busyUpload, setBusyUpload] = useState(false);
   const [busyAvatar, setBusyAvatar] = useState(false);
+  const [uploadingMarketplaceId, setUploadingMarketplaceId] = useState<string | null>(null);
+  const [savingExternalUrlId, setSavingExternalUrlId] = useState<string | null>(null);
 
   useEffect(() => {
     getCurrentAdminAvatarAction()
@@ -402,6 +408,40 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
       setError(err instanceof Error ? err.message : "Gagal mengupload logo.");
     } finally {
       setBusyUpload(false);
+    }
+  };
+
+
+  const uploadMarketplaceIcon = async (marketplaceId: string, file: File) => {
+    try {
+      setUploadingMarketplaceId(marketplaceId);
+      setError("");
+      const prepared = await prepareImageUpload(file);
+      const formData = new FormData();
+      formData.set("file", prepared);
+      formData.set("bucket", "brands");
+      const res = await uploadAdminImageAction(formData);
+      updateMarketplace(marketplaceId, "custom_icon_url", res.url);
+      setNotice("Icon marketplace berhasil diupload dari file lokal! Tekan 'Simpan Marketplace' untuk menyimpan.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengupload icon marketplace.");
+    } finally {
+      setUploadingMarketplaceId(null);
+    }
+  };
+
+  const saveExternalMarketplaceIcon = async (marketplaceId: string, url: string) => {
+    try {
+      if (!url.trim()) return;
+      setSavingExternalUrlId(marketplaceId);
+      setError("");
+      const res = await saveExternalImageUrlAction(url.trim(), "brands");
+      updateMarketplace(marketplaceId, "custom_icon_url", res.url);
+      setNotice("Gambar eksternal berhasil diunduh dan disimpan permanen ke server cloud!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan gambar dari tautan eksternal.");
+    } finally {
+      setSavingExternalUrlId(null);
     }
   };
 
@@ -1914,18 +1954,91 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   />
                 </label>
 
-                <label className="space-y-1 text-xs">
-                  <span className="flex items-center gap-1">
-                    <ImageIcon className="size-3 text-primary" />
-                    URL Gambar / Icon Kustom (Opsional)
-                  </span>
-                  <Input
-                    type="url"
-                    value={marketplace.custom_icon_url ?? ""}
-                    onChange={(e) => updateMarketplace(marketplace.id, "custom_icon_url", e.target.value)}
-                    placeholder="https://.../logo-toko.png (Kosongkan untuk icon standar)"
-                  />
-                </label>
+                <div className="space-y-1.5 text-xs sm:col-span-1">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 font-semibold text-foreground">
+                      <ImageIcon className="size-3.5 text-primary" />
+                      Gambar / Icon Platform
+                    </span>
+                    {marketplace.custom_icon_url ? (
+                      <button
+                        type="button"
+                        onClick={() => updateMarketplace(marketplace.id, "custom_icon_url", "")}
+                        className="text-[10px] text-destructive hover:underline font-semibold cursor-pointer"
+                        title="Kembalikan ke icon standar platform"
+                      >
+                        Reset Icon Standar
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="text"
+                        value={marketplace.custom_icon_url ?? ""}
+                        onChange={(e) => updateMarketplace(marketplace.id, "custom_icon_url", e.target.value.trim())}
+                        placeholder="https://... link gambar atau upload file lokal"
+                        className="text-xs flex-1 h-9"
+                      />
+
+                      {/* Tombol Upload Gambar dari File Lokal */}
+                      <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted shadow-2xs transition-colors h-9">
+                        {uploadingMarketplaceId === marketplace.id ? (
+                          <RefreshCw className="size-3.5 animate-spin text-primary" />
+                        ) : (
+                          <Upload className="size-3.5 text-primary" />
+                        )}
+                        <span>{uploadingMarketplaceId === marketplace.id ? "Uploading..." : "Upload Foto"}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
+                          className="sr-only"
+                          disabled={uploadingMarketplaceId === marketplace.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void uploadMarketplaceIcon(marketplace.id, file);
+                            e.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Tombol Simpan ke Cloud jika user memasukkan link web eksternal */}
+                    {Boolean(
+                      marketplace.custom_icon_url &&
+                      !marketplace.custom_icon_url.includes("supabase.co") &&
+                      !marketplace.custom_icon_url.startsWith("/") &&
+                      marketplace.custom_icon_url.startsWith("http")
+                    ) && (
+                      <div className="flex items-center justify-between p-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40">
+                        <span className="text-[10px] text-blue-700 dark:text-blue-300">
+                          Link eksternal terdeteksi. Simpan ke cloud toko agar permanen:
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={savingExternalUrlId === marketplace.id}
+                          onClick={() => saveExternalMarketplaceIcon(marketplace.id, marketplace.custom_icon_url || "")}
+                          className="h-6 px-2 text-[10px] gap-1 shrink-0 font-bold"
+                          title="Unduh dan simpan gambar link online ini ke penyimpanan cloud toko"
+                        >
+                          {savingExternalUrlId === marketplace.id ? (
+                            <RefreshCw className="size-2.5 animate-spin" />
+                          ) : (
+                            <CloudDownload className="size-2.5 text-primary" />
+                          )}
+                          <span>{savingExternalUrlId === marketplace.id ? "Menyimpan..." : "Simpan Cloud"}</span>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Bisa upload foto dari PC/HP Anda, atau paste link gambar online. Kosongkan untuk memakai icon standar.
+                  </p>
+                </div>
               </div>
 
               {/* Nested Stores List Under This Platform */}

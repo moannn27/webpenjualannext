@@ -48,6 +48,7 @@ import { getCartItemAvailableStock, getCartItemUnitPrice } from "@/lib/cart-util
 import { toast } from "@/components/Toast";
 import { useCartStore } from "@/store/useCartStore";
 import { CheckoutProgressHeader } from "@/components/checkout/CheckoutProgressHeader";
+import { trackBeginCheckout } from "@/lib/analytics/tracker";
 
 /**
  * Strict sanitization on customer inputs:
@@ -164,6 +165,19 @@ export function CheckoutClient({
     customerNotes?: string;
     items?: { name: string; quantity: number; subtotal: number }[];
   } | null>(null);
+
+  useEffect(() => {
+    if (initialCart?.cart_items?.length) {
+      const totalAmount = initialCart.cart_items.reduce((sum, item) => {
+        const price = getCartItemUnitPrice(item);
+        return sum + price * item.quantity;
+      }, 0);
+      trackBeginCheckout({
+        totalAmount,
+        itemCount: initialCart.cart_items.length,
+      });
+    }
+  }, [initialCart]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {

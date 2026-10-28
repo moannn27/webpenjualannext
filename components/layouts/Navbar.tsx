@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { BrandText } from "@/components/shared/BrandText";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { getStoreSearchHref } from "@/lib/search-intent";
 import { CART_UPDATED_EVENT } from "@/lib/cart-events";
 import { useCartStore } from "@/store/useCartStore";
@@ -75,9 +77,9 @@ export function Navbar({
 }) {
   const storeName = settings?.store?.name || "Next Solution";
   const logoUrl = settings?.store?.logo_url || "";
-  const displayMode = settings?.store?.logo_display_mode || "both";
-  const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
-  const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
+  const displayMode = settings?.store?.logo_display_mode || "logo_only";
+  const showLogo = displayMode === "both" || displayMode === "logo_only";
+  const showText = displayMode === "both" || displayMode === "text_only";
 
   const mounted = React.useSyncExternalStore(
     () => () => {},
@@ -214,21 +216,24 @@ export function Navbar({
             <Link href="/" className="flex items-center gap-2">
               {showLogo && (
                 <Image
-                  src={logoUrl}
+                  src={logoUrl || "/brand/next-solution-symbol.png"}
                   alt={storeName}
-                  width={120}
-                  height={32}
+                  width={36}
+                  height={36}
                   unoptimized
-                  className={cn(
-                    "h-8 object-contain",
-                    displayMode === "both" ? "w-8 shrink-0" : "max-w-[120px]"
-                  )}
+                  priority
+                  className="size-9 object-contain shrink-0"
                 />
               )}
               {showText && (
-                <span className="text-xl font-bold tracking-tight text-primary">
-                  {storeName}
-                </span>
+                <BrandText
+                  storeName={storeName}
+                  word1={settings?.store?.brand_word1}
+                  word2={settings?.store?.brand_word2}
+                  word1Color={settings?.store?.brand_word1_color}
+                  word2Color={settings?.store?.brand_word2_color}
+                  className="text-xl"
+                />
               )}
             </Link>
           </div>
@@ -238,21 +243,24 @@ export function Navbar({
             <Link href="/" className="flex items-center gap-2.5">
               {showLogo && (
                 <Image
-                  src={logoUrl}
+                  src={logoUrl || "/brand/next-solution-symbol.png"}
                   alt={storeName}
-                  width={160}
-                  height={36}
+                  width={42}
+                  height={42}
                   unoptimized
-                  className={cn(
-                    "h-9 object-contain",
-                    displayMode === "both" ? "w-9 shrink-0" : "max-w-[160px]"
-                  )}
+                  priority
+                  className="size-10 object-contain shrink-0"
                 />
               )}
               {showText && (
-                <span className="text-2xl font-bold tracking-tight text-primary">
-                  {storeName}
-                </span>
+                <BrandText
+                  storeName={storeName}
+                  word1={settings?.store?.brand_word1}
+                  word2={settings?.store?.brand_word2}
+                  word1Color={settings?.store?.brand_word1_color}
+                  word2Color={settings?.store?.brand_word2_color}
+                  className="text-2xl"
+                />
               )}
             </Link>
 

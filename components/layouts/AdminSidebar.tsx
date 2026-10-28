@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -9,6 +10,8 @@ import {
 } from "@/actions/admin";
 import { type AdminModuleKey } from "@/types/admin-permissions";
 import { cn } from "@/lib/utils";
+import { BrandText } from "@/components/shared/BrandText";
+import { BrandLogo } from "@/components/shared/BrandLogo";
 import { 
   LayoutDashboard, 
   Package, 
@@ -271,17 +274,20 @@ export function AdminSidebar({
       >
         <div className={cn("flex h-18 items-center border-b border-slate-100 dark:border-white/5", collapsed ? "justify-between px-4 lg:justify-center lg:px-2" : "justify-between px-5")}>
           <Link href="/admin" className="flex items-center gap-2.5">
-            {/* Finly brand 3 rising bars icon */}
-            <div className="flex items-end gap-1 h-6 shrink-0">
-              <span className="w-1.5 h-3 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
-              <span className="w-1.5 h-4.5 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
-              <span className="w-1.5 h-6 bg-gradient-to-t from-[#2563EB] to-[#3B82F6] rounded-full" />
-            </div>
+            <Image
+              src="/brand/next-solution-symbol.png"
+              alt="Next Solution"
+              width={34}
+              height={34}
+              unoptimized
+              className="size-8.5 object-contain shrink-0"
+            />
             <div className={cn("flex flex-col", collapsed && "lg:hidden")}>
-              <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white leading-none">
-                Next Solution
+              <span className="text-base font-black tracking-tight leading-none whitespace-nowrap">
+                <span className="text-[#DC2626] italic">NEXT</span>{" "}
+                <span className="text-[#0048BA] italic">SOLUTION</span>
               </span>
-              <span className="text-[10px] font-semibold text-[#2563EB] tracking-wider uppercase mt-1">
+              <span className="text-[10px] font-bold text-[#2563EB] tracking-wider uppercase mt-1">
                 Admin Panel
               </span>
             </div>
