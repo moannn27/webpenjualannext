@@ -684,3 +684,51 @@ Dokumentasi ini merangkum pengembangan menyeluruh pada sistem analisis bisnis, p
 ### 7. Hasil Pengujian & Verifikasi Kualitas
 * **Unit & Integration Tests**: Seluruh **37 file tes dan 423 pengujian lulus (100% Passed)** melalui `npx vitest run`.
 * **TypeScript Compilation**: Bersih tanpa kesalahan apapun (`npx tsc --noEmit` exit code 0).
+
+
+---
+
+## 10. Implementasi Google Identity Services (GIS) & Halaman Legal E-Commerce (28 Oktober 2026)
+
+### 1. Google Sign-In Tanpa Host Supabase (`components/auth/GoogleAuthButton.tsx`)
+* **Masalah Sebelumnya**: Pada alur OAuth redirect biasa (`signInWithOAuth`), browser pengguna dialihkan ke URL autorisasi Supabase (`xyhooykvidzstnmaggku.supabase.co`). Akibatnya, pada jendela pemilihan akun Google, host Supabase tersebut terpampang jelas sebagai nama pemanggil.
+* **Solusi Google Identity Services (GIS)**:
+  - Mengintegrasikan library resmi Google Client GIS (`https://accounts.google.com/gsi/client`).
+  - Menghasilkan pasangan nonce kriptografis acak 32-byte: `rawNonce` (base64) dan `hashedNonce` (SHA-256 hex string).
+  - Google GIS menampilkan popup pemilihan akun langsung dari Google tanpa menampilkan host Supabase.
+  - Setelah verifikasi ID Token dari Google berhasil, token diteruskan ke `supabase.auth.signInWithIdToken()` di sisi browser client.
+  - Cookie sesi Supabase SSR tetap aktif pada domain toko (`https://nextsolution.web.id`).
+  - Menjalankan `syncOAuthProfileAndCartAction` (`actions/auth.ts`) untuk memastikan profil pengguna di tabel `public.users` terisi dan keranjang belanja terinisialisasi.
+  - Disediakan fallback otomatis ke alur OAuth sebelumnya jika variabel `NEXT_PUBLIC_GOOGLE_CLIENT_ID` belum diisi.
+
+### 2. Halaman Kebijakan Privasi Resmi (`app/privacy-policy/page.tsx` & `app/privacy/page.tsx`)
+* Halaman `/privacy-policy` dibuat secara komprehensif mencakup seluruh operasional toko:
+  - **Data Akun & Google Sign-In**: Menegaskan data publik dasar yang diakses (nama, email terverifikasi, avatar, Google user ID) dan jaminan bahwa kata sandi Google tidak pernah diakses atau disimpan.
+  - **Data Transaksi & Pemesanan**: Alamat pengiriman, nomor WhatsApp/telepon, detail barang pesanan, dan verifikasi bukti pembayaran.
+  - **Analitik First-Party**: Penjelasan pelacakan pseudonim internal (`visitor_id`, `session_id`, `page_view`, `view_item`, `add_to_cart`) tanpa menjual data atau menggunakan pelacak iklan pihak ketiga.
+  - **Asisten AI Interaktif**: Pengolahan pesan konsultasi laptop dengan model AI (Gemini / Groq) tanpa menyimpan kredensial pembayaran.
+  - **Infrastruktur & Sesi**: Penggunaan cookie sesi first-party Supabase yang aman (HTTP-only).
+  - **Kontak Resmi**: Alamat gerai fisik di Bandung, email `support@nextsolution.id`, dan WhatsApp resmi `+62 811-2238-310`.
+* Rute lama `/privacy` dikonfigurasi untuk me-re-export `PrivacyPolicyPage` agar tidak terjadi link rusak (*backward compatible*).
+
+### 3. Halaman Syarat & Ketentuan Resmi (`app/terms/page.tsx`)
+* Halaman `/terms` diperbarui mencakup ketentuan operasional e-commerce:
+  - Ketentuan registrasi akun mandiri dan via Google.
+  - Transaksi katalog laptop & komputer bergaransi resmi dalam mata uang Rupiah (IDR).
+  - Metode pembayaran (Transfer Bank BCA/Mandiri, QRIS, dan Tunai di Gerai).
+  - Opsi pengiriman kurir dan Ambil Sendiri di Gerai Toko.
+  - **Garansi Resmi Distributor & Garansi Toko 14 Hari**: Penggantian unit baru dalam 14 hari kalender jika mengalami cacat pabrik (*factory defect*), dengan syarat wajib menyertakan **video unboxing lengkap tanpa jeda**, nota fisik/digital, dan segel utuh.
+  - **Pengembalian Stok Otomatis**: Pesanan yang dibatalkan atau direfund secara otomatis mengembalikan stok unit produk ke inventaris toko.
+
+### 4. Navigasi Footer & Pengaturan Google Cloud
+* Footer toko (`components/layouts/Footer.tsx`) menyertakan tautan resmi ke `/terms` dan `/privacy-policy`.
+* URL resmi yang dapat didaftarkan pada Google Cloud OAuth Consent Screen:
+  - Application home page: `https://nextsolution.web.id`
+  - Application privacy policy link: `https://nextsolution.web.id/privacy-policy`
+  - Application terms of service link: `https://nextsolution.web.id/terms`
+  - Authorized JavaScript origins: `https://nextsolution.web.id` (dan `http://localhost:3000` untuk development).
+
+### 5. Pengujian & Verifikasi Kualitas
+* Dibuat file pengujian baru: `__tests__/features/legal-and-google-auth.test.ts`.
+* Hasil uji seluruh test suite: **38 file tes lulus, 429 pengujian lulus (100% Passed)**.
+* Typecheck TypeScript: **0 Error (`npx tsc --noEmit` exit code 0)**.

@@ -35,7 +35,7 @@ const groups = [
       ["Tentang Kami", "/about"],
       ["FAQ", "/faq"],
       ["Syarat & Ketentuan", "/terms"],
-      ["Kebijakan Privasi", "/privacy"],
+      ["Kebijakan Privasi", "/privacy-policy"],
       ["Login", "/login"],
       ["Buat akun", "/register"],
     ],

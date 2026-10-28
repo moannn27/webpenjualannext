@@ -203,3 +203,74 @@ export async function logout() {
   if (error) throw new Error(error.message)
   redirect('/login')
 }
+
+export async function syncOAuthProfileAndCartAction() {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) {
+    return { success: false, error: 'Sesi login tidak ditemukan' }
+  }
+
+  try {
+    const adminClient = getSupabaseAdminClient()
+    const { data: profile } = await adminClient
+      .from('users')
+      .select('id, role, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const fullName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      (user.email ? user.email.split('@')[0] : 'Pelanggan')
+    const avatarUrl =
+      user.user_metadata?.avatar_url ||
+      user.user_metadata?.picture ||
+      null
+
+    if (!profile) {
+      await adminClient.from('users').upsert({
+        id: user.id,
+        full_name: fullName,
+        avatar_url: avatarUrl,
+        role: 'customer',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
+
+      const { data: cart } = await adminClient
+        .from('cart')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!cart) {
+        await adminClient.from('cart').insert({ user_id: user.id })
+      }
+    } else {
+      if (!profile.avatar_url && avatarUrl) {
+        await adminClient
+          .from('users')
+          .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+          .eq('id', user.id)
+      }
+    }
+
+    const { data: finalProfile } = await adminClient
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    return {
+      success: true,
+      role: finalProfile?.role || 'customer',
+    }
+  } catch (syncErr) {
+    console.error('OAuth profile sync warning:', syncErr)
+    return {
+      success: true,
+      role: 'customer',
+    }
+  }
+}
