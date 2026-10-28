@@ -10,8 +10,6 @@ import {
 } from "@/actions/admin";
 import { type AdminModuleKey } from "@/types/admin-permissions";
 import { cn } from "@/lib/utils";
-import { BrandText } from "@/components/shared/BrandText";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 import { 
   LayoutDashboard, 
   Package, 

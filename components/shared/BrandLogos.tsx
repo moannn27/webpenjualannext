@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 export function TokopediaLogo({ className = "size-6" }: { className?: string }) {
   return (
@@ -136,22 +136,20 @@ export function PlatformLogo({
   customIconUrl?: string;
   className?: string;
 }) {
-  const [loadError, setLoadError] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const trimmedUrl = customIconUrl?.trim();
+  const hasError = Boolean(trimmedUrl && failedUrl === trimmedUrl);
 
-  useEffect(() => {
-    setLoadError(false);
-  }, [customIconUrl]);
-
-  if (customIconUrl && customIconUrl.trim() && !loadError) {
+  if (trimmedUrl && !hasError) {
     return (
       /* eslint-disable-next-line @next/next/no-img-element */
       <img
-        src={customIconUrl.trim()}
+        src={trimmedUrl}
         alt={platform}
         referrerPolicy="no-referrer"
         crossOrigin="anonymous"
         className={`${className} object-contain rounded-xl shadow-xs`}
-        onError={() => setLoadError(true)}
+        onError={() => setFailedUrl(trimmedUrl)}
       />
     );
   }

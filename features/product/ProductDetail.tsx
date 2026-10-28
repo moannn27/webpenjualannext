@@ -28,6 +28,7 @@ import { toggleWishlistAction } from "@/actions/wishlist";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 import { getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
@@ -416,9 +417,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             )}
           </div>
 
-          <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-            {product.description || "Rasakan performa optimal dengan arsitektur terkini. Dirancang untuk memenuhi kebutuhan komputasi harian, grafis tajam, dan daya tahan maksimal."}
-          </p>
+          <div className="mb-8 text-base sm:text-lg text-muted-foreground leading-relaxed">
+            <RichTextRenderer
+              content={product.description}
+              fallback="Rasakan performa optimal dengan arsitektur terkini. Dirancang untuk memenuhi kebutuhan komputasi harian, grafis tajam, dan daya tahan maksimal."
+            />
+          </div>
 
           <div className="space-y-5 mb-8">
             {variants.length > 0 && (

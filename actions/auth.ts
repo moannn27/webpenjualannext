@@ -208,7 +208,7 @@ export async function syncOAuthProfileAndCartAction() {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) {
-    return { success: false, error: 'Sesi login tidak ditemukan' }
+    return { success: false, error: 'Sesi login tidak ditemukan', role: 'customer' as const }
   }
 
   try {

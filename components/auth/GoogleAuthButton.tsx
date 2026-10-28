@@ -2,11 +2,10 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Script from "next/script";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithGoogle, syncOAuthProfileAndCartAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 declare global {
@@ -16,7 +15,7 @@ declare global {
         id: {
           initialize: (options: {
             client_id: string;
-            callback: (response: { credential: string }) => void | Promise<void>;
+            callback: (response: { credential?: string }) => void | Promise<void>;
             nonce?: string;
             auto_select?: boolean;
             use_fedcm_for_prompt?: boolean;
@@ -46,17 +45,22 @@ declare global {
 /**
  * Helper kriptografi: Menghasilkan raw nonce acak 32-byte dan SHA-256 hash-nya.
  * Sesuai panduan resmi:
- * - Google menerima SHA-256 hashed nonce.
- * - Supabase menerima raw unhashed nonce untuk diverifikasi terhadap ID token.
+ * - Google menerima SHA-256 hashed nonce (hexadecimal 64-karakter).
+ * - Supabase menerima raw unhashed nonce (base64) untuk diverifikasi terhadap ID token.
  */
-async function generateCryptoNonce(): Promise<{ rawNonce: string; hashedNonce: string }> {
+export async function generateCryptoNonce(): Promise<{ rawNonce: string; hashedNonce: string }> {
+  const cryptoObj = typeof window !== "undefined" && window.crypto ? window.crypto : globalThis.crypto;
+  if (!cryptoObj?.getRandomValues || !cryptoObj?.subtle) {
+    throw new Error("Web Cryptography API tidak tersedia di lingkungan ini.");
+  }
+
   const randomBytes = new Uint8Array(32);
-  crypto.getRandomValues(randomBytes);
+  cryptoObj.getRandomValues(randomBytes);
   const rawNonce = btoa(String.fromCharCode(...randomBytes));
 
   const encoder = new TextEncoder();
   const encodedNonce = encoder.encode(rawNonce);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encodedNonce);
+  const hashBuffer = await cryptoObj.subtle.digest("SHA-256", encodedNonce);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashedNonce = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -80,17 +84,60 @@ export function GoogleAuthButton({
   disabled = false,
   className,
 }: GoogleAuthButtonProps) {
-  const router = useRouter();
+  // Container stabil khusus untuk GIS - React TIDAK PERNAH mengelola elemen anak di dalamnya
   const containerRef = useRef<HTMLDivElement>(null);
-  const [gisScriptLoaded, setGisScriptLoaded] = useState(false);
+  const nonceRef = useRef<{ rawNonce: string; hashedNonce: string } | null>(null);
+  const gisRenderedRef = useRef(false);
+
+  // Simpan callback dan redirectPath dalam ref agar perubahan prop tidak memicu inisialisasi ulang GIS
+  const onStartRef = useRef(onStart);
+  const onErrorRef = useRef(onError);
+  const redirectPathRef = useRef(redirectPath);
+
+  useEffect(() => {
+    onStartRef.current = onStart;
+    onErrorRef.current = onError;
+    redirectPathRef.current = redirectPath;
+  });
+
+  const [gisScriptLoaded, setGisScriptLoaded] = useState(() => {
+    return typeof window !== "undefined" && Boolean(window.google?.accounts?.id);
+  });
   const [gisRendered, setGisRendered] = useState(false);
+  // Pembedaan error: gisInitError khusus kegagalan setup GIS, authError khusus kegagalan alur runtime login
+  const [gisInitError, setGisInitError] = useState<string>("");
+  const [authError, setAuthError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
 
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
+  // Normalize Client ID dari environment variable
+  const rawClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
+  const googleClientId = rawClientId.replace(/^["']|["']$/g, "").trim();
   const isGisAvailable = Boolean(googleClientId);
 
-  // Inisialisasi Google Identity Services (GIS) bila Client ID tersedia
+  const effectiveInitError = gisInitError || (!isGisAvailable ? "Google Client ID belum terkonfigurasi pada sistem." : "");
+
+  // Deteksi ketersediaan script jika sudah dimuat sebelumnya oleh Next.js Script manager
+  useEffect(() => {
+    if (typeof window === "undefined" || window.google?.accounts?.id) return;
+
+    const scriptTag =
+      document.getElementById("google-identity-services") ||
+      document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+
+    if (scriptTag) {
+      const handleLoad = () => setGisScriptLoaded(true);
+      const handleError = () => setGisInitError("Script Google Identity Services gagal dimuat.");
+      scriptTag.addEventListener("load", handleLoad);
+      scriptTag.addEventListener("error", handleError);
+      return () => {
+        scriptTag.removeEventListener("load", handleLoad);
+        scriptTag.removeEventListener("error", handleError);
+      };
+    }
+  }, []);
+
+  // Inisialisasi Google Identity Services (GIS)
   useEffect(() => {
     if (!isGisAvailable || !gisScriptLoaded || typeof window === "undefined" || !window.google?.accounts?.id) {
       return;
@@ -100,102 +147,157 @@ export function GoogleAuthButton({
 
     async function initGIS() {
       try {
-        const { rawNonce, hashedNonce } = await generateCryptoNonce();
-
         if (!isMounted || !window.google?.accounts?.id || !containerRef.current) return;
+
+        // Buat nonce kriptografis baru untuk sesi login ini
+        const noncePair = await generateCryptoNonce();
+        nonceRef.current = noncePair;
+
+        if (!isMounted || !containerRef.current) return;
 
         window.google.accounts.id.initialize({
           client_id: googleClientId,
-          nonce: hashedNonce,
+          nonce: noncePair.hashedNonce,
           use_fedcm_for_prompt: true,
           auto_select: false,
           callback: async (response) => {
-            if (!response.credential) {
-              onError?.("Token otentikasi Google tidak diterima.");
+            setAuthError("");
+            onErrorRef.current?.("");
+
+            // Tahap 1: Validasi credential token dari Google
+            if (!response?.credential) {
+              const msg = "Otentikasi Google dibatalkan atau token tidak diterima. Silakan coba lagi.";
+              setAuthError(msg);
+              onErrorRef.current?.(msg);
+              setLoading(false);
               return;
             }
 
             setLoading(true);
             setLoadingText("Memverifikasi akun Google...");
-            onStart?.();
+            onStartRef.current?.();
 
             try {
               const supabase = createClient();
-              // Mengautentikasi ke Supabase menggunakan ID Token + raw nonce
-              const { data, error } = await supabase.auth.signInWithIdToken({
+              // Tahap 2: Otentikasi via ID Token Google + raw nonce verifikasi kriptografis
+              const { data, error: signInError } = await supabase.auth.signInWithIdToken({
                 provider: "google",
                 token: response.credential,
-                nonce: rawNonce,
+                nonce: nonceRef.current?.rawNonce || noncePair.rawNonce,
               });
 
-              if (error) {
-                throw new Error(error.message);
+              if (signInError) {
+                throw new Error(`Verifikasi akun Google gagal: ${signInError.message}`);
               }
 
-              if (data?.session && data?.user) {
-                setLoadingText("Menyiapkan akun...");
-                // Sinkronisasi profil ke public.users dan pastikan keranjang tersedia
+              // Tahap 3: Pembentukan sesi Supabase
+              if (!data?.session || !data?.user) {
+                throw new Error("Sesi login Google tidak dapat dibuat oleh server autentikasi.");
+              }
+
+              setLoadingText("Menyiapkan akun...");
+
+              // Tahap 4: Sinkronisasi profil ke public.users dan pastikan keranjang belanja tersedia
+              let targetRole = "customer";
+              try {
                 const syncResult = await syncOAuthProfileAndCartAction();
-
-                setLoadingText("Berhasil! Mengalihkan...");
-
-                const targetPath =
-                  syncResult?.role === "admin" || syncResult?.role === "super_admin"
-                    ? (redirectPath === "/profile" ? "/admin" : redirectPath)
-                    : redirectPath;
-
-                // Gunakan window.location agar seluruh cookie sesi SSR termuat segar
-                window.location.href = targetPath;
-              } else {
-                throw new Error("Sesi login Google tidak dapat dibuat.");
+                if (syncResult?.role) {
+                  targetRole = syncResult.role;
+                }
+              } catch (syncErr) {
+                // Sesi Supabase sudah valid dan tersimpan di browser cookie.
+                // Jangan batalkan sesi login yang sudah berhasil jika hanya sinkronisasi background yang tertunda.
+                console.warn("Sinkronisasi profil OAuth background warning:", syncErr);
               }
-            } catch (authError) {
+
+              // Tahap 5: Redirect ke halaman tujuan
+              setLoadingText("Berhasil! Mengalihkan...");
+              const currentRedirect = redirectPathRef.current || "/profile";
+              const targetPath =
+                targetRole === "admin" || targetRole === "super_admin"
+                  ? (currentRedirect === "/profile" ? "/admin" : currentRedirect)
+                  : currentRedirect;
+
+              // Full reload agar cookie sesi SSR Supabase terbaca segar oleh proxy & middleware
+              window.location.href = targetPath;
+            } catch (authErr) {
               const message =
-                authError instanceof Error ? authError.message : "Terjadi kesalahan saat otentikasi Google.";
-              onError?.(message);
+                authErr instanceof Error ? authErr.message : "Terjadi kesalahan saat otentikasi Google.";
+              setAuthError(message);
+              onErrorRef.current?.(message);
               setLoading(false);
             }
           },
         });
 
-        // Kosongkan kontainer sebelum render untuk menghindari duplikasi tombol
-        containerRef.current.innerHTML = "";
-        window.google.accounts.id.renderButton(containerRef.current, {
-          theme: "outline",
-          size: "large",
-          type: "standard",
-          shape: "pill",
-          text: mode === "signup" ? "signup_with" : "signin_with",
-          logo_alignment: "left",
-          width: 380,
-          locale: "id",
-        });
+        // PENTING: containerRef.current TIDAK memiliki anak yang dikelola oleh React.
+        // Kita hanya mengosongkan node imperatif murni (jika ada sisa render sebelumnya)
+        // menggunakan replaceChildren() tanpa mengganggu tree Virtual DOM React.
+        if (containerRef.current) {
+          containerRef.current.replaceChildren();
+          window.google.accounts.id.renderButton(containerRef.current, {
+            theme: "outline",
+            size: "large",
+            type: "standard",
+            shape: "pill",
+            text: mode === "signup" ? "signup_with" : "signin_with",
+            logo_alignment: "left",
+            width: 380,
+            locale: "id",
+          });
 
-        setGisRendered(true);
+          if (isMounted) {
+            gisRenderedRef.current = true;
+            setGisRendered(true);
+            setGisInitError("");
+          }
+        }
       } catch (err) {
-        // Fallback jika crypto / GIS gagal inisialisasi
+        if (!isMounted) return;
+        const message =
+          err instanceof Error ? err.message : "Gagal menginisialisasi Google Identity Services.";
+        gisRenderedRef.current = false;
+        setGisInitError(message);
         setGisRendered(false);
       }
     }
 
     void initGIS();
 
+    // Timeout guard jika script gagal beroperasi
+    const timeoutId = setTimeout(() => {
+      if (isMounted && !gisRenderedRef.current && !window.google?.accounts?.id) {
+        setGisInitError(
+          "Waktu pemuatan Google Identity Services habis. Periksa koneksi internet atau ekstensi adblocker Anda."
+        );
+      }
+    }, 8000);
+
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
+      if (typeof window !== "undefined" && window.google?.accounts?.id?.cancel) {
+        try {
+          window.google.accounts.id.cancel();
+        } catch {}
+      }
     };
-  }, [googleClientId, isGisAvailable, gisScriptLoaded, mode, redirectPath, onStart, onError]);
+  }, [googleClientId, isGisAvailable, gisScriptLoaded, mode]);
 
-  // Fallback handler: Memakai OAuth redirect Supabase jika GIS tidak aktif / adblocker / offline
-  const handleFallbackOAuth = async () => {
-    onError?.("");
+  // Handler fallback manual/eksplisit - HANYA dipanggil jika user dengan sengaja menekan tombol cadangan
+  const handleExplicitOAuthFallback = async () => {
+    setAuthError("");
+    onErrorRef.current?.("");
     setLoading(true);
-    setLoadingText("Menghubungkan ke Google...");
-    onStart?.();
+    setLoadingText("Menghubungkan ke OAuth Supabase cadangan...");
+    onStartRef.current?.();
 
     try {
-      const result = await loginWithGoogle(redirectPath);
+      const currentRedirect = redirectPathRef.current || "/profile";
+      const result = await loginWithGoogle(currentRedirect);
       if (result?.error) {
-        onError?.(result.error);
+        setAuthError(result.error);
+        onErrorRef.current?.(result.error);
         setLoading(false);
       }
     } catch (err) {
@@ -203,7 +305,9 @@ export function GoogleAuthButton({
       if (errorObj?.message?.includes("NEXT_REDIRECT") || errorObj?.digest?.includes("NEXT_REDIRECT")) {
         return;
       }
-      onError?.("Gagal menghubungkan dengan akun Google.");
+      const msg = "Gagal menghubungkan dengan login Google cadangan.";
+      setAuthError(msg);
+      onErrorRef.current?.(msg);
       setLoading(false);
     }
   };
@@ -212,57 +316,95 @@ export function GoogleAuthButton({
     <div className={cn("w-full flex flex-col items-center justify-center", className)}>
       {isGisAvailable && (
         <Script
+          id="google-identity-services"
           src="https://accounts.google.com/gsi/client"
           strategy="afterInteractive"
           onLoad={() => setGisScriptLoaded(true)}
           onError={() => {
-            // Jika script GIS diblokir atau gagal dimuat, fallback ke OAuth standar
-            setGisScriptLoaded(false);
-            setGisRendered(false);
+            setGisInitError("Script Google Identity Services gagal dimuat (mungkin diblokir adblocker).");
           }}
         />
       )}
 
-      {loading ? (
-        <div className="w-full rounded-full h-12 text-sm font-medium flex items-center justify-center gap-3 border border-input bg-muted/30 text-foreground shadow-2xs">
+      {/* State 1: Sedang memverifikasi token / menyiapkan sesi */}
+      {loading && (
+        <div className="w-full max-w-[380px] rounded-full h-11 text-sm font-medium flex items-center justify-center gap-3 border border-input bg-muted/30 text-foreground shadow-2xs">
           <LoaderCircle className="size-5 animate-spin text-primary" />
           <span>{loadingText || "Memproses..."}</span>
         </div>
-      ) : isGisAvailable && gisRendered ? (
-        <div className="w-full flex justify-center py-0.5 min-h-[44px]">
-          <div ref={containerRef} className="w-full flex justify-center" />
+      )}
+
+      {/* State 2: GIS Container - Tetap stabil di DOM */}
+      <div
+        className={cn(
+          "w-full flex flex-col items-center justify-center min-h-[44px]",
+          (loading || !isGisAvailable || Boolean(effectiveInitError)) && "hidden"
+        )}
+      >
+        {/* Pesan error autentikasi runtime jika terjadi saat percobaan login sebelumnya */}
+        {authError && !loading && (
+          <div className="w-full max-w-[380px] mb-2 p-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs text-center flex items-center justify-center gap-2">
+            <AlertCircle className="size-3.5 shrink-0" />
+            <span>{authError}</span>
+          </div>
+        )}
+
+        {/* Placeholder SEBELUM GIS selesai merender tombol */}
+        {!gisRendered && (
+          <div className="w-full max-w-[380px] rounded-full h-11 text-sm font-medium flex items-center justify-center gap-2.5 border border-input bg-muted/20 text-muted-foreground shadow-2xs">
+            <LoaderCircle className="size-4 animate-spin text-primary" />
+            <span>Menyiapkan Akun Google...</span>
+          </div>
+        )}
+
+        {/* Container KHUSUS untuk Google GIS renderButton. */}
+        {/* PENTING: Tag ini TIDAK MEMILIKI ANAK JSX. React tidak mengelola anak di dalamnya */}
+        <div
+          ref={containerRef}
+          className={cn(
+            "w-full flex justify-center py-0.5 min-h-[44px]",
+            !gisRendered && "hidden",
+            disabled && "pointer-events-none opacity-60"
+          )}
+        />
+      </div>
+
+      {/* State 3: HANYA jika GIS Gagal Dimuat atau Client ID belum diatur sama sekali */}
+      {!loading && (!isGisAvailable || Boolean(effectiveInitError)) && (
+        <div className="w-full max-w-[380px] flex flex-col items-center gap-2.5 p-3.5 rounded-2xl bg-destructive/5 border border-destructive/20 text-center">
+          <div className="flex items-center gap-2 text-destructive text-xs font-semibold">
+            <AlertCircle className="size-4 shrink-0" />
+            <span>Google Identity Services tidak tersedia</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {effectiveInitError || "Konfigurasi Google Identity Services belum dapat dimuat saat ini."}
+          </p>
+
+          {process.env.NODE_ENV === "development" && (
+            <div className="text-[11px] font-mono text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg text-left w-full mt-1 border border-amber-200 dark:border-amber-900/40">
+              <span className="font-bold">Info Development:</span>
+              <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                <li>Client ID: {isGisAvailable ? "Terdeteksi" : "KOSONG di NEXT_PUBLIC_GOOGLE_CLIENT_ID"}</li>
+                <li>Script GIS: {gisScriptLoaded ? "Telah dimuat" : "Belum termuat"}</li>
+              </ul>
+            </div>
+          )}
+
+          {/* Opsi fallback alternatif eksplisit */}
+          <div className="pt-1 w-full border-t border-border/50">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExplicitOAuthFallback}
+              disabled={disabled || loading}
+              className="w-full text-xs text-muted-foreground hover:text-foreground h-9 rounded-xl"
+            >
+              Gunakan OAuth Redirect Cadangan (Supabase)
+            </Button>
+          </div>
         </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleFallbackOAuth}
-          disabled={disabled || loading}
-          className="w-full rounded-full h-12 text-sm font-medium flex items-center justify-center gap-3 border-input hover:bg-muted/50 transition-colors shadow-2xs cursor-pointer"
-          aria-busy={loading}
-        >
-          <svg className="size-5 shrink-0" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-            />
-          </svg>
-          <span>{mode === "signup" ? "Daftar dengan Akun Google" : "Masuk dengan Akun Google"}</span>
-        </Button>
       )}
     </div>
   );
 }
-

@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { BrandText } from "@/components/shared/BrandText";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 import { getStoreSearchHref } from "@/lib/search-intent";
 import { CART_UPDATED_EVENT } from "@/lib/cart-events";
 import { useCartStore } from "@/store/useCartStore";

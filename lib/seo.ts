@@ -1,3 +1,4 @@
+import { stripHtmlToPlainText } from "@/lib/sanitize-html";
 export const SITE_NAME = "Next Solution Store";
 export const DEFAULT_SITE_TITLE = "Next Solution Store | Belanja Laptop, PC & Elektronik Premium";
 export const DEFAULT_SITE_DESCRIPTION =
@@ -64,7 +65,7 @@ export function buildProductJsonLd(
   };
 
   if (product.description) {
-    jsonLd.description = product.description.trim();
+    jsonLd.description = stripHtmlToPlainText(product.description);
   }
 
   if (images.length > 0) {

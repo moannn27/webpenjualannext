@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { MapPin, ExternalLink } from "lucide-react";
 import type { StoreBranch, OfficialMarketplace, OfficialChannel } from "@/lib/storefront-settings";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
-import { BrandText } from "@/components/shared/BrandText";
 import { BrandLogo } from "@/components/shared/BrandLogo";
 import { FooterBranchSelector } from "@/components/layouts/FooterBranchSelector";
 import { MarketplaceStoreModal } from "@/components/shared/MarketplaceStoreModal";
@@ -88,10 +86,6 @@ export function Footer({
       : store.phone;
 
   const storeName = store.name || "Next Solution";
-  const logoUrl = store.logo_url || "";
-  const displayMode = store.logo_display_mode || "both";
-  const showLogo = Boolean(logoUrl) && (displayMode === "both" || displayMode === "logo_only");
-  const showText = !logoUrl || displayMode === "both" || displayMode === "text_only";
 
   // Resolve active marketplaces
   const activeMarketplaces =

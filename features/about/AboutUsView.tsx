@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { AboutUsContent } from "@/lib/about-us";
 import { PhotoLayoutRenderer } from "@/components/shared/PhotoLayoutRenderer";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 
 interface AboutUsViewProps {
   content: AboutUsContent;
@@ -134,9 +135,9 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                     </p>
                   )}
 
-                  <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-8 max-w-xl">
-                    {hero.description}
-                  </p>
+                  <div className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-8 max-w-xl">
+                    <RichTextRenderer content={hero.description} />
+                  </div>
 
                   <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     {hero.primary_button_label && (
@@ -219,7 +220,7 @@ export function AboutUsView({ content }: AboutUsViewProps) {
 
                   <div className="space-y-4 text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed mb-8">
                     {(story.story_paragraphs || []).map((para, i) => (
-                      <p key={i}>{para}</p>
+                      <RichTextRenderer key={i} content={para} />
                     ))}
                   </div>
 

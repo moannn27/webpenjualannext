@@ -71,7 +71,6 @@ import {
   FileText,
 } from "lucide-react";
 import { PlatformLogo } from "@/components/shared/BrandLogos";
-import { BrandText } from "@/components/shared/BrandText";
 
 const names: Record<string, string> = {
   categories: "Kategori",

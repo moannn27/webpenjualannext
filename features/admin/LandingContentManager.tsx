@@ -26,6 +26,7 @@ import {
   uploadAdminImageAction,
 } from "@/actions/admin";
 import { prepareImageUpload } from "@/features/admin/prepare-image-upload";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 type Banner = {
   id: string;
@@ -586,17 +587,14 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
               </div>
 
               {/* Deskripsi */}
-              <div className="space-y-1 text-sm sm:col-span-2">
-                <label className="font-semibold text-xs text-foreground flex items-center gap-1">
-                  Deskripsi Singkat Promo
-                  <span className="text-destructive">*</span>
-                </label>
-                <textarea
+              <div className="sm:col-span-2">
+                <RichTextEditor
+                  label="Deskripsi Singkat Promo"
                   value={draft.description}
-                  onChange={(event) => update("description", event.target.value)}
+                  onChange={(html) => update("description", html)}
                   placeholder="Contoh: Performa cepat dengan garansi resmi 2 tahun. Dapatkan gratis mouse wireless dan tas laptop eksklusif!"
                   required
-                  className="min-h-20 w-full rounded-xl border border-input bg-background p-2.5 text-xs sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  minHeight="140px"
                 />
               </div>
 

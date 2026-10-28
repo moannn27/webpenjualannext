@@ -53,6 +53,7 @@ import { uploadAdminImageAction } from "@/actions/admin";
 import { prepareImageUpload } from "@/features/admin/prepare-image-upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 interface AboutUsManagerProps {
   initialContent: AboutUsContent;
@@ -540,16 +541,14 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Paragraf Deskripsi Hero
-                </label>
-                <textarea
-                  rows={3}
+                <RichTextEditor
+                  label="Paragraf Deskripsi Hero"
                   value={content.hero.description}
-                  onChange={(e) =>
-                    updateContent("hero", { ...content.hero, description: e.target.value })
+                  onChange={(val) =>
+                    updateContent("hero", { ...content.hero, description: val })
                   }
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-transparent p-3 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0A4EA3]"
+                  placeholder="Tuliskan paragraf pembuka Tentang Kami..."
+                  minHeight="120px"
                 />
               </div>
 
@@ -667,19 +666,17 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Paragraf Narasi (Pisahkan tiap paragraf dengan enter / baris baru)
-                </label>
-                <textarea
-                  rows={6}
-                  value={(content.story.story_paragraphs || []).join("\n\n")}
-                  onChange={(e) =>
+                <RichTextEditor
+                  label="Paragraf Narasi Kisah Toko"
+                  value={content.story.story_paragraphs?.join("\n\n") || ""}
+                  onChange={(val) =>
                     updateContent("story", {
                       ...content.story,
-                      story_paragraphs: e.target.value.split("\n\n").filter(Boolean),
+                      story_paragraphs: [val],
                     })
                   }
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-transparent p-3 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0A4EA3]"
+                  placeholder="Tuliskan kisah perjalanan, visi, dan filosofi toko..."
+                  minHeight="180px"
                 />
               </div>
 

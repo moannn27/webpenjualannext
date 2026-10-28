@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useCallback, useEffect, useState, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export function NavigationProgress() {
+function NavigationProgressBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -15,7 +15,29 @@ export function NavigationProgress() {
   const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeUrlRef = useRef<string>("");
 
-  const startProgress = () => {
+  const stopProgress = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current);
+      safetyTimeoutRef.current = null;
+    }
+
+    // Complete to 100%
+    setProgress(100);
+
+    // Fade out and reset
+    resetTimerRef.current = setTimeout(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setProgress(0);
+      }, 300);
+    }, 250);
+  }, []);
+
+  const startProgress = useCallback(() => {
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
     if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     if (timerRef.current) clearInterval(timerRef.current);
@@ -37,29 +59,7 @@ export function NavigationProgress() {
     safetyTimeoutRef.current = setTimeout(() => {
       stopProgress();
     }, 10000);
-  };
-
-  const stopProgress = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (safetyTimeoutRef.current) {
-      clearTimeout(safetyTimeoutRef.current);
-      safetyTimeoutRef.current = null;
-    }
-
-    // Complete to 100%
-    setProgress(100);
-
-    // Fade out and reset
-    resetTimerRef.current = setTimeout(() => {
-      setVisible(false);
-      setTimeout(() => {
-        setProgress(0);
-      }, 300);
-    }, 250);
-  };
+  }, [stopProgress]);
 
   // Complete progress whenever URL pathname or searchParams change
   useEffect(() => {
@@ -68,7 +68,7 @@ export function NavigationProgress() {
       stopProgress();
     }
     activeUrlRef.current = currentUrl;
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams, stopProgress]);
 
   // Listen to document clicks for all internal navigation links
   useEffect(() => {
@@ -124,7 +124,7 @@ export function NavigationProgress() {
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
     };
-  }, []);
+  }, [startProgress, stopProgress]);
 
   if (!visible && progress === 0) return null;
 
@@ -146,3 +146,11 @@ export function NavigationProgress() {
   );
 }
 
+
+export function NavigationProgress() {
+  return (
+    <Suspense fallback={null}>
+      <NavigationProgressBar />
+    </Suspense>
+  );
+}

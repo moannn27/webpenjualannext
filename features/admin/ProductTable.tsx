@@ -16,6 +16,7 @@ import {
   bulkDeleteAdminProductsAction
 } from "@/actions/admin";
 import { ProductBulkImporter } from "@/features/admin/ProductBulkImporter";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import {
   type StockExportFormat,
   flattenProductsForStockExport,
@@ -1066,7 +1067,16 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_new_arrival" defaultChecked={editing?.is_new_arrival ?? false} />Tampilkan sebagai produk terbaru</label>
           <label className="space-y-1 text-sm">Kategori<select name="category_id" required defaultValue={categories.find((option) => option.name === editing?.categories?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih kategori</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <label className="space-y-1 text-sm">Brand<select name="brand_id" required defaultValue={brands.find((option) => option.name === editing?.brands?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-          <label className="space-y-1 text-sm sm:col-span-2">Deskripsi produk<textarea name="description" required minLength={3} defaultValue={editing?.description ?? ""} placeholder="Jelaskan manfaat, kondisi, dan informasi penting produk..." className="min-h-28 w-full rounded-lg border border-input bg-background p-3" /></label>
+          <div className="sm:col-span-2">
+            <RichTextEditor
+              name="description"
+              defaultValue={editing?.description ?? ""}
+              label="Deskripsi produk"
+              placeholder="Jelaskan manfaat, kondisi, dan informasi penting produk..."
+              required
+              minHeight="180px"
+            />
+          </div>
 
           {/* Bagian Spesifikasi Produk */}
           <section className="space-y-3 rounded-xl border p-4 sm:col-span-2">

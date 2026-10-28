@@ -7,6 +7,7 @@ import { deleteAdminCategoryAction, getAdminCategoriesAction, saveAdminCategoryA
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { prepareImageUpload } from "@/features/admin/prepare-image-upload";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 type Category = { id: string; name: string; description: string | null; image_url: string | null };
 
@@ -87,7 +88,15 @@ export function CategoryManager({ initialCategories }: { initialCategories: Cate
       <h3 id="category-title" className="mb-5 text-xl font-bold">{editing ? "Edit kategori" : "Tambah kategori"}</h3>
       <form action={save} className="space-y-4">{editing && <input type="hidden" name="id" value={editing.id} />}
         <label className="block space-y-1 text-sm">Nama<Input name="name" required minLength={2} defaultValue={editing?.name || ""} /></label>
-        <label className="block space-y-1 text-sm">Deskripsi<textarea name="description" defaultValue={editing?.description || ""} className="min-h-20 w-full rounded-lg border border-input bg-background p-2" /></label>
+        <div>
+          <RichTextEditor
+            name="description"
+            defaultValue={editing?.description || ""}
+            label="Deskripsi"
+            placeholder="Tuliskan deskripsi kategori..."
+            minHeight="140px"
+          />
+        </div>
         <label className="block space-y-1 text-sm">URL gambar<Input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} type="url" placeholder="https://..." /></label>
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-primary"><ImagePlus className="size-4" />Upload gambar<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }} /></label>
         {imageUrl && <><div className="grid h-44 w-full place-items-center overflow-hidden rounded-xl border bg-muted"><Image src={imageUrl} alt="Pratinjau gambar kategori" width={640} height={360} unoptimized sizes="(min-width: 512px) 448px, 100vw" className="max-h-full max-w-full object-contain" style={{ transform: `scale(${imageScale / 100})` }} /></div><label className="block space-y-1 text-xs">Ukuran gambar <span className="font-medium">{imageScale}%</span><input aria-label="Ukuran gambar" className="w-full accent-primary" type="range" min="40" max="140" step="5" value={imageScale} onChange={(event) => setImageScale(Number(event.target.value))} /></label></>}

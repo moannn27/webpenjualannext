@@ -18,6 +18,8 @@ import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import type { Product } from "@/store/useProductStore";
 import { clampCatalogPage, normalizeCatalogSearchParams, parseCatalogFilters, type RawCatalogSearchParams } from "@/lib/catalog-filters";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
+import { stripHtmlToPlainText } from "@/lib/sanitize-html";
 
 function CategoryIcon({ slug, name, className }: { slug: string; name: string; className?: string }) {
   const s = `${slug} ${name}`.toLowerCase();
@@ -33,7 +35,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const category = categories?.find((item) => item.slug === slug);
   if (!category) return { title: "Kategori Tidak Ditemukan" };
   const title = `Kategori ${category.name}`;
-  const description = `Temukan koleksi produk ${category.name} dengan pilihan spesifikasi lengkap dan penawaran menarik di Next Solution Store.`;
+  const description = category.description
+    ? stripHtmlToPlainText(category.description).slice(0, 160)
+    : `Temukan koleksi produk ${category.name} dengan pilihan spesifikasi lengkap dan penawaran menarik di Next Solution Store.`;
   return {
     title,
     description,
@@ -99,9 +103,15 @@ export default async function CategoryPage({ params, searchParams }: { params: P
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {category.name}
                 </h1>
-                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Temukan koleksi {category.name} terlengkap dengan garansi resmi, jaminan keaslian 100%, dan penawaran harga terbaik di Next Solution.
-                </p>
+                <RichTextRenderer
+                  content={category.description}
+                  fallback={
+                    <p className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Temukan koleksi {category.name} terlengkap dengan garansi resmi, jaminan keaslian 100%, dan penawaran harga terbaik di Next Solution.
+                    </p>
+                  }
+                  className="mt-1.5 text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed"
+                />
               </div>
             </div>
 

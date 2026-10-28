@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronDown, MessageCircleQuestion } from "lucide-react";
 import { getFAQsAction } from "@/actions/content";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 
 interface FaqItem {
   id?: string;
@@ -60,7 +61,7 @@ export default async function FAQPage() {
                       <span>{faq.question}</span>
                       <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
                     </summary>
-                    <p className="mt-3 whitespace-pre-line pr-8 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
+                    <div className="mt-3 pr-8 text-sm leading-6 text-muted-foreground"><RichTextRenderer content={faq.answer} /></div>
                   </details>
                 ))}
               </div>

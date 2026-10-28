@@ -74,7 +74,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if ((!user || (mustCheckActiveProfile && activeProfileStatus === 'missing')) && (isProtectedRoute || isCheckoutRoute)) {
+  if ((!user || (mustCheckActiveProfile && activeProfileStatus === 'missing')) && (isProtectedRoute || isCheckoutRoute) && !isServerAction) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirect', `${request.nextUrl.pathname}${request.nextUrl.search}`)
@@ -83,7 +83,7 @@ export async function updateSession(request: NextRequest) {
       : NextResponse.redirect(url)
   }
 
-  if (user && activeProfileStatus === 'active' && isAuthPage) {
+  if (user && activeProfileStatus === 'active' && isAuthPage && !isServerAction) {
     const url = request.nextUrl.clone()
     url.pathname = '/profile'
     return NextResponse.redirect(url)

@@ -19,6 +19,7 @@ import type { Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { toast } from "@/store/useToastStore";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 
 type LandingPromo = {
   title: string;
@@ -268,9 +269,9 @@ export function PromoBanner({
               {title}
             </h2>
 
-            <p className="mb-6 max-w-xl text-base font-light text-blue-100/90 sm:mb-8 sm:text-lg leading-relaxed">
-              {description}
-            </p>
+            <div className="mb-6 max-w-xl text-base font-light text-blue-100/90 sm:mb-8 sm:text-lg leading-relaxed [&_p]:text-blue-100/90">
+              <RichTextRenderer content={description} />
+            </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <Button

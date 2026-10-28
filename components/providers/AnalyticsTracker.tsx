@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { trackPageView } from "@/lib/analytics/tracker";
 
-export function AnalyticsTracker() {
+function AnalyticsTrackerContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastTracked = useRef<string>("");
@@ -26,3 +26,10 @@ export function AnalyticsTracker() {
   return null;
 }
 
+export function AnalyticsTracker() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyticsTrackerContent />
+    </Suspense>
+  );
+}

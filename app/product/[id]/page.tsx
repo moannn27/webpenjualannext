@@ -7,6 +7,7 @@ import { toStorefrontProduct, type StoreProduct } from "@/lib/products";
 import { getRecommendationSubtitle, type ProductCandidate } from "@/lib/product-recommendations";
 import { notFound } from "next/navigation";
 import { buildProductJsonLd } from "@/lib/seo";
+import { stripHtmlToPlainText } from "@/lib/sanitize-html";
 import { isKnownPromotionalArtwork } from "@/lib/product-gallery";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -20,8 +21,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const imageUrl = productImages?.find((image) => image.is_primary && !isKnownPromotionalArtwork(image.url))?.url
     ?? productImages?.find((image) => !isKnownPromotionalArtwork(image.url))?.url;
   const title = product.name;
-  const description = product.description
-    ? String(product.description).slice(0, 160)
+  const plainDesc = stripHtmlToPlainText(product.description);
+  const description = plainDesc
+    ? plainDesc.slice(0, 160)
     : `Lihat spesifikasi lengkap dan harga ${product.name} di Next Solution Store.`;
 
   return {

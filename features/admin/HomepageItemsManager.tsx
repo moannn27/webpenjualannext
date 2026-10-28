@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { deleteHomepageItemAction, getAdminHomepageItemsAction, saveHomepageItemAction, seedDefaultFaqsAction } from "@/actions/admin";
 import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/actions/review";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 type FAQ = {
   id: string;
@@ -737,16 +738,16 @@ export function HomepageItemsManager({
                     Pertanyaan
                     <Input name="question" defaultValue={editingFaq?.question ?? ""} required placeholder="Misal: Berapa lama garansi produk?" />
                   </label>
-                  <label className="space-y-1 text-sm sm:col-span-2">
-                    Jawaban
-                    <textarea
+                  <div className="sm:col-span-2">
+                    <RichTextEditor
                       name="answer"
                       defaultValue={editingFaq?.answer ?? ""}
-                      required
+                      label="Jawaban FAQ"
                       placeholder="Jawaban lengkap untuk pertanyaan ini..."
-                      className="min-h-32 w-full rounded-lg border border-input bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      required
+                      minHeight="160px"
                     />
-                  </label>
+                  </div>
                 </>
               ) : (
                 <>

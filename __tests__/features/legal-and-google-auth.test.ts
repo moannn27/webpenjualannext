@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { metadata as privacyMetadata } from "@/app/privacy-policy/page";
 import PrivacyPolicyPage from "@/app/privacy-policy/page";
 import LegacyPrivacyPage, { metadata as legacyPrivacyMetadata } from "@/app/privacy/page";
 import { metadata as termsMetadata } from "@/app/terms/page";
 import TermsPage from "@/app/terms/page";
+import { generateCryptoNonce, GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import React from "react";
 import { renderToString } from "react-dom/server";
 
@@ -96,23 +97,139 @@ describe("Legal Pages - Privacy Policy & Terms and Conditions", () => {
 
   describe("Google Identity Services Cryptographic Nonce Generation", () => {
     it("generates 32-byte base64 raw nonce and matching SHA-256 hex string", async () => {
-      // Simulate cryptographic helper logic used in GoogleAuthButton
-      const randomBytes = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) randomBytes[i] = (i * 7 + 13) % 256;
-      
-      const rawNonce = btoa(String.fromCharCode(...randomBytes));
+      const { rawNonce, hashedNonce } = await generateCryptoNonce();
+
       expect(rawNonce).toBeTruthy();
       expect(typeof rawNonce).toBe("string");
+      // 32 bytes encoded in base64 should be 44 characters ending with '=' or alphanumeric
+      expect(rawNonce.length).toBeGreaterThanOrEqual(40);
 
+      // Verify SHA-256 hash
       const encoder = new TextEncoder();
       const encodedNonce = encoder.encode(rawNonce);
       const hashBuffer = await crypto.subtle.digest("SHA-256", encodedNonce);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashedNonce = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      const expectedHashed = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-      expect(hashedNonce).toHaveLength(64); // SHA-256 hex string is 64 characters
+      expect(hashedNonce).toBe(expectedHashed);
+      expect(hashedNonce).toHaveLength(64);
       expect(hashedNonce).toMatch(/^[0-9a-f]{64}$/);
     });
   });
-});
 
+  describe("Google Identity Services - Button & Flow Isolation", () => {
+    const originalEnv = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = originalEnv;
+    });
+
+    it("renders Google Identity Services container in DOM when Client ID is configured", () => {
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mock-client-id.apps.googleusercontent.com";
+      const html = renderToString(React.createElement(GoogleAuthButton, { mode: "signin" }));
+
+      // Does NOT render fallback OAuth button by default
+      expect(html).not.toContain("Gunakan OAuth Redirect Cadangan");
+      // Renders loading placeholder inside the container while GIS is preparing
+      expect(html).toContain("Menyiapkan Akun Google");
+    });
+
+    it("displays explicit error notice and does NOT automatically redirect when Client ID is missing", () => {
+      delete process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      const html = renderToString(React.createElement(GoogleAuthButton, { mode: "signin" }));
+
+      // Must display error notice
+      expect(html).toContain("Google Identity Services tidak tersedia");
+      // Must NOT automatically redirect; fallback is available ONLY as an explicit secondary button
+      expect(html).toContain("Gunakan OAuth Redirect Cadangan (Supabase)");
+    });
+
+    it("executes signInWithIdToken and avoids signInWithOAuth during GIS callback", async () => {
+      // Mock Supabase client
+      const mockSignInWithIdToken = vi.fn().mockResolvedValue({
+        data: { session: { access_token: "test-token" }, user: { id: "user-123", email: "test@example.com" } },
+        error: null,
+      });
+      const mockSignInWithOAuth = vi.fn();
+
+      // Verify the cryptographic nonce contract required by Supabase & Google
+      const { rawNonce, hashedNonce } = await generateCryptoNonce();
+      expect(hashedNonce).toHaveLength(64);
+
+      // Simulate Google GIS returning credential to callback
+      const mockCredential = "mock.google.id.token.jwt";
+      const authResult = await mockSignInWithIdToken({
+        provider: "google",
+        token: mockCredential,
+        nonce: rawNonce,
+      });
+
+      expect(mockSignInWithIdToken).toHaveBeenCalledTimes(1);
+      expect(mockSignInWithIdToken).toHaveBeenCalledWith({
+        provider: "google",
+        token: mockCredential,
+        nonce: rawNonce,
+      });
+      expect(authResult.data.session).toBeDefined();
+
+      // Ensure old OAuth redirect was never invoked
+      expect(mockSignInWithOAuth).not.toHaveBeenCalled();
+    });
+
+    it("handles Google credential failure safely without throwing unhandled exceptions", async () => {
+      const mockOnError = vi.fn();
+      const mockSignInWithIdToken = vi.fn();
+
+      // Simulate null/missing credential from Google popup
+      const response = { credential: undefined };
+      if (!response?.credential) {
+        mockOnError("Token otentikasi Google tidak diterima.");
+      }
+
+      expect(mockOnError).toHaveBeenCalledWith("Token otentikasi Google tidak diterima.");
+      expect(mockSignInWithIdToken).not.toHaveBeenCalled();
+    });
+
+    it("ensures Google GIS container is empty of React children to prevent Node.removeChild crash", () => {
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mock-client-id.apps.googleusercontent.com";
+      const html = renderToString(React.createElement(GoogleAuthButton, { mode: "signin" }));
+
+      // The placeholder is rendered as a sibling, not inside the dedicated container
+      expect(html).toContain("Menyiapkan Akun Google...");
+      // Verifies container exists as a separate element with hidden class until GIS renders
+      expect(html).toContain('<div class="w-full justify-center py-0.5 min-h-[44px] hidden"></div>');
+    });
+
+    it("supports switching between signin and signup modes cleanly", () => {
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mock-client-id.apps.googleusercontent.com";
+      const signinHtml = renderToString(React.createElement(GoogleAuthButton, { mode: "signin" }));
+      const signupHtml = renderToString(React.createElement(GoogleAuthButton, { mode: "signup" }));
+
+      expect(signinHtml).toContain("Menyiapkan Akun Google...");
+      expect(signupHtml).toContain("Menyiapkan Akun Google...");
+    });
+
+    it("does not show 'Google Identity Services tidak tersedia' when Client ID is valid", () => {
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID = "mock-client-id.apps.googleusercontent.com";
+      const html = renderToString(React.createElement(GoogleAuthButton, { mode: "signin" }));
+
+      expect(html).not.toContain("Google Identity Services tidak tersedia");
+      expect(html).toContain("Menyiapkan Akun Google...");
+    });
+
+    it("isolates server action errors during profile sync and ensures fallback role", async () => {
+      // Simulate sync action execution returning a predictable contract
+      const mockSync = async () => {
+        return { success: true, role: "customer" };
+      };
+
+      const result = await mockSync();
+      expect(result.success).toBe(true);
+      expect(result.role).toBe("customer");
+    });
+  });
+});

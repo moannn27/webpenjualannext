@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 type FAQ = { id: string; question: string; answer: string };
 
 export function FaqSection({
@@ -64,9 +65,9 @@ export function FaqSection({
                     isOpen ? "max-h-96 pb-5 sm:pb-6 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
-                  <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line text-xs sm:text-sm md:text-base border-t border-slate-200/60 dark:border-white/10 pt-3">
-                    {faq.answer}
-                  </p>
+                  <div className="text-slate-600 dark:text-slate-300 leading-relaxed text-xs sm:text-sm md:text-base border-t border-slate-200/60 dark:border-white/10 pt-3">
+                    <RichTextRenderer content={faq.answer} />
+                  </div>
                 </div>
               </div>
             );

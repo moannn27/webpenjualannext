@@ -15,11 +15,8 @@ import {
   Palette,
   Check,
   Stamp,
-  PenTool,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BrandText } from "@/components/shared/BrandText";
-import { BrandLogo } from "@/components/shared/BrandLogo";
 import { cn } from "@/lib/utils";
 import type { AdminModuleKey } from "@/types/admin-permissions";
 
