@@ -19,6 +19,12 @@ export function getSelectedProductVariant<T extends { id: string }>(variants: T[
   return variants.find((variant) => variant.id === selectedId) ?? variants[0] ?? null;
 }
 
+export function getOptionCapacity(str?: string | null): string {
+  if (!str) return "";
+  const match = str.match(/(\d+\s*(?:gb|tb))/i);
+  return match ? match[1].toLowerCase().replace(/\s+/g, "") : str.toLowerCase().trim();
+}
+
 export function getVariantForAvailableOption<
   T extends { color?: string | null; ram?: string | null; storage?: string | null },
 >(
@@ -28,8 +34,13 @@ export function getVariantForAvailableOption<
   value: string,
 ): T | null {
   const otherKeys = (["color", "ram", "storage"] as const).filter((option) => option !== key);
-  return variants.find((variant) => variant[key] === value && otherKeys.every((option) => variant[option] === current?.[option]))
-    ?? variants.find((variant) => variant[key] === value)
+  const exact = variants.find((variant) => variant[key] === value && otherKeys.every((option) => variant[option] === current?.[option]))
+    ?? variants.find((variant) => variant[key] === value);
+  if (exact) return exact;
+
+  const targetCap = getOptionCapacity(value);
+  return variants.find((variant) => getOptionCapacity(variant[key]) === targetCap && otherKeys.every((option) => variant[option] === current?.[option]))
+    ?? variants.find((variant) => getOptionCapacity(variant[key]) === targetCap)
     ?? null;
 }
 

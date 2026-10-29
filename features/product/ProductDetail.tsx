@@ -29,7 +29,7 @@ import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
 import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
-import { getAllProductGalleryImages, getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import { getAllProductGalleryImages, getOptionCapacity, getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
 interface ProductDetailData {
@@ -282,7 +282,29 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
-  const variantOptions = (key: "color" | "ram" | "storage") => [...new Set(variants.map((variant) => variant[key]).filter(Boolean))];
+  const variantOptions = (key: "color" | "ram" | "storage") => {
+    const raw = [...new Set(variants.map((variant) => variant[key]).filter(Boolean))] as string[];
+    if (key === "color") return raw;
+
+    // For RAM and Storage: deduplicate equivalent capacities (e.g. 512GB SSD vs 512GB SSD M.2)
+    const seenCapacities = new Map<string, string>();
+    for (const opt of raw) {
+      const cap = getOptionCapacity(opt);
+      if (!seenCapacities.has(cap)) {
+        seenCapacities.set(cap, opt);
+      } else {
+        const currentBest = seenCapacities.get(cap)!;
+        const currentHasStock = variants.some((v) => v[key] === currentBest && v.stock > 0);
+        const optHasStock = variants.some((v) => v[key] === opt && v.stock > 0);
+        if (optHasStock && !currentHasStock) {
+          seenCapacities.set(cap, opt);
+        } else if (optHasStock === currentHasStock && opt.length > currentBest.length) {
+          seenCapacities.set(cap, opt);
+        }
+      }
+    }
+    return Array.from(seenCapacities.values());
+  };
   const chooseVariant = (key: "color" | "ram" | "storage", value: string) => {
     const next = getVariantForAvailableOption(variants, selectedVariant, key, value);
     if (next) {
@@ -463,7 +485,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {options.map((option) => {
-                          const isSelected = currentVal === option;
+                          const isSelected = currentVal === option || (key !== "color" && Boolean(currentVal) && getOptionCapacity(currentVal) === getOptionCapacity(option));
                           return (
                             <button
                               key={option}

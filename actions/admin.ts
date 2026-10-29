@@ -13,6 +13,7 @@ import { requireModulePermission, getCurrentAdminPermissions } from '@/lib/auth/
 import { recordAdminActivity } from '@/lib/audit-log'
 import { DEFAULT_FAQS } from '@/constants/defaultFaqs'
 import { findSkuConflict, parseManualVariants, planVariantGallerySync } from '@/lib/admin-product-variants'
+import { getOptionCapacity } from '@/lib/product-gallery'
 
 const adminService = new AdminService()
 
@@ -1536,12 +1537,15 @@ export async function bulkImportAdminProductsAction(products: unknown) {
   const allTargetIds = typedProducts.map((p) => p.targetProductId).filter(Boolean) as string[]
 
   if (allTargetIds.length > 0 || allVarSkus.length > 0) {
-    const [targetProdsRes, dbVarsRes] = await Promise.all([
+    const [targetProdsRes, dbVarsRes, targetVarsRes] = await Promise.all([
       allTargetIds.length > 0
         ? supabase.from('products').select('id, sku, name').in('id', allTargetIds)
         : Promise.resolve({ data: [] }),
       allVarSkus.length > 0
         ? supabase.from('product_variants').select('id, product_id, sku').in('sku', allVarSkus)
+        : Promise.resolve({ data: [] }),
+      allTargetIds.length > 0
+        ? supabase.from('product_variants').select('id, product_id, sku, color, ram, storage, stock').in('product_id', allTargetIds)
         : Promise.resolve({ data: [] }),
     ])
 
@@ -1554,6 +1558,24 @@ export async function bulkImportAdminProductsAction(products: unknown) {
         if (target && target.sku && (!p.sku || p.sku.toLowerCase() !== target.sku.toLowerCase())) {
           // Keep existing product SKU intact for update RPC validation
           p.sku = target.sku
+        }
+
+        // Harmonize variant specs with existing DB variants to prevent duplicate variants on slight spec wording
+        const existingVars = (targetVarsRes.data || []).filter((v) => v.product_id === p.targetProductId)
+        for (const v of p.variants || []) {
+          const matchedVar = existingVars.find((dbV) => {
+            if (v.sku && dbV.sku && v.sku.trim().toLowerCase() === dbV.sku.trim().toLowerCase()) return true
+            const sameColor = (v.color || '').trim().toLowerCase() === (dbV.color || '').trim().toLowerCase()
+            const sameRam = getOptionCapacity(v.ram) === getOptionCapacity(dbV.ram)
+            const sameStorage = getOptionCapacity(v.storage) === getOptionCapacity(dbV.storage)
+            return sameColor && sameRam && sameStorage
+          })
+          if (matchedVar) {
+            v.color = matchedVar.color
+            v.ram = matchedVar.ram
+            v.storage = matchedVar.storage
+            if (!v.sku && matchedVar.sku) v.sku = matchedVar.sku
+          }
         }
       } else if (p.importAction === 'create') {
         const matchedOwners = new Set<string>()

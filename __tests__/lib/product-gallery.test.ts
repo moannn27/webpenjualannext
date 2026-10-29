@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAllProductGalleryImages,
+  getOptionCapacity,
   getProductGalleryImages,
   getSafeProductImageUrl,
   getSelectedProductVariant,
@@ -93,6 +94,20 @@ describe("product variant gallery", () => {
     expect(getVariantForAvailableOption(variants, variants[0], "color", "Grey")).toBe(variants[1]);
     expect(getVariantForAvailableOption(variants, variants[0], "storage", "2TB")).toBeNull();
     expect(variants.some((variant) => variant.color === "Grey" && variant.ram === "8GB" && variant.storage === "512GB")).toBe(false);
+  });
+
+  it("normalizes storage and ram capacities to match equivalent variant specs", () => {
+    expect(getOptionCapacity("512GB SSD")).toBe("512gb");
+    expect(getOptionCapacity("512GB SSD M.2")).toBe("512gb");
+    expect(getOptionCapacity("512GB 2280 PCIE G4")).toBe("512gb");
+    expect(getOptionCapacity("1TB SSD")).toBe("1tb");
+    expect(getOptionCapacity("16GB DDR5 5600")).toBe("16gb");
+
+    const variants = [
+      { id: "v-f16", color: "Jaeger Gray", ram: "16GB", storage: "512GB SSD M.2" },
+    ];
+    // Matching 512GB SSD selects the equivalent 512GB SSD M.2 variant without duplicate buttons
+    expect(getVariantForAvailableOption(variants, null, "storage", "512GB SSD")).toEqual(variants[0]);
   });
 
   describe("getAllProductGalleryImages", () => {
