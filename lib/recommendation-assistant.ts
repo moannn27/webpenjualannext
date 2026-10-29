@@ -13,24 +13,36 @@ export type ProductCriteria = {
   budget: number | null; budgetFloor: number | null; minBudget: boolean; approximateBudget: boolean; category: ProductCategory | null;
   brand: string | null; series: string[]; memory: string | null; processor: string | null;
   graphics: string | null; color: string | null; storage: string | null; gaming: boolean;
-  design: boolean; graphicsQuestion: boolean; requiresDedicatedGpu: boolean; requiresNvidiaGpu: boolean;
+  design: boolean; heavyGraphics: boolean; study: boolean; midRange: boolean; graphicsQuestion: boolean; requiresDedicatedGpu: boolean; requiresNvidiaGpu: boolean;
   alternativeRequest: boolean;
   graphicsInventoryRequest: boolean; smallTalk: boolean; capabilityQuestion: boolean; needsCategoryClarification: boolean;
   generalQuestion: boolean;
   work: boolean; premium: boolean; priceDirection: "higher" | "lower" | null;
   comparisonBudget: number | null; rejectedProductIds: string[];
   wantsProducts: boolean; outOfScope: boolean;
+  lastUserMessage?: string;
 };
 export type FaqEntry = { question: string; answer: string };
+
+const CREATIVE_AND_3D_TERMS = /\b(?:revit|autocad|cad|archicad|sketchup|3ds\s*max|3d\s*max|lumion|blender|solidworks|inventor|civil\s*3d|ansys|adobe|photoshop|illustrator|premiere|after\s*effects|\bae\b|indesign|lightroom|corel|coreldraw|davinci|resolve|arsitektur|arsitek|teknik\s*(?:sipil|mesin|arsitektur)?|3d\s*(?:modelling|modeling|animasi|render)?|animasi|animator|ilustrasi|desain|design|editing|render|rendering)\b/i;
+const HEAVY_GRAPHICS_TERMS = /\b(?:revit|autocad|cad|archicad|sketchup|3ds\s*max|3d\s*max|lumion|blender|solidworks|inventor|civil\s*3d|ansys|premiere|after\s*effects|\bae\b|davinci|resolve|render(?:ing)?|3d\s*(?:modelling|modeling|render|animasi)|arsitektur|arsitek)\b/i;
+const STUDY_AND_SCHOOL_TERMS = /\b(?:kuliah(?:an)?|mahasiswa|mahasiswi|kampus|sekolah(?:an)?|anak\s+sekolah|pelajar|siswa|siswi|\bsmp\b|\bsma\b|\bsmk\b|belajar|tugas(?:-tugas)?|skripsi|tesis|makalah|presentasi|daring|zoom|kelas\s+online|study|student|school|college|university)\b/i;
 
 const SERIES: Record<string, string> = {
   yoga: "Lenovo", zenbook: "ASUS", vivobook: "ASUS", ideapad: "Lenovo", thinkpad: "Lenovo",
   macbook: "Apple", zephyrus: "ASUS", legion: "Lenovo", loq: "Lenovo", aspire: "Acer",
-  soulmate: "Advan", workmate: "Advan", nitro: "Acer", tuf: "ASUS", rog: "ASUS",
+  soulmate: "Advan", workmate: "Advan", nitro: "Acer", tuf: "ASUS", rog: "ASUS", victus: "HP", pavilion: "HP", omen: "HP", predator: "Acer", expertbook: "ASUS", cyborg: "MSI", katana: "MSI", thin: "MSI", bravo: "MSI", modern: "MSI", pongo: "Axioo", hype: "Axioo", workplus: "Advan", pixwar: "Advan", pixelwar: "Advan", swift: "Acer", envy: "HP", elitebook: "HP", thinkcentre: "Lenovo", proart: "ASUS", travelmate: "Acer", probook: "HP", raider: "MSI", stealth: "MSI", mybook: "Axioo", inspiron: "Dell", xps: "Dell", latitude: "Dell", alienware: "Dell", galaxy: "Samsung", odyssey: "Samsung", imac: "Apple", redmi: "Xiaomi", poco: "Xiaomi",
 };
-const PRODUCT_TERMS = /laptop|laptp|notebook|komputer|\bpc\b|smartphone|handphone|\bhp\b|ponsel|iphone|tablet|ipad|aksesoris|monitor|produk|barang|rekomendasi|carikan|cari|banding|\bvs\b|stok|ready|harga|budget|spek|spesifikasi|merek|brand|slug|gaming|game|desain|editing|kuliah|kerja|coding|streaming|lebih murah|lebih mahal|yang tadi|\b(cpu|gpu(?:nya)?|vga(?:nya)?|bervga|grafis(?:nya)?|ram|ssd|hdd|storage|warna|sku|mtm|rtx|gtx)\b/i;
+const PRODUCT_TERMS = /laptop|laptp|notebook|komputer|\bpc\b|desktop|tower|aio|all[ -]in[ -]one|smartphone|handphone|\bhp\b|ponsel|iphone|tablet|ipad|gadget|aksesoris|aksesori|monitor|display|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|adaptor|adapter|printer|tinta|cartridge|scanner|flashdisk|cooler|cooling\s*pad|kabel|cable|converter|docking|hub|tas|backpack|sleeve|mousepad|stand|bracket|ups|stabilizer|powerbank|produk|barang|rekomendasi|carikan|cari|beli|jual|stok|ready|harga|budget|spek|spesifikasi|merek|brand|slug|banding|\bvs\b|gaming|game|ngegame|desain|design|editing|kuliah|sekolah|pelajar|siswa|mahasiswa|anak\s*sekolah|kerja|kantor|office|coding|programming|streaming|lebih murah|lebih mahal|yang tadi|revit|autocad|cad|archicad|sketchup|3ds\s*max|3d\s*max|lumion|blender|solidworks|inventor|civil\s*3d|adobe|photoshop|illustrator|premiere|after\s*effects|corel|davinci|resolve|arsitektur|arsitek|3d|animasi|\b(cpu|gpu(?:nya)?|vga(?:nya)?|bervga|grafis(?:nya)?|kartu\s*grafis|prose[sc]or(?:nya)?|prosessro|proci|proc|memor[iy](?:nya)?|ram(?:nya)?|ssd|hdd|storage|penyimpanan|layar|display|warna|tipe|type|seri|sku|mtm|rtx|gtx)\b/i;
 const SERVICE_TERMS = /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|order|refund|garansi|retur|kebijakan|website|situs|admin|whatsapp|\bfaq\b/i;
-const BRANDS = ["ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"];
+export const BRANDS = [
+  "ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte", "Axioo", "Huawei", "Xiaomi", "Zyrex",
+  "Samsung", "Redmi", "Poco", "Infinix", "Tecno", "Itel", "Realme", "Oppo", "Vivo",
+  "LG", "ViewSonic", "AOC", "BenQ", "Philips", "Armaggeddon", "Koorui", "Prism",
+  "Logitech", "Razer", "Corsair", "SteelSeries", "Fantech", "Rexus", "NYK", "Sades", "JBL", "Sony", "Robot", "Orico", "UGreen", "Baseus", "A4Tech", "VortexSeries", "Keychron", "AULA", "Digital Alliance",
+  "Kingston", "SanDisk", "WD", "Western Digital", "Seagate", "Adata", "TeamGroup", "Klevv", "V-Gen", "Transcend", "Lexar", "Crucial",
+  "Epson", "Canon", "Brother"
+];
 
 export type ParsedBudget = { amount: number | null; floor: number | null; min: boolean; approximate: boolean };
 export function parseBudget(text: string): ParsedBudget {
@@ -57,20 +69,25 @@ export function parseBudget(text: string): ParsedBudget {
 }
 
 function findCategory(text: string): ProductCategory | null {
-  if (/laptop|notebook|macbook|chromebook|kuliah|gaming|desain|editing video|coding|streaming|kerja kantor/i.test(text)) return "laptop";
-  if (/monitor|display|layar eksternal/i.test(text)) return "monitor";
+  if (/monitor|display|layar eksternal|layar tambahan/i.test(text)) return "monitor";
   if (/desktop|\bpc\b|all[ -]in[ -]one|aio|komputer/i.test(text)) return "desktop";
   if (/smartphone|handphone|ponsel|telepon|iphone|\bhp\b/i.test(text)) return "smartphone";
   if (/tablet|ipad/i.test(text)) return "tablet";
-  if (/aksesoris|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|tas/i.test(text)) return "accessory";
+  if (/aksesoris|aksesori|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|adaptor|adapter|tas|printer|tinta|cartridge|scanner|flashdisk|cooler|cooling\s*pad|kabel|cable|mic|microphone|mousepad|bracket|stand|powerbank/i.test(text)) return "accessory";
+  if (/laptop|notebook|macbook|chromebook|kuliah|sekolah|pelajar|siswa|mahasiswa|anak\s*sekolah|gaming|desain|editing video|coding|streaming|kerja kantor|revit|autocad|cad|blender|sketchup|lumion|adobe|premiere|after\s*effects|3d|arsitektur/i.test(text)) return "laptop";
   return null;
 }
 function findMentionedSeries(text: string): string[] {
   return Object.keys(SERIES).filter((series) => new RegExp("\\b" + series + "\\b", "i").test(text));
 }
 function containsAny(text: string, choices: string[]): string | null {
-  const lower = text.toLowerCase();
-  return choices.find((choice) => lower.includes(choice.toLowerCase())) ?? null;
+  for (const choice of choices) {
+    const escaped = choice.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp("(?:^|[^a-z0-9])" + escaped + "(?:[^a-z0-9]|$)", "i").test(text)) {
+      return choice;
+    }
+  }
+  return null;
 }
 function latestUserTurn(history: ChatTurn[], predicate: (text: string) => boolean): string | null {
   for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -116,7 +133,8 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     else previousBudget = parseBudget(turn.text);
   }
   const priorBudget = cancelsBudget ? parseBudget("") : previousBudget;
-  const asksForCheapest = /\b(?:yang\s+)?(?:paling\s+murah|murah|termurah|harga\s+terendah|paling\s+rendah)\b/i.test(current);
+  const asksForCheapest = /\b(?:yang\s+)?(?:paling\s+murah|murah|termurah|harga\s+terendah|paling\s+rendah|spek\s*(?:murah|rendah|hemat|terjangkau|entri)|entry[ -]?level|low[ -]?end)\b/i.test(current);
+  const midRange = /\b(?:spek\s*(?:menengah|sedang|standar|mid[ -]?range)|kelas\s*menengah|mid[ -]?range)\b/i.test(current);
   const asksForMostExpensive = /\b(?:yang\s+)?(?:paling\s+mahal|termahal|harga\s+tertinggi|paling\s+tinggi(?:\s+harganya)?)\b/i.test(current);
   const priorProductTurn = latestUserTurn(userTurns, (text) => PRODUCT_TERMS.test(text) || findMentionedSeries(text).length > 0);
   const hasProductContext = priorProductTurn !== null;
@@ -165,8 +183,8 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
   const brand = resetsBrand ? null : currentBrand ?? (currentSeries.length ? SERIES[currentSeries.at(-1)!] : latestBrand);
   if (currentBrand && series.some((name) => SERIES[name].toLowerCase() !== currentBrand.toLowerCase())) series = [];
 
-  const memory = current.match(/\b(\d{1,2})\s*gb\b/i) ?? current.match(/ram\s*(\d{1,2})/i);
-  const processor = current.match(/\b(?:core\s*i[3579](?:[- ]\w+)?|i[3579]-?\d{4,5}\w*|core\s*ultra\s*\d\s*\w*|ryzen\s*[3579]\s*\d{4,5}\w*)\b/i)?.[0] ?? null;
+  const memory = current.match(/\b(\d{1,2})\s*gb\b/i) ?? current.match(/(?:ram|memor[iy])\s*(\d{1,2})/i);
+  const processor = current.match(/\b(?:core\s*i[3579](?:[- ]\w+)?|i[3579]-?\d{4,5}\w*|core\s*ultra\s*\d\s*\w*|ryzen\s*[3579]\s*\d{4,5}\w*|celeron(?:\s*n\d{4})?|pentium)\b/i)?.[0] ?? null;
   const resetsGraphicsForUseCase = /(?:buat|untuk)\s+(?:kuliah|kerja|kantor)(?:\s+(?:saja|aja))?/i.test(current) &&
     !currentGraphicsModel && !/\b(?:vga|gpu|graphics?|grafis|rtx|gtx|radeon)\b/i.test(current);
   const graphics = graphicsInventoryRequest
@@ -177,17 +195,22 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     ? previousGraphicsModel
     : currentGraphicsModel ?? (followUp ? previousGraphicsModel : null);
   const graphicsQuestion = /\b(?:ber[\s-]?vga|vga(?:nya)?|gpu(?:nya)?|grafis(?:nya)?|graphics?|kartu grafis)\b/i.test(current);
+  const asksIfVgaNeeded = /\b(?:emang\s+)?(?:ga|gak|nggak|tidak)\s*(?:butuh|perlu)\s*(?:pake\s+|pakai\s+)?vga\b/i.test(current) || /\b(?:butuh|perlu|cari|mau|rekomendasi)\s+(?:laptop\s+)?(?:yang\s+)?(?:ada\s+|ber[\s-]?)vga\b/i.test(current);
   const explicitDedicated = /\b(?:dedicated|discrete|dedicated gpu|vga gaming|rtx|gtx)\b/i.test(current) ||
     (!graphicsInventoryRequest && alternativeRequest && Boolean(previousGraphicsModel));
   const requiresNvidiaGpu = /\b(?:nvidia|geforce|rtx|gtx)\b/i.test(current) ||
     Boolean(graphics && /^(?:rtx|gtx)\b/i.test(graphics));
-  const colors: Record<string, string> = { hitam: "black", black: "black", putih: "white", white: "white", silver: "silver", abu: "grey", grey: "grey", gray: "grey", biru: "blue", blue: "blue" };
-  const color = containsAny(current, Object.keys(colors));
+  const requiresDedicatedGpu = explicitDedicated || Boolean(graphics) || (asksIfVgaNeeded && !currentBudget.amount && !priorBudget.amount);
+  const colors: Record<string, string> = { hitam: "black", black: "black", putih: "white", white: "white", silver: "silver", abu: "grey", "abu-abu": "grey", grey: "grey", gray: "grey", biru: "blue", blue: "blue" };
+  const colorKey = current.match(/\b(hitam|black|putih|white|silver|abu(?:-abu)?|grey|gray|biru|blue)\b/i)?.[1]?.toLowerCase();
+  const color = colorKey ? colors[colorKey] ?? null : null;
   const storage = current.match(/\b(\d+(?:[.,]\d+)?)\s*(gb|tb)\s*(ssd|hdd|nvme)\b/i)?.[0] ?? null;
-  const latestUseCase = latestUserTurn(userTurns, (text) => /gaming|game|desain|design|editing|render|kuliah|kerja|kantor|office|coding|streaming/i.test(text));
+  const latestUseCase = latestUserTurn(userTurns, (text) => /gaming|game|kerja|kantor|office|coding|streaming/i.test(text) || STUDY_AND_SCHOOL_TERMS.test(text) || CREATIVE_AND_3D_TERMS.test(text));
   const activeUseCase = currentCategory ? current : latestUseCase ?? current;
   const gaming = /gaming|game|main game|buat ngegame/i.test(activeUseCase);
-  const design = /desain|design|editing|render/i.test(activeUseCase);
+  const design = CREATIVE_AND_3D_TERMS.test(activeUseCase);
+  const heavyGraphics = HEAVY_GRAPHICS_TERMS.test(activeUseCase);
+  const study = STUDY_AND_SCHOOL_TERMS.test(activeUseCase);
   const work = /kerja|kantor|office/i.test(activeUseCase);
   const wantsProducts = !smallTalk && !capabilityQuestion && !generalQuestion && !outOfScope && !SERVICE_TERMS.test(current) && (PRODUCT_TERMS.test(current) || currentSeries.length > 0 || followUp);
   const inferredCategory = category ?? (series.length ? "laptop" : null);
@@ -204,12 +227,15 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     memory: memory?.[1] ?? null,
     processor,
     graphics,
-    color: color ? colors[color] : null,
+    color,
     storage,
     gaming,
     design,
+    heavyGraphics,
+    study,
+    midRange,
     graphicsQuestion,
-    requiresDedicatedGpu: explicitDedicated || Boolean(graphics),
+    requiresDedicatedGpu,
     requiresNvidiaGpu,
     alternativeRequest,
     graphicsInventoryRequest,
@@ -218,8 +244,8 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     needsCategoryClarification,
     generalQuestion,
     work,
-    premium: /premium|flagship|high[ -]?end|kelas atas|ultrabook/i.test(current) ||
-      (!currentCategory && /premium|flagship|high[ -]?end|kelas atas|ultrabook/i.test(latestBrandTurn)),
+    premium: /premium|flagship|high[ -]?end|kelas atas|ultrabook|spek\s*(?:tinggi|dewa|kencang|kenceng|monster|pro|berat)|spesifikasi\s*tinggi/i.test(current) ||
+      (!currentCategory && /premium|flagship|high[ -]?end|kelas atas|ultrabook|spek\s*(?:tinggi|dewa|kencang|kenceng|monster|pro|berat)|spesifikasi\s*tinggi/i.test(latestBrandTurn)),
     priceDirection: asksForMostExpensive || /lebih mahal|yang mahal|lebih tinggi/i.test(current)
       ? "higher"
       : asksForCheapest || /lebih murah|yang murah|lebih rendah/i.test(current)
@@ -231,6 +257,7 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
       : [],
     wantsProducts,
     outOfScope,
+    lastUserMessage: current,
   };
 }
 
@@ -245,7 +272,7 @@ function catalogGraphicsSource(product: AssistantProduct): string {
   const gpuSpecs = (product.product_specifications ?? [])
     .filter((specification) => /gpu|graphic|vga/i.test(specification.key))
     .map((specification) => specification.value);
-  return [...gpuSpecs, product.description].filter(Boolean).join(" ");
+  return [...gpuSpecs, product.name, product.description].filter(Boolean).join(" ");
 }
 export function getCatalogGraphicsType(product: AssistantProduct): CatalogGraphicsType {
   const source = catalogGraphicsSource(product);
@@ -268,8 +295,26 @@ export function graphicsFollowUpAnswer(
   alternatives: AssistantProduct[] = []
 ): string {
   const budgetText = criteria.budget === null ? "anggaranmu" : `budget Rp${criteria.budget.toLocaleString("id-ID")}`;
+  const types = new Set([...products, ...alternatives].map(getCatalogGraphicsType));
+  const matchedBrands = [...new Set(
+    [...products, ...alternatives].map((item) => {
+      const seriesMatch = item.name.match(/\b(TUF(?: Gaming)?|ROG|LOQ|Legion|Nitro|Predator|Cyborg|Thin|Katana|Victus|Omen|Pongo)\b/i)?.[0];
+      const brandName = item.brands?.name || item.name.split(" ")[0];
+      return seriesMatch ? `${brandName} ${seriesMatch}` : brandName;
+    }).filter(Boolean)
+  )].slice(0, 4);
+  const brandSeriesSnippet = matchedBrands.length > 0 ? ` seperti lini ${matchedBrands.join(", ")}` : "";
+
+  if (criteria.lastUserMessage && /\b(?:emang\s+)?(?:ga|gak|nggak|tidak)\s*(?:butuh|perlu)\s*(?:pake\s+|pakai\s+)?vga\b/i.test(criteria.lastUserMessage)) {
+    if (types.has("dedicated")) {
+      return `Butuh banget bang! Khususnya untuk pemodelan 3D arsitektur (seperti Autodesk Revit) atau editing video (Adobe Premiere/After Effects), GPU dedicated (seperti NVIDIA GeForce RTX) sangat penting untuk akselerasi rendering dan viewport 3D agar tidak lag. Di katalog toko kami ada pilihan laptop yang sudah dilengkapi GPU dedicated resmi. Kartu di bawah menampilkan detail dan harganya:`;
+    }
+  }
+  if (criteria.heavyGraphics && types.has("dedicated")) {
+    return `Untuk software 3D arsitektur seperti Autodesk Revit dan keluarga Adobe (Premiere Pro, After Effects), GPU dedicated (seperti NVIDIA GeForce RTX) sangat disarankan agar akselerasi visual dan rendering lancar tanpa lag. Di katalog toko kami tersedia pilihan laptop dengan GPU dedicated resmi. Detail spesifikasi dan harganya ada di kartu produk:`;
+  }
+
   if (criteria.graphicsInventoryRequest) {
-    const types = new Set([...products, ...alternatives].map(getCatalogGraphicsType));
     const kinds = [types.has("integrated") ? "integrated" : null, types.has("dedicated") ? "dedicated" : null].filter(Boolean);
     const typeText = kinds.length === 2 ? "Tercatat opsi integrated dan dedicated" : kinds.length === 1 ? `Tercatat opsi ${kinds[0]}` : "Belum ada tipe GPU yang bisa dipastikan dari data katalog";
     const unknownText = types.has("unknown") ? " Beberapa produk belum mencantumkan informasi GPU, jadi tipenya belum bisa kupastikan." : "";
@@ -291,7 +336,15 @@ export function graphicsFollowUpAnswer(
       const displayItem = products[0] ?? alternatives[0];
       const startPrice = displayItem ? (recommendationPrice(displayItem, criteria) ?? 0).toLocaleString("id-ID") : "";
       const priceText = startPrice ? ` mulai dari Rp${startPrice}` : "";
-      return `Di katalog kami tersedia pilihan laptop dengan GPU dedicated ${targetGpu} (seperti RTX 3050, RTX 4050, hingga RTX 5060) dari Acer Nitro dan Lenovo LOQ/Legion${priceText}. Detail spesifikasi dan harga tertera pada kartu produk:`;
+      const matchedBrands = [...new Set(
+        [...products, ...alternatives].map((item) => {
+          const seriesMatch = item.name.match(/\b(TUF(?: Gaming)?|ROG|LOQ|Legion|Nitro|Predator|Cyborg|Thin|Katana|Victus|Omen|Pongo)\b/i)?.[0];
+          const brandName = item.brands?.name || item.name.split(" ")[0];
+          return seriesMatch ? `${brandName} ${seriesMatch}` : brandName;
+        }).filter(Boolean)
+      )].slice(0, 4);
+      const brandSourceText = matchedBrands.length > 0 ? ` (seperti ${matchedBrands.join(", ")})` : "";
+      return `Di katalog kami tersedia pilihan laptop dengan GPU dedicated ${targetGpu} (seperti RTX 3050, RTX 4050, hingga RTX 5060)${brandSourceText}${priceText}. Detail spesifikasi dan harga tertera pada kartu produk:`;
     }
     if (alternativeKind === "other-dedicated") {
       return `Belum ada ${target ?? "GPU yang diminta"} yang cocok dalam ${budgetText}. Ada GPU dedicated lain yang terverifikasi dan masih sesuai budget; model serta harga ada di kartu alternatif.`;
@@ -319,7 +372,6 @@ export function graphicsFollowUpAnswer(
     return `Belum ada produk dengan informasi grafis yang cocok untuk ${budgetText}. Kamu bisa memperluas budget atau kebutuhan perangkatnya.`;
   }
 
-  const types = new Set(products.map(getCatalogGraphicsType));
   if (criteria.gaming || criteria.design) {
     const activity = criteria.gaming ? "gaming" : "desain";
     if (!types.has("dedicated")) {
@@ -329,7 +381,7 @@ export function graphicsFollowUpAnswer(
       const unknownNote = types.has("unknown") ? " Ada produk yang spesifikasi grafisnya belum dicantumkan." : "";
       return `Untuk ${activity} dalam ${budgetText}, belum ada GPU dedicated yang terverifikasi. ${integratedNote}${unknownNote} Kalau butuh performa grafis lebih tinggi, budget perlu dinaikkan; detail yang tercatat ada di kartu produk.`;
     }
-    return `Ada pilihan dengan GPU dedicated terverifikasi untuk dipertimbangkan dalam ${budgetText}. GPU integrated menyatu dengan prosesor; dedicated memakai chip grafis terpisah. Detailnya ada di kartu produk.`;
+    return `Ada pilihan dengan GPU dedicated terverifikasi${brandSeriesSnippet} untuk dipertimbangkan dalam ${budgetText}. GPU integrated menyatu dengan prosesor; dedicated memakai chip grafis terpisah. Detailnya ada di kartu produk.`;
   }
   if (types.has("integrated") && !types.has("dedicated")) {
     const unknownNote = types.has("unknown") ? " Ada produk lain yang tipe grafisnya belum dicantumkan di katalog, jadi belum bisa kupastikan." : "";
@@ -346,17 +398,25 @@ export function graphicsFollowUpAnswer(
   return `GPU integrated menyatu dengan prosesor, sedangkan GPU dedicated memakai chip grafis terpisah. Untuk ${budgetText}, tipe grafis produk yang tersedia belum dicantumkan jelas di katalog.`;
 }
 function hasCategory(product: AssistantProduct, category: ProductCategory): boolean {
-  const name = product.categories?.name?.toLowerCase() ?? "";
+  const catName = (product.categories?.name ?? "").toLowerCase();
+  const catSlug = (product.categories?.slug ?? "").toLowerCase();
+  const name = `${catName} ${catSlug}`.trim();
   if (name) {
-    if (category === "laptop") return /laptop|notebook/i.test(name);
-    if (category === "desktop") return /desktop|all.in.one|aio/i.test(name);
-    if (category === "accessory") return /accessor/i.test(name);
+    if (category === "laptop") return /laptop|notebook|komputer jinjing/i.test(name);
+    if (category === "desktop") return /desktop|tower|komputer|all[ -]in[ -]one|\baio\b|\bcpu\b/i.test(name);
+    if (category === "monitor") return /monitor|display|layar/i.test(name);
+    if (category === "smartphone") return /smartphone|handphone|ponsel|telepon|\bhp\b/i.test(name);
+    if (category === "tablet") return /tablet|ipad/i.test(name);
+    if (category === "accessory") return /aksesor|accessor|periferal|peripheral/i.test(name);
     return name.includes(category);
   }
   const text = (product.name + " " + product.description).toLowerCase();
-  if (category === "laptop") return /laptop|notebook|macbook|ideapad|thinkpad|vivobook|zenbook|aspire/i.test(text);
-  if (category === "desktop") return /desktop|tower|all.in.one|\baio\b/i.test(text);
-  if (category === "accessory") return /keyboard|mouse|headset|earphone|speaker|charger/i.test(text);
+  if (category === "laptop") return /laptop|notebook|macbook|ideapad|thinkpad|vivobook|zenbook|aspire|tuf|rog|loq|legion|nitro|predator|cyborg|thin|katana|victus|omen|pongo|workplus|swift/i.test(text);
+  if (category === "desktop") return /desktop|tower|all.in.one|\baio\b|\bpc\b|komputer/i.test(text);
+  if (category === "monitor") return /monitor|display|\bled\b|\bips\b|layar/i.test(text);
+  if (category === "smartphone") return /smartphone|handphone|ponsel|iphone|\bhp\b/i.test(text);
+  if (category === "tablet") return /tablet|ipad/i.test(text);
+  if (category === "accessory") return /keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|adaptor|tas|printer|flashdisk|cooling|cooler|kabel|mic|mousepad|bracket/i.test(text);
   return text.includes(category);
 }
 export function effectiveVariantPrice(product: AssistantProduct, variant: AssistantVariant): number | null {
@@ -482,20 +542,49 @@ export function rankProducts(
   });
   const words = [...new Set(query.match(/[a-z0-9]{3,}/g) ?? [])].filter((word) => !["laptop", "buat", "yang", "ada", "dong", "bang", "cari", "tolong", "produk"].includes(word));
   const normalizedQuery = query.trim().replace(/^(?:sku|mtm|slug)\s*[:#-]?\s*/i, "");
+  const applyStudyBonus = Boolean((criteria.study || criteria.work) && !criteria.priceDirection && !criteria.graphicsQuestion && !criteria.requiresDedicatedGpu && !criteria.graphics);
+  const applyMidRangeBonus = Boolean(criteria.midRange && !criteria.priceDirection);
   const score = (product: AssistantProduct) => {
     const text = searchable(product);
     const exactIdentifier = [product.sku, product.slug, ...(product.product_variants ?? []).map((variant) => variant.sku)]
       .some((identifier) => identifier?.toLowerCase() === normalizedQuery);
+    const graphicsType = getCatalogGraphicsType(product);
+    const isDedicatedGpu = graphicsType === "dedicated";
+    const hasModernProcessor = /\b(?:core\s*i[3579]|core\s*ultra|ryzen\s*[3579])\b/i.test(text);
+    const hasMidProcessor = /\b(?:core\s*i5|core\s*ultra\s*5|ryzen\s*5)\b/i.test(text);
+    const hasEntryProcessor = /\b(?:celeron|pentium|amd\s*3020e|intel\s*n1\d{2}|intel\s*n2\d{2})\b/i.test(text);
+    const hasAdequateRam = /\b(?:16\s*gb|8\s*gb)\b/i.test(text);
+    const hasAdequateSsd = /\b(?:512\s*gb|1\s*tb)\b/i.test(text);
+    const isLightweightSeries = /\b(?:ideapad|slim|vivobook|zenbook|yoga|swift|aspire\s*lite)\b/i.test(text);
+    const isGamingSeries = /\b(?:tuf|rog|zephyrus|loq|legion|nitro|predator|cyborg|thin|katana|bravo|victus|omen|pongo)\b/i.test(text);
+
     return (exactIdentifier ? 1000 : 0) + words.filter((word) => text.includes(word)).length +
-      (criteria.gaming && /rtx|gtx|geforce|radeon|arc graphics|dedicated/i.test(text) ? 4 : 0) +
-      (criteria.design && /rtx|gtx|geforce|radeon|professional|dedicated/i.test(text) ? 4 : 0);
+      (criteria.gaming && (isGamingSeries || isDedicatedGpu) ? 6 : 0) +
+      (criteria.design && /rtx|gtx|geforce|radeon|professional|dedicated/i.test(text) ? 4 : 0) +
+      (criteria.heavyGraphics && isDedicatedGpu ? 8 : 0) +
+      (criteria.graphicsQuestion && isDedicatedGpu ? 6 : 0) +
+      (applyStudyBonus && hasModernProcessor ? 6 : 0) +
+      (applyStudyBonus && hasEntryProcessor ? -4 : 0) +
+      (applyStudyBonus && hasAdequateRam ? 3 : 0) +
+      (applyStudyBonus && hasAdequateSsd ? 2 : 0) +
+      (applyStudyBonus && isLightweightSeries ? 3 : 0) +
+      (applyMidRangeBonus && hasMidProcessor ? 8 : 0) +
+      (applyMidRangeBonus && hasEntryProcessor ? -6 : 0) +
+      (applyMidRangeBonus && hasAdequateRam ? 3 : 0) +
+      (applyMidRangeBonus && hasAdequateSsd ? 3 : 0);
   };
-  return filtered.sort((a, b) => (criteria.approximateBudget && criteria.budget !== null
-      ? Math.abs(recommendationPrice(a, criteria)! - criteria.budget) - Math.abs(recommendationPrice(b, criteria)! - criteria.budget)
-      : 0) || score(b) - score(a) ||
-    (criteria.premium || criteria.priceDirection === "higher"
-      ? recommendationPrice(b, criteria)! - recommendationPrice(a, criteria)!
-      : recommendationPrice(a, criteria)! - recommendationPrice(b, criteria)!));
+  return filtered.sort((a, b) => {
+    if (applyStudyBonus || applyMidRangeBonus) {
+      const scoreDiff = score(b) - score(a);
+      if (scoreDiff !== 0) return scoreDiff;
+    }
+    return (criteria.approximateBudget && criteria.budget !== null
+        ? Math.abs(recommendationPrice(a, criteria)! - criteria.budget) - Math.abs(recommendationPrice(b, criteria)! - criteria.budget)
+        : 0) || score(b) - score(a) ||
+      (criteria.premium || criteria.priceDirection === "higher"
+        ? recommendationPrice(b, criteria)! - recommendationPrice(a, criteria)!
+        : recommendationPrice(a, criteria)! - recommendationPrice(b, criteria)!);
+  });
 }
 
 export type GraphicsSearchResult = {

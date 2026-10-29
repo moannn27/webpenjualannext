@@ -10,15 +10,18 @@ import {
   findRelevantFaq,
   type GraphicsAlternativeKind,
   getCatalogGraphicsLabel,
+  getCatalogGraphicsType,
   getMatchingVariant,
   graphicsFollowUpAnswer,
   getProductCriteria,
   isWithinBudget,
+  rankProducts,
   searchGraphicsProducts,
   recommendationPrice,
   selectAssistantAnswer,
   selectConversationalAnswer,
   type AssistantProduct,
+  BRANDS,
 } from "@/lib/recommendation-assistant";
 import { FAQService } from "@/services/faq.service";
 import { DEFAULT_STOREFRONT_SETTINGS, normalizeStorefrontSettings } from "@/lib/storefront-settings";
@@ -42,9 +45,9 @@ export const OPENAI_TOOLS: OpenAITool[] = [
       parameters: {
         type: "object",
         properties: {
-          kata_kunci: { type: "string", description: "Kata kunci nama produk, seri, processor, GPU, atau spesifikasi (contoh: 'LOQ', 'Vivobook', 'RTX 4060', 'Core i5', 'Ryzen 7')." },
+          kata_kunci: { type: "string", description: "Kata kunci nama produk, seri, processor, GPU, atau spesifikasi (contoh: 'TUF', 'LOQ', 'Vivobook', 'Nitro', 'Thin', 'RTX 4060', 'Core i5', 'Ryzen 7')." },
           kategori: { type: "string", description: "Kategori produk: 'laptop', 'desktop', 'monitor', 'smartphone', 'tablet', atau 'aksesori'." },
-          brand: { type: "string", description: "Nama brand/merek (contoh: 'Lenovo', 'ASUS', 'Acer', 'Apple', 'MSI', 'HP')." },
+          brand: { type: "string", description: "Nama brand/merek (contoh: 'ASUS', 'Lenovo', 'Acer', 'Apple', 'MSI', 'HP', 'Axioo', 'Advan')." },
           rentang_harga: {
             type: "object",
             properties: {
@@ -140,7 +143,51 @@ PRINSIP KOMUNIKASI & GAYA BAHASA:
 2. Teman Diskusi Belanja: Bantu pengguna memilih produk yang tepat sesuai kebutuhan software/tugas dan anggaran keuangannya. Beri saran spesifikasi yang relevan (processor, RAM, GPU/VGA).
 3. Jawaban Ringkas: Berikan penjelasan padat dan jelas (1-3 paragraf singkat). Jangan bertele-tele.
 4. Tanya Balik yang Terarah: Jika kebutuhan pengguna belum spesifik, ajukan maksimal 1 pertanyaan klarifikasi yang ringkas.
-5. Strict Grounding: Gunakan HANYA informasi terverifikasi dari katalog dan info toko. DILARANG KERAS mengarang produk, harga, stok, atau spesifikasi palsu. Integrated Graphics (seperti Intel UHD/Iris Xe/Radeon Graphics) BUKAN GPU dedicated (seperti RTX/GTX/Radeon RX).`;
+5. Strict Grounding: Gunakan HANYA informasi terverifikasi dari katalog dan info toko. DILARANG KERAS mengarang produk, harga, stok, atau spesifikasi palsu. Integrated Graphics (seperti Intel UHD/Iris Xe/Radeon Graphics) BUKAN GPU dedicated (seperti RTX/GTX/Radeon RX).
+6. Pengetahuan Hardware, Multi-Brand Resmi & GPU Dedicated:
+   - Toko Next Solution Store MENJUAL berbagai brand resmi dan lengkap:
+     * ASUS: TUF Gaming (seperti TUF A15/F15/A16/V16), ROG (Strix/Zephyrus), Vivobook, Zenbook.
+     * Lenovo: Legion, LOQ, IdeaPad Slim, Yoga, ThinkPad.
+     * Acer: Nitro, Predator, Aspire, Swift.
+     * MSI: Thin 15, Cyborg, Katana, Modern, Bravo.
+     * HP: Victus, Omen, Pavilion.
+     * Axioo: Pongo Gaming, Hype.
+     * Advan: Workplus, Pixwar, Soulmate.
+     * Apple: MacBook Air, MacBook Pro.
+   - JANGAN PERNAH BIAS HANYA KE SATU BRAND (misal jangan hanya menyebut Lenovo LOQ):
+     * Ketika merekomendasikan laptop gaming atau laptop grafis 3D/render (Revit, Adobe Premiere/After Effects, Blender, CAD), PERIKSA SELURUH HASIL PRODUK TERVERIFIKASI DARI TOKO.
+     * Jika di hasil data tersedia ASUS (misal ASUS TUF Gaming), Acer (Nitro), MSI (Thin/Cyborg), HP (Victus), Axioo (Pongo), maupun Lenovo (LOQ/Legion), SEBUTKAN DAN REKOMENDASIKAN SECARA ADIL & OBJEKTIF sesuai kesesuaian spek dan budget pelanggan.
+   - Deteksi Otomatis Produk Baru:
+     * Sistem AI terhubung langsung secara live ke database toko. Setiap ada produk baru yang di-upload atau masuk stok toko (misal ASUS TUF series baru atau varian baru), sistem otomatis mengenali dan merekomendasikannya jika cocok dengan kriteria.
+   - Prediksi Kebutuhan & Antisipasi Pertanyaan Pengguna:
+     * Jadilah konsultan belanja yang aktif berpikir dan memprediksi kebutuhan calon pembeli:
+       - Kuliah/Sekolah: Prediksi apakah jurusannya butuh rendering grafis (Teknik/Arsitektur/DKV butuh GPU dedicated) atau hanya butuh mengetik/browsing/presentasi (cukup Core i3/i5 atau Ryzen 3/5 tipis baterai awet).
+       - Gaming: Berikan pertimbangan refresh rate layar, kartu grafis, dan opsi upgrade RAM/storage.
+       - Desain & 3D: Ingatkan pentingnya VRAM GPU dedicated dan RAM minimal 16GB.
+     * Berikan penjelasan mengapa produk tersebut cocok (keunggulan spek, daya tahan, sistem pendingin, atau value harganya).
+   - Jika pengguna menanyakan VGA ("emang gabutuh vga?", "ada yang ber-vga ga?") untuk software berat seperti Revit, AutoCAD, 3ds Max, Blender, SketchUp, atau Adobe Family (Premiere Pro, After Effects):
+     * Jelaskan secara santai, edukatif, dan solutif: untuk 3D modelling dan render video, GPU dedicated (seperti NVIDIA GeForce RTX) memang SANGAT DIBUTUHKAN / DISARANKAN untuk akselerasi viewport 3D dan ekspor video agar tidak patah-patah/lag.
+     * Rekomendasikan laptop ber-GPU dedicated (seperti ASUS TUF Gaming, Lenovo LOQ, Acer Nitro, atau MSI Thin) yang tersedia di data produk terverifikasi.
+     * Jika anggaran pengguna terbatas, sampaikan secara jujur trade-off jika memakai grafis terintegrasi (hanya cukup untuk 2D ringan/sketsa awal).
+7. Rekomendasi Cerdas untuk Kuliah, Sekolah & Kerja Kantor (Berpikir Kebutuhan & Nilai Terbaik):
+   - Bila pengguna mencari laptop untuk kuliah (mahasiswa), sekolah (anak sekolah/pelajar), tugas, skripsi, atau kerja harian:
+     * BERIKAN REKOMENDASI YANG BERNILAI TERBAIK (VALUE FOR MONEY), BUKAN ASAL PILIH PALING MURAH: Jangan langsung menyodorkan prosesor entry-level Celeron/Pentium/N150 yang lambat, kecuali jika pengguna secara khusus meminta opsi paling murah / hemat.
+     * Pertimbangkan kebutuhan mahasiswa & pelajar: mobilitas ringan dibawa ke kampus/sekolah, baterai awet, dan prosesor minimal Intel Core i3 / Core i5 (generasi modern atau Core Ultra) atau AMD Ryzen 3 / Ryzen 5 dengan RAM 8GB/16GB serta SSD 512GB (seperti lini IdeaPad Slim, Vivobook, Aspire Lite) agar tidak lemot saat membuka puluhan tab browsing jurnal, Zoom, dan tugas Office/Canva bersamaan.
+     * Jika pengguna meminta rentang harga tertentu (misal: "budget 7-8 jutaan", "maks 10 juta"): carikan pilihan terbaik dengan spesifikasi tertinggi yang pas di anggaran tersebut.
+     * Jika jurusan kuliah memerlukan software 3D atau rendering (Teknik, Arsitektur, Desain, Animasi), tanyakan atau arahkan ke unit yang ber-GPU dedicated (seperti lini ASUS TUF Gaming, Lenovo LOQ/Legion, atau Acer Nitro).
+8. Deteksi Fleksibel Kosakata Spesifikasi & Hardware:
+   - Spek Murah / Rendah / Hemat / Entry-Level: Carikan unit paling ekonomis dan terjangkau yang fungsional untuk kebutuhan dasar.
+   - Spek Menengah / Mid-Range / Standar: Berikan laptop seimbang dengan prosesor Core i5 / Ryzen 5, RAM 8GB/16GB, SSD 512GB (seperti lini IdeaPad Slim, Vivobook, Aspire).
+   - Spek Tinggi / Spek Dewa / Kencang / Flagship: Prioritaskan prosesor kelas atas (Core i7/i9/Ultra 7, Ryzen 7/9) dan GPU dedicated NVIDIA GeForce RTX atau laptop kelas performa tinggi.
+   - Toleransi Istilah Teknis & Typo: Pahami variasi sebutan hardware seperti 'cpu', 'prosessro' (prosesor), 'memory'/'ram', 'vga'/'gpu'/'kartu grafis', 'ssd'/'storage', serta identitas produk seperti tipe/seri, 'sku', dan 'mtm'.
+9. Pengetahuan Seluruh Kategori Produk & Wawasan Teknologi Luas:
+   - Toko menjual LENGKAP seluruh kebutuhan komputer, laptop, dan gadget resmi:
+     * Laptop & Notebook (Gaming, Ultrabook, Tipis Ringan, 2-in-1, Office/Bisnis)
+     * PC Desktop, Tower, All-in-One (AIO), dan Komputer Kantor/Rumahan
+     * Monitor (Gaming refresh rate tinggi 144Hz-240Hz, Monitor Kantor/Desain IPS/OLED)
+     * Smartphone & Tablet (Apple iPhone, iPad, Samsung, Xiaomi, Infinix, dll.)
+     * Aksesoris & Periferal: Mouse (Wireless/Gaming/Silent), Keyboard (Mechanical/Membrane), Headset/TWS/Speaker, Webcam FHD, Charger/Adaptor, Storage (SSD NVMe/SATA, HDD, RAM), Printer & Tinta, Cooling Pad, Tas/Sleeve, dsb.
+   - Wawasan Teknologi Komprehensif: Bila pengguna bertanya konsep teknologi umum atau perbandingan hardware (misal perbedaan DDR4 vs DDR5, panel IPS vs OLED, fungsi MTM dan SKU, arsitektur prosesor, rekomendasi software), jawab dengan pengetahuan mendalam, edukatif, akurat, dan santai tanpa terbatas pada satu jenis perangkat.`;
 
 export function executeCariProduk(
   catalog: Candidate[],
@@ -153,7 +200,13 @@ export function executeCariProduk(
   },
   criteria: ReturnType<typeof getProductCriteria>
 ) {
-  let filtered = [...catalog].filter((p) => !p.status || p.status === "published");
+  let filtered = [...catalog].filter((p) => {
+    if (p.status && p.status !== "published") return false;
+    const availableStock = p.product_variants?.length
+      ? p.product_variants.reduce((total, variant) => total + Math.max(0, Number(variant.stock) || 0), 0)
+      : Number(p.stock ?? 0);
+    return availableStock > 0;
+  });
 
   if (params.kategori) {
     const kat = params.kategori.toLowerCase();
@@ -566,7 +619,11 @@ function fallbackAnswer(
   alternativeKind: GraphicsAlternativeKind = null,
   alternatives: Candidate[] = []
 ) {
-  if (criteria.graphicsQuestion || criteria.graphics || criteria.alternativeRequest || criteria.gaming || criteria.design) {
+  if (criteria.study && products.length > 0) {
+    const budgetNote = budget ? ` kisaran budget Rp${budget.toLocaleString("id-ID")}` : "kebutuhan sekolah/kuliah";
+    return `Untuk kebutuhan sekolah dan tugas belajar (${budgetNote}), aku prioritaskan laptop yang ringan, baterai awet, dan punya spesifikasi responsif untuk ngetik dan Zoom. Kartu di bawah menampilkan pilihan ready stock terbaik di toko:`;
+  }
+  if (!criteria.study && (criteria.graphicsQuestion || criteria.graphics || criteria.alternativeRequest || criteria.gaming || criteria.design)) {
     return graphicsFollowUpAnswer(products, criteria, alternativeKind, alternatives);
   }
   if (alternativeKind === "cheapest-over-budget") {
@@ -709,8 +766,22 @@ function buildProductPrompt(
   alternativeKind: GraphicsAlternativeKind,
   faqContext: { question: string; answer: string }[]
 ) {
-  return `Kamu adalah konsultan teknologi dan asisten AI resmi Next Solution Store. Perlakukan chat sebagai dialog konsultasi yang berlanjut: pahami maksud pesan terbaru dari bahasa sehari-hari dan riwayat relevan, akui koreksi pengguna, lalu jawab dengan nada yang natural dan tidak berulang.
-Saat pengguna meminta rekomendasi, pilih satu kandidat utama yang paling sesuai dengan kebutuhan aktif dan jelaskan singkat alasannya berdasarkan kebutuhan, spesifikasi, tipe produk, dan anggaran. Sebutkan trade-off yang relevan serta maksimal dua alternatif dari data terverifikasi bila memang membantu. Jangan hanya mengulang daftar hasil seperti halaman pencarian. Jika informasi penting belum cukup untuk memilih, ajukan satu pertanyaan klarifikasi yang ringkas.
+  const hasDedicated = [...products, ...alternatives].some((p) => getCatalogGraphicsType(p as unknown as AssistantProduct) === "dedicated");
+  const graphicsNotice = hasDedicated
+    ? "PENTING: Data produk di bawah mencakup laptop dengan GPU DEDICATED (seperti NVIDIA GeForce RTX dari brand ASUS TUF Gaming, Lenovo LOQ/Legion, Acer Nitro, MSI Thin, HP Victus, Axioo Pongo, dll.). JANGAN PERNAH mengatakan toko tidak memiliki unit GPU dedicated. DILARANG BIAS hanya ke satu brand (seperti hanya menyebut LOQ saja padahal ada ASUS TUF atau brand lain di data); rekomendasikan unit yang paling sesuai spesifikasi dan sebutkan alternatif brand yang ada di data terverifikasi."
+    : "CATATAN: Jika semua opsi di bawah memakai grafis terintegrasi (karena batasan budget), jelaskan keterbatasannya secara objektif namun jangan menyatakan toko secara umum tidak menjual laptop GPU dedicated.";
+
+  return `Kamu adalah konsultan teknologi dan asisten AI resmi Next Solution Store. Perlakukan chat sebagai dialog konsultasi yang berlanjut: pahami maksud pesan terbaru dari bahasa sehari-hari dan riwayat relevan, akui koreksi pengguna, lalu jawab dengan nada yang natural, ramah, dan tidak berulang.
+Saat pengguna meminta rekomendasi atau bertanya tentang kebutuhan VGA untuk software tertentu (seperti Revit atau Adobe Family):
+- Jelaskan secara edukatif dan solutif: untuk Revit (3D CAD/BIM arsitektur) dan video editing (Adobe Premiere/After Effects), GPU dedicated (seperti NVIDIA GeForce RTX) sangat disarankan/dibutuhkan agar akselerasi 3D dan render tidak lag.
+- Pilih satu kandidat utama yang paling sesuai dengan kebutuhan aktif (prioritaskan unit ber-GPU dedicated jika kebutuhan adalah 3D/Revit/editing/gaming, bandingkan jika ada opsi ASUS TUF, Lenovo LOQ, Acer Nitro, MSI, dll.) dan jelaskan pertimbangan keunggulannya.
+${graphicsNotice}
+Saat pengguna mencari laptop untuk kuliah, sekolah, atau kerja harian:
+- Pilih satu kandidat utama yang paling seimbang (sweet spot) antara performa prosesor (minimal Core i3/i5 atau Ryzen 3/5), kapasitas RAM, portabilitas, dan anggaran aktif, bukan sekadar opsi termurah.
+- Berikan perbandingan spesifikasi antar unit yang ready dan berikan saran (suggest) yang cerdas dan edukatif untuk kebutuhan sekolah/kuliah (misal performa ngetik tugas, baterai, portabilitas dibawa tas, dan kemampuan Zoom).
+- Jika pengguna menaikkan budget (contoh: dari 5 juta ke 6 jutaan atau lebih), pertahankan use-case sekolah/tugas (JANGAN melompat ke gaming!). Jelaskan opsi apa yang didapat di budget tersebut, bandingkan keunggulannya, dan berikan suggest apakah sebaiknya ambil unit tersebut atau menaikkan budget sedikit ke 7-8 jutaan untuk prosesor Core i3/i5 yang jauh lebih awet dipakai bertahun-tahun.
+- Jika pengguna meminta penyesuaian harga atau menyebut budget tertentu, sesuaikan rekomendasinya dengan pilihan terbaik (best value) di kisaran harga tersebut.
+Saat pengguna meminta rekomendasi umum, pilih satu kandidat utama yang paling sesuai dengan kebutuhan aktif dan jelaskan singkat alasannya berdasarkan kebutuhan, spesifikasi, tipe produk, dan anggaran. Sebutkan trade-off yang relevan serta maksimal dua alternatif dari data terverifikasi bila memang membantu. Jangan hanya mengulang daftar hasil seperti halaman pencarian. Jika informasi penting belum cukup untuk memilih, ajukan satu pertanyaan klarifikasi yang ringkas.
 Gunakan hanya fakta dari data katalog di bawah. Jangan mengarang atau menebak nama, ID, slug, SKU/MTM, harga, stok, spesifikasi, varian, gambar, atau URL. Jangan menyatakan alternatif di luar budget sebagai cocok budget. Integrated graphics bukan GPU dedicated. Bila spesifikasi kosong, katakan belum tercantum. Harga boleh disebut saat membantu membandingkan rekomendasi atau budget, tetapi harus sama persis dengan harga efektif katalog. SKU/MTM tampilkan hanya saat ditanya, dan gunakan kode yang benar-benar tercatat. Jangan mengulang detail lengkap yang sudah ada di kartu produk.
 Jika butuh pencarian yang lebih spesifik (brand, seri, slug, SKU/MTM produk atau varian, GPU/model, harga, atau atribut varian), panggil search_catalog_products satu kali. Kode MTM yang masuk pada katalog disimpan sebagai SKU; cocokkan persis ke SKU produk/varian dan jangan menganggap kode yang tidak ditemukan valid. Jika data yang tersedia sudah cukup, jawab tanpa tool.
 Riwayat relevan: ${JSON.stringify(history)}
@@ -889,7 +960,7 @@ export async function POST(request: Request) {
   const history = sanitizeChatHistory(body.history);
   const dialogueHistory = history.map(({ role, text }) => ({ role, text }));
 
-  let criteria = getProductCriteria(message, history, ["ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"]);
+  let criteria = getProductCriteria(message, history, BRANDS);
   if (criteria.generalQuestion || criteria.outOfScope) {
     const priorUserMessage = [...dialogueHistory].reverse().find((turn) => turn.role === "user")?.text;
     const fallback = priorUserMessage
@@ -967,7 +1038,7 @@ export async function POST(request: Request) {
     }
   }
   const brands = [...new Set(all.map((item) => item.brands?.name).filter((name): name is string => Boolean(name)))];
-  criteria = getProductCriteria(message, history, [...new Set(brands), "ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte"]);
+  criteria = getProductCriteria(message, history, [...new Set([...brands, ...BRANDS])]);
   const wantsProducts = criteria.wantsProducts;
   const categoryIntent = criteria.category;
   const mentionedSeries = criteria.series;
@@ -977,6 +1048,27 @@ export async function POST(request: Request) {
   let alternatives = graphicsSearch.alternatives as Candidate[];
   let alternativeKind = graphicsSearch.alternativeKind;
   let alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
+
+  if (
+    (criteria.heavyGraphics || criteria.graphicsQuestion || criteria.requiresDedicatedGpu) &&
+    !products.some((p) => getCatalogGraphicsType(p as unknown as AssistantProduct) === "dedicated")
+  ) {
+    const dedicatedLaptops = rankProducts(
+      all as AssistantProduct[],
+      { ...criteria, budget: null, brand: null },
+      message,
+      { graphicsMode: "dedicated" }
+    );
+    if (dedicatedLaptops.length) {
+      if (criteria.budget === null) {
+        products = dedicatedLaptops.slice(0, 5) as Candidate[];
+      } else if (!alternatives.length) {
+        alternatives = dedicatedLaptops.slice(0, 3) as Candidate[];
+        alternativeKind = "over-budget-dedicated";
+        alternativeLabel = getAlternativeLabel(criteria, alternativeKind);
+      }
+    }
+  }
 
   const serviceQuestion = !wantsProducts && /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|order|refund|garansi|retur|kebijakan|website|situs|faq/i.test(message);
   const faqRows = serviceQuestion ? await new FAQService().getActiveFAQs() : [];

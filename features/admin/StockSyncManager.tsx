@@ -52,6 +52,7 @@ export function StockSyncManager({
   const [isApplying, startApplyTransition] = useTransition();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [applyResult, setApplyResult] = useState<{ success: boolean; count: number } | null>(null);
+  const [syncSuccessModal, setSyncSuccessModal] = useState<{ count: number; fileNames: string[] } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [historyList, setHistoryList] = useState<StockSyncHistoryRecord[]>(initialHistory);
@@ -1075,79 +1076,133 @@ export function StockSyncManager({
             </div>
           )}
 
-          {/* 5. CONFIRMATION MODAL */}
+          {/* 5. CONFIRMATION & LOADING MODAL */}
           {showConfirmModal && previewData && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
               <div className="bg-white dark:bg-[#1E2028] rounded-2xl border border-slate-200 dark:border-white/10 p-6 max-w-lg w-full space-y-4 shadow-xl">
-                <div className="flex items-center gap-3 text-purple-600 dark:text-purple-400">
-                  <div className="size-10 rounded-full bg-purple-50 dark:bg-purple-950/40 grid place-items-center">
-                    <CheckCircle2 className="size-6" />
+                {isApplying ? (
+                  /* Loading State (Ikon Nunggu) */
+                  <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
+                    <div className="size-16 rounded-full bg-purple-50 dark:bg-purple-950/40 grid place-items-center text-[#7C5CFC]">
+                      <RefreshCw className="size-8 animate-spin" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Sedang Menyinkronkan Stok ke Database...
+                      </h3>
+                      <p className="text-xs text-slate-500 max-w-sm">
+                        Mohon tunggu sebentar, sistem sedang memperbarui stok untuk <strong>{selectedMatchedCount} barang</strong> ke etalase toko online resmi.
+                      </p>
+                    </div>
+                    <div className="w-full max-w-xs bg-slate-100 dark:bg-white/10 rounded-full h-1.5 overflow-hidden">
+                      <div className="h-full bg-[#7C5CFC] animate-pulse rounded-full w-3/4"></div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Konfirmasi Update Stok ke Toko Web
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Cek ringkasan di bawah ini sebelum stok di web resmi diperbarui.
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 text-purple-600 dark:text-purple-400">
+                      <div className="size-10 rounded-full bg-purple-50 dark:bg-purple-950/40 grid place-items-center">
+                        <CheckCircle2 className="size-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                          Konfirmasi Perbarui Stok ke Toko Web
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Periksa ringkasan di bawah ini sebelum data stok di etalase web toko diperbarui.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 dark:bg-white/5 p-4 text-xs space-y-2.5 text-slate-700 dark:text-slate-300">
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Jumlah Barang yang Diperbarui:</span>
+                        <strong className="text-slate-900 dark:text-white bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md font-semibold">
+                          {selectedMatchedCount} produk / varian
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">File Sumber Excel:</span>
+                        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[240px]" title={previewData.fileNames.join(", ")}>
+                          {previewData.fileNames.join(", ")}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Pilihan Sumber Stok:</span>
+                        <strong className="text-slate-900 dark:text-white">
+                          {stockSourceMode === "main_only"
+                            ? "Hanya Stok Toko / Kantor Fisik"
+                            : stockSourceMode === "combined"
+                            ? "Gabungan (Stok Kantor + Gudang Luar)"
+                            : "Hanya Stok Gudang Luar"}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Perlindungan Pesanan Pembeli:</span>
+                        <strong className="text-slate-900 dark:text-white text-right">
+                          {onlineOrdersAccounted
+                            ? "Sesuai File (Stok di Excel sudah potong order web)"
+                            : "Otomatis Diamankan (Stok web dikurangi pesanan pembeli yang belum selesai)"}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Setelah tombol konfirmasi ditekan, jumlah stok di etalase toko online akan langsung sinkron dengan data Excel terbaru. Pembeli di website dapat langsung melihat stok yang siap dibeli.
                     </p>
-                  </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowConfirmModal(false)}
+                        disabled={isApplying}
+                        className="text-xs h-9 rounded-xl"
+                      >
+                        Batal
+                      </Button>
+                      <Button
+                        onClick={handleConfirmApply}
+                        disabled={isApplying}
+                        className="bg-[#7C5CFC] hover:bg-[#6A48F3] text-white text-xs font-bold h-9 px-4 rounded-xl shadow-xs"
+                      >
+                        Ya, Update {selectedMatchedCount} Barang Sekarang
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 6. SUCCESS COMPLETION MODAL */}
+          {syncSuccessModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+              <div className="bg-white dark:bg-[#1E2028] rounded-2xl border border-slate-200 dark:border-white/10 p-6 max-w-md w-full space-y-4 shadow-xl text-center">
+                <div className="size-16 rounded-full bg-emerald-50 dark:bg-emerald-950/40 grid place-items-center text-emerald-600 mx-auto">
+                  <CheckCircle2 className="size-8" />
                 </div>
-
-                <div className="rounded-xl bg-slate-50 dark:bg-white/5 p-4 text-xs space-y-2.5 text-slate-700 dark:text-slate-300">
-                  <div className="flex justify-between">
-                    <span>Barang yang Di-update:</span>
-                    <strong className="text-slate-900 dark:text-white">{selectedMatchedCount} produk / varian</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>File Sumber Excel:</span>
-                    <span className="font-mono text-[11px]">{previewData.fileNames.join(", ")}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Sumber Stok Excel:</span>
-                    <strong className="text-slate-900 dark:text-white">
-                      {stockSourceMode === "main_only"
-                        ? "Hanya Stok Kantor"
-                        : stockSourceMode === "combined"
-                        ? "Gabungan Kantor + Gudang Luar"
-                        : "Hanya Gudang Luar"}
-                    </strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Perhitungan Order Online:</span>
-                    <strong className="text-slate-900 dark:text-white">
-                      {onlineOrdersAccounted
-                        ? "File Excel sudah potong order web"
-                        : "Otomatis diamankan (dikurangi pesanan web yang masih aktif)"}
-                    </strong>
-                  </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Sinkronisasi Stok Selesai!
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Sebanyak <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{syncSuccessModal.count} barang / varian produk</strong> telah berhasil diperbarui ke toko web resmi Next Solution.
+                  </p>
                 </div>
-
-                <p className="text-xs text-slate-500">
-                  Setelah tombol konfirmasi ditekan, stok produk di web langsung diperbarui sesuai angka <strong>Stok Siap Jual Baru</strong> dan pembeli bisa langsung melihat stok terbarunya.
-                </p>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="rounded-xl bg-slate-50 dark:bg-white/5 p-3 text-xs text-slate-500 dark:text-slate-400 text-left space-y-1">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">Keterangan:</p>
+                  <p>• Data stok di etalase website sekarang sudah sinkron dan akurat.</p>
+                  <p>• Riwayat pembaruan telah tercatat rapi di tab Riwayat Sinkronisasi.</p>
+                </div>
+                <div className="pt-2">
                   <Button
-                    variant="outline"
-                    onClick={() => setShowConfirmModal(false)}
-                    disabled={isApplying}
-                    className="text-xs h-9 rounded-xl"
+                    onClick={() => {
+                      setSyncSuccessModal(null);
+                      setPreviewData(null);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-10 rounded-xl shadow-xs"
                   >
-                    Batal
-                  </Button>
-                  <Button
-                    onClick={handleConfirmApply}
-                    disabled={isApplying}
-                    className="bg-[#7C5CFC] hover:bg-[#6A48F3] text-white text-xs font-bold h-9 px-4 rounded-xl shadow-xs"
-                  >
-                    {isApplying ? (
-                      <>
-                        <RefreshCw className="size-3.5 animate-spin mr-1.5" />
-                        Menyimpan ke Database...
-                      </>
-                    ) : (
-                      `Ya, Update ${selectedMatchedCount} Barang Sekarang`
-                    )}
+                    Tutup & Selesai
                   </Button>
                 </div>
               </div>

@@ -574,4 +574,287 @@ describe("recommendation assistant intent and catalog accuracy", () => {
     expect(changed.approximateBudget).toBe(false);
     expect(changed.minBudget).toBe(false);
   });
+
+  it("handles heavy graphics software (Revit and Adobe Family) and 'emang gabutuh vga' follow-up correctly", () => {
+    const revitMessage = "bang bang, gua butuh laptop yang buat aplikasi revit, adobe family, yang begitu cocoknya apa yah?";
+    const criteriaTurn1 = getProductCriteria(revitMessage, []);
+    expect(criteriaTurn1.category).toBe("laptop");
+    expect(criteriaTurn1.heavyGraphics).toBe(true);
+    expect(criteriaTurn1.design).toBe(true);
+    expect(criteriaTurn1.wantsProducts).toBe(true);
+
+    const testCatalog: AssistantProduct[] = [
+      {
+        id: "acer-celeron",
+        name: "Acer Aspire Lite 14 AL14-36P",
+        description: "Intel Celeron N4500 / Intel UHD Graphics / 8GB / 512GB SSD",
+        price: 7_999_000,
+        discount_price: null,
+        stock: 5,
+        categories: { name: "Laptop" },
+        brands: { name: "Acer" },
+        product_specifications: [{ key: "Processor", value: "Intel Celeron N4500" }, { key: "GPU", value: "Intel UHD Graphics" }],
+      },
+      {
+        id: "ideapad-slim-3",
+        name: "IdeaPad Slim 3 14IRH10",
+        description: "Intel Core i5-13420H / Integrated Intel UHD Graphics / 8GB / 512GB",
+        price: 10_400_000,
+        discount_price: null,
+        stock: 4,
+        categories: { name: "Laptop" },
+        brands: { name: "Lenovo" },
+        product_specifications: [{ key: "Processor", value: "Intel Core i5-13420H" }, { key: "GPU", value: "Integrated Intel UHD Graphics" }],
+      },
+      {
+        id: "lenovo-loq-rtx",
+        name: "Lenovo LOQ 15IRH8",
+        description: "Intel Core i5-13420H / NVIDIA GeForce RTX 4050 6GB / 16GB DDR5 / 512GB SSD",
+        price: 13_999_000,
+        discount_price: null,
+        stock: 3,
+        categories: { name: "Laptop" },
+        brands: { name: "Lenovo" },
+        product_specifications: [{ key: "Processor", value: "Intel Core i5-13420H" }, { key: "GPU", value: "NVIDIA GeForce RTX 4050 6GB" }],
+      },
+    ];
+
+    const rankedTurn1 = rankProducts(testCatalog, criteriaTurn1, revitMessage);
+    // Dedicated GPU laptop (Lenovo LOQ RTX 4050) must be ranked first over integrated laptops
+    expect(rankedTurn1[0].id).toBe("lenovo-loq-rtx");
+
+    const answerTurn1 = graphicsFollowUpAnswer(rankedTurn1, criteriaTurn1, null, []);
+    expect(answerTurn1).toContain("Autodesk Revit");
+    expect(answerTurn1).toContain("GPU dedicated");
+
+    // Follow-up: 'emang gabutuh vga bang?'
+    const vgaFollowUpMessage = "emang gabutuh vga bang?";
+    const historyTurn2: ChatTurn[] = [
+      { role: "user", text: revitMessage },
+      { role: "assistant", text: answerTurn1 },
+    ];
+    const criteriaTurn2 = getProductCriteria(vgaFollowUpMessage, historyTurn2);
+    expect(criteriaTurn2.heavyGraphics).toBe(true);
+    expect(criteriaTurn2.graphicsQuestion).toBe(true);
+    expect(criteriaTurn2.requiresDedicatedGpu).toBe(true);
+
+    const rankedTurn2 = rankProducts(testCatalog, criteriaTurn2, vgaFollowUpMessage);
+    expect(rankedTurn2[0].id).toBe("lenovo-loq-rtx");
+
+    const answerTurn2 = graphicsFollowUpAnswer(rankedTurn2, criteriaTurn2, null, []);
+    expect(answerTurn2).toContain("Butuh banget bang!");
+    expect(answerTurn2).toContain("GPU dedicated");
+  });
+
+  it("recommends smart value-for-money laptops for college and school students rather than dumping the cheapest Celeron", () => {
+    const studyMessage = "rekomendasi laptop buat kuliahan dong bang";
+    const criteria1 = getProductCriteria(studyMessage, []);
+    expect(criteria1.study).toBe(true);
+    expect(criteria1.category).toBe("laptop");
+    expect(criteria1.wantsProducts).toBe(true);
+
+    const testCatalog: AssistantProduct[] = [
+      {
+        id: "acer-celeron",
+        name: "Acer Aspire Lite 14 AL14-36P",
+        description: "Intel Celeron N4500 / Intel UHD Graphics / 8GB / 512GB SSD",
+        price: 7_999_000,
+        discount_price: null,
+        stock: 5,
+        categories: { name: "Laptop" },
+        brands: { name: "Acer" },
+        product_specifications: [{ key: "Processor", value: "Intel Celeron N4500" }, { key: "RAM", value: "8 GB" }],
+      },
+      {
+        id: "ideapad-slim-3-i5",
+        name: "IdeaPad Slim 3 14IRH10",
+        description: "Intel Core i5-13420H / Integrated Intel UHD Graphics / 8GB / 512GB SSD",
+        price: 10_400_000,
+        discount_price: null,
+        stock: 4,
+        categories: { name: "Laptop" },
+        brands: { name: "Lenovo" },
+        product_specifications: [{ key: "Processor", value: "Intel Core i5-13420H" }, { key: "RAM", value: "8 GB" }],
+      },
+      {
+        id: "ideapad-slim-3-i3",
+        name: "IdeaPad Slim 3 14IRU8",
+        description: "Intel Core i3-1315U / Integrated Intel UHD Graphics / 8GB / 512GB SSD",
+        price: 8_350_000,
+        discount_price: null,
+        stock: 10,
+        categories: { name: "Laptop" },
+        brands: { name: "Lenovo" },
+        product_specifications: [{ key: "Processor", value: "Intel Core i3-1315U" }, { key: "RAM", value: "8 GB" }],
+      },
+    ];
+
+    // For college without an explicit cheapest request, modern Core i3/i5 must rank ahead of Celeron
+    const rankedGeneral = rankProducts(testCatalog, criteria1, studyMessage);
+    expect(rankedGeneral[0].id).not.toBe("acer-celeron");
+    expect(["ideapad-slim-3-i3", "ideapad-slim-3-i5"]).toContain(rankedGeneral[0].id);
+
+    // When the user specifies an 8.5 million budget for school:
+    const schoolBudgetMessage = "buat anak sekolah yang budget 8,5 jutaan ada?";
+    const criteria2 = getProductCriteria(schoolBudgetMessage, []);
+    expect(criteria2.study).toBe(true);
+    expect(criteria2.budget).toBe(8_500_000);
+    expect(criteria2.approximateBudget).toBe(true);
+
+    const rankedBudget = rankProducts(testCatalog, criteria2, schoolBudgetMessage);
+    // Both Acer Celeron (7.99jt) and IdeaPad Slim 3 Core i3 (8.35jt) are within 8.5jt budget.
+    // IdeaPad Slim 3 Core i3 must rank ahead of Celeron because of modern processor suitability.
+    expect(rankedBudget[0].id).toBe("ideapad-slim-3-i3");
+
+    // But when the user explicitly requests the cheapest ("paling murah"), respect the lowest price:
+    const cheapestMessage = "ada yang paling murah ga buat anak sekolah?";
+    const criteria3 = getProductCriteria(cheapestMessage, []);
+    expect(criteria3.study).toBe(true);
+    expect(criteria3.priceDirection).toBe("lower");
+
+    const rankedCheapest = rankProducts(testCatalog, criteria3, cheapestMessage);
+    expect(rankedCheapest[0].id).toBe("acer-celeron");
+  });
+
+  it("accurately detects tiers (spek murah, spek menengah, spek tinggi) and hardware terms (cpu, vga, prosessro, memory, mtm)", () => {
+    // 1. Spek Murah / Rendah / Hemat
+    const cheap1 = getProductCriteria("laptop spek murah buat ngetik", []);
+    expect(cheap1.priceDirection).toBe("lower");
+    expect(cheap1.wantsProducts).toBe(true);
+
+    const cheap2 = getProductCriteria("cari laptop spek rendah entry level", []);
+    expect(cheap2.priceDirection).toBe("lower");
+
+    // 2. Spek Menengah / Mid-range
+    const mid = getProductCriteria("rekomendasi laptop spek menengah", []);
+    expect(mid.midRange).toBe(true);
+    expect(mid.wantsProducts).toBe(true);
+
+    // 3. Spek Tinggi / Spek Dewa / Spek Kencang
+    const high1 = getProductCriteria("laptop spek tinggi buat render", []);
+    expect(high1.premium).toBe(true);
+    expect(high1.wantsProducts).toBe(true);
+
+    const high2 = getProductCriteria("ada laptop spek dewa?", []);
+    expect(high2.premium).toBe(true);
+
+    // 4. Hardware Terms (cpu, prosessro typo, memory, vga, gpu)
+    const hw1 = getProductCriteria("cek prosessro dan memory nya berapa gb?", []);
+    expect(hw1.wantsProducts).toBe(true);
+
+    const hw2 = getProductCriteria("laptop yang vga gpu nya bagus", []);
+    expect(hw2.graphicsQuestion).toBe(true);
+    expect(hw2.wantsProducts).toBe(true);
+
+    // 5. SKU & MTM
+    const skuQuery = getProductCriteria("cek stok sku 83K0-IDEAPAD", []);
+    expect(skuQuery.wantsProducts).toBe(true);
+
+    const mtmQuery = getProductCriteria("mtm 83K0001ID ready ga?", []);
+    expect(mtmQuery.wantsProducts).toBe(true);
+  });
+
+  it("fairly supports multi-brand gaming and new stock series (ASUS TUF, MSI Cyborg/Thin, Acer Nitro, Axioo Pongo)", () => {
+    const tufQuery = getProductCriteria("laptop gaming asus tuf v16 rtx 4060", []);
+    expect(tufQuery.gaming).toBe(true);
+    expect(tufQuery.brand).toBe("ASUS");
+    expect(tufQuery.series).toContain("tuf");
+    expect(tufQuery.graphics).toBe("rtx 4060");
+
+    const msiQuery = getProductCriteria("msi cyborg 15 rtx 4050", []);
+    expect(msiQuery.brand).toBe("MSI");
+    expect(msiQuery.series).toContain("cyborg");
+
+    const axiooQuery = getProductCriteria("axioo pongo gaming", []);
+    expect(axiooQuery.brand).toBe("Axioo");
+    expect(axiooQuery.series).toContain("pongo");
+    expect(axiooQuery.gaming).toBe(true);
+
+    const multiBrandCatalog: AssistantProduct[] = [
+      {
+        id: "tuf-v16",
+        name: "ASUS TUF Gaming V16 FA607",
+        description: "AMD Ryzen 7, NVIDIA GeForce RTX 4060 8GB, 16GB DDR5, 1TB SSD",
+        price: 18_500_000,
+        discount_price: null,
+        stock: 5,
+        brands: { name: "ASUS" },
+        product_specifications: [{ key: "gpu", value: "NVIDIA GeForce RTX 4060 8GB" }],
+      },
+      {
+        id: "loq-15",
+        name: "Lenovo LOQ 15IRH8",
+        description: "Intel Core i5-13420H, NVIDIA GeForce RTX 4050 6GB, 16GB DDR5, 512GB SSD",
+        price: 14_500_000,
+        discount_price: null,
+        stock: 4,
+        brands: { name: "Lenovo" },
+        product_specifications: [{ key: "gpu", value: "NVIDIA GeForce RTX 4050 6GB" }],
+      },
+    ];
+
+    const gamingCriteria = getProductCriteria("rekomendasi laptop gaming ada vga", []);
+    const answer = graphicsFollowUpAnswer(multiBrandCatalog, gamingCriteria);
+    expect(answer).toContain("TUF");
+    expect(answer).toContain("LOQ");
+  });
+
+  it("recognizes all categories (desktop, monitor, smartphone, tablet, accessories) and broad brands (Logitech, Epson, Samsung, Rexus)", () => {
+    // Accessories & Peripherals
+    const mouseQuery = getProductCriteria("ada mouse wireless logitech yang ready?", []);
+    expect(mouseQuery.wantsProducts).toBe(true);
+    expect(mouseQuery.category).toBe("accessory");
+    expect(mouseQuery.brand).toBe("Logitech");
+
+    const keyboardQuery = getProductCriteria("rekomendasi keyboard mechanical rexus atau fantech", []);
+    expect(keyboardQuery.wantsProducts).toBe(true);
+    expect(keyboardQuery.category).toBe("accessory");
+
+    const printerQuery = getProductCriteria("printer epson ready ga bang?", []);
+    expect(printerQuery.wantsProducts).toBe(true);
+    expect(printerQuery.category).toBe("accessory");
+    expect(printerQuery.brand).toBe("Epson");
+
+    // Monitor
+    const monitorQuery = getProductCriteria("monitor gaming 144hz samsung atau lg", []);
+    expect(monitorQuery.wantsProducts).toBe(true);
+    expect(monitorQuery.category).toBe("monitor");
+
+    // Desktop & AIO
+    const pcQuery = getProductCriteria("pc all in one buat kerja kantor", []);
+    expect(pcQuery.wantsProducts).toBe(true);
+    expect(pcQuery.category).toBe("desktop");
+
+    // Smartphone & Tablet
+    const phoneQuery = getProductCriteria("hp samsung atau infinix budget 3 juta", []);
+    expect(phoneQuery.wantsProducts).toBe(true);
+    expect(phoneQuery.category).toBe("smartphone");
+
+    const tabletQuery = getProductCriteria("tablet ipad buat gambar dan belajar", []);
+    expect(tabletQuery.wantsProducts).toBe(true);
+    expect(tabletQuery.category).toBe("tablet");
+  });
+
+  it("accurately retains school usecase ('buat sekolahan') across budget follow-up without drifting to gaming", () => {
+    const turn1History = [
+      { role: "user" as const, text: "ada laptop gaming rtx 4050?" },
+      { role: "assistant" as const, text: "Ada Lenovo LOQ dan ASUS TUF Gaming." },
+    ];
+    // User switches context to school
+    const turn2 = getProductCriteria("buat sekolahan sih bang 5jtan", turn1History);
+    expect(turn2.study).toBe(true);
+    expect(turn2.gaming).toBe(false);
+    expect(turn2.budget).toBe(5_000_000);
+
+    // User follows up on budget
+    const turn3History = [
+      ...turn1History,
+      { role: "user" as const, text: "buat sekolahan sih bang 5jtan" },
+      { role: "assistant" as const, text: "Ada Advan Soulmate X2." },
+    ];
+    const turn3 = getProductCriteria("kalo 6jtan?", turn3History);
+    expect(turn3.study).toBe(true);
+    expect(turn3.gaming).toBe(false);
+    expect(turn3.budget).toBe(6_000_000);
+  });
 });
