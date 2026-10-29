@@ -20,6 +20,7 @@ export type ImportedVariant = {
   stockChangeReason?: string
   isNewVariant?: boolean
   warnings?: string[]
+  hasExplicitFileStock?: boolean
 }
 
 export type PriceCandidate = { column: string; raw: string; amount: number | null }
@@ -65,7 +66,18 @@ export type ImportedProduct = {
   }
 }
 
-const headers = ['product_name','sku','description','price','discount_price','stock','category','brand','status','is_best_seller','is_new_arrival','image_url','specifications','color','ram','storage','variant_sku','variant_price','variant_discount_price','variant_stock'] as const
+export const legacyHeaders = ['product_name','sku','description','price','discount_price','stock','category','brand','status','is_best_seller','is_new_arrival','image_url','specifications','color','ram','storage','variant_sku','variant_price','variant_discount_price','variant_stock'] as const
+
+export const templateV2Headers = [
+  'product_name', 'sku', 'category', 'brand', 'price', 'discount_price', 'stock',
+  'status', 'is_best_seller', 'is_new_arrival', 'description', 'image_url', 'gallery_images',
+  'device_type', 'processor', 'graphics', 'display', 'ram', 'ram_upgrade', 'storage',
+  'storage_type', 'os', 'connectivity', 'keyboard', 'warranty', 'bundle_software',
+  'color', 'model_code', 'variant_sku', 'variant_price', 'variant_discount_price', 'variant_stock',
+  'specifications'
+] as const
+
+const headers = legacyHeaders
 const aliases: Record<string, string> = {
   product_name:'product_name', name:'product_name', nama:'product_name', nama_produk:'product_name', produk:'product_name',
   model:'product_name', model_name:'product_name', tipe:'product_name', nama_tipe:'product_name',
@@ -85,7 +97,19 @@ const aliases: Record<string, string> = {
   old_price:'ignored_price', old_price_user:'ignored_price', old_price_dealer:'ignored_price', harga_lama:'ignored_price', old_user_price:'ignored_price',
   new_price_user:'new_price_user', new_user_price:'new_price_user', user_price:'user_price', srp:'srp', harga_user:'user_price', user_srp:'srp', new_price_user_srp:'new_price_user', srp_user:'new_price_user',
   new_price:'unclassified_price', harga_jual:'promo_price',
-  processor:'processor', prosesor:'processor', cpu:'processor', processor_type:'processor', cpu_model:'processor', graphics:'graphics', graphics_card:'graphics', gpu:'graphics', gpu_model:'graphics', vga:'graphics', memory_type:'ram', display:'display', display_size:'display', screen_size:'display', layar:'display', os:'os', operating_system:'os', warranty:'warranty', warranty_period:'warranty', garansi:'warranty', storage_type:'storage', storage_capacity:'storage',
+  processor:'processor', prosesor:'processor', cpu:'processor', processor_type:'processor', cpu_model:'processor',
+  graphics:'graphics', graphics_card:'graphics', gpu:'graphics', gpu_model:'graphics', vga:'graphics', kartu_grafis:'graphics',
+  memory_type:'ram', display:'display', display_size:'display', screen_size:'display', layar:'display', screen:'display',
+  os:'os', operating_system:'os', sistem_operasi:'os',
+  warranty:'warranty', warranty_period:'warranty', garansi:'warranty', masa_garansi:'warranty',
+  storage_type:'storage_type', storage_capacity:'storage', slot_storage:'storage_type', jenis_penyimpanan:'storage_type', tipe_storage:'storage_type',
+  device_type:'device_type', tipe_perangkat:'device_type', jenis_perangkat:'device_type', kelas_perangkat:'device_type', product_type:'device_type',
+  ram_upgrade:'ram_upgrade', slot_ram:'ram_upgrade', upgrade_ram:'ram_upgrade', kemungkinan_upgrade_ram:'ram_upgrade',
+  connectivity:'connectivity', konektivitas:'connectivity', port:'connectivity', ports:'connectivity', port_io:'connectivity',
+  keyboard:'keyboard', fitur_keyboard:'keyboard', papan_ketik:'keyboard',
+  bundle_software:'bundle_software', bundel:'bundle_software', kelengkapan:'bundle_software', software_bundle:'bundle_software', office_bundle:'bundle_software', bonus:'bundle_software',
+  model_code:'model_code', kode_model:'model_code', model_type:'model_code',
+  gallery_images:'gallery_images', galeri:'gallery_images', foto_galeri:'gallery_images', gambar_galeri:'gallery_images', additional_images:'gallery_images',
 }
 export const cleanImportHeader = (v: string) => v.trim().toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 const text = (v: unknown) => String(v ?? '').trim()
@@ -211,12 +235,14 @@ export function applyStockPolicyToProduct(
         const initial = v.fileStock !== null && v.fileStock !== undefined ? Math.max(0, v.fileStock) : 0
         const warnings = [...(v.warnings ?? [])]
         if (v.fileStock === null || v.fileStock === undefined) {
-          warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+          if (!warnings.includes('Stok tidak tercantum di file, menggunakan nilai default 0.')) {
+            warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+          }
         }
         return {
           ...v,
           stock: initial,
-          warnings,
+          warnings: Array.from(new Set(warnings)),
           stockChangeReason: v.fileStock !== null && v.fileStock !== undefined
             ? `Varian baru (dari file: ${v.fileStock})`
             : `Varian baru tanpa stok di file (0)`,
@@ -257,11 +283,13 @@ export function applyStockPolicyToProduct(
           }
         }
         const warnings = [...(v.warnings ?? [])]
-        warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+        if (!warnings.includes('Stok tidak tercantum di file, menggunakan nilai default 0.')) {
+          warnings.push('Stok tidak tercantum di file, menggunakan nilai default 0.')
+        }
         return {
           ...v,
           stock: 0,
-          warnings,
+          warnings: Array.from(new Set(warnings)),
           stockChangeReason: `Varian baru tanpa stok di file (0)`,
         }
       })
@@ -450,28 +478,30 @@ export async function loadExcelWorkbook(buffer: Buffer): Promise<ExcelJS.Workboo
 export async function generateProductImportExcelTemplate(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
   workbook.creator = 'Next Solution Store'
+  workbook.created = new Date()
+
   const sheet = workbook.addWorksheet('Data Produk', {
     views: [{ state: 'frozen', ySplit: 1 }]
   })
 
   sheet.columns = [
-    { header: 'product_name', key: 'product_name', width: 32 },
-    { header: 'sku', key: 'sku', width: 20 },
-    { header: 'description', key: 'description', width: 45 },
+    { header: 'product_name', key: 'product_name', width: 28 },
+    { header: 'sku', key: 'sku', width: 18 },
+    { header: 'description', key: 'description', width: 40 },
     { header: 'price', key: 'price', width: 16, style: { numFmt: '#,##0' } },
     { header: 'discount_price', key: 'discount_price', width: 16, style: { numFmt: '#,##0' } },
-    { header: 'stock', key: 'stock', width: 12, style: { numFmt: '0' } },
-    { header: 'category', key: 'category', width: 18 },
-    { header: 'brand', key: 'brand', width: 18 },
-    { header: 'status', key: 'status', width: 14 },
+    { header: 'stock', key: 'stock', width: 10, style: { numFmt: '0' } },
+    { header: 'category', key: 'category', width: 16 },
+    { header: 'brand', key: 'brand', width: 16 },
+    { header: 'status', key: 'status', width: 12 },
     { header: 'is_best_seller', key: 'is_best_seller', width: 14 },
     { header: 'is_new_arrival', key: 'is_new_arrival', width: 14 },
-    { header: 'image_url', key: 'image_url', width: 35 },
-    { header: 'specifications', key: 'specifications', width: 50 },
-    { header: 'color', key: 'color', width: 15 },
-    { header: 'ram', key: 'ram', width: 15 },
-    { header: 'storage', key: 'storage', width: 18 },
-    { header: 'variant_sku', key: 'variant_sku', width: 20 },
+    { header: 'image_url', key: 'image_url', width: 32 },
+    { header: 'specifications', key: 'specifications', width: 36 },
+    { header: 'color', key: 'color', width: 14 },
+    { header: 'ram', key: 'ram', width: 14 },
+    { header: 'storage', key: 'storage', width: 16 },
+    { header: 'variant_sku', key: 'variant_sku', width: 18 },
     { header: 'variant_price', key: 'variant_price', width: 16, style: { numFmt: '#,##0' } },
     { header: 'variant_discount_price', key: 'variant_discount_price', width: 16, style: { numFmt: '#,##0' } },
     { header: 'variant_stock', key: 'variant_stock', width: 14, style: { numFmt: '0' } },
@@ -577,6 +607,11 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
 
   for (const table of tables) {
     const rawSheetName = table.source.replace(/^XLSX\//, '').replace(/^DOCX\//, '').replace(/^PDF\//, '')
+    const lowerSheet = rawSheetName.toLowerCase()
+    if (lowerSheet.includes('panduan') || lowerSheet.includes('petunjuk') || lowerSheet.includes('instruksi') || lowerSheet.includes('guide')) {
+      skippedSheets.push({ name: rawSheetName, reason: 'Lembar kerja dilewati karena terdeteksi sebagai petunjuk atau panduan pengisian.' })
+      continue
+    }
     if (table.rows.length === 0) {
       skippedSheets.push({ name: rawSheetName, reason: 'Worksheet kosong tanpa data baris.' })
       continue
@@ -637,6 +672,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       storage: string
       processor: string
       display: string
+      gpu: string
       os: string
       price: number
       discountPrice: number | null
@@ -693,6 +729,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       const specStorage = specs.find((s) => s.key.toLowerCase().includes('storage') || s.key.toLowerCase().includes('penyimpanan'))?.value || ''
       const specProc = specs.find((s) => s.key.toLowerCase().includes('processor') || s.key.toLowerCase().includes('cpu'))?.value || ''
       const specDisp = specs.find((s) => s.key.toLowerCase().includes('display') || s.key.toLowerCase().includes('layar'))?.value || ''
+      const specGpu = specs.find((s) => s.key.toLowerCase().includes('graphics') || s.key.toLowerCase().includes('gpu') || s.key.toLowerCase().includes('vga'))?.value || ''
       const specOs = specs.find((s) => s.key.toLowerCase().includes('os'))?.value || ''
 
       const parsedFileStock = r.stock !== undefined && r.stock !== '' ? integer(r.stock, 'Stok', rowNumber) : null
@@ -715,6 +752,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
         storage: specStorage,
         processor: specProc,
         display: specDisp,
+        gpu: specGpu,
         os: specOs,
         price: chosen?.amount ?? 0,
         discountPrice: discountCandidates[0]?.amount && chosen?.amount && discountCandidates[0].amount < chosen.amount ? discountCandidates[0].amount : null,
@@ -727,14 +765,16 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
       })
     }
 
-    // Group raw rows by Brand, Category, BaseModel, Processor family, and Display size
+    // Group raw rows by Brand, Category, BaseModel, Processor family, Display size, and GPU
     const rowGroups = new Map<string, RawVendorRow[]>()
     for (const item of rawRows) {
       const procMatch = item.processor.match(/\b(core\s+(?:ultra\s+)?\w+|i[3579]-?\w+|ryzen\s+\w+|snapdragon\s+\w+|celeron\s+\w+|pentium\s+\w+|athlon\s+\w+|n\d+)\b/i)
       const procKey = procMatch ? procMatch[1].toLowerCase().replace(/\s+/g, '') : item.processor.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)
       const dispMatch = item.display.match(/\b(\d+(?:\.\d+)?)\s*(?:["']|inch|inci)?/i)
       const dispKey = dispMatch ? dispMatch[1] : ''
-      const groupKey = `${item.brand.toLowerCase()}|${item.category.toLowerCase()}|${item.baseModel.toLowerCase()}|${procKey}|${dispKey}`
+      const gpuMatch = item.gpu.match(/\b(rtx\s*\d+|gtx\s*\d+|radeon\s*\w+|iris\s*xe|intel\s*graphics|arc\s*\w+)\b/i)
+      const gpuKey = gpuMatch ? gpuMatch[1].toLowerCase().replace(/\s+/g, '') : item.gpu.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)
+      const groupKey = `${item.brand.toLowerCase()}|${item.category.toLowerCase()}|${item.baseModel.toLowerCase()}|${procKey}|${dispKey}|${gpuKey}`
       rowGroups.set(groupKey, [...(rowGroups.get(groupKey) ?? []), item])
     }
 
@@ -808,7 +848,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
         const totalFileStock = hasAnyFileStock ? group.reduce((sum, g) => sum + (g.fileStock ?? 0), 0) : null
 
         const variants: ImportedVariant[] = []
-        const usedOptions = new Set<string>()
+        const usedOptions = new Map<string, { sku: string; rowNumber: number }>()
         const usedVariantSkus = new Set<string>()
         let hasDuplicateSkuInGroup = false
         const groupWarnings: string[] = [...first.warnings]
@@ -824,17 +864,27 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
             }
             usedVariantSkus.add(lowerSku)
           }
-          let color = g.color || 'Standar'
+          const color = g.color || 'Standar'
           const ram = g.ram
           const storage = g.storage
           const optKey = `${color.toLowerCase()}|${ram.toLowerCase()}|${storage.toLowerCase()}`
 
-          if (usedOptions.has(optKey)) {
-            const disambiguator = g.os ? g.os.replace(/[^A-Za-z0-9]/g, '') : `V${vIdx + 1}`
-            color = `${color} (${disambiguator})`
-            groupWarnings.push(`Varian ${g.sku} memiliki kombinasi warna & spesifikasi identik; label warna disesuaikan menjadi "${color}" agar tidak bentrok di database. Periksa sebelum import.`)
+          const existingOpt = usedOptions.get(optKey)
+          if (existingOpt) {
+            const isSameSku = g.sku && existingOpt.sku && g.sku.toLowerCase() === existingOpt.sku.toLowerCase()
+            if (isSameSku) {
+              hasDuplicateSkuInGroup = true
+              groupWarnings.push(`SKU duplikat ditemukan dalam file (${g.sku}).`)
+              continue
+            }
+            // Conflict between two different SKUs with identical variant attributes
+            // Do NOT alter color, do NOT alter product name, do NOT create a separate parent product.
+            // Retain the variant in preview, record metadata in errors/warnings, and require admin decision.
+            const conflictMsg = `[Konflik Varian Perlu Review] SKU "${g.sku || `Baris ${g.rowNumber}`}" memiliki kombinasi atribut varian identik (Warna: "${color}", RAM: "${ram || '-'}", Storage: "${storage || '-'}") dengan SKU "${existingOpt.sku || `Baris ${existingOpt.rowNumber}`}" pada produk "${first.baseModel || first.rawName}". Memerlukan keputusan admin sebelum diimpor.`
+            groupWarnings.push(conflictMsg)
+            groupErrors.push(conflictMsg)
           }
-          usedOptions.add(`${color.toLowerCase()}|${ram.toLowerCase()}|${storage.toLowerCase()}`)
+          usedOptions.set(optKey, { sku: g.sku, rowNumber: g.rowNumber })
 
           variants.push({
             sku: g.sku,
@@ -886,7 +936,7 @@ export function analyzeAndNormalizeImportTables(tables: ImportTable[]): ImportNo
           priceConfirmed: false,
           discountPriceConfirmed: false,
           duplicateInFile: hasDuplicateSkuInGroup || undefined,
-          importAction: 'create',
+          importAction: groupErrors.length > 0 ? 'skip' : 'create',
         })
         vendorSheetAdded++
       }
@@ -918,12 +968,14 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
       continue
     }
 
+    const singleVar = product.variants.length === 1 ? product.variants[0] : null
     const { baseModel, color: extractedColor } = extractColorAndBaseModel(product.name)
-    const color = extractedColor || findColorInDescription(product.description)
+    const color = singleVar?.color || extractedColor || findColorInDescription(product.description)
     const procSpec = product.specifications.find((s) => s.key.toLowerCase().includes('processor') || s.key.toLowerCase().includes('cpu'))?.value || ''
     const dispSpec = product.specifications.find((s) => s.key.toLowerCase().includes('display') || s.key.toLowerCase().includes('layar'))?.value || ''
-    const ramSpec = product.specifications.find((s) => s.key.toLowerCase().includes('ram') || s.key.toLowerCase().includes('memory'))?.value || ''
-    const storageSpec = product.specifications.find((s) => s.key.toLowerCase().includes('storage') || s.key.toLowerCase().includes('penyimpanan'))?.value || ''
+    const gpuSpec = product.specifications.find((s) => s.key.toLowerCase().includes('graphics') || s.key.toLowerCase().includes('gpu') || s.key.toLowerCase().includes('vga'))?.value || ''
+    const ramSpec = product.specifications.find((s) => s.key.toLowerCase().includes('ram') || s.key.toLowerCase().includes('memory'))?.value || singleVar?.ram || ''
+    const storageSpec = product.specifications.find((s) => s.key.toLowerCase().includes('storage') || s.key.toLowerCase().includes('penyimpanan'))?.value || singleVar?.storage || ''
 
     if (!color && !ramSpec && !storageSpec && baseModel.toLowerCase() === product.name.trim().toLowerCase()) {
       result.push(product)
@@ -934,8 +986,10 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
     const procKey = procMatch ? procMatch[1].toLowerCase().replace(/\s+/g, '') : procSpec.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)
     const dispMatch = dispSpec.match(/\b(\d+(?:\.\d+)?)\s*(?:["']|inch|inci)?/i)
     const dispKey = dispMatch ? dispMatch[1] : ''
+    const gpuMatch = gpuSpec.match(/\b(rtx\s*\d+|gtx\s*\d+|radeon\s*\w+|iris\s*xe|intel\s*graphics|arc\s*\w+)\b/i)
+    const gpuKey = gpuMatch ? gpuMatch[1].toLowerCase().replace(/\s+/g, '') : gpuSpec.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15)
 
-    const groupKey = `${(product.brand || '').toLowerCase()}|${(product.category || '').toLowerCase()}|${baseModel.toLowerCase()}|${procKey}|${dispKey}`
+    const groupKey = `${(product.brand || '').toLowerCase()}|${(product.category || '').toLowerCase()}|${baseModel.toLowerCase()}|${procKey}|${dispKey}|${gpuKey}`
     autoGroups.set(groupKey, [...(autoGroups.get(groupKey) ?? []), product])
   }
 
@@ -969,46 +1023,55 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
     const minPrice = Math.min(...group.map((p) => p.price))
     const totalStock = group.reduce((sum, p) => sum + p.stock, 0)
     const variants: ImportedVariant[] = []
-    const usedOptions = new Set<string>()
+    const usedOptions = new Map<string, { sku: string; name: string }>()
     const usedVariantSkus = new Set<string>()
     let hasDuplicateSkuInGroup = false
     const groupWarnings = [...(first.warnings ?? [])]
+    const groupErrors = [...(first.errors ?? [])]
 
     for (let vIdx = 0; vIdx < group.length; vIdx++) {
       const p = group[vIdx]
-      if (p.sku) {
-        const lowerSku = p.sku.toLowerCase()
+      const pVar = p.variants.length === 1 ? p.variants[0] : null
+      const vSku = pVar?.sku || p.sku
+      if (vSku) {
+        const lowerSku = vSku.toLowerCase()
         if (usedVariantSkus.has(lowerSku)) {
           hasDuplicateSkuInGroup = true
-          groupWarnings.push(`SKU duplikat ditemukan dalam file (${p.sku}).`)
+          groupWarnings.push(`SKU duplikat ditemukan dalam file (${vSku}).`)
         }
         usedVariantSkus.add(lowerSku)
       }
       const { color: extractedColor } = extractColorAndBaseModel(p.name)
-      let color = extractedColor || findColorInDescription(p.description) || 'Standar'
-      const ram = p.specifications.find((s) => s.key.toLowerCase().includes('ram') || s.key.toLowerCase().includes('memory'))?.value || ''
-      const storage = p.specifications.find((s) => s.key.toLowerCase().includes('storage') || s.key.toLowerCase().includes('penyimpanan'))?.value || ''
+      const color = pVar?.color || extractedColor || findColorInDescription(p.description) || 'Standar'
+      const ram = p.specifications.find((s) => s.key.toLowerCase().includes('ram') || s.key.toLowerCase().includes('memory'))?.value || pVar?.ram || ''
+      const storage = p.specifications.find((s) => s.key.toLowerCase().includes('storage') || s.key.toLowerCase().includes('penyimpanan'))?.value || pVar?.storage || ''
       const optKey = `${color.toLowerCase()}|${ram.toLowerCase()}|${storage.toLowerCase()}`
 
-      if (usedOptions.has(optKey)) {
-        const osSpec = p.specifications.find((s) => s.key.toLowerCase().includes('os'))?.value || ''
-        const disambiguator = osSpec ? osSpec.replace(/[^A-Za-z0-9]/g, '') : `V${vIdx + 1}`
-        color = `${color} (${disambiguator})`
-        groupWarnings.push(`Varian ${p.sku} memiliki kombinasi warna & spesifikasi identik; label warna disesuaikan menjadi "${color}" agar tidak bentrok di database. Periksa sebelum import.`)
+      const existingOpt = usedOptions.get(optKey)
+      if (existingOpt) {
+        const isSameSku = vSku && existingOpt.sku && vSku.toLowerCase() === existingOpt.sku.toLowerCase()
+        if (isSameSku) {
+          hasDuplicateSkuInGroup = true
+          groupWarnings.push(`SKU duplikat ditemukan dalam file (${vSku}).`)
+          continue
+        }
+        const conflictMsg = `[Konflik Varian Perlu Review] SKU "${vSku}" memiliki kombinasi atribut varian identik (Warna: "${color}", RAM: "${ram || '-'}", Storage: "${storage || '-'}") dengan SKU "${existingOpt.sku}" pada "${first.name}". Memerlukan keputusan admin sebelum diimpor.`
+        groupWarnings.push(conflictMsg)
+        groupErrors.push(conflictMsg)
       }
-      usedOptions.add(`${color.toLowerCase()}|${ram.toLowerCase()}|${storage.toLowerCase()}`)
+      usedOptions.set(optKey, { sku: vSku, name: p.name })
 
       variants.push({
-        sku: p.sku,
+        sku: vSku,
         color,
         ram,
         storage,
-        price: p.price,
-        discount_price: p.discount_price,
-        stock: p.stock,
-        fileStock: p.fileStock ?? null,
-        currentStock: p.currentStock ?? null,
-        stockChangeReason: p.stockChangeReason,
+        price: pVar?.price ?? p.price,
+        discount_price: pVar?.discount_price ?? p.discount_price,
+        stock: pVar?.stock ?? p.stock,
+        fileStock: pVar?.fileStock ?? p.fileStock ?? null,
+        currentStock: pVar?.currentStock ?? p.currentStock ?? null,
+        stockChangeReason: pVar?.stockChangeReason ?? p.stockChangeReason,
       })
     }
 
@@ -1030,6 +1093,8 @@ export function consolidateVariantProducts(products: ImportedProduct[]): Importe
       stockChangeReason: totalFileStock !== null ? `Total varian file (${totalFileStock})` : 'Stok tidak ada di file (0)',
       variants,
       warnings: [...new Set(groupWarnings)],
+      errors: [...new Set(groupErrors)],
+      importAction: groupErrors.length > 0 ? 'skip' : (first.importAction ?? 'create'),
       duplicateInFile: hasDuplicateSkuInGroup || first.duplicateInFile,
     })
   }
@@ -1047,46 +1112,192 @@ export function normalizeProductRows(rows: string[][]): ImportedProduct[] {
   if (!header || header.vendor !== 'legacy') return normalizeImportTables([{ rows, source: 'CSV' }])
   const products = new Map<string, ImportedProduct>()
   if (rows.length > 2001) throw new Error('File terlalu banyak baris. Maksimal 2.000 baris data.')
+
   for (let index = header.index + 1; index < rows.length; index++) {
     const record: Record<string, string> = {}
     header.columns.forEach((key, col) => { if (key) record[key] = text(rows[index][col]) })
     if (!Object.values(record).some(Boolean)) continue
     const row = index + 1
-    const name = record.product_name ?? '', sku = record.sku ?? '', brand = record.brand ?? '', category = record.category ?? '', description = record.description ?? ''
+    const name = record.product_name ?? '', sku = record.sku ?? '', brand = record.brand ?? '', category = record.category ?? ''
+    let description = record.description ?? ''
+
+    if (!name || !brand || !category) {
+      throw new Error(`Baris ${row}: nama, kategori, dan brand wajib diisi.`)
+    }
+
     const key = sku ? `sku:${sku.toLowerCase()}` : `name:${name.toLowerCase()}|${brand.toLowerCase()}`
     const found = products.get(key)
-    if (!name || !brand || !category || (!description && !found)) throw new Error(`Baris ${row}: nama, deskripsi, kategori, dan brand wajib diisi.`)
+
+    const rowWarnings: string[] = []
+    if (!description && !found) {
+      description = name
+      rowWarnings.push(`Deskripsi sumber baris ${row} kosong; nama produk digunakan sebagai ringkasan.`)
+    }
+
     const price = money(record.price ?? '', 'Harga', row, Boolean(found)) ?? found?.price ?? 0
     const discount = money(record.promo_price ?? '', 'Harga promo', row, true)
-    if (discount !== null && (discount <= 0 || (price > 0 && discount >= price))) throw new Error(`Baris ${row}: harga promo harus lebih besar dari nol dan lebih rendah dari harga utama.`)
+    if (discount !== null && (discount <= 0 || (price > 0 && discount >= price))) {
+      throw new Error(`Baris ${row}: harga promo harus lebih besar dari nol dan lebih rendah dari harga utama.`)
+    }
+
     const imageUrl = record.image_url ?? found?.image_url ?? ''
     const safeImageUrl = isKnownPromotionalArtwork(imageUrl) ? '' : imageUrl
-    if (imageUrl && !/^https:\/\//i.test(imageUrl)) throw new Error(`Baris ${row}: URL foto harus menggunakan HTTPS.`)
-    const status = (record.status || found?.status || 'published').toLowerCase() as ImportedProduct['status']
-    if (!['published','draft','archived'].includes(status)) throw new Error(`Baris ${row}: status harus published, draft, atau archived.`)
-    const legacySpecs = (record.specifications ?? '').split(/[;\n]/).map((part) => { const [k, ...v] = part.split(':'); return { key: text(k), value: text(v.join(':')), display_order: 0 } }).filter((spec) => spec.key && spec.value)
-    const product = found ?? { name, sku, description: description || name, price, discount_price: discount, stock: 0, category, brand, status, is_best_seller: bool(record.is_best_seller ?? ''), is_new_arrival: bool(record.is_new_arrival ?? ''), image_url: safeImageUrl, specifications: legacySpecs, variants: [], priceCandidates: [{ column: 'price', raw: record.price ?? '', amount: price }], discountCandidates: record.promo_price ? [{ column: 'discount_price', raw: record.promo_price, amount: discount }] : [], priceConfirmed: false, discountPriceConfirmed: false, importAction: 'create' as const }
-    if (found && safeImageUrl !== imageUrl) product.warnings = [...(product.warnings ?? []), 'Gambar promosi Acer dilewati; unggah foto produk yang cocok dengan SKU/MTM.']
-    if (found && (product.name !== name || product.brand.toLowerCase() !== brand.toLowerCase() || product.category.toLowerCase() !== category.toLowerCase())) throw new Error(`Baris ${row}: data produk harus konsisten di semua baris varian.`)
-    const color = record.color ?? '', ram = record.ram ?? '', storage = record.storage ?? ''
-    if (color || ram || storage || record.variant_stock || record.variant_sku) {
-      if (!color && !ram && !storage) throw new Error(`Baris ${row}: varian harus memiliki warna, RAM, atau storage.`)
-      if (product.variants.some((variant) => variant.color.toLowerCase() === color.toLowerCase() && variant.ram.toLowerCase() === ram.toLowerCase() && variant.storage.toLowerCase() === storage.toLowerCase())) throw new Error(`Baris ${row}: kombinasi varian produk ganda.`)
-      const varPrice = money(record.variant_price ?? '', 'Harga varian', row, true) ?? (price > 0 ? price : null)
-      const varDiscount = money(record.variant_discount_price ?? '', 'Harga diskon varian', row, true) ?? discount
-      const parsedVarStock = (record.variant_stock ?? record.stock) !== undefined && (record.variant_stock ?? record.stock) !== '' ? integer(record.variant_stock ?? record.stock, 'Stok varian', row)! : null
-      product.variants.push({
-        sku: record.variant_sku ?? '',
-        color,
-        ram,
-        storage,
-        price: varPrice,
-        discount_price: varDiscount,
-        stock: parsedVarStock ?? 0,
-        fileStock: parsedVarStock,
-        currentStock: null,
-        stockChangeReason: parsedVarStock !== null ? `Dari file (${parsedVarStock})` : 'Stok tidak ada di file (0)',
+    if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
+      throw new Error(`Baris ${row}: URL foto harus menggunakan HTTPS.`)
+    }
+
+    const status = (record.status || found?.status || (record.stock && Number(record.stock) > 0 ? 'published' : 'draft')).toLowerCase() as ImportedProduct['status']
+    if (!['published','draft','archived'].includes(status)) {
+      throw new Error(`Baris ${row}: status harus published, draft, atau archived.`)
+    }
+
+    // Extract structured specifications from both columns and free-text
+    const structuredSpecs: { key: string; value: string; display_order: number }[] = []
+    const addSpec = (label: string, val?: string) => {
+      if (val && val.trim()) {
+        structuredSpecs.push({ key: label, value: val.trim(), display_order: structuredSpecs.length })
+      }
+    }
+    addSpec('Tipe Perangkat', record.device_type)
+    addSpec('Prosesor', record.processor)
+    addSpec('Kartu Grafis', record.graphics)
+    addSpec('Layar', record.display)
+    addSpec('RAM', record.ram)
+    addSpec('Kemungkinan Upgrade RAM', record.ram_upgrade)
+    addSpec('Penyimpanan', record.storage)
+    addSpec('Jenis Penyimpanan', record.storage_type)
+    addSpec('Sistem Operasi', record.os)
+    addSpec('Konektivitas', record.connectivity)
+    addSpec('Keyboard', record.keyboard)
+    addSpec('Garansi', record.warranty)
+    addSpec('Kelengkapan & Bundel', record.bundle_software)
+    addSpec('Kode Model', record.model_code)
+
+    const legacySpecs = (record.specifications ?? '')
+      .split(/[;\n]/)
+      .map((part) => {
+        const [k, ...v] = part.split(':')
+        return { key: text(k), value: text(v.join(':')), display_order: 0 }
       })
+      .filter((spec) => spec.key && spec.value)
+
+    let combinedSpecs: { key: string; value: string; display_order: number }[] = []
+    if (legacySpecs.length > 0) {
+      combinedSpecs = legacySpecs
+    } else {
+      combinedSpecs = structuredSpecs
+    }
+
+    if (combinedSpecs.length === 0) {
+      rowWarnings.push('Spesifikasi belum lengkap. Produk dapat diproses, tetapi periksa kembali detail sebelum dipublikasikan.')
+    }
+
+    const parentStockVal = record.stock !== undefined && record.stock !== '' ? integer(record.stock, 'Stok', row)! : null
+
+    const product = found ?? {
+      name,
+      sku,
+      description: description || name,
+      price,
+      discount_price: discount,
+      stock: parentStockVal ?? 0,
+      fileStock: parentStockVal,
+      category,
+      brand,
+      status,
+      is_best_seller: bool(record.is_best_seller ?? ''),
+      is_new_arrival: bool(record.is_new_arrival ?? ''),
+      image_url: safeImageUrl,
+      specifications: combinedSpecs,
+      variants: [],
+      sourceRow: row,
+      warnings: rowWarnings,
+      errors: [],
+      priceCandidates: [{ column: 'price', raw: record.price ?? '', amount: price }],
+      discountCandidates: record.promo_price ? [{ column: 'discount_price', raw: record.promo_price, amount: discount }] : [],
+      priceConfirmed: false,
+      discountPriceConfirmed: false,
+      importAction: 'create' as const,
+    }
+
+    if (found) {
+      product.warnings = Array.from(new Set([...(product.warnings ?? []), ...rowWarnings]))
+      if (product.fileStock === null && parentStockVal !== null) {
+        product.fileStock = parentStockVal
+        product.stock = parentStockVal
+      }
+    }
+
+    if (found && safeImageUrl !== imageUrl) {
+      product.warnings = [...(product.warnings ?? []), 'Gambar promosi Acer dilewati; unggah foto produk yang cocok dengan SKU/MTM.']
+    }
+
+    if (found && (product.name !== name || product.brand.toLowerCase() !== brand.toLowerCase() || product.category.toLowerCase() !== category.toLowerCase())) {
+      throw new Error(`Baris ${row}: data produk harus konsisten di semua baris varian.`)
+    }
+
+    const color = record.color ?? ''
+    const ram = record.ram ?? ''
+    const storage = record.storage ?? ''
+
+    // Stock and price fallback handling:
+    const hasExplicitVarStock = record.variant_stock !== undefined && record.variant_stock.trim() !== ''
+    const parsedVarStock = hasExplicitVarStock ? integer(record.variant_stock, 'Stok varian', row)! : null
+
+    const rawPrice = (record.variant_price !== undefined && record.variant_price.trim() !== '') ? record.variant_price : record.price
+    const varPrice = money(rawPrice ?? '', 'Harga varian', row, true) ?? (price > 0 ? price : null)
+
+    const rawDiscount = (record.variant_discount_price !== undefined && record.variant_discount_price.trim() !== '') ? record.variant_discount_price : record.promo_price
+    const varDiscount = money(rawDiscount ?? '', 'Harga diskon varian', row, true) ?? discount
+
+    const rawVarSku = (record.variant_sku !== undefined && record.variant_sku.trim() !== '') ? record.variant_sku.trim() : ''
+
+    if (color || ram || storage || record.variant_stock || record.variant_sku) {
+      // Check for duplicate variant combination
+      const duplicateVariant = product.variants.find(
+        (variant) =>
+          variant.color.toLowerCase() === color.toLowerCase() &&
+          variant.ram.toLowerCase() === ram.toLowerCase() &&
+          variant.storage.toLowerCase() === storage.toLowerCase()
+      )
+
+      if (duplicateVariant) {
+        if (rawVarSku && duplicateVariant.sku && rawVarSku.toLowerCase() !== duplicateVariant.sku.toLowerCase()) {
+          const conflictMsg = `Baris ${row}: [Konflik Varian Perlu Review] SKU "${rawVarSku}" memiliki kombinasi atribut varian identik (Warna: "${color || 'Standar'}", RAM: "${ram || '-'}", Storage: "${storage || '-'}") dengan SKU "${duplicateVariant.sku}" pada produk "${name}". Memerlukan keputusan admin sebelum diimpor.`
+          product.warnings = [...(product.warnings ?? []), conflictMsg]
+          product.errors = [...(product.errors ?? []), conflictMsg]
+          product.importAction = 'skip'
+          product.variants.push({
+            sku: rawVarSku,
+            color: color || 'Standar',
+            ram,
+            storage,
+            price: varPrice,
+            discount_price: varDiscount,
+            stock: parsedVarStock ?? 0,
+            fileStock: parsedVarStock,
+            hasExplicitFileStock: hasExplicitVarStock,
+            currentStock: null,
+            stockChangeReason: parsedVarStock !== null ? `Dari file (${parsedVarStock})` : 'Stok tidak ada di file (0)',
+          })
+        } else {
+          throw new Error(`Baris ${row}: kombinasi varian produk ganda.`)
+        }
+      } else {
+          product.variants.push({
+            sku: rawVarSku,
+            color: color || 'Standar',
+            ram,
+            storage,
+            price: varPrice,
+            discount_price: varDiscount,
+            stock: parsedVarStock ?? 0,
+            fileStock: parsedVarStock,
+            hasExplicitFileStock: hasExplicitVarStock,
+            currentStock: null,
+            stockChangeReason: parsedVarStock !== null ? `Dari file (${parsedVarStock})` : 'Stok tidak ada di file (0)',
+          })
+      }
       if (varPrice !== null && varPrice > 0) product.price = Math.min(product.price, varPrice)
     } else {
       const parsedFileStock = record.stock !== undefined && record.stock !== '' ? integer(record.stock, 'Stok', row)! : null
@@ -1098,17 +1309,45 @@ export function normalizeProductRows(rows: string[][]): ImportedProduct[] {
     }
     if (!found) products.set(key, product)
   }
+
   for (const p of products.values()) {
-    if (p.variants.length > 0) {
+    if (p.variants.length === 1) {
+      const v = p.variants[0]
+      if (!v.hasExplicitFileStock && p.fileStock !== null && p.fileStock !== undefined) {
+        v.fileStock = p.fileStock
+        v.stock = p.fileStock
+        v.stockChangeReason = `Dari stok induk (${p.fileStock})`
+      }
+      p.stock = v.stock ?? 0
+      p.fileStock = v.fileStock
+      p.stockChangeReason = p.fileStock !== null ? `Dari file (${p.fileStock})` : 'Stok tidak ada di file (0)'
+    } else if (p.variants.length > 1) {
+      let missingCount = 0
+      for (const v of p.variants) {
+        if (!v.hasExplicitFileStock) {
+          missingCount++
+          v.fileStock = null
+          v.stock = 0
+          v.stockChangeReason = 'Stok tidak ada di file (0)'
+          const w = 'Stok tidak tercantum di file, menggunakan nilai default 0.'
+          v.warnings = Array.from(new Set([...(v.warnings ?? []), w]))
+        }
+      }
+      if (missingCount > 0) {
+        const warnMsg = `[Perlu Review Stok] Produk "${p.name}" memiliki ${p.variants.length} varian, namun ${missingCount} varian tidak memiliki stok eksplisit di kolom variant_stock. Stok varian tersebut ditetapkan 0 untuk mencegah pelipatgandaan stok induk.`
+        p.warnings = Array.from(new Set([...(p.warnings ?? []), warnMsg]))
+      }
       p.stock = p.variants.reduce((sum, v) => sum + (v.stock ?? 0), 0)
       const hasAnyFileStock = p.variants.some((v) => v.fileStock !== null && v.fileStock !== undefined)
       p.fileStock = hasAnyFileStock ? p.variants.reduce((sum, v) => sum + (v.fileStock ?? 0), 0) : null
       p.stockChangeReason = p.fileStock !== null ? `Total varian file (${p.fileStock})` : 'Stok tidak ada di file (0)'
     }
   }
+
   const consolidated = consolidateVariantProducts([...products.values()])
   if (consolidated.length > 500) throw new Error('Maksimal 500 produk per impor.')
   for (const product of consolidated) if (product.variants.length > 50) throw new Error(`Produk ${product.name} memiliki lebih dari 50 varian.`)
   return consolidated
 }
+
 export const productImportHeaders = [...headers]

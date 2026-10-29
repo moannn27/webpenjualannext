@@ -19,6 +19,58 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "i.pravatar.cc",
       },
+      {
+        protocol: "https",
+        hostname: "psrefstuff.lenovo.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.lenovo.com",
+      },
+      {
+        protocol: "https",
+        hostname: "dlcdnwebimgs.asus.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.asus.com",
+      },
+      {
+        protocol: "https",
+        hostname: "static.acer.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.acer.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.hp.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.msi.com",
+      },
+      {
+        protocol: "https",
+        hostname: "upload.wikimedia.org",
+      },
+      {
+        protocol: "https",
+        hostname: "raw.githubusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+      {
+        protocol: "https",
+        hostname: "i.imgur.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.googleusercontent.com",
+      },
       ...(supabaseHost ? [{ protocol: "https" as const, hostname: supabaseHost, pathname: "/storage/v1/object/**" }] : []),
     ],
   },

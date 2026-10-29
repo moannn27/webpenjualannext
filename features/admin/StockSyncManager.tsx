@@ -638,9 +638,11 @@ export function StockSyncManager({
                 <div className="p-4 rounded-xl border border-slate-100 dark:border-white/5 bg-white dark:bg-[#1E2028]">
                   <span className="text-[11px] font-bold text-slate-400 uppercase">Total Data Excel</span>
                   <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                    {previewData.totalRows}
+                    {previewData.totalRows} <span className="text-xs font-normal text-slate-400">baris</span>
                   </p>
-                  <span className="text-[10px] text-slate-400">Dari {previewData.fileNames.length} file</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    {previewData.summary.totalProcessed} SKU unik {previewData.totalRows - previewData.summary.totalProcessed > 0 ? `(${previewData.totalRows - previewData.summary.totalProcessed} baris duplikat digabung)` : `dari ${previewData.fileNames.length} file`}
+                  </span>
                 </div>
 
                 <div className="p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-950/20">
@@ -656,7 +658,9 @@ export function StockSyncManager({
                   <p className="text-xl font-black text-amber-700 dark:text-amber-300 mt-1">
                     {previewData.summary.conflicts}
                   </p>
-                  <span className="text-[10px] text-amber-600/80">Muncul berulang kali</span>
+                  <span className="text-[10px] text-amber-600/80">
+                    {previewData.totalRows - previewData.summary.totalProcessed > 0 ? `${previewData.totalRows - previewData.summary.totalProcessed + previewData.summary.conflicts} baris fisik digabung` : 'Muncul berulang kali'}
+                  </span>
                 </div>
 
                 <div className="p-4 rounded-xl border border-rose-100 dark:border-rose-900/30 bg-rose-50/50 dark:bg-rose-950/20">
@@ -686,7 +690,7 @@ export function StockSyncManager({
                         Perhatian: Ada {unresolvedConflictsCount} SKU yang dobel (muncul berulang) di file Excel!
                       </p>
                       <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
-                        Pilih stok mana yang mau dipakai untuk masing-masing barang, atau pakai tombol praktis di samping:
+                        Sebanyak {previewData.totalRows - previewData.summary.totalProcessed} baris perulangan fisik digabungkan menjadi {unresolvedConflictsCount} grup SKU untuk keputusan admin. Pilih stok mana yang mau dipakai untuk masing-masing barang, atau pakai tombol praktis di samping:
                       </p>
                     </div>
                   </div>

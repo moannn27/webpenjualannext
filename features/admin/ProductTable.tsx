@@ -41,7 +41,7 @@ const SPEC_PRESETS = [
 ];
 
 type AdminProduct = {
-  id: string; name: string; description: string; sku: string | null; price: number; discount_price: number | null;
+  id: string; created_at?: string; name: string; description: string; sku: string | null; price: number; discount_price: number | null;
   stock: number; status: string; is_best_seller?: boolean; is_new_arrival?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
   product_images?: { url: string; is_primary: boolean }[];
   product_specifications?: { key: string; value: string; display_order?: number }[];
@@ -92,6 +92,15 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [pricePreset, setPricePreset] = useState<"all" | "under_5m" | "5m_10m" | "10m_20m" | "above_20m" | "custom">("all");
   const [customPriceMin, setCustomPriceMin] = useState<string>("");
   const [customPriceMax, setCustomPriceMax] = useState<string>("");
+  const [recentlyAddedOnly, setRecentlyAddedOnly] = useState(false);
+  const [currentTimestamp] = useState(() => Date.now());
+
+  const isRecentlyAdded = (createdAt?: string) => {
+    if (!createdAt) return false;
+    const createdTime = new Date(createdAt).getTime();
+    const diffHours = (currentTimestamp - createdTime) / (1000 * 60 * 60);
+    return diffHours >= 0 && diffHours <= 24;
+  };
 
   // Scroll to Top state
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -270,6 +279,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       if (maxS !== null && !isNaN(maxS) && stock > maxS) return false;
     }
 
+    // 5.5 Recently added filter (24 hours)
+    if (recentlyAddedOnly && !isRecentlyAdded(product.created_at)) {
+      return false;
+    }
+
     // 6. Price filter
     const effectivePrice = Number(product.discount_price ?? product.price) || 0;
     if (pricePreset === "under_5m") {
@@ -296,6 +310,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     selectedCategory !== "all" ||
     selectedStatus !== "all" ||
     stockFilter !== "all" ||
+    recentlyAddedOnly ||
     pricePreset !== "all" ||
     customStockMin ||
     customStockMax ||
@@ -314,8 +329,10 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     setPricePreset("all");
     setCustomPriceMin("");
     setCustomPriceMax("");
+    setRecentlyAddedOnly(false);
   };
 
+  const recentlyAddedCount = products.filter((p) => isRecentlyAdded(p.created_at)).length;
   const outOfStockCount = products.filter((p) => (p.stock || 0) === 0).length;
   const lowStockCount = products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
   const inStockCount = products.filter((p) => (p.stock || 0) > 0).length;
@@ -461,6 +478,18 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             }`}
           >
             Semua ({products.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setRecentlyAddedOnly(!recentlyAddedOnly)}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              recentlyAddedOnly
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100"
+            }`}
+          >
+            <Sparkles className="size-3" />
+            Baru Ditambahkan (${recentlyAddedCount})
           </button>
           <button
             type="button"
@@ -796,6 +825,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                   <div>
                     <span className="font-semibold text-foreground">{product.name}</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
+                      {isRecentlyAdded(product.created_at) && (
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          <Sparkles className="size-2.5" /> Baru
+                        </span>
+                      )}
                       {product.is_best_seller && (
                         <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-bold text-amber-700 dark:text-amber-400">
                           ⭐ Best Seller

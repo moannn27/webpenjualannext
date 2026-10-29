@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { getProductGalleryImages, getSafeProductImageUrl, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import {
+  getAllProductGalleryImages,
+  getProductGalleryImages,
+  getSafeProductImageUrl,
+  getSelectedProductVariant,
+  getSpecificationsForVariant,
+  getVariantForAvailableOption,
+  isKnownPromotionalArtwork,
+  isValidProductImageUrl,
+} from "@/lib/product-gallery";
 
 describe("product variant gallery", () => {
   const parentImages = [
@@ -84,5 +93,109 @@ describe("product variant gallery", () => {
     expect(getVariantForAvailableOption(variants, variants[0], "color", "Grey")).toBe(variants[1]);
     expect(getVariantForAvailableOption(variants, variants[0], "storage", "2TB")).toBeNull();
     expect(variants.some((variant) => variant.color === "Grey" && variant.ram === "8GB" && variant.storage === "512GB")).toBe(false);
+  });
+
+  describe("getAllProductGalleryImages", () => {
+    it("returns all product images and variant gallery images combined for the storefront thumbnail strip", () => {
+      const parentImages = [
+        { id: "p1", url: "https://example.com/parent-main.webp", is_primary: true, display_order: 0 },
+        { id: "p2", url: "https://example.com/parent-angle-2.webp", display_order: 1 },
+        { id: "p3", url: "https://example.com/parent-angle-3.webp", display_order: 2 },
+      ];
+      const variants = [
+        {
+          id: "var-luna-grey",
+          color: "Luna Grey",
+          image_url: "https://example.com/parent-main.webp",
+          product_variant_images: [
+            { id: "v-luna-1", url: "https://example.com/parent-main.webp", display_order: 0 },
+          ],
+        },
+        {
+          id: "var-cosmic-blue",
+          color: "Cosmic Blue",
+          image_url: "https://example.com/parent-angle-2.webp",
+          product_variant_images: [
+            { id: "v-cosmic-1", url: "https://example.com/parent-angle-2.webp", display_order: 0 },
+          ],
+        },
+      ];
+
+      const allImages = getAllProductGalleryImages(parentImages, "IdeaPad 5 2-in-1", variants);
+
+      // Must contain ALL 3 photos so all thumbnails appear in the gallery
+      expect(allImages).toHaveLength(3);
+      expect(allImages.map((img) => img.url)).toEqual([
+        "https://example.com/parent-main.webp",
+        "https://example.com/parent-angle-2.webp",
+        "https://example.com/parent-angle-3.webp",
+      ]);
+
+      // Checks variant mapping
+      expect(allImages[0].variantIds).toContain("var-luna-grey");
+      expect(allImages[1].variantIds).toContain("var-cosmic-blue");
+      expect(allImages[2].variantIds).toEqual([]); // General product angle
+    });
+
+    it("appends unique variant photos that are not part of parent product images", () => {
+      const parentImages = [
+        { id: "p1", url: "https://example.com/laptop-general.webp", is_primary: true, display_order: 0 },
+      ];
+      const variants = [
+        {
+          id: "var-red",
+          color: "Red",
+          image_url: "https://example.com/laptop-red.webp",
+          product_variant_images: [
+            { id: "vr-1", url: "https://example.com/laptop-red-side.webp", display_order: 1 },
+          ],
+        },
+      ];
+
+      const allImages = getAllProductGalleryImages(parentImages, "Laptop", variants);
+
+      expect(allImages).toHaveLength(3);
+      expect(allImages.map((img) => img.url)).toEqual([
+        "https://example.com/laptop-general.webp",
+        "https://example.com/laptop-red-side.webp",
+        "https://example.com/laptop-red.webp",
+      ]);
+      expect(allImages[1].variantIds).toContain("var-red");
+      expect(allImages[2].variantIds).toContain("var-red");
+    });
+
+    it("deduplicates identical image URLs across multiple variants of the same color/specs", () => {
+      const parentImages = [
+        { id: "p1", url: "https://example.com/main.webp", is_primary: true },
+      ];
+      const variants = [
+        { id: "v-8gb", color: "Silver", ram: "8GB", image_url: "https://example.com/silver.webp" },
+        { id: "v-16gb", color: "Silver", ram: "16GB", image_url: "https://example.com/silver.webp" },
+      ];
+
+      const allImages = getAllProductGalleryImages(parentImages, "Laptop", variants);
+
+      expect(allImages).toHaveLength(2);
+      expect(allImages[1].url).toBe("https://example.com/silver.webp");
+      expect(allImages[1].variantIds).toEqual(["v-8gb", "v-16gb"]);
+    });
+
+    it("filters out invalid URLs and known promotional posters from both parent and variant galleries", () => {
+      const poster = "https://storage.example/products/official-acer-aspire-lite-pink.webp";
+      const parentImages = [
+        { id: "p1", url: "https://example.com/valid.webp", is_primary: true },
+        { id: "p2", url: poster },
+        { id: "p3", url: "http://insecure.example.com/pic.jpg" },
+      ];
+      const variants = [
+        { id: "v1", image_url: poster },
+        { id: "v2", image_url: "invalid-url" },
+      ];
+
+      const allImages = getAllProductGalleryImages(parentImages, "Laptop", variants);
+
+      expect(allImages).toHaveLength(1);
+      expect(allImages[0].url).toBe("https://example.com/valid.webp");
+    });
   });
 });

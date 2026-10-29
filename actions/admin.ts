@@ -1336,16 +1336,58 @@ export async function getMissingImportTaxonomiesAction(categories: string[], bra
   await requireModulePermission('products')
   const supabase = await createClient()
   const [{ data: existingCats }, { data: existingBrands }] = await Promise.all([
-    supabase.from('categories').select('id, name'),
-    supabase.from('brands').select('id, name'),
+    supabase.from('categories').select('id, name').order('name'),
+    supabase.from('brands').select('id, name').order('name'),
   ])
-  const missingCategories = [...new Set(categories.map((c) => c?.trim()).filter(Boolean))].filter(
-    (name) => !existingCats?.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())
-  )
-  const missingBrands = [...new Set(brands.map((b) => b?.trim()).filter(Boolean))].filter(
-    (name) => !existingBrands?.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())
-  )
-  return { missingCategories, missingBrands }
+
+  const cleanCats = [...new Set(categories.map((c) => c?.trim()).filter(Boolean))]
+  const cleanBrands = [...new Set(brands.map((b) => b?.trim()).filter(Boolean))]
+
+  const missingCategories: string[] = []
+  const suggestedCategoryMappings: Record<string, string> = {}
+
+  for (const cat of cleanCats) {
+    const matched = existingCats?.find((c) => c.name.trim().toLowerCase() === cat.toLowerCase())
+    if (!matched) {
+      missingCategories.push(cat)
+      const lower = cat.toLowerCase()
+      const singular = lower.endsWith('s') ? lower.slice(0, -1) : lower
+      const suggestion = existingCats?.find((c) => {
+        const cLower = c.name.trim().toLowerCase()
+        return cLower === singular || cLower + 's' === lower || cLower.includes(singular)
+      })
+      if (suggestion) {
+        suggestedCategoryMappings[cat] = suggestion.name
+      }
+    }
+  }
+
+  const missingBrands: string[] = []
+  const suggestedBrandMappings: Record<string, string> = {}
+
+  for (const brand of cleanBrands) {
+    const matched = existingBrands?.find((b) => b.name.trim().toLowerCase() === brand.toLowerCase())
+    if (!matched) {
+      missingBrands.push(brand)
+      const lower = brand.toLowerCase()
+      const suggestion = existingBrands?.find((b) => {
+        const bLower = b.name.trim().toLowerCase()
+        return bLower.includes(lower) || lower.includes(bLower)
+      })
+      if (suggestion) {
+        suggestedBrandMappings[brand] = suggestion.name
+      }
+    }
+  }
+
+  return {
+    existingCategories: (existingCats ?? []).map((c) => ({ id: c.id, name: c.name })),
+    existingBrands: (existingBrands ?? []).map((b) => ({ id: b.id, name: b.name })),
+    missingCategories,
+    missingBrands,
+    suggestedCategoryMappings,
+    suggestedBrandMappings,
+  }
 }
 
 export async function bulkImportAdminProductsAction(products: unknown) {
@@ -1357,8 +1399,14 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     if (product.importAction === 'update' && !product.targetProductId) throw new Error('Pilih produk database yang cocok sebelum update.')
     if (product.importAction === 'consolidate' && (!Array.isArray(product.consolidationTargetIds) || product.consolidationTargetIds.length === 0)) throw new Error('Konsolidasi memerlukan produk database target yang teridentifikasi.')
     if (typeof product.stock === 'number' && product.stock < 0) throw new Error('Stok produk tidak boleh negatif.')
+    if (product.image_url && typeof product.image_url === 'string' && !/^https:\/\//i.test(product.image_url)) {
+      throw new Error(`URL gambar produk "${product.name}" tidak aman. URL harus menggunakan HTTPS.`)
+    }
     for (const v of product.variants) {
       if (typeof v.stock === 'number' && v.stock < 0) throw new Error('Stok varian tidak boleh negatif.')
+      if (v.image_url && typeof v.image_url === 'string' && !/^https:\/\//i.test(v.image_url)) {
+        throw new Error(`URL gambar varian "${v.sku || product.name}" tidak aman. URL harus menggunakan HTTPS.`)
+      }
     }
   }
   const supabase = await createClient()
@@ -1374,10 +1422,41 @@ export async function bulkImportAdminProductsAction(products: unknown) {
       supabase.from('brands').select('id, name, slug'),
     ])
 
-    const missingCategories = targetCategories.filter(
+    // Normalize category and brand references to existing database records
+    // Handles plural/singular forms (e.g. 'Laptop' <-> 'Laptops', 'Desktop' <-> 'Desktops')
+    // to strictly prevent creating redundant duplicate categories without admin confirmation
+    for (const p of activeProducts as Array<{ category?: string; brand?: string }>) {
+      if (p.category) {
+        const catTrim = p.category.trim().toLowerCase()
+        const matched = existingCats?.find((c) => {
+          const cName = c.name.trim().toLowerCase()
+          if (cName === catTrim) return true
+          if (catTrim === 'laptop' && cName === 'laptops') return true
+          if (catTrim === 'laptops' && cName === 'laptop') return true
+          if (catTrim === 'desktop' && cName === 'desktops') return true
+          if (catTrim === 'desktops' && cName === 'desktop') return true
+          return false
+        })
+        if (matched) {
+          p.category = matched.name
+        }
+      }
+      if (p.brand) {
+        const brandTrim = p.brand.trim().toLowerCase()
+        const matched = existingBrands?.find((b) => b.name.trim().toLowerCase() === brandTrim)
+        if (matched) {
+          p.brand = matched.name
+        }
+      }
+    }
+
+    const updatedCategories = [...new Set(activeProducts.map((p: { category?: string }) => p.category?.trim()).filter(Boolean) as string[])]
+    const updatedBrands = [...new Set(activeProducts.map((p: { brand?: string }) => p.brand?.trim()).filter(Boolean) as string[])]
+
+    const missingCategories = updatedCategories.filter(
       (name) => !existingCats?.some((c) => c.name.trim().toLowerCase() === name.toLowerCase())
     )
-    const missingBrands = targetBrands.filter(
+    const missingBrands = updatedBrands.filter(
       (name) => !existingBrands?.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())
     )
 
@@ -1452,6 +1531,65 @@ export async function bulkImportAdminProductsAction(products: unknown) {
 
   const typedProducts = products as ImportItem[]
 
+  // Pre-flight SKU & variant reconciliation to ensure zero unique constraint collisions
+  const allVarSkus = typedProducts.flatMap((p) => p.variants?.map((v) => v.sku?.trim()).filter(Boolean) as string[] || [])
+  const allTargetIds = typedProducts.map((p) => p.targetProductId).filter(Boolean) as string[]
+
+  if (allTargetIds.length > 0 || allVarSkus.length > 0) {
+    const [targetProdsRes, dbVarsRes] = await Promise.all([
+      allTargetIds.length > 0
+        ? supabase.from('products').select('id, sku, name').in('id', allTargetIds)
+        : Promise.resolve({ data: [] }),
+      allVarSkus.length > 0
+        ? supabase.from('product_variants').select('id, product_id, sku').in('sku', allVarSkus)
+        : Promise.resolve({ data: [] }),
+    ])
+
+    const targetProdsMap = new Map((targetProdsRes.data || []).map((p) => [p.id, p]))
+    const dbVarMap = new Map((dbVarsRes.data || []).map((v) => [v.sku.toLowerCase(), v]))
+
+    for (const p of typedProducts) {
+      if (p.importAction === 'update' && p.targetProductId) {
+        const target = targetProdsMap.get(p.targetProductId)
+        if (target && target.sku && (!p.sku || p.sku.toLowerCase() !== target.sku.toLowerCase())) {
+          // Keep existing product SKU intact for update RPC validation
+          p.sku = target.sku
+        }
+      } else if (p.importAction === 'create') {
+        const matchedOwners = new Set<string>()
+        for (const v of p.variants || []) {
+          if (v.sku) {
+            const match = dbVarMap.get(v.sku.toLowerCase())
+            if (match) matchedOwners.add(match.product_id)
+          }
+        }
+        if (matchedOwners.size === 1) {
+          const ownerId = [...matchedOwners][0]
+          const { data: ownerProd } = await supabase.from('products').select('id, sku, name').eq('id', ownerId).maybeSingle()
+          if (ownerProd) {
+            p.importAction = 'update'
+            p.targetProductId = ownerProd.id
+            if (ownerProd.sku) p.sku = ownerProd.sku
+          }
+        } else if (matchedOwners.size > 1) {
+          p.importAction = 'consolidate'
+          p.consolidationTargetIds = [...matchedOwners]
+        }
+      }
+    }
+
+    // For consolidation: reassign secondary product variants to primary product before bulk RPC
+    for (const p of typedProducts) {
+      if (p.importAction === 'consolidate' && p.consolidationTargetIds && p.consolidationTargetIds.length > 1) {
+        const primaryId = p.consolidationTargetIds[0]
+        const secondaryIds = p.consolidationTargetIds.slice(1)
+        if (secondaryIds.length > 0) {
+          await supabase.from('product_variants').update({ product_id: primaryId }).in('product_id', secondaryIds)
+        }
+      }
+    }
+  }
+
   // 1. Attempt bulk_import_products_v3 first (supports create, update, and consolidate atomically)
   const v3Result = await supabase.rpc('bulk_import_products_v3', { p_products: products })
   let importedCount = Number(v3Result.data) || 0
@@ -1501,6 +1639,14 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     })
     .slice(0, 10)
 
+  const createdCount = typedProducts.filter((p) => !p.importAction || p.importAction === 'create').length
+  const updatedCount = typedProducts.filter((p) => p.importAction === 'update').length
+  const consolidatedCount = typedProducts.filter((p) => p.importAction === 'consolidate').length
+  const variantsCount = typedProducts.reduce((sum, p) => sum + (p.variants?.length || 0), 0)
+  const publishedCount = typedProducts.filter((p) => p.status === 'published').length
+  const draftCount = typedProducts.filter((p) => p.status === 'draft').length
+  const totalStockUpdated = typedProducts.reduce((sum, p) => sum + (p.stock || 0), 0)
+
   await recordAdminActivity({
     admin_id: user.id,
     admin_name: adminName,
@@ -1508,14 +1654,24 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     action: 'update',
     entity_type: 'product',
     entity_name: 'Impor Katalog',
-    details: `Mengimpor ${typedProducts.length} produk katalog (${typedProducts.filter((p) => p.importAction === 'update').length} update, ${typedProducts.filter((p) => p.importAction === 'consolidate').length} konsolidasi, ${typedProducts.filter((p) => p.importAction === 'create').length} baru). Rincian stok: ${stockChanges.join('; ')}`,
+    details: `Mengimpor ${typedProducts.length} produk katalog (${updatedCount} update, ${consolidatedCount} konsolidasi, ${createdCount} baru). Rincian stok: ${stockChanges.join('; ')}`,
   })
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
-  return { success: true, count: importedCount }
+  return {
+    success: true,
+    count: importedCount,
+    createdCount,
+    updatedCount,
+    consolidatedCount,
+    variantsCount,
+    publishedCount,
+    draftCount,
+    totalStockUpdated,
+  }
 }
 
 export async function deleteAdminProductAction(productId: string) {
@@ -1705,10 +1861,54 @@ export async function saveAdminCategoryAction(formData: FormData) {
   return { success: true }
 }
 
-export async function deleteAdminCategoryAction(id: string) {
+export async function getCategoryUsageAction(categoryId: string) {
+  await requireModulePermission('categories')
+  if (!categoryId) throw new Error('ID kategori tidak valid.')
+  const supabase = await createClient()
+  const { data, count, error } = await supabase
+    .from('products')
+    .select('id, name', { count: 'exact' })
+    .eq('category_id', categoryId)
+    .limit(5)
+  if (error) throw new Error(error.message)
+  return {
+    productCount: count ?? 0,
+    sampleProducts: (data ?? []).map((p) => ({ id: p.id, name: p.name })),
+  }
+}
+
+export async function deleteAdminCategoryAction(id: string, reassignToCategoryId?: string) {
   const { user, adminName, role } = await requireModulePermission('categories')
   if (!id) throw new Error('ID kategori tidak valid.')
   const supabase = await createClient()
+
+  const { count: productCount } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('category_id', id)
+
+  if (productCount && productCount > 0) {
+    if (!reassignToCategoryId) {
+      throw new Error(`Kategori ini masih digunakan oleh ${productCount} produk. Pilih kategori pengganti untuk memindahkan produk terlebih dahulu.`)
+    }
+    if (reassignToCategoryId === id) {
+      throw new Error('Kategori pengganti tidak boleh sama dengan kategori yang akan dihapus.')
+    }
+    const { data: targetCat, error: targetCatErr } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('id', reassignToCategoryId)
+      .maybeSingle()
+    if (targetCatErr || !targetCat) {
+      throw new Error('Kategori pengganti tidak ditemukan di database toko.')
+    }
+    const { error: reassignError } = await supabase
+      .from('products')
+      .update({ category_id: reassignToCategoryId })
+      .eq('category_id', id)
+    if (reassignError) throw new Error(`Gagal memindahkan produk: ${reassignError.message}`)
+  }
+
   const { error } = await supabase.from('categories').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
@@ -1719,10 +1919,14 @@ export async function deleteAdminCategoryAction(id: string) {
     action: 'delete',
     entity_type: 'category',
     entity_name: id,
-    details: `Menghapus kategori (ID: ${id})`,
+    details: productCount && productCount > 0
+      ? `Menghapus kategori (ID: ${id}) dan memindahkan ${productCount} produk ke kategori ${reassignToCategoryId}`
+      : `Menghapus kategori (ID: ${id})`,
   })
 
   revalidatePath('/admin/categories')
+  revalidatePath('/admin/products')
+  revalidatePath('/products')
   revalidatePath('/', 'layout')
   return { success: true }
 }
@@ -1764,10 +1968,54 @@ export async function saveAdminBrandAction(formData: FormData) {
   return { success: true }
 }
 
-export async function deleteAdminBrandAction(id: string) {
+export async function getBrandUsageAction(brandId: string) {
+  await requireModulePermission('brands')
+  if (!brandId) throw new Error('ID brand tidak valid.')
+  const supabase = await createClient()
+  const { data, count, error } = await supabase
+    .from('products')
+    .select('id, name', { count: 'exact' })
+    .eq('brand_id', brandId)
+    .limit(5)
+  if (error) throw new Error(error.message)
+  return {
+    productCount: count ?? 0,
+    sampleProducts: (data ?? []).map((p) => ({ id: p.id, name: p.name })),
+  }
+}
+
+export async function deleteAdminBrandAction(id: string, reassignToBrandId?: string) {
   const { user, adminName, role } = await requireModulePermission('brands')
   if (!id) throw new Error('ID brand tidak valid.')
   const supabase = await createClient()
+
+  const { count: productCount } = await supabase
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('brand_id', id)
+
+  if (productCount && productCount > 0) {
+    if (!reassignToBrandId) {
+      throw new Error(`Brand ini masih digunakan oleh ${productCount} produk. Pilih brand pengganti untuk memindahkan produk terlebih dahulu.`)
+    }
+    if (reassignToBrandId === id) {
+      throw new Error('Brand pengganti tidak boleh sama dengan brand yang akan dihapus.')
+    }
+    const { data: targetBrand, error: targetBrandErr } = await supabase
+      .from('brands')
+      .select('id')
+      .eq('id', reassignToBrandId)
+      .maybeSingle()
+    if (targetBrandErr || !targetBrand) {
+      throw new Error('Brand pengganti tidak ditemukan di database toko.')
+    }
+    const { error: reassignError } = await supabase
+      .from('products')
+      .update({ brand_id: reassignToBrandId })
+      .eq('brand_id', id)
+    if (reassignError) throw new Error(`Gagal memindahkan produk: ${reassignError.message}`)
+  }
+
   const { error } = await supabase.from('brands').delete().eq('id', id)
   if (error) throw new Error(error.message)
 
@@ -1778,10 +2026,14 @@ export async function deleteAdminBrandAction(id: string) {
     action: 'delete',
     entity_type: 'brand',
     entity_name: id,
-    details: `Menghapus brand (ID: ${id})`,
+    details: productCount && productCount > 0
+      ? `Menghapus brand (ID: ${id}) dan memindahkan ${productCount} produk ke brand ${reassignToBrandId}`
+      : `Menghapus brand (ID: ${id})`,
   })
 
   revalidatePath('/admin/brands')
+  revalidatePath('/admin/products')
+  revalidatePath('/products')
   revalidatePath('/')
   return { success: true }
 }

@@ -106,9 +106,32 @@ export function ProductImagePicker({
           <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple disabled={busy || urls.length >= maxImages} onChange={(event) => { void upload(event.target.files); event.currentTarget.value = ""; }} />
         </label>
       </div>
-      <div className="flex gap-2">
-        <input aria-label={`URL ${title}`} type="url" value={directUrl} onChange={(event) => setDirectUrl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addDirectUrl(); } }} placeholder="https://.../gambar.webp" className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm" />
-        <Button type="button" variant="outline" size="sm" onClick={addDirectUrl} disabled={urls.length >= maxImages}><Plus className="mr-1 size-4" />Tambah URL</Button>
+      <div className="flex items-center gap-2 w-full">
+        <input
+          aria-label={`URL ${title}`}
+          type="url"
+          value={directUrl}
+          onChange={(event) => setDirectUrl(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addDirectUrl();
+            }
+          }}
+          placeholder="https://.../gambar.webp"
+          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 whitespace-nowrap h-9 px-3 cursor-pointer"
+          onClick={addDirectUrl}
+          disabled={urls.length >= maxImages}
+        >
+          <Plus className="mr-1 size-4" />
+          Tambah URL
+        </Button>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </section>

@@ -81,14 +81,27 @@ export async function POST(request: Request) {
       const prodsData = prodsRes.data ?? []
       const varsData = varsRes.data ?? []
 
+      // Also gather any products referenced by varsData that were not in prodsData
+      const varProductIds = [...new Set(varsData.map((v) => v.product_id))]
+      const missingProdIds = varProductIds.filter((id) => !prodsData.some((p) => p.id === id))
+      if (missingProdIds.length > 0) {
+        const { data: extraProds } = await supabase
+          .from('products')
+          .select('id, sku, name, stock')
+          .in('id', missingProdIds)
+        if (extraProds) prodsData.push(...extraProds)
+      }
+
       const matchedProdIds = prodsData.map((p) => p.id)
       const { data: targetVariants } = matchedProdIds.length > 0
         ? await supabase.from('product_variants').select('id, product_id, sku, color, ram, storage, stock').in('product_id', matchedProdIds)
         : { data: [] }
 
       const prodsMap = new Map<string, { id: string; sku: string; name: string; stock: number }>()
+      const prodsMapById = new Map<string, { id: string; sku: string; name: string; stock: number }>()
       for (const p of prodsData) {
         if (p.sku) prodsMap.set(p.sku.trim().toLowerCase(), p)
+        prodsMapById.set(p.id, p)
         existingBySku.set(p.sku.trim().toLowerCase(), p.id)
       }
 
@@ -107,10 +120,59 @@ export async function POST(request: Request) {
 
       for (const product of products) {
         const prodSkuKey = product.sku.trim().toLowerCase()
-        const targetProduct = prodsMap.get(prodSkuKey)
-        const targetId = targetProduct?.id
+        let targetProduct = prodsMap.get(prodSkuKey)
 
-        // 1. Re-import / Update: Parent SKU matches an existing product in DB
+        // If parent SKU didn't match directly, check if variants belong to an existing DB product
+        if (!targetProduct && product.variants.length > 0) {
+          const matchedVariantOwnerIds = new Set<string>()
+          for (const v of product.variants) {
+            const vSku = v.sku.trim().toLowerCase()
+            const dbVar = vSku ? varsMap.get(vSku) : null
+            if (dbVar) {
+              matchedVariantOwnerIds.add(dbVar.product_id)
+            }
+          }
+          if (matchedVariantOwnerIds.size === 1) {
+            const ownerId = [...matchedVariantOwnerIds][0]
+            targetProduct = prodsMapById.get(ownerId)
+          } else if (matchedVariantOwnerIds.size > 1) {
+            // Variants belong to multiple separate DB products -> Auto-suggest consolidation!
+            const separateMatchedProducts = [...matchedVariantOwnerIds]
+              .map((id) => prodsMapById.get(id))
+              .filter(Boolean) as { id: string; sku: string; name: string; stock: number }[]
+
+            if (separateMatchedProducts.length > 0) {
+              product.consolidationTargetIds = separateMatchedProducts.map((p) => p.id)
+              product.consolidationInfo = {
+                separateProductCount: separateMatchedProducts.length,
+                matchedProducts: separateMatchedProducts,
+              }
+              product.importAction = 'consolidate'
+              product.currentStock = separateMatchedProducts.reduce((sum, p) => sum + (p.stock || 0), 0)
+              product.warnings = [
+                ...(product.warnings ?? []),
+                `Terdeteksi ${separateMatchedProducts.length} produk lama tersimpan terpisah di database (SKU: ${separateMatchedProducts.map((p) => p.sku).join(', ')}). Opsi konsolidasi varian tersedia.`,
+              ]
+
+              for (const v of product.variants) {
+                const vSku = v.sku.trim().toLowerCase()
+                const matchedVar = varsMap.get(vSku)
+                if (matchedVar) {
+                  v.id = matchedVar.id
+                  v.currentStock = matchedVar.stock
+                  v.isNewVariant = false
+                } else {
+                  v.isNewVariant = true
+                  v.currentStock = null
+                }
+              }
+
+              continue
+            }
+          }
+        }
+
+        // 1. Re-import / Update: Parent SKU matches an existing product in DB (or matched via variants)
         if (targetProduct) {
           product.targetProductId = targetProduct.id
           product.duplicateInDatabase = true
@@ -190,10 +252,11 @@ export async function POST(request: Request) {
           product.importAction = 'skip'
         }
 
+        const targetId = product.targetProductId
         const variantConflict = product.variants.some((variant) => {
           const vSku = variant.sku.trim().toLowerCase()
           const vVar = varsMap.get(vSku)
-          return Boolean(vVar && vVar.product_id !== targetId)
+          return Boolean(vVar && (!targetId || vVar.product_id !== targetId))
         })
 
         if (variantConflict) {

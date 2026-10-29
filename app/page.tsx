@@ -81,7 +81,7 @@ export default async function Home() {
     <div className="flex flex-col gap-14 pb-16 sm:gap-20 sm:pb-20 lg:gap-24 lg:pb-24">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd).replace(/</g, '\\u003c') }}
       />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
       {sections.about?.visible !== false && <AboutUsSection content={aboutContent} />}

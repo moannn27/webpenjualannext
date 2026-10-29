@@ -5,6 +5,7 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  Check,
   CheckCheck,
   ChevronDown,
   Download,
@@ -67,9 +68,28 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   type MissingTaxonomyModalConfig = {
     categories: string[];
     brands: string[];
-    onConfirm: () => void;
+    existingCategories: Array<{ id: string; name: string }>;
+    existingBrands: Array<{ id: string; name: string }>;
+    suggestedCategoryMappings: Record<string, string>;
+    suggestedBrandMappings: Record<string, string>;
+    categorySelections: Record<string, string>;
+    brandSelections: Record<string, string>;
+    onConfirm: (catMap: Record<string, string>, brandMap: Record<string, string>) => void;
   };
   const [missingTaxonomyModal, setMissingTaxonomyModal] = useState<MissingTaxonomyModalConfig | null>(null);
+
+  type ImportSuccessResult = {
+    count: number;
+    createdCount: number;
+    updatedCount: number;
+    consolidatedCount: number;
+    variantsCount: number;
+    publishedCount: number;
+    draftCount: number;
+    totalStockUpdated: number;
+  };
+  const [importSuccessModal, setImportSuccessModal] = useState<ImportSuccessResult | null>(null);
+  const [importStage, setImportStage] = useState<string>("");
 
   // Pricing Scheme Alert Modal state (Normal vs Promo)
   type PricingChoiceModalConfig = {
@@ -78,6 +98,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   };
   const [pricingChoiceModal, setPricingChoiceModal] = useState<PricingChoiceModalConfig | null>(null);
   const [selectedPricingScheme, setSelectedPricingScheme] = useState<"normal" | "promo">("normal");
+  const [appliedPricingMode, setAppliedPricingMode] = useState<"normal" | "promo" | null>(null);
 
   // Confirmation alert modal state
   type ConfirmModalConfig = {
@@ -366,6 +387,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
 
     const targetSet = new Set(indices);
     let count = 0;
+    setAppliedPricingMode(mode);
     setProducts((current) =>
       current.map((product, idx) => {
         if (!targetSet.has(idx) || product.importAction === "skip") return product;
@@ -534,6 +556,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
 
   // Reset confirmations back to unchecked state
   const resetConfirmations = (type: "all" | "price" | "promo" = "all") => {
+    setAppliedPricingMode(null);
     setProducts((current) =>
       current.map((product) => ({
         ...product,
@@ -726,6 +749,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
         );
       });
       setProducts(initialized);
+      setAppliedPricingMode(null);
       setGlobalStockPolicy("keep_existing");
       setStockAdjustmentDelta(0);
       setSheetSummary(result.summary?.sheetSummary || null);
@@ -740,15 +764,29 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
   const executeFinalImport = (itemsToImport: ImportedProduct[]) =>
     startTransition(async () => {
       setError("");
+      setImportStage("Menyiapkan penyimpanan ke database...");
       try {
+        setImportStage("Menyimpan data produk & varian...");
         const result = await bulkImportAdminProductsAction(itemsToImport);
+        setImportStage("Menyelesaikan sinkronisasi stok & riwayat...");
         await onImported();
-        setNotice(`Sukses: ${result.count} produk berhasil disimpan ke katalog toko.`);
+        setImportStage("");
+        setImportSuccessModal({
+          count: result.count ?? itemsToImport.length,
+          createdCount: result.createdCount ?? 0,
+          updatedCount: result.updatedCount ?? 0,
+          consolidatedCount: result.consolidatedCount ?? 0,
+          variantsCount: result.variantsCount ?? 0,
+          publishedCount: result.publishedCount ?? 0,
+          draftCount: result.draftCount ?? 0,
+          totalStockUpdated: result.totalStockUpdated ?? 0,
+        });
+        setNotice(`Sukses: ${result.count ?? itemsToImport.length} produk berhasil disimpan ke katalog toko.`);
         setProducts([]);
         setSheetSummary(null);
         setFileName("");
-        setOpen(false);
       } catch (cause) {
+        setImportStage("");
         setError(cause instanceof Error ? cause.message : "Impor produk ke database gagal.");
       }
     });
@@ -758,18 +796,48 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
     const brandsToCheck = [...new Set(targetToImport.map((p) => p.brand?.trim()).filter(Boolean) as string[])];
 
     try {
-      const { missingCategories, missingBrands } = await getMissingImportTaxonomiesAction(
+      setImportStage("Mengecek kategori & brand terhadap database toko...");
+      const taxonomyRes = await getMissingImportTaxonomiesAction(
         categoriesToCheck,
         brandsToCheck
       );
+      setImportStage("");
+
+      const missingCategories = taxonomyRes.missingCategories || [];
+      const missingBrands = taxonomyRes.missingBrands || [];
 
       if (missingCategories.length > 0 || missingBrands.length > 0) {
+        const initialCatSelections: Record<string, string> = {};
+        for (const cat of missingCategories) {
+          initialCatSelections[cat] = taxonomyRes.suggestedCategoryMappings?.[cat] || "__create__";
+        }
+
+        const initialBrandSelections: Record<string, string> = {};
+        for (const brand of missingBrands) {
+          initialBrandSelections[brand] = taxonomyRes.suggestedBrandMappings?.[brand] || "__create__";
+        }
+
         setMissingTaxonomyModal({
           categories: missingCategories,
           brands: missingBrands,
-          onConfirm: () => {
+          existingCategories: taxonomyRes.existingCategories || [],
+          existingBrands: taxonomyRes.existingBrands || [],
+          suggestedCategoryMappings: taxonomyRes.suggestedCategoryMappings || {},
+          suggestedBrandMappings: taxonomyRes.suggestedBrandMappings || {},
+          categorySelections: initialCatSelections,
+          brandSelections: initialBrandSelections,
+          onConfirm: (catMap, brandMap) => {
             setMissingTaxonomyModal(null);
-            executeFinalImport(targetToImport);
+            const mappedTarget = targetToImport.map((prod) => {
+              const mappedCat = catMap[prod.category] && catMap[prod.category] !== "__create__"
+                ? catMap[prod.category]
+                : prod.category;
+              const mappedBrand = brandMap[prod.brand] && brandMap[prod.brand] !== "__create__"
+                ? brandMap[prod.brand]
+                : prod.brand;
+              return { ...prod, category: mappedCat, brand: mappedBrand };
+            });
+            executeFinalImport(mappedTarget);
           },
         });
         return;
@@ -777,6 +845,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
 
       executeFinalImport(targetToImport);
     } catch {
+      setImportStage("");
       executeFinalImport(targetToImport);
     }
   };
@@ -826,6 +895,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
 
   const handleApplyPricingSchemeAndImport = (mode: "normal" | "promo") => {
     setPricingChoiceModal(null);
+    setAppliedPricingMode(mode);
 
     const targetIndices = new Set(targetProductsToImport.map((p) => products.indexOf(p)));
 
@@ -1357,10 +1427,23 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                             size="sm"
                             onClick={() => requestCheckNormalPricesOnly(isFiltered ? "filtered" : "all")}
                             title="Gunakan dan konfirmasi seluruh harga normal (SRP/User), abaikan promo"
-                            className="h-8.5 text-xs text-foreground font-medium"
+                            className={`h-8.5 text-xs font-medium transition-all ${
+                              appliedPricingMode === "normal"
+                                ? "border-emerald-500 bg-emerald-50/80 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-500 ring-1 ring-emerald-500/30 font-semibold shadow-xs"
+                                : "text-foreground hover:bg-muted/60"
+                            }`}
                           >
-                            <Tag className="mr-1 size-3 text-blue-600" />
+                            {appliedPricingMode === "normal" ? (
+                              <Check className="mr-1 size-3 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Tag className="mr-1 size-3 text-blue-600" />
+                            )}
                             Harga Normal Saja
+                            {appliedPricingMode === "normal" && (
+                              <span className="ml-1 rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                Aktif
+                              </span>
+                            )}
                           </Button>
 
                           {/* Tombol Langsung: Gunakan Skema Promo */}
@@ -1370,10 +1453,23 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                             size="sm"
                             onClick={() => requestCheckPromoPricesOnly(isFiltered ? "filtered" : "all")}
                             title="Gunakan harga promo jika tersedia, dan harga normal untuk produk lainnya"
-                            className="h-8.5 text-xs text-foreground font-medium"
+                            className={`h-8.5 text-xs font-medium transition-all ${
+                              appliedPricingMode === "promo"
+                                ? "border-emerald-500 bg-emerald-50/80 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-500 ring-1 ring-emerald-500/30 font-semibold shadow-xs"
+                                : "text-foreground hover:bg-muted/60"
+                            }`}
                           >
-                            <Tag className="mr-1 size-3 text-amber-600" />
+                            {appliedPricingMode === "promo" ? (
+                              <Check className="mr-1 size-3 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Tag className="mr-1 size-3 text-amber-600" />
+                            )}
                             Gunakan Promo
+                            {appliedPricingMode === "promo" && (
+                              <span className="ml-1 rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                Aktif
+                              </span>
+                            )}
                           </Button>
 
                           {/* Tombol Reset Cepat */}
@@ -2013,7 +2109,7 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                                               </span>
                                             )}
                                             <span>{v.stockChangeReason || (v.currentStock != null && v.stock === v.currentStock ? "Tetap" : "Disesuaikan")}</span>
-                                            {v.warnings?.map((w, wi) => (
+                                            {Array.from(new Set(v.warnings ?? [])).map((w, wi) => (
                                               <span key={wi} className="text-amber-600 dark:text-amber-400 block text-[10px]">⚠️ {w}</span>
                                             ))}
                                           </td>
@@ -2819,15 +2915,12 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
               <div
                 className="fixed inset-0 z-[130] grid place-items-center bg-black/60 p-4 animate-in fade-in duration-200"
                 role="presentation"
-                onMouseDown={(event) => {
-                  if (event.target === event.currentTarget) setMissingTaxonomyModal(null);
-                }}
               >
                 <div
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="missing-taxonomy-title"
-                  className="w-full max-w-xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
+                  className="w-full max-w-2xl flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden max-h-[90vh]"
                 >
                   <div className="flex items-start gap-3 p-5 sm:p-6 pb-4 border-b bg-muted/10">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -2835,71 +2928,112 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     </div>
                     <div>
                       <h3 id="missing-taxonomy-title" className="text-lg font-bold text-foreground">
-                        Kategori &amp; Brand Baru Terdeteksi
+                        Penyesuaian Kategori &amp; Brand
                       </h3>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        Pemberitahuan sebelum menambahkan kategori &amp; merk baru ke database toko.
+                        Kategori atau brand dari file Excel belum terdaftar di toko. Anda dapat memetakan ke kategori yang sudah ada atau membuat baru otomatis.
                       </p>
                     </div>
                   </div>
 
                   <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
-                    <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-xs space-y-3 text-blue-950 dark:text-blue-200">
-                      <div className="flex items-start gap-2">
-                        <Info className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
-                        <div>
-                          <span className="font-semibold block">Konfirmasi Pembuatan Kategori &amp; Brand:</span>
-                          <span>
-                            Sistem mendeteksi bahwa produk yang akan diimpor menggunakan kategori atau brand berikut yang saat ini belum terdaftar di database toko:
-                          </span>
+                    {missingTaxonomyModal.categories.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Layers className="size-4 text-blue-500" /> Kategori ({missingTaxonomyModal.categories.length})
+                        </h4>
+                        <div className="space-y-2.5">
+                          {missingTaxonomyModal.categories.map((cat) => {
+                            const currentVal = missingTaxonomyModal.categorySelections[cat] || "__create__";
+                            const suggested = missingTaxonomyModal.suggestedCategoryMappings[cat];
+                            return (
+                              <div key={cat} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border bg-muted/20">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                    📁 {cat}
+                                    {suggested && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/50">
+                                        Cocok: {suggested}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Pilih opsi untuk kategori ini:
+                                  </p>
+                                </div>
+                                <select
+                                  value={currentVal}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setMissingTaxonomyModal((prev) => prev ? {
+                                      ...prev,
+                                      categorySelections: { ...prev.categorySelections, [cat]: val }
+                                    } : null);
+                                  }}
+                                  className="text-xs rounded-lg border bg-background px-3 py-1.5 font-medium shrink-0 max-w-xs focus:ring-2 focus:ring-primary"
+                                >
+                                  <option value="__create__">+ Buat Baru: &quot;{cat}&quot;</option>
+                                  {missingTaxonomyModal.existingCategories.map((c) => (
+                                    <option key={c.id} value={c.name}>
+                                      Petakan ke: {c.name} {suggested?.toLowerCase() === c.name.toLowerCase() ? "(Disarankan)" : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
+                    )}
 
-                      {missingTaxonomyModal.categories.length > 0 && (
-                        <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
-                          <span className="font-semibold text-xs flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                            <Layers className="size-3.5" /> Kategori Baru ({missingTaxonomyModal.categories.length}):
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {missingTaxonomyModal.categories.map((cat) => (
-                              <span
-                                key={cat}
-                                className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
-                              >
-                                📁 {cat}
-                              </span>
-                            ))}
-                          </div>
+                    {missingTaxonomyModal.brands.length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Tag className="size-4 text-purple-500" /> Brand / Merk ({missingTaxonomyModal.brands.length})
+                        </h4>
+                        <div className="space-y-2.5">
+                          {missingTaxonomyModal.brands.map((brand) => {
+                            const currentVal = missingTaxonomyModal.brandSelections[brand] || "__create__";
+                            const suggested = missingTaxonomyModal.suggestedBrandMappings[brand];
+                            return (
+                              <div key={brand} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border bg-muted/20">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
+                                    🏷️ {brand}
+                                    {suggested && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300/50">
+                                        Mirip: {suggested}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Pilih opsi untuk brand ini:
+                                  </p>
+                                </div>
+                                <select
+                                  value={currentVal}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setMissingTaxonomyModal((prev) => prev ? {
+                                      ...prev,
+                                      brandSelections: { ...prev.brandSelections, [brand]: val }
+                                    } : null);
+                                  }}
+                                  className="text-xs rounded-lg border bg-background px-3 py-1.5 font-medium shrink-0 max-w-xs focus:ring-2 focus:ring-primary"
+                                >
+                                  <option value="__create__">+ Buat Baru: &quot;{brand}&quot;</option>
+                                  {missingTaxonomyModal.existingBrands.map((b) => (
+                                    <option key={b.id} value={b.name}>
+                                      Petakan ke: {b.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
-
-                      {missingTaxonomyModal.brands.length > 0 && (
-                        <div className="rounded-lg bg-background/90 p-3 border border-border/50 text-foreground space-y-1.5">
-                          <span className="font-semibold text-xs flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
-                            <Tag className="size-3.5" /> Brand / Merk Baru ({missingTaxonomyModal.brands.length}):
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {missingTaxonomyModal.brands.map((brand) => (
-                              <span
-                                key={brand}
-                                className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-semibold text-foreground shadow-2xs"
-                              >
-                                🏷️ {brand}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="rounded-lg bg-background/80 p-2.5 border border-border/50 text-foreground text-[11px] space-y-1">
-                        <p className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="size-3.5" /> Ketentuan Otomatis:
-                        </p>
-                        <p className="text-muted-foreground">
-                          Jika Anda melanjutkan, sistem akan otomatis membuat kategori &amp; brand di atas beserta slug URL resmi sebelum mengimpor seluruh produk. Anda tidak perlu membuat kategori secara manual satu per satu.
-                        </p>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-end gap-2.5 p-4 px-5 sm:px-6 border-t bg-muted/20 shrink-0">
@@ -2913,12 +3047,101 @@ export function ProductBulkImporter({ onImported }: { onImported: () => Promise<
                     <Button
                       type="button"
                       className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
-                      onClick={missingTaxonomyModal.onConfirm}
+                      onClick={() => {
+                        missingTaxonomyModal.onConfirm(
+                          missingTaxonomyModal.categorySelections,
+                          missingTaxonomyModal.brandSelections
+                        );
+                      }}
                     >
                       <CheckCheck className="mr-1.5 size-4" />
-                      Ya, Buat Kategori/Brand &amp; Lanjutkan
+                      Terapkan &amp; Lanjutkan Impor
                     </Button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Sukses Impor Produk */}
+            {importSuccessModal && (
+              <div
+                className="fixed inset-0 z-[135] grid place-items-center bg-black/60 p-4 animate-in fade-in duration-200"
+                role="presentation"
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  className="w-full max-w-lg flex flex-col rounded-2xl bg-card border shadow-2xl overflow-hidden p-6 text-center space-y-5"
+                >
+                  <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="size-8" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-bold text-foreground">Impor Katalog Berhasil Disimpan</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Sebanyak {importSuccessModal.count} produk telah berhasil diproses ke katalog toko.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-left text-xs">
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Produk Baru</span>
+                      <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">+{importSuccessModal.createdCount}</span>
+                    </div>
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Diperbarui</span>
+                      <span className="text-base font-bold text-blue-600 dark:text-blue-400">{importSuccessModal.updatedCount}</span>
+                    </div>
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Konsolidasi</span>
+                      <span className="text-base font-bold text-purple-600 dark:text-purple-400">{importSuccessModal.consolidatedCount}</span>
+                    </div>
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Total Varian</span>
+                      <span className="text-base font-bold text-foreground">{importSuccessModal.variantsCount}</span>
+                    </div>
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Total Stok Fisik</span>
+                      <span className="text-base font-bold text-foreground">{importSuccessModal.totalStockUpdated} unit</span>
+                    </div>
+                    <div className="p-3 rounded-xl border bg-muted/20">
+                      <span className="text-[11px] text-muted-foreground block">Status Publikasi</span>
+                      <span className="text-xs font-semibold text-foreground mt-1 block">
+                        {importSuccessModal.publishedCount} Published / {importSuccessModal.draftCount} Draft
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl shadow-xs"
+                    onClick={() => {
+                      setImportSuccessModal(null);
+                      setOpen(false);
+                    }}
+                  >
+                    Selesai &amp; Lihat Katalog
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Floating Progress Overlay saat sedang impor */}
+            {busy && (
+              <div className="fixed inset-0 z-[140] grid place-items-center bg-black/60 p-4 animate-in fade-in">
+                <div className="w-full max-w-sm rounded-2xl bg-card border p-6 text-center space-y-4 shadow-2xl">
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <LoaderCircle className="size-6 animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">Sedang Memproses Impor</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{importStage || "Menyimpan produk ke database..."}</p>
+                  </div>
+                  <div className="w-full bg-muted/60 h-2 rounded-full overflow-hidden">
+                    <div className="bg-primary h-full rounded-full animate-pulse w-3/4"></div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Harap tunggu hingga proses penyimpanan selesai.</p>
                 </div>
               </div>
             )}

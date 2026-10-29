@@ -72,7 +72,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <div className="pt-8 pb-24">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd).replace(/</g, '\\u003c') }}
       />
       <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} />
       {relatedProducts.length > 0 && (

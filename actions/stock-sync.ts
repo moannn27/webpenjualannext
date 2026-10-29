@@ -243,8 +243,19 @@ export async function applyStockSyncAction(payload: ApplyStockSyncPayload): Prom
       throw new Error(`Gagal memperbarui stok varian ${vItem.name}: ${error.message}`)
     }
 
-    if (vItem.parentProductId) {
-      affectedParentIds.add(vItem.parentProductId)
+    let parentId = vItem.parentProductId
+    if (!parentId) {
+      const { data: vRecord } = await adminClient
+        .from('product_variants')
+        .select('product_id')
+        .eq('id', vItem.targetId)
+        .maybeSingle()
+      if (vRecord?.product_id) {
+        parentId = vRecord.product_id
+      }
+    }
+    if (parentId) {
+      affectedParentIds.add(parentId)
     }
   }
 

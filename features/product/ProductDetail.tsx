@@ -29,7 +29,7 @@ import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
 import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
-import { getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import { getAllProductGalleryImages, getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
 interface ProductDetailData {
@@ -111,8 +111,8 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   }, [product.product_images, product.image, product.id, product.name]);
 
   const images = useMemo<ProductGalleryImage[]>(
-    () => getProductGalleryImages(baseImages, product.name, selectedVariant),
-    [baseImages, selectedVariant, product.name]
+    () => getAllProductGalleryImages(baseImages, product.name, variants),
+    [baseImages, variants, product.name]
   );
 
   const primaryProductImage = baseImages.find((image) => image.is_primary)?.url || baseImages[0]?.url || "";
@@ -121,6 +121,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const safeFallbackImage = isValidProductImageUrl(product.image) && !isKnownPromotionalArtwork(product.image)
     ? product.image
     : FALLBACK_PRODUCT_IMAGE;
+
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const isExternalUrl = (url?: string | null) => Boolean(url && /^https?:\/\//i.test(url));
+  const getSafeSrc = (url?: string | null) => {
+    if (!url || failedImages[url]) return safeFallbackImage;
+    return url;
+  };
 
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -284,8 +291,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       setCartCountAfterAdd(null);
       setCartError("");
       const nextGallery = getProductGalleryImages(baseImages, product.name, next);
-      setActiveImage(nextGallery[0]?.url || primaryProductImage);
-      setLightboxIndex(0);
+      const targetImage = nextGallery[0]?.url || primaryProductImage;
+      if (targetImage) {
+        setActiveImage(targetImage);
+        const targetIdx = images.findIndex((img) => img.url === targetImage);
+        setLightboxIndex(targetIdx >= 0 ? targetIdx : 0);
+      }
     }
   };
   const variantFields = [
@@ -323,10 +334,15 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             className="relative aspect-square w-full bg-white dark:bg-card/60 rounded-[32px] overflow-hidden border border-border flex items-center justify-center p-6 sm:p-8 group cursor-zoom-in shadow-xs transition-all hover:border-primary/40"
           >
             <Image
-              src={activeImage || primaryProductImage || safeFallbackImage}
+              src={getSafeSrc(activeImage || primaryProductImage)}
               alt={product.name}
               fill
               priority
+              unoptimized={isExternalUrl(activeImage || primaryProductImage)}
+              onError={() => {
+                const target = activeImage || primaryProductImage;
+                if (target) setFailedImages((prev) => ({ ...prev, [target]: true }));
+              }}
               sizes="(min-width: 1024px) 50vw, 100vw"
               className="object-contain transition-transform duration-500 group-hover:scale-105"
             />
@@ -348,7 +364,11 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   onClick={() => {
                     setActiveImage(image.url);
                     setLightboxIndex(idx);
-                    const matchingVariantId = image.variantIds.length === 1 ? image.variantIds[0] : null;
+                    const matchingVariantId = image.variantIds.includes(selectedVariantId)
+                      ? selectedVariantId
+                      : image.variantIds.length > 0
+                        ? image.variantIds[0]
+                        : null;
                     if (matchingVariantId && matchingVariantId !== selectedVariantId) {
                       setSelectedVariantId(matchingVariantId);
                       setQuantity(1);
@@ -358,7 +378,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   }}
                   aria-label={`Tampilkan gambar ${image.alt_text || product.name}`}
                   className={cn(
-                    "relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white dark:bg-card/60 overflow-hidden border-2 shrink-0 transition-all p-1",
+                    "relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white dark:bg-card/60 overflow-hidden border-2 shrink-0 transition-all p-1 cursor-pointer",
                     activeImage === image.url
                       ? "border-primary ring-2 ring-primary/20 scale-102"
                       : "border-border hover:border-primary/50 opacity-75 hover:opacity-100"
@@ -366,9 +386,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                 >
                   {image.url && (
                     <Image
-                      src={image.url}
+                      src={getSafeSrc(image.url)}
                       alt={image.alt_text || product.name}
                       fill
+                      unoptimized={isExternalUrl(image.url)}
+                      onError={() => {
+                        if (image.url) setFailedImages((prev) => ({ ...prev, [image.url]: true }));
+                      }}
                       sizes="96px"
                       className="object-contain p-1.5"
                     />
@@ -774,10 +798,14 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
 
             <div className="relative w-full h-full max-h-[75vh] flex items-center justify-center p-2">
               <Image
-                src={images[lightboxIndex]?.url || activeImage || product.image || FALLBACK_PRODUCT_IMAGE}
+                src={getSafeSrc(images[lightboxIndex]?.url || activeImage || product.image)}
                 alt={images[lightboxIndex]?.alt_text || product.name}
                 fill
-                unoptimized
+                unoptimized={isExternalUrl(images[lightboxIndex]?.url || activeImage || product.image)}
+                onError={() => {
+                  const target = images[lightboxIndex]?.url || activeImage;
+                  if (target) setFailedImages((prev) => ({ ...prev, [target]: true }));
+                }}
                 sizes="90vw"
                 className="max-h-[75vh] max-w-[90vw] object-contain rounded-2xl drop-shadow-2xl animate-in zoom-in-95 duration-200"
               />
@@ -822,10 +850,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                   aria-label={`Pilih gambar ${idx + 1}`}
                 >
                   <Image
-                    src={img.url}
+                    src={getSafeSrc(img.url)}
                     alt={img.alt_text || product.name}
                     fill
-                    unoptimized
+                    unoptimized={isExternalUrl(img.url)}
+                    onError={() => {
+                      if (img.url) setFailedImages((prev) => ({ ...prev, [img.url]: true }));
+                    }}
                     sizes="64px"
                     className="size-full object-contain p-1"
                   />

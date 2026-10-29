@@ -108,3 +108,67 @@ export function getProductGalleryImages(
     .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) || (a.display_order ?? 0) - (b.display_order ?? 0))
     .map((image) => ({ ...image, variantIds: [] as string[] }));
 }
+
+export function getAllProductGalleryImages(
+  productImages: ProductGallerySourceImage[],
+  productName: string,
+  variants?: VariantGallerySource[] | null,
+): (ProductGallerySourceImage & { variantIds: string[] })[] {
+  const mapByUrl = new Map<string, ProductGallerySourceImage & { variantIds: string[] }>();
+
+  // 1. Process parent product images first (Foto Produk umum)
+  const parentList = (productImages ?? [])
+    .filter((img) => isValidProductImageUrl(img.url) && !isKnownPromotionalArtwork(img.url))
+    .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) || (a.display_order ?? 0) - (b.display_order ?? 0));
+
+  for (const img of parentList) {
+    if (!mapByUrl.has(img.url)) {
+      mapByUrl.set(img.url, {
+        id: img.id,
+        url: img.url,
+        alt_text: img.alt_text || productName,
+        is_primary: Boolean(img.is_primary),
+        display_order: img.display_order ?? 0,
+        variantIds: [],
+      });
+    }
+  }
+
+  // 2. Process all variant images across all variants (Galeri Varian)
+  for (const variant of variants ?? []) {
+    const variantLabel = [variant.color, variant.ram, variant.storage].filter(Boolean).join(" ");
+    const vImages = (variant.product_variant_images ?? [])
+      .filter((img) => isValidProductImageUrl(img.url) && !isKnownPromotionalArtwork(img.url))
+      .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+
+    const vUrls: { id?: string; url: string; display_order?: number }[] = [...vImages];
+    if (
+      variant.image_url &&
+      isValidProductImageUrl(variant.image_url) &&
+      !isKnownPromotionalArtwork(variant.image_url) &&
+      !vUrls.some((img) => img.url === variant.image_url)
+    ) {
+      vUrls.push({ id: `variant-${variant.id}`, url: variant.image_url, display_order: 0 });
+    }
+
+    for (const vImg of vUrls) {
+      if (mapByUrl.has(vImg.url)) {
+        const existing = mapByUrl.get(vImg.url)!;
+        if (!existing.variantIds.includes(variant.id)) {
+          existing.variantIds.push(variant.id);
+        }
+      } else {
+        mapByUrl.set(vImg.url, {
+          id: vImg.id || `variant-${variant.id}-${mapByUrl.size}`,
+          url: vImg.url,
+          alt_text: `${productName}${variantLabel ? ` - ${variantLabel}` : ""}`,
+          is_primary: mapByUrl.size === 0,
+          display_order: 100 + (vImg.display_order ?? mapByUrl.size),
+          variantIds: [variant.id],
+        });
+      }
+    }
+  }
+
+  return Array.from(mapByUrl.values());
+}
