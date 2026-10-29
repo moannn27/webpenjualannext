@@ -1552,16 +1552,57 @@ export async function bulkImportAdminProductsAction(products: unknown) {
     const targetProdsMap = new Map((targetProdsRes.data || []).map((p) => [p.id, p]))
     const dbVarMap = new Map((dbVarsRes.data || []).map((v) => [v.sku.toLowerCase(), v]))
 
+    // Pass 1: Auto-resolve target products for items matching existing variant SKUs
     for (const p of typedProducts) {
-      if (p.importAction === 'update' && p.targetProductId) {
-        const target = targetProdsMap.get(p.targetProductId)
+      if (p.importAction === 'create') {
+        const matchedOwners = new Set<string>()
+        for (const v of p.variants || []) {
+          if (v.sku) {
+            const match = dbVarMap.get(v.sku.toLowerCase())
+            if (match) matchedOwners.add(match.product_id)
+          }
+        }
+        if (matchedOwners.size === 1) {
+          const ownerId = [...matchedOwners][0]
+          p.importAction = 'update'
+          p.targetProductId = ownerId
+        } else if (matchedOwners.size > 1) {
+          p.importAction = 'consolidate'
+          p.consolidationTargetIds = [...matchedOwners]
+        }
+      }
+    }
+
+    // Collect all final target IDs (both pre-selected and auto-resolved)
+    const finalTargetIds = Array.from(new Set(
+      typedProducts.map((p) => p.targetProductId || p.consolidationTargetIds?.[0]).filter(Boolean) as string[]
+    ))
+
+    // Fetch any missing target products and variants
+    const missingTargetIds = finalTargetIds.filter((id) => !targetProdsMap.has(id))
+    let allTargetVariants = targetVarsRes.data || []
+
+    if (missingTargetIds.length > 0) {
+      const [missingProdsRes, missingVarsRes] = await Promise.all([
+        supabase.from('products').select('id, sku, name').in('id', missingTargetIds),
+        supabase.from('product_variants').select('id, product_id, sku, color, ram, storage, stock').in('product_id', missingTargetIds),
+      ])
+      for (const prod of missingProdsRes.data || []) {
+        targetProdsMap.set(prod.id, prod)
+      }
+      allTargetVariants = [...allTargetVariants, ...(missingVarsRes.data || [])]
+    }
+
+    // Pass 2: Harmonize variant specs and preserve target product SKU for all updates/consolidations
+    for (const p of typedProducts) {
+      const targetId = p.targetProductId || p.consolidationTargetIds?.[0]
+      if ((p.importAction === 'update' || p.importAction === 'consolidate') && targetId) {
+        const target = targetProdsMap.get(targetId)
         if (target && target.sku && (!p.sku || p.sku.toLowerCase() !== target.sku.toLowerCase())) {
-          // Keep existing product SKU intact for update RPC validation
           p.sku = target.sku
         }
 
-        // Harmonize variant specs with existing DB variants to prevent duplicate variants on slight spec wording
-        const existingVars = (targetVarsRes.data || []).filter((v) => v.product_id === p.targetProductId)
+        const existingVars = allTargetVariants.filter((v) => v.product_id === targetId)
         for (const v of p.variants || []) {
           const matchedVar = existingVars.find((dbV) => {
             if (v.sku && dbV.sku && v.sku.trim().toLowerCase() === dbV.sku.trim().toLowerCase()) return true
@@ -1576,26 +1617,6 @@ export async function bulkImportAdminProductsAction(products: unknown) {
             v.storage = matchedVar.storage
             if (!v.sku && matchedVar.sku) v.sku = matchedVar.sku
           }
-        }
-      } else if (p.importAction === 'create') {
-        const matchedOwners = new Set<string>()
-        for (const v of p.variants || []) {
-          if (v.sku) {
-            const match = dbVarMap.get(v.sku.toLowerCase())
-            if (match) matchedOwners.add(match.product_id)
-          }
-        }
-        if (matchedOwners.size === 1) {
-          const ownerId = [...matchedOwners][0]
-          const { data: ownerProd } = await supabase.from('products').select('id, sku, name').eq('id', ownerId).maybeSingle()
-          if (ownerProd) {
-            p.importAction = 'update'
-            p.targetProductId = ownerProd.id
-            if (ownerProd.sku) p.sku = ownerProd.sku
-          }
-        } else if (matchedOwners.size > 1) {
-          p.importAction = 'consolidate'
-          p.consolidationTargetIds = [...matchedOwners]
         }
       }
     }
