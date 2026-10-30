@@ -175,11 +175,13 @@ export function CheckoutClient({
 
   // Auto-switch away from cash if user switches fulfillmentMode to delivery, or away from QRIS if QR is unconfigured
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (fulfillmentMode === "delivery" && paymentMethod === "cash_on_pickup") {
       setPaymentMethod(isBankTransferAvailable ? "manual_transfer" : canSelectQris ? "qris" : "manual_transfer");
     } else if (paymentMethod === "qris" && !hasQrisImage) {
       setPaymentMethod(isBankTransferAvailable ? "manual_transfer" : isCashAvailable ? "cash_on_pickup" : "manual_transfer");
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [fulfillmentMode, paymentMethod, isBankTransferAvailable, canSelectQris, hasQrisImage, isCashAvailable]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");

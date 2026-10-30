@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useMemo } from "react";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -14,6 +14,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +28,6 @@ import {
   type DuplicateConflictResolution,
 } from "@/lib/stock-sync";
 import {
-  applyStockSyncAction,
   type StockSyncHistoryRecord,
   type ApplyStockItemInput,
 } from "@/actions/stock-sync";
@@ -218,7 +221,7 @@ export function StockSyncManager({
 
     startApplyTransition(async () => {
       try {
-        const result = await applyStockSyncAction({
+        const payload = {
           items: validItems,
           filename: previewData.fileNames.join(", "),
           includeExternalWarehouse: stockSourceMode === "combined",
@@ -227,9 +230,22 @@ export function StockSyncManager({
           matchedCount: previewData.summary.matched,
           unmatchedCount: previewData.summary.notFound,
           conflictCount: previewData.summary.conflicts,
+        };
+
+        const res = await fetch("/api/admin/stock-sync/apply", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         });
 
-        setApplyResult({ success: true, count: result.appliedCount });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Gagal menerapkan pembaruan stok.");
+        }
+
+        setApplyResult({ success: true, count: json.appliedCount });
         setShowConfirmModal(false);
 
         // Refresh preview after application
@@ -237,7 +253,7 @@ export function StockSyncManager({
 
         // Update history view
         const newHistItem: StockSyncHistoryRecord = {
-          id: result.historyId || `hist-${Date.now()}`,
+          id: json.historyId || `hist-${Date.now()}`,
           filename: previewData.fileNames.join(", "),
           file_hash: null,
           admin_id: null,
@@ -246,7 +262,7 @@ export function StockSyncManager({
           matched_count: previewData.summary.matched,
           unmatched_count: previewData.summary.notFound,
           conflict_count: previewData.summary.conflicts,
-          applied_count: result.appliedCount,
+          applied_count: json.appliedCount,
           include_external_warehouse: stockSourceMode === "combined",
           online_orders_accounted: onlineOrdersAccounted,
           summary: {},
@@ -278,6 +294,30 @@ export function StockSyncManager({
     }
     return true;
   });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [prevFilterState, setPrevFilterState] = useState({ previewFilter, searchQuery, pageSize });
+
+  // Reset page when filter or search changes during render (avoids cascading render effect)
+  if (
+    prevFilterState.previewFilter !== previewFilter ||
+    prevFilterState.searchQuery !== searchQuery ||
+    prevFilterState.pageSize !== pageSize
+  ) {
+    setPrevFilterState({ previewFilter, searchQuery, pageSize });
+    setCurrentPage(1);
+  }
+
+  const totalFilteredCount = filteredItems.length;
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(totalFilteredCount / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedItems = useMemo(() => {
+    if (pageSize === -1) return filteredItems;
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, safeCurrentPage, pageSize]);
 
   const unresolvedConflictsCount = (previewData?.items || []).filter(
     (i) => i.status === "duplicate_conflict"
@@ -822,7 +862,7 @@ export function StockSyncManager({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                      {filteredItems.map((item) => {
+                      {paginatedItems.map((item) => {
                         const isConflict = item.status === "duplicate_conflict" || item.conflictDetails?.hasConflict;
                         const isNegative = item.finalStock < 0;
                         const isMatch = item.status === "match" && Boolean(item.targetId);
@@ -831,7 +871,7 @@ export function StockSyncManager({
                         return (
                           <tr
                             key={item.id}
-                            className={`transition-colors hover:bg-slate-50/60 dark:hover:bg-white/5 ${
+                            className={`table-row-optimized transition-colors hover:bg-slate-50/60 dark:hover:bg-white/5 ${
                               isConflict
                                 ? "bg-amber-50/30 dark:bg-amber-950/10"
                                 : isNegative
@@ -1047,6 +1087,91 @@ export function StockSyncManager({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalFilteredCount > 0 && (
+                  <div className="px-4 py-3 bg-slate-50/50 dark:bg-white/2 border-t border-slate-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span>Menampilkan</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {totalFilteredCount === 0 ? 0 : (safeCurrentPage - 1) * (pageSize === -1 ? totalFilteredCount : pageSize) + 1}
+                        {" – "}
+                        {pageSize === -1 ? totalFilteredCount : Math.min(safeCurrentPage * pageSize, totalFilteredCount)}
+                      </span>
+                      <span>dari <strong className="text-slate-900 dark:text-white">{totalFilteredCount}</strong> barang</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                      {/* Page Size Selector */}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <span className="text-[11px] font-medium text-slate-400">Tampilkan:</span>
+                        {[25, 50, 100, -1].map((size) => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setPageSize(size)}
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition-all ${
+                              pageSize === size
+                                ? "bg-[#7C5CFC] text-white shadow-2xs"
+                                : "bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/10"
+                            }`}
+                          >
+                            {size === -1 ? "Semua" : size}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Pagination Buttons */}
+                      {pageSize !== -1 && totalPages > 1 && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            disabled={safeCurrentPage <= 1}
+                            onClick={() => setCurrentPage(1)}
+                            className="size-7 rounded-lg"
+                            title="Halaman Pertama"
+                          >
+                            <ChevronsLeft className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            disabled={safeCurrentPage <= 1}
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            className="size-7 rounded-lg"
+                            title="Halaman Sebelumnya"
+                          >
+                            <ChevronLeft className="size-3.5" />
+                          </Button>
+                          <span className="px-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {safeCurrentPage} / {totalPages}
+                          </span>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            disabled={safeCurrentPage >= totalPages}
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            className="size-7 rounded-lg"
+                            title="Halaman Selanjutnya"
+                          >
+                            <ChevronRight className="size-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            disabled={safeCurrentPage >= totalPages}
+                            onClick={() => setCurrentPage(totalPages)}
+                            className="size-7 rounded-lg"
+                            title="Halaman Terakhir"
+                          >
+                            <ChevronsRight className="size-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Bottom Action Footer */}
                 <div className="p-4 bg-slate-50 dark:bg-white/5 border-t border-slate-200/80 dark:border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

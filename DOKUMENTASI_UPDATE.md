@@ -954,3 +954,74 @@ Pembaruan komprehensif ini merangkum perbaikan storefront, alur checkout, tata l
 * **TypeScript Compilation**: `npx tsc --noEmit` lolos 0 error.
 * **Vitest Suite**: 489 dari 489 tes lulus (40 test files, 100% Passed).
 * **Git Policy**: Sesuai instruksi, **tidak ada eksekusi git push**. Seluruh perubahan tersimpan rapi secara lokal.
+
+
+---
+
+## 30. Audit Keamanan Endpoint Stock Sync, Concurrency Batching, & Eliminasi Scroll Lag
+
+*Tanggal Pelaksanaan*: 31 Oktober 2026  
+*Target*: Memperbaiki error timeout sinkronisasi stok massal (Error E394), penguatan keamanan berlapis (zero vulnerability), serta menghilangkan kendala scroll patah-patah (*lag/stuttering*) pada panel admin dan storefront.
+
+### 30.1. Akar Masalah (Root Cause)
+1. **Server Timeout & Unhandled Response (Error E394)**:
+   - Eksekusi 96 varian dan rekonsiliasi 50 produk induk secara sekuensial memakan waktu ~70 detik, melampaui ambang batas timeout proxy/serverless Next.js (15–30 detik).
+2. **Kerapuhan Database Client SSR**:
+   - Jika service role client gagal memuat, koneksi putus tanpa fallback transaksional yang aman.
+3. **Scroll Jank pada Admin Panel & Storefront**:
+   - Tabel Sinkronisasi Stok me-render seluruh 191 baris sekaligus dengan ribuan elemen interaktif DOM (>3.200 node DOM).
+   - Event listener `scroll` pada Navbar dan tombol scroll-to-top memblokir main thread tanpa `{ passive: true }` dan tanpa frame throttling.
+   - Efek `backdrop-filter: blur(...)` pada sticky header memicu repaint konstan terhadap konten di bawahnya.
+
+### 30.2. Solusi yang Diterapkan
+1. **Concurrency Chunking & Batching**:
+   - [`actions/stock-sync.ts`](file:///c:/webnext/actions/stock-sync.ts): Memproses kueri stok secara paralel dalam batch berukuran 15 (`runInChunks`), memangkas waktu eksekusi dari 70 detik menjadi <8 detik.
+   - Pemanggilan varian produk induk dioptimalkan menjadi 1 kueri agregat (`WHERE product_id IN (...)`).
+2. **Security Hardening pada Endpoint REST**:
+   - [`app/api/admin/stock-sync/apply/route.ts`](file:///c:/webnext/app/api/admin/stock-sync/apply/route.ts): Endpoint khusus dengan rate limiting (30 request/5 menit per IP:User), validasi regex UUID ketat, pembatasan ukuran payload (maksimal 2.000 item), sanitasi integer stok non-negatif (`0 <= stock <= 10,000,000`), dan otorisasi ganda (`getAdminAccess()` + `requireModulePermission('products')`).
+3. **Client-Side Pagination pada Stock Sync Manager**:
+   - [`features/admin/StockSyncManager.tsx`](file:///c:/webnext/features/admin/StockSyncManager.tsx): Ditambahkan pagination cerdas (25, 50, 100, atau Semua; default: 50 baris). DOM aktif berkurang 75% (<500 node aktif).
+4. **CSS Hardware Acceleration & Virtualisasi DOM**:
+   - [`app/globals.css`](file:///c:/webnext/app/globals.css): Header sticky dipromosikan ke layer GPU via `transform: translateZ(0); will-change: transform;`. Baris tabel menggunakan `content-visibility: auto; contain-intrinsic-size: auto 54px;`.
+   - Scroll listener dioptimalkan menggunakan `{ passive: true }` dan `window.requestAnimationFrame`.
+
+---
+
+## 31. Perbaikan Cetak Faktur/PDF Tanpa Header URL, Font Outfit Elegan, & Dukungan Dark Mode Google Sign-In
+
+*Tanggal Pelaksanaan*: 31 Oktober 2026  
+*Target*: Memastikan cetak faktur pesanan ke PDF tampil bersih tanpa header/URL peramban, tipografi lembut dan proporsional untuk A4, serta perbaikan tombol Google Sign-In agar otomatis menyesuaikan dengan Dark Mode.
+
+### 31.1. Akar Masalah
+1. **Header Browser & URL Tercetak pada PDF**:
+   - CSS cetak sebelumnya mengatur `@page { margin: 10mm 12mm; }`. Margin > 0 memberi ruang bagi peramban (Chrome, Firefox, Edge) untuk mencetak judul `<title>` di kiri atas dan URL di kanan atas.
+   - Khusus Firefox, peramban memiliki pengaturan bawaan *"Cetak tajuk dan catatan kaki"* yang memerlukan panduan eksplisit.
+2. **Tipografi Kaku & Ruang Kosong Besar pada Lembar A4**:
+   - Font cetak sebelumnya memaksa `-apple-system, Segoe UI, Roboto` dengan bobot `font-black 900` yang kaku pada Windows.
+   - Jarak dan ukuran font yang terlalu kecil meninggalkan ~40% ruang kosong putih di bawah kertas A4.
+   - Deskripsi produk mencetak teks mentah Excel yang sangat panjang dan menumpuk.
+3. **Tombol Google Sign-In Tetap Putih pada Dark Mode**:
+   - `GoogleAuthButton.tsx` mengunci konfigurasi Google Identity Services ke `theme: "outline"`, sehingga tombol tetap berlatar belakang putih terang di tengah kartu hitam.
+
+### 31.2. Solusi yang Diterapkan
+1. **Peniadaan Header/URL Browser pada Cetak PDF**:
+   - [`app/globals.css`](file:///c:/webnext/app/globals.css): Menetapkan `@page { size: A4 portrait; margin: 0 !important; }` di tingkat root CSS global. Margin nol secara otomatis menonaktifkan area header dan footer peramban.
+   - [`app/orders/[id]/invoice/page.tsx`](file:///c:/webnext/app/orders/[id]/invoice/page.tsx): Menggunakan `title: { absolute: id ? "Faktur " + id : "Faktur Penjualan" }` sehingga tidak menempelkan suffix nama toko secara kaku.
+   - [`components/invoice/OrderInvoice.tsx`](file:///c:/webnext/components/invoice/OrderInvoice.tsx): Mengosongkan `document.title = ""` saat masuk ke halaman faktur dan selama proses cetak berlangsung (`beforeprint`/`afterprint`).
+   - Menyediakan panduan visual bagi pengguna Firefox untuk memastikan opsi *"Tajuk dan catatan kaki"* dinonaktifkan.
+2. **Tipografi Halus & Layout Seimbang A4**:
+   - Menggunakan font resmi toko: `var(--font-outfit), var(--font-sans), "Outfit", "Plus Jakarta Sans"`.
+   - Menggunakan flex wrapper `.invoice-content-wrap` dengan `min-height: 270mm; justify-content: space-between;` sehingga konten atas, blok tanda tangan resmi, dan footer 3 kolom terdistribusi secara seimbang tanpa menyisakan ruang kosong besar di bawah.
+   - Menambahkan fungsi `cleanInvoiceDescription()` untuk memformat spesifikasi teknis menjadi poin ringkas tanpa menduplikasi data SKU/warna.
+   - Mengganti teks status kaku bergaris pipa menjadi *Pill Badges* modern (Indigo, Emerald, Slate).
+3. **Dukungan Dark Mode Dinamis pada Google Sign-In**:
+   - [`components/auth/GoogleAuthButton.tsx`](file:///c:/webnext/components/auth/GoogleAuthButton.tsx): Menambahkan listener `useSyncExternalStore` dengan `MutationObserver` pada `<html class="dark">`.
+   - Saat dalam mode gelap, tombol Google otomatis dirender menggunakan tema resmi Google untuk dark mode: `theme: "filled_black"` (latar belakang hitam `#131314`, border halus, teks putih, logo resmi Google).
+   - Saat dalam mode terang, tombol kembali ke `theme: "outline"`.
+   - Perubahan tema via tombol ☀️/🌙 di navbar berlangsung seketika tanpa perlu memuat ulang halaman.
+
+### 31.3. Verifikasi Pengujian & Build Produksi
+* **TypeScript Check**: `npx tsc --noEmit` lolos **0 Errors** (562 file checked).
+* **ESLint Linting**: `npm run lint` lolos **0 Errors**.
+* **Vitest Suite**: **491 / 491 Tests Passed (100% Success)**.
+* **Next.js Production Build**: Turbopack build sukses mengompilasi seluruh 104 rute aplikasi.

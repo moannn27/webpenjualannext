@@ -112,7 +112,7 @@ export default async function RootLayout({
   const settings = normalizeStorefrontSettings(rawSettings);
 
   return (
-    <html lang="id" className={`${outfit.variable} antialiased`} suppressHydrationWarning>
+    <html lang="id" className={`${outfit.variable} antialiased scroll-smooth`} suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/png" href="/icon.png?v=20261027" />
         <link rel="shortcut icon" href="/icon.png?v=20261027" />
