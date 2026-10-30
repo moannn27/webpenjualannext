@@ -41,7 +41,7 @@ export default async function Home() {
   const [bestSellers, newArrivals, promoProducts, categories, brands, faqs, banners, rawSettings, aboutContent] = await Promise.all([
     getBestSellerAction().catch(() => []),
     getNewArrivalAction().catch(() => []),
-    getPromoProductsAction(8).catch(() => []),
+    getPromoProductsAction(12).catch(() => []),
     getCategoriesAction().catch(() => []),
     getBrandsAction().catch(() => []),
     getFAQsAction().catch(() => []),
@@ -65,7 +65,7 @@ export default async function Home() {
     return ids.length ? ids.map((id) => selectedProducts.find((product) => product.id === id)).filter((product): product is (typeof selectedProducts)[number] => Boolean(product)) : fallback;
   };
 
-  // Gabungkan produk promo, best seller, dan produk baru untuk spotlight PromoBanner
+  // Gabungkan produk promo, best seller, dan produk baru untuk spotlight
   const spotlightCandidateRows = [
     ...(promoProducts ?? []),
     ...(bestSellers ?? []),
@@ -74,6 +74,16 @@ export default async function Home() {
   const uniqueSpotlightProducts = Array.from(
     new Map(spotlightCandidateRows.map((product) => [product.id, product])).values()
   ).map((product) => toStorefrontProduct(product as StoreProduct));
+
+  // Produk promo gabungan (pinned pilihan admin + produk bertanda promo / diskon aktif)
+  const promoDisplayProducts = (() => {
+    const pinned = selected("promo", []);
+    const remainingPromos = uniqueSpotlightProducts.filter(
+      (p) => (p.isPromo || p.discountPrice != null) && !pinned.some((pin) => pin.id === p.id)
+    );
+    const combined = [...pinned, ...remainingPromos];
+    return combined.length > 0 ? combined : uniqueSpotlightProducts;
+  })();
 
   const storeJsonLd = buildStoreJsonLd(settings.store);
 
@@ -84,8 +94,20 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(storeJsonLd).replace(/</g, '\\u003c') }}
       />
       <HeroSection banners={(banners ?? []).filter((banner) => banner.placement === "hero")} />
-      {sections.about?.visible !== false && <AboutUsSection content={aboutContent} />}
-      {sections.categories.visible && <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />}
+      {sections.about?.visible !== false && (
+        <AboutUsSection content={aboutContent} storeWhatsApp={settings.store.whatsapp} />
+      )}
+      {sections.promo.visible && (
+        <PromoBanner
+          banner={(banners ?? []).find((banner) => banner.placement === "promo")}
+          sectionTitle={sections.promo.title}
+          sectionSubtitle={sections.promo.subtitle}
+          products={promoDisplayProducts}
+        />
+      )}
+      {sections.categories.visible && (
+        <CategorySection categories={categories ?? []} title={sections.categories.title} subtitle={sections.categories.subtitle} />
+      )}
       {sections.featuredDiscovery?.visible !== false && (
         <ProductDiscovery
           title={sections.featuredDiscovery?.title || "Pilihan Produk Unggulan"}
@@ -113,14 +135,6 @@ export default async function Home() {
             isBestSeller: true,
             badges: Array.from(new Set([...(p.badges || []), "Best Seller", "Terlaris"])),
           }))}
-        />
-      )}
-      {sections.promo.visible && (
-        <PromoBanner
-          banner={(banners ?? []).find((banner) => banner.placement === "promo")}
-          sectionTitle={sections.promo.title}
-          sectionSubtitle={sections.promo.subtitle}
-          products={selected("promo", uniqueSpotlightProducts)}
         />
       )}
       {sections.newArrivals.visible && (

@@ -30,6 +30,7 @@ import { toast } from "@/store/useToastStore";
 import { useCartStore } from "@/store/useCartStore";
 import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 import { getAllProductGalleryImages, getOptionCapacity, getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import { getCleanProductSpecifications } from "@/lib/product-specifications";
 import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
 interface ProductDetailData {
@@ -88,6 +89,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
   const remainingStock = Math.max(0, availableStock - selectedCartQuantity);
   const productPrice = selectedVariant?.discount_price ?? selectedVariant?.price ?? product.discount_price ?? product.price;
   const regularPrice = selectedVariant?.price ?? product.price;
+  const cleanSpecs = useMemo(() => {
+    return getCleanProductSpecifications(
+      product.product_specifications ?? [],
+      selectedVariant,
+      product.description
+    );
+  }, [product.product_specifications, selectedVariant, product.description]);
   const [activeTab, setActiveTab] = useState<"specs" | "reviews">("specs");
   const [loading, setLoading] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
@@ -423,6 +431,42 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               ))}
             </div>
           )}
+
+          {/* Spesifikasi Produk (Ditempatkan di bawah foto dengan atribut teknis bersih seperti SS 2) */}
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xs">
+            <div className="border-b border-border/60 bg-muted/40 px-4 py-3 flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Spesifikasi
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {product.brands?.name || product.brand || "Next Solution"}
+              </span>
+            </div>
+            <dl className="divide-y divide-border/60">
+              {cleanSpecs.length ? (
+                cleanSpecs.map((spec, index) => (
+                  <div
+                    key={`${spec.key}-${index}`}
+                    className={cn(
+                      "grid grid-cols-12 gap-2 px-4 py-2.5 text-xs transition-colors",
+                      index % 2 === 0 ? "bg-muted/20" : "bg-card hover:bg-muted/10"
+                    )}
+                  >
+                    <dt className="col-span-4 sm:col-span-3 font-medium text-muted-foreground break-words">
+                      {spec.key}
+                    </dt>
+                    <dd className="col-span-8 sm:col-span-9 font-semibold text-foreground break-words">
+                      {spec.value}
+                    </dd>
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  Spesifikasi belum dicantumkan.
+                </div>
+              )}
+            </dl>
+          </div>
         </div>
 
         {/* Info */}
@@ -448,7 +492,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               <Star className="h-4 w-4 fill-primary" />
               <span>{averageRating}</span>
             </div>
-            <button type="button" onClick={() => setActiveTab("reviews")} className="text-muted-foreground text-sm hover:underline">
+            <button type="button" onClick={() => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground text-sm hover:underline cursor-pointer">
               Baca {reviewCount} ulasan
             </button>
           </div>
@@ -583,185 +627,178 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mt-16">
-        <div className="flex items-center gap-8 border-b border-border mb-8">
-          <button
-            onClick={() => setActiveTab("specs")}
-            className={cn(
-              "pb-4 text-lg font-medium transition-colors border-b-2",
-              activeTab === "specs" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Spesifikasi
-          </button>
-          <button
-            onClick={() => setActiveTab("reviews")}
-            className={cn(
-              "pb-4 text-lg font-medium transition-colors border-b-2",
-              activeTab === "reviews" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Ulasan ({reviewCount})
-          </button>
+      {/* Section Ulasan Pembeli (Carousel bergerak jika ulasan banyak) */}
+      <section id="reviews-section" className="mt-14 border-t border-border pt-10">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <span>Ulasan Pembeli</span>
+              <span className="text-sm font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
+                {reviewCount}
+              </span>
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              Ulasan nyata dari pelanggan terverifikasi yang telah membeli produk ini.
+            </p>
+          </div>
+
+          {reviews.length > 2 && (
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const slider = document.getElementById("reviews-scroll-container");
+                  if (slider) slider.scrollBy({ left: -360, behavior: "smooth" });
+                }}
+                className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
+                aria-label="Geser ulasan sebelumnya"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const slider = document.getElementById("reviews-scroll-container");
+                  if (slider) slider.scrollBy({ left: 360, behavior: "smooth" });
+                }}
+                className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
+                aria-label="Geser ulasan berikutnya"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="min-h-[300px]">
-          {activeTab === "specs" ? (
-            <div className="max-w-4xl overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xs">
-              <dl className="divide-y divide-border/60">
-                {product.product_specifications?.length ? (
-                  getSpecificationsForVariant(
-                    [...product.product_specifications].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)),
-                    selectedVariant,
-                  )
-                    .map((spec, index) => (
-                      <div
-                        key={spec.id}
-                        className={cn(
-                          "grid grid-cols-1 sm:grid-cols-12 gap-1 sm:gap-4 px-5 py-3.5 text-sm transition-colors",
-                          index % 2 === 0 ? "bg-muted/25" : "bg-card hover:bg-muted/10"
-                        )}
-                      >
-                        <dt className="sm:col-span-4 font-medium text-muted-foreground flex items-center">
-                          {spec.key}
-                        </dt>
-                        <dd className="sm:col-span-8 font-semibold text-foreground break-words flex items-center">
-                          {spec.value}
-                        </dd>
-                      </div>
-                    ))
-                ) : (
-                  <div className="p-8 text-center text-muted-foreground">
-                    Spesifikasi belum tersedia untuk produk ini.
+        {reviews.length > 0 ? (
+          <div className="space-y-6">
+            {/* Rating Summary Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-foreground">{averageRating}</span>
+                  <span className="text-xs text-muted-foreground">/ 5.0</span>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`size-4 ${
+                          i < Math.round(Number(averageRating) || 5)
+                            ? "fill-amber-400 text-amber-400"
+                            : "fill-muted text-muted"
+                        }`}
+                      />
+                    ))}
                   </div>
-                )}
-              </dl>
+                  <p className="text-xs text-muted-foreground">
+                    Berdasarkan {reviewCount} ulasan pembeli
+                  </p>
+                </div>
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <ShieldCheck className="size-4" />
+                100% Pembelian Terverifikasi
+              </div>
             </div>
-          ) : (
-            <div className="space-y-6 max-w-4xl">
-              {reviews.length > 0 ? (
-                <>
-                  {/* Rating Summary Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 shadow-2xs">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-extrabold text-foreground">{averageRating}</span>
-                        <span className="text-xs text-muted-foreground">/ 5.0</span>
+
+            {/* List of Verified Reviews (Carousel slider horizontal) */}
+            <div
+              id="reviews-scroll-container"
+              className={cn(
+                reviews.length > 2
+                  ? "flex gap-4 overflow-x-auto pb-4 scroll-smooth snap-x snap-mandatory scrollbar-thin"
+                  : "grid grid-cols-1 md:grid-cols-2 gap-4"
+              )}
+            >
+              {reviews.map((review) => {
+                const initials = (review.users?.full_name || "Pelanggan")
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase();
+
+                return (
+                  <article
+                    key={review.id}
+                    className={cn(
+                      "rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-2xs space-y-3 shrink-0 snap-start transition-all hover:border-primary/40",
+                      reviews.length > 2 ? "w-[290px] sm:w-[350px] md:w-[380px]" : "w-full"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 font-bold text-xs text-white">
+                          {initials}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm text-foreground truncate max-w-[140px]">
+                            {review.users?.full_name || "Pelanggan Terverifikasi"}
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground">
+                            {new Date(review.created_at).toLocaleDateString("id-ID", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </p>
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
+
+                      <div className="flex items-center gap-1.5">
                         <div className="flex gap-0.5">
                           {[...Array(5)].map((_, i) => (
                             <Star
                               key={i}
-                              className={`size-4 ${
-                                i < Math.round(Number(averageRating) || 5)
+                              className={`size-3 ${
+                                i < review.rating
                                   ? "fill-amber-400 text-amber-400"
                                   : "fill-muted text-muted"
                               }`}
                             />
                           ))}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Berdasarkan {reviewCount} ulasan pembeli
-                        </p>
+                        <span className="inline-flex items-center gap-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <ShieldCheck className="size-2.5" />
+                          Terverifikasi
+                        </span>
                       </div>
                     </div>
 
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                      <ShieldCheck className="size-4" />
-                      100% Pembelian Terverifikasi
-                    </div>
-                  </div>
-
-                  {/* List of Verified Reviews */}
-                  <div className="space-y-4">
-                    {reviews.map((review) => {
-                      const initials = (review.users?.full_name || "Pelanggan")
-                        .split(" ")
-                        .map((n: string) => n[0])
-                        .slice(0, 2)
-                        .join("")
-                        .toUpperCase();
-
-                      return (
-                        <article
-                          key={review.id}
-                          className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-2xs space-y-3"
-                        >
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-3">
-                              <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 font-bold text-xs text-white">
-                                {initials}
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-sm text-foreground">
-                                  {review.users?.full_name || "Pelanggan Terverifikasi"}
-                                </h4>
-                                <p className="text-[11px] text-muted-foreground">
-                                  {new Date(review.created_at).toLocaleDateString("id-ID", {
-                                    day: "numeric",
-                                    month: "long",
-                                    year: "numeric",
-                                  })}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex gap-0.5">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`size-3.5 ${
-                                      i < review.rating
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "fill-muted text-muted"
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                <ShieldCheck className="size-3" />
-                                Terverifikasi
-                              </span>
-                            </div>
-                          </div>
-
-                          <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-light pl-1">
-                            {review.comment || "Pembeli tidak menyertakan ulasan tertulis."}
-                          </p>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                /* Empty State (When no reviews yet) */
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <ShieldCheck className="size-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-base text-foreground">Belum Ada Ulasan Pembeli</h4>
-                    <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
-                      Ulasan untuk produk ini hanya dapat diberikan oleh pembeli terverifikasi setelah pesanan diterima dan selesai.
+                    <p className="text-xs text-foreground/90 leading-relaxed font-light line-clamp-4">
+                      &ldquo;{review.comment || "Pembeli tidak menyertakan ulasan tertulis."}&rdquo;
                     </p>
-                  </div>
-                  <div className="pt-2">
-                    <Link
-                      href="/profile"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-                    >
-                      Sudah membeli produk ini? Berikan ulasan di Pesanan Saya &rarr;
-                    </Link>
-                  </div>
-                </div>
-              )}
+                  </article>
+                );
+              })}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        ) : (
+          /* Empty State (When no reviews yet) */
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
+            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <ShieldCheck className="size-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-base text-foreground">Belum Ada Ulasan Pembeli</h4>
+              <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
+                Ulasan untuk produk ini hanya dapat diberikan oleh pembeli terverifikasi setelah pesanan diterima dan selesai.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/profile"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+              >
+                Sudah membeli produk ini? Berikan ulasan di Pesanan Saya &rarr;
+              </Link>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Lightbox / Modal Layar Penuh Gambar Produk */}
       {isLightboxOpen && (

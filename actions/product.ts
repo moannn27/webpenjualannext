@@ -9,7 +9,7 @@ export async function getProductsAction(options?: { categoryId?: string, brandId
   return await productService.getProducts(options)
 }
 
-export async function getProductsPageAction(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string; filters?: CatalogFilterParams }) {
+export async function getProductsPageAction(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; promoProductIds?: string[]; sort?: string; filters?: CatalogFilterParams }) {
   return await productService.getProductsPage(options)
 }
 

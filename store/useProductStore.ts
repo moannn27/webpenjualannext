@@ -20,6 +20,8 @@ export interface Product {
   reviews?: number;
   isBestSeller?: boolean;
   isNewArrival?: boolean;
+  isFeatured?: boolean;
+  isPromo?: boolean;
   badges?: string[];
 }
 

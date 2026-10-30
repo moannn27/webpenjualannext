@@ -1,5 +1,7 @@
 export const SHIPPING_METHOD_CODES = ["standard", "express", "pickup"] as const;
 export const PAYMENT_METHOD = "manual_transfer" as const;
+export const PAYMENT_METHODS = ["manual_transfer", "qris", "cash_on_pickup"] as const;
+export type PaymentMethodCode = (typeof PAYMENT_METHODS)[number];
 
 export type ShippingMethodCode = (typeof SHIPPING_METHOD_CODES)[number];
 

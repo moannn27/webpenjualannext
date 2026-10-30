@@ -1151,6 +1151,7 @@ export async function saveAdminProductAction(formData: FormData) {
   const status = String(formData.get('status') ?? 'published')
   const isBestSeller = formData.get('is_best_seller') === 'on'
   const isNewArrival = formData.get('is_new_arrival') === 'on'
+  const isFeatured = formData.get('is_featured') === 'on' || formData.get('is_promo') === 'on'
   const imageUrl = String(formData.get('image_url') ?? '').trim()
   let imageUrls: string[] | null = null
   const imageUrlsRaw = formData.get('image_urls')
@@ -1216,7 +1217,7 @@ export async function saveAdminProductAction(formData: FormData) {
     const { error: gallerySchemaError } = await supabase.from('product_variant_images').select('id').limit(1)
     if (gallerySchemaError) throw new Error('Galeri varian belum tersedia. Pastikan tabel product_variant_images sudah ada sebelum menyimpan varian.')
   }
-  const payload = { name, slug: id ? undefined : `${slug}-${crypto.randomUUID().slice(0, 8)}`, description, sku: sku || null, price, discount_price: discountPrice, stock: totalStock, category_id: categoryId, brand_id: brandId, status, is_best_seller: isBestSeller, is_new_arrival: isNewArrival }
+  const payload = { name, slug: id ? undefined : `${slug}-${crypto.randomUUID().slice(0, 8)}`, description, sku: sku || null, price, discount_price: discountPrice, stock: totalStock, category_id: categoryId, brand_id: brandId, status, is_featured: isFeatured, is_best_seller: isBestSeller, is_new_arrival: isNewArrival }
   let productId = id
   if (id) {
     const { error } = await supabase.from('products').update({ ...payload, slug: undefined }).eq('id', id)
@@ -2366,23 +2367,60 @@ export async function uploadAdminImageAction(formData: FormData) {
   return { url: publicUrl }
 }
 
+function isSafeExternalImageUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    const hostname = parsed.hostname.toLowerCase()
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '169.254.169.254' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      hostname.endsWith('.lan') ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname)
+    ) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function saveExternalImageUrlAction(imageUrl: string, bucket: string = 'brands') {
   await requireAdmin()
   const trimmed = String(imageUrl || '').trim()
   if (!trimmed) throw new Error('URL gambar tidak boleh kosong.')
   if (!['products', 'brands', 'banners'].includes(bucket)) throw new Error('Bucket tidak valid.')
+  if (!isSafeExternalImageUrl(trimmed)) {
+    throw new Error('URL gambar tidak valid atau mengarah ke alamat internal/jaringan lokal yang dilarang.')
+  }
 
   try {
     const res = await fetch(trimmed, {
+      signal: AbortSignal.timeout(10000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
       },
     })
     if (!res.ok) throw new Error(`Gagal mengunduh gambar dari link (HTTP ${res.status}). Pastikan link gambar dapat diakses secara publik.`)
-    const contentType = res.headers.get('content-type') || 'image/png'
+    const rawContentType = res.headers.get('content-type') || 'image/png'
+    const contentType = rawContentType.toLowerCase()
+    const allowedSubtypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif', 'image/svg+xml']
+    if (!allowedSubtypes.some(t => contentType.includes(t)) && !contentType.startsWith('image/')) {
+      throw new Error('Format konten bukan berkas gambar yang didukung.')
+    }
+
     const buffer = await res.arrayBuffer()
-    if (buffer.byteLength > 10 * 1024 * 1024) throw new Error('Ukuran gambar melebihi batas 10MB.')
+    if (buffer.byteLength > 5 * 1024 * 1024) throw new Error('Ukuran gambar melebihi batas 5MB.')
 
     let ext = 'png'
     if (contentType.includes('webp')) ext = 'webp'
@@ -2390,10 +2428,27 @@ export async function saveExternalImageUrlAction(imageUrl: string, bucket: strin
     else if (contentType.includes('svg')) ext = 'svg'
     else if (contentType.includes('avif')) ext = 'avif'
 
+    // Stored XSS defense for SVG vectors
+    if (ext === 'svg' || contentType.includes('svg')) {
+      const svgText = new TextDecoder().decode(buffer)
+      const dangerousPatterns = [
+        /<script[\s>]/i,
+        /javascript:/i,
+        /\bon\w+\s*=/i,
+        /<iframe[\s>]/i,
+        /<foreignObject[\s>]/i,
+        /<embed[\s>]/i,
+        /<object[\s>]/i,
+      ]
+      if (dangerousPatterns.some(pattern => pattern.test(svgText))) {
+        throw new Error('File SVG mengandung elemen berisiko keamanan (script atau event handler). Gunakan SVG yang bersih atau konversi ke WebP/PNG.')
+      }
+    }
+
     const path = `ext-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`
     const supabase = await createClient()
     const { error } = await supabase.storage.from(bucket).upload(path, new Uint8Array(buffer), {
-      contentType,
+      contentType: rawContentType,
       cacheControl: '3600',
       upsert: false,
     })

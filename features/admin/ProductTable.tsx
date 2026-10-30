@@ -42,7 +42,7 @@ const SPEC_PRESETS = [
 
 type AdminProduct = {
   id: string; created_at?: string; name: string; description: string; sku: string | null; price: number; discount_price: number | null;
-  stock: number; status: string; is_best_seller?: boolean; is_new_arrival?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
+  stock: number; status: string; is_featured?: boolean; is_best_seller?: boolean; is_new_arrival?: boolean; categories?: { name: string } | null; brands?: { name: string } | null;
   product_images?: { url: string; is_primary: boolean }[];
   product_specifications?: { key: string; value: string; display_order?: number }[];
   product_variants?: (Variant & { product_variant_images?: { id: string; url: string; display_order: number }[] })[];
@@ -830,6 +830,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                           <Sparkles className="size-2.5" /> Baru
                         </span>
                       )}
+                      {(product.is_featured || (product.discount_price != null && Number(product.discount_price) > 0)) && (
+                        <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.2 text-[10px] font-bold text-rose-700 dark:text-rose-400">
+                          🏷️ Promo
+                        </span>
+                      )}
                       {product.is_best_seller && (
                         <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-bold text-amber-700 dark:text-amber-400">
                           ⭐ Best Seller
@@ -1099,6 +1104,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <label className="space-y-1 text-sm">Status<select name="status" defaultValue={editing?.status ?? "published"} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="published">Terbit</option><option value="draft">Draft</option><option value="archived">Arsip</option></select></label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_best_seller" defaultChecked={editing?.is_best_seller ?? false} />Tampilkan sebagai best seller</label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_new_arrival" defaultChecked={editing?.is_new_arrival ?? false} />Tampilkan sebagai produk terbaru</label>
+          <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_featured" defaultChecked={editing?.is_featured ?? false} />Tampilkan sebagai Promo Pilihan</label>
           <label className="space-y-1 text-sm">Kategori<select name="category_id" required defaultValue={categories.find((option) => option.name === editing?.categories?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih kategori</option>{categories.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <label className="space-y-1 text-sm">Brand<select name="brand_id" required defaultValue={brands.find((option) => option.name === editing?.brands?.name)?.id ?? ""} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="">Pilih brand</option>{brands.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
           <div className="sm:col-span-2">

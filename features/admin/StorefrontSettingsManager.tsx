@@ -1253,6 +1253,90 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                     ? "Aktif: Opsi pembayaran scan QRIS tampil saat checkout."
                     : "Nonaktif: Opsi QRIS disembunyikan."}
                 </p>
+                {settings.features.qris_enabled && (
+                  <div className="pt-2 border-t border-border space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-foreground block mb-1">
+                        Nama Merchant QRIS
+                      </label>
+                      <Input
+                        value={settings.features.qris_merchant_name ?? "Next Solution Store"}
+                        onChange={(e) => updateFeatures("qris_merchant_name", e.target.value)}
+                        placeholder="Contoh: NEXT SOLUTION STORE"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-foreground block mb-1">
+                        URL Gambar QRIS Toko
+                      </label>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          value={settings.features.qris_image_url ?? ""}
+                          onChange={(e) => updateFeatures("qris_image_url", e.target.value)}
+                          placeholder="https://... atau upload file QR"
+                          className="text-xs h-8 flex-1"
+                        />
+                        <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted shadow-2xs">
+                          {busyUpload ? <RefreshCw className="size-3 animate-spin" /> : <ImageIcon className="size-3 text-primary" />}
+                          Upload
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml"
+                            className="sr-only"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                setBusyUpload(true);
+                                const prepared = await prepareImageUpload(file);
+                                const formData = new FormData();
+                                formData.set("file", prepared);
+                                formData.set("bucket", "brands");
+                                const res = await uploadAdminImageAction(formData);
+                                updateFeatures("qris_image_url", res.url);
+                                setNotice("Gambar QRIS berhasil diunggah! Tekan tombol 'Simpan Pengaturan' untuk menyimpan.");
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : "Gagal mengupload QRIS.");
+                              } finally {
+                                setBusyUpload(false);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    {!settings.features.qris_image_url && (
+                      <div className="p-2.5 rounded-lg border border-amber-300/80 bg-amber-50/50 dark:bg-amber-950/20 text-[11px] text-amber-800 dark:text-amber-300 space-y-0.5">
+                        <p className="font-bold">⚠️ Kode QR Belum Dimasukkan</p>
+                        <p className="text-muted-foreground text-[10.5px]">
+                          Di halaman checkout, opsi QRIS akan bertanda "QR Belum Dimasukkan" dan tidak bisa dipilih pembeli sebelum Anda mengunggah gambar QR di sini.
+                        </p>
+                      </div>
+                    )}
+                    {settings.features.qris_image_url && (
+                      <div className="p-2 rounded-lg border border-border bg-card flex items-center gap-3">
+                        <div className="relative size-12 rounded border bg-white overflow-hidden shrink-0">
+                          <Image
+                            src={settings.features.qris_image_url}
+                            alt="QRIS Preview"
+                            fill
+                            className="object-contain p-0.5"
+                            unoptimized
+                          />
+                        </div>
+                        <div className="text-[11px] min-w-0">
+                          <p className="font-semibold text-foreground truncate">
+                            {settings.features.qris_merchant_name || "QRIS Siap Digunakan"}
+                          </p>
+                          <p className="text-muted-foreground truncate">
+                            Gambar QRIS aktif saat checkout
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1454,11 +1538,74 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           </div>
 
           {/* GRUP 5: CS & ASISTEN CHAT */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-4 pt-2">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               <MessageCircle className="size-3.5 text-primary" />
               <span>5. Layanan Customer Service &amp; Chatbot AI</span>
             </div>
+
+            {/* KARTU PENGATURAN TUNGGAL NOMOR WHATSAPP UNTUK SELURUH WEBSITE */}
+            <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0">
+                    <MessageCircle className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-base text-foreground flex flex-wrap items-center gap-2">
+                      <span>Nomor WhatsApp Toko (1 Input untuk Seluruh Website)</span>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                        Otomatis ke Semua Fitur
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Cukup input nomor WhatsApp di sini 1 kali. Otomatis mengubah seluruh nomor WA yang tampil di website.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-12 items-center pt-1">
+                <div className="md:col-span-6 space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">
+                    Nomor WhatsApp Resmi Toko
+                  </label>
+                  <div className="relative">
+                    <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-emerald-600 pointer-events-none" />
+                    <Input
+                      type="tel"
+                      value={settings.store.whatsapp}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateStore("whatsapp", val);
+                        if (!settings.invoice?.complaint_whatsapp || settings.invoice.complaint_whatsapp === settings.store.whatsapp) {
+                          updateInvoice("complaint_whatsapp", val);
+                        }
+                      }}
+                      placeholder="Contoh: 628112238310"
+                      className="pl-9 font-mono font-bold text-sm bg-white dark:bg-card border-emerald-500/40 focus-visible:ring-emerald-500 rounded-xl h-10"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Gunakan awalan kode negara tanpa tanda plus atau spasi, contoh: <strong className="font-mono text-foreground">628112238310</strong>
+                  </p>
+                </div>
+
+                <div className="md:col-span-6 text-xs text-muted-foreground space-y-1.5 rounded-xl bg-white/80 dark:bg-card/80 p-3.5 border border-emerald-500/20 shadow-2xs">
+                  <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-emerald-500" />
+                    Terhubung Otomatis ke Seluruh Titik:
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] pl-0.5">
+                    <li>Tombol <strong>Konsultasi WhatsApp</strong> di Landing Page (Tentang Kami)</li>
+                    <li>Tombol <strong>Chat CS Melayang</strong> di pojok kanan bawah</li>
+                    <li>Tombol <strong>Kirim Bukti Pembayaran</strong> di Halaman Checkout</li>
+                    <li>Kontak resmi pada <strong>Faktur / Invoice Penjualan &amp; Komplain</strong></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               {/* WhatsApp Melayang */}
               <div className="rounded-xl border border-border bg-background p-4 space-y-3">
@@ -1645,7 +1792,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
               .map(([key, section]) => (
                 <article
                   key={key}
-                  className="min-w-0 flex flex-col justify-between rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-5 shadow-xs space-y-4 transition-all hover:border-slate-300 dark:hover:border-white/20"
+                  className="w-full min-w-0 flex flex-col justify-start rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.02] p-5 shadow-xs space-y-4 transition-all hover:border-slate-300 dark:hover:border-white/20 overflow-hidden"
                 >
                   <div className="flex items-center justify-between gap-3 border-b border-slate-200/60 dark:border-white/5 pb-3">
                     <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#2563EB]/10 text-[#2563EB] dark:text-blue-400 border border-[#2563EB]/20">
@@ -1717,14 +1864,14 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   </div>
 
                   {["bestsellers", "newArrivals", "promo", "featuredDiscovery"].includes(key) && (
-                    <fieldset className="space-y-3 border-t border-slate-200/70 dark:border-white/5 pt-3.5">
+                    <div className="w-full min-w-0 space-y-3 border-t border-slate-200/70 dark:border-white/5 pt-3.5">
                       <div className="flex items-center justify-between gap-3">
-                        <legend className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                           Pilih Produk Tampilan
-                        </legend>
+                        </div>
                         <span
                           className={cn(
-                            "rounded-full px-2.5 py-0.5 text-xs font-bold border transition-colors",
+                            "rounded-full px-2.5 py-0.5 text-xs font-bold border transition-colors shrink-0",
                             (section.productIds ?? []).length > 0
                               ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800"
                               : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-400 dark:border-white/10"
@@ -1733,7 +1880,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                           {(section.productIds ?? []).length}/8 dipilih
                         </span>
                       </div>
-                      <div className="relative">
+                      <div className="relative w-full min-w-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 pointer-events-none" />
                         <Input
                           aria-label={`Cari produk untuk ${names[key] ?? key}`}
@@ -1742,10 +1889,10 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                             setProductSearch((current) => ({ ...current, [key]: event.target.value }))
                           }
                           placeholder="Cari nama produk, brand, kategori..."
-                          className="pl-8.5 text-xs rounded-xl h-9 bg-white dark:bg-[#18191E] border-slate-200/80 dark:border-white/10 shadow-2xs"
+                          className="w-full pl-8.5 text-xs rounded-xl h-9 bg-white dark:bg-[#18191E] border-slate-200/80 dark:border-white/10 shadow-2xs"
                         />
                       </div>
-                      <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] p-2 shadow-2xs">
+                      <div className="w-full min-w-0 max-h-52 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#18191E] p-2 shadow-2xs">
                         {products.length === 0 ? (
                           <div className="py-6 text-center text-xs text-slate-400">
                             Memuat daftar produk...
@@ -1820,7 +1967,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                             })
                         )}
                       </div>
-                    </fieldset>
+                    </div>
                   )}
                 </article>
               ))}
@@ -2864,14 +3011,27 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
             <Input value={settings.store.phone} onChange={(event) => updateStore("phone", event.target.value)} />
           </label>
           <label className="space-y-1 text-sm">
-            WhatsApp admin untuk konfirmasi pembayaran
+            <span className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300">
+              <MessageCircle className="size-4" />
+              Nomor WhatsApp Utama Toko (1 Input untuk Seluruh Website)
+            </span>
             <Input
               type="tel"
               inputMode="tel"
               value={settings.store.whatsapp}
-              onChange={(event) => updateStore("whatsapp", event.target.value)}
-              placeholder="6281234567890"
+              onChange={(event) => {
+                const val = event.target.value;
+                updateStore("whatsapp", val);
+                if (!settings.invoice?.complaint_whatsapp || settings.invoice.complaint_whatsapp === settings.store.whatsapp) {
+                  updateInvoice("complaint_whatsapp", val);
+                }
+              }}
+              placeholder="628112238310"
+              className="font-mono font-bold border-emerald-500/40"
             />
+            <span className="block text-[11px] text-muted-foreground">
+              Nomor ini digunakan di seluruh tombol WhatsApp (Tentang Kami, Checkout, Faktur, Widget CS).
+            </span>
           </label>
           <label className="space-y-1 text-sm">
             Teks hak cipta
@@ -3079,6 +3239,23 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
               />
               <p className="text-xs text-muted-foreground">
                 Muncul di bawah nama toko pada header resmi faktur penjualan.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Gaya Header Status Faktur (Kanan Atas)
+              </label>
+              <select
+                value={settings.invoice?.header_style ?? "minimalist"}
+                onChange={(e) => updateInvoice("header_style", e.target.value as "minimalist" | "creative")}
+                className="w-full rounded-xl border border-input bg-background p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="minimalist">Minimalis (Teks Bersih dipisah tanda | tanpa border tebal)</option>
+                <option value="creative">Kreatif (Badge &amp; Pill Kotak Berborder)</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Pilih format tampilan badge &amp; metode di kanan atas faktur pesanan.
               </p>
             </div>
 

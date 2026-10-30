@@ -732,3 +732,225 @@ Dokumentasi ini merangkum pengembangan menyeluruh pada sistem analisis bisnis, p
 * Dibuat file pengujian baru: `__tests__/features/legal-and-google-auth.test.ts`.
 * Hasil uji seluruh test suite: **38 file tes lulus, 429 pengujian lulus (100% Passed)**.
 * Typecheck TypeScript: **0 Error (`npx tsc --noEmit` exit code 0)**.
+
+---
+
+## 26. Pembenahan Promo Pilihan, Single WA Setting, Proteksi Pembayaran QRIS & Cash on Pickup, Perapian Border Card Admin, Tata Letak Spesifikasi Produk & Penanganan Faktur Anti-404 (30 Oktober 2026)
+
+Pembaruan komprehensif ini merangkum perbaikan storefront, alur checkout, tata letak faktur, antarmuka admin panel, penempatan spesifikasi teknis produk, dan keandalan rute transaksi.
+
+### 1. Sinkronisasi Label Promo, Baru, dan Terlaris
+* **Badge Promo & Diskon (`components/shared/ProductCard.tsx`)**:
+  - Menambahkan badge merah **Promo** (`🏷️ Promo`) dengan ikon Tag khusus pada kartu produk jika produk memiliki harga diskon/coret (`discountPrice`) atau status promo/featured (`isFeatured`).
+  - Badge **Baru** (`⚡ Baru`) dan **Terlaris** (`🔥 Terlaris`) terpasang dinamis berdasarkan pengaturan di admin panel.
+* **Pencarian Kata Kunci Pintar (`repositories/product.repository.ts` & `features/catalog/ProductDiscovery.tsx`)**:
+  - Pencarian dengan kata kunci `promo`, `diskon`, `sale`, `potongan`, `penawaran khusus` seketika memfilter dan menampilkan produk promo.
+  - Kata kunci `baru`, `terbaru`, `new` menampilkan produk berlabel baru.
+  - Kata kunci `terlaris`, `bestseller` menampilkan produk terlaris.
+  - Bar filter instan (*quick filter pills*) menyediakan chip langsung: `🏷️ Promo`, `⚡ Terbaru`, dan `🔥 Terlaris`.
+* **Katalog Promo Pilihan (`app/promo/page.tsx`)**:
+  - Halaman `/promo` menampilkan gabungan produk pilihan unggulan yang di-pin admin di urutan teratas + seluruh produk berdiskon/promo dari database.
+  - Dilengkapi filter teknis (prosesor, RAM, penyimpanan, harga) dan paginasi katalog penuh.
+
+### 2. Penataan Section Promo Pilihan di Landing Page (`app/page.tsx` & `features/landing/PromoBanner.tsx`)
+* **Posisi Presisi**: Section Promo Pilihan (`PromoBanner`) dipindahkan ke posisi strategis **tepat di bawah section "Tentang Kami"** (`AboutUsSection`) dan di atas kategori produk.
+* **Desain Border Selaras**: Border kartu diperbarui menjadi bersih, minimalis, dan elegan tanpa efek gradien mengkilap berlebihan, konsisten dengan kartu-kartu lainnya di landing page.
+
+### 3. Single Source of Truth Nomor WhatsApp Toko
+* **Satu Input untuk Seluruh Website (`features/admin/StorefrontSettingsManager.tsx`)**:
+  - Disediakan kartu hijau khusus bertajuk *"Nomor WhatsApp Toko (1 Input untuk Seluruh Website)"* pada menu Admin *Fitur & Pengaturan* dan *Informasi Kontak Toko*.
+  - Mengubah 1 kali nomor WhatsApp di input ini otomatis mengubah seluruh kontak WhatsApp yang tampil di website: tombol konsultasi Tentang Kami, tombol chat melayang CS, langkah konfirmasi checkout, dan kontak pada faktur/invoice resmi.
+
+### 4. Perapian Border Card Admin Panel (`/admin/content`)
+* **Solusi Masalah Elemen Melebar / Offside**:
+  - Mengatasi bug visual browser default `min-inline-size: min-content` pada CSS Grid kolom (`grid lg:grid-cols-2`) akibat penggunaan tag `<fieldset>`.
+  - Mengganti kontainer menjadi `div` dengan utilitas `w-full min-w-0` dan `justify-start overflow-hidden`.
+  - Input pencarian produk dan list checkbox pilihan produk kini terbingkai rapi di dalam batas kartu tanpa keluar dari border kartu (*zero offside*).
+
+### 5. Tata Letak Baru Halaman Detail Produk (`features/product/ProductDetail.tsx`)
+* **Pemanfaatan Ruang di Bawah Galeri Foto**:
+  - Tabel spesifikasi teknis produk dipindahkan ke kolom kiri persis di bawah thumbnail galeri foto produk, menghilangkan gap kosong yang sebelumnya terlalu besar.
+* **Section Khusus Ulasan Pembeli**:
+  - Area di bawah garis pemisah produk kini didedikasikan khusus untuk **Ulasan Pembeli** (`Ulasan ({reviewCount})`).
+  - Dilengkapi horizontal scroll/carousel responsif jika ulasan sudah banyak, sehingga halaman tetap rapi dan nyaman dibaca.
+
+### 6. Peningkatan Alur Checkout, Proteksi QRIS, dan Cash on Pickup
+* **Penyelesaian Error Varian Produk**:
+  - Mengatasi exception `Choose a product variant before checkout` dengan mekanisme *auto-resolve* varian produk yang ready stock sebelum prosedur transaksi checkout dipanggil (`services/checkout.service.ts`).
+* **Proteksi Kode QRIS (Attention QR Belum Dimasukkan)**:
+  - Jika admin belum mengunggah gambar kode QR toko di panel pengaturan, opsi QRIS di halaman checkout otomatis diberi penanda kuning: **`QR Belum Dimasukkan`** dan tombol dibuat nonaktif (*disabled*).
+  - Pembeli yang mengklik QRIS yang belum dikonfigurasi akan mendapatkan notifikasi perhatian yang jelas untuk memilih Transfer Bank atau Bayar Tunai di Kasir.
+  - Pada panel admin `/admin/content`, ditambahkan kartu peringatan otomatis jika kode QR toko belum diunggah.
+* **Instruksi & Banner Dinamis Sesuai Metode Pembayaran**:
+  - Jika memilih **Bayar Tunai di Kasir (Cash on Pickup)**:
+    - Judul banner: *"Pesanan Berhasil Dicatat — Bayar Tunai di Kasir saat Ambil Barang"*.
+    - Rincian tagihan: Tertulis *"Total Pembayaran di Kasir"* (bukan *"Total yang Harus Ditransfer"*).
+    - Tombol & pesan WA: *"Konfirmasi Pesanan ke WhatsApp Admin"* dengan pesan konfirmasi pengambilan langsung di toko.
+  - Jika memilih **QRIS**:
+    - Judul banner: *"Pesanan Berhasil Dicatat — Silakan Scan QRIS & Konfirmasi"*.
+    - Tombol WA: *"Kirim Bukti Scan QRIS ke WhatsApp Admin"*.
+  - Jika memilih **Transfer Bank Manual**:
+    - Barulah nomor rekening bank resmi toko dan instruksi transfer ditampilkan lengkap.
+* **Sinkronisasi Database**:
+  - Kolom `payment_method` pada tabel `payments` tersimpan akurat (`qris`, `cash_on_pickup`, atau `manual_transfer`) melalui admin client service-role.
+
+### 7. Penanganan Anti-404 pada Faktur Pembelian
+* **Perbaikan Middleware (`lib/supabase/middleware.ts`)**:
+  - Rute `/checkout/success` dikecualikan dari pemblokiran checkout middleware auth agar tidak memicu redirect berulang atau tampilan 404 saat sesi diperbarui.
+* **Redirect Mulus ke Faktur Resmi (`app/checkout/success/page.tsx`)**:
+  - Diberikan konfigurasi `export const dynamic = "force-dynamic"` dan `export const revalidate = 0`.
+  - Jika parameter `order_id` tersedia, halaman secara instan mengarahkan pembeli ke faktur resmi toko: `/orders/[id]/invoice`.
+* **Faktur Resmi Toko A4 (`app/orders/[id]/invoice/page.tsx` & `components/invoice/OrderInvoice.tsx`)**:
+  - Tombol *"Lanjut ke Faktur Pesanan"* pada halaman checkout langsung membuka faktur resmi toko yang siap cetak / simpan PDF.
+  - Dilengkapi penanda metode pembayaran terpilih (`QRIS`, `Bayar Tunai di Kasir`, atau `Transfer Bank Manual`) dan rincian info bayar yang sesuai.
+
+### 8. Hasil Pengujian & Verifikasi Kualitas
+* **Unit & Integration Tests**: Seluruh **40 file tes dan 486 pengujian lulus 100% (`npx vitest run`)**.
+* **TypeScript Compilation**: Bersih tanpa kesalahan apapun (`npx tsc --noEmit` exit code 0).
+* **Git Status**: Semua perubahan tersimpan rapi di lokal komputer dan **tidak ada push ke remote git**.
+
+---
+
+## 27. Pembaruan Spesifikasi Produk Bersih SS 2, Anti Auto-Advance Checkout & Faktur Minimalis
+
+### 27.1. Standardisasi Spesifikasi Produk Bersih (Layout SS 1 + Konten SS 2)
+* **File Terkait**: [`lib/product-specifications.ts`](file:///c:/webnext/lib/product-specifications.ts), [`features/product/ProductDetail.tsx`](file:///c:/webnext/features/product/ProductDetail.tsx), [`__tests__/lib/product-specifications.test.ts`](file:///c:/webnext/__tests__/lib/product-specifications.test.ts)
+* **Perubahan Judul & Layout**:
+  - Judul diubah dari `"Spesifikasi Teknis"` menjadi `"Spesifikasi"`.
+  - Tata letak tetap dipertahankan di bawah foto galeri produk untuk memaksimalkan ruang kartu dan kenyamanan visual pembeli (seperti SS 1).
+* **Pembersihan Metadata Distributor & Parser Cerdas**:
+  - Metadata internal distributor seperti `"Spesifikasi sumber pricelist"`, `"Model Code/Type"`, `"MTM/PN"`, `"Warna"`, dan `"SKU"` difilter secara ketat melalui fungsi `isBlacklistedSpecKey`.
+  - Fungsi `parseSpecsFromRawString` dan `getCleanProductSpecifications` secara cerdas mengekstrak atribut perangkat keras terstandar dari teks pricelist:
+    - **Processor**: Intel Celeron, Core Ultra, AMD Ryzen, dsb.
+    - **RAM**: DDR4/DDR5, SODIMM, sinkron dengan varian yang dipilih.
+    - **Storage**: M.2 NVMe SSD / PCIe, sinkron dengan varian yang dipilih.
+    - **Display**: Ukuran layar, resolusi FHD/WUXGA/IPS/OLED.
+    - **OS**: Windows 11 Home, Office Home & Student, dsb.
+    - **Warranty**: Durasi garansi distributor / ADP / Premium Care.
+    - **GPU**: Kartu grafis discrete / integrated jika tersedia.
+  - Hasil tampilan persis seperti pada SS 2: bersih, profesional, berurutan, dan terbebas dari teks mentah distributor.
+
+### 27.2. Perbaikan Logika Checkout (Anti Auto-Advance & Anti Auto-Submit)
+* **File Terkait**: [`features/checkout/CheckoutClient.tsx`](file:///c:/webnext/features/checkout/CheckoutClient.tsx)
+* **Akar Masalah Auto-Submit saat Berpindah ke Step 3**:
+  1. Sebelumnya tombol aksi utama pada sidebar menggunakan satu elemen `<Button>` yang mengubah atribut `type` secara dinamis: `type={currentStep === 3 ? "submit" : "button"}` dan `form={currentStep === 3 ? "checkout-form" : undefined}`.
+  2. Saat pembeli berada di Langkah 2 dan menekan tombol *"Lanjut ke pembayaran"*, fungsi `continueCheckout()` mengubah `currentStep` menjadi 3. Re-render yang terjadi seketika di tengah siklus event klik peramban mengubah elemen tombol yang sama menjadi `type="submit"`. Peramban mendeteksi event klik mendarat pada tombol submit dan langsung mengeksekusi `submit` form secara prematur sebelum pembeli sempat memilih metode pembayaran.
+* **Solusi & Perbaikan Tuntas**:
+  - Tombol aksi utama dipecah menjadi 3 komponen `<Button>` independen dengan `key` unik (`btn-step-1`, `btn-step-2`, `btn-step-3`).
+  - Seluruh tombol langkah murni menggunakan `type="button"` dan atribut `form` dihapus total dari tombol. Tidak ada tombol form-level submit bawaan peramban yang dapat memicu submit otomatis.
+  - Ditambahkan pengaman waktu `step3EnteredAtRef`: fungsi submit (`handleFinalSubmit`) menolak eksekusi jika dipanggil dalam jeda kurang dari 500ms setelah memasuki Langkah 3 untuk mencegah event ghost-click.
+  - Alur kini 100% berhenti di Langkah 3 (Metode Pembayaran). Pembeli dapat dengan leluasa memilih metode bayar (`Transfer Bank`, `QRIS`, `Bayar Tunai di Kasir`) dan meninjau informasi rekening/instruksi.
+  - Pesanan baru benar-benar diproses hanya setelah pembeli secara eksplisit dan sadar mengklik tombol *"Konfirmasi & Buat Pesanan"* pada Langkah 3.
+
+### 27.3. Faktur / Invoice Minimalis & Presisi Info Pembayaran
+* **File Terkait**: [`components/invoice/OrderInvoice.tsx`](file:///c:/webnext/components/invoice/OrderInvoice.tsx), [`app/orders/[id]/invoice/page.tsx`](file:///c:/webnext/app/orders/[id]/invoice/page.tsx), [`lib/storefront-settings.ts`](file:///c:/webnext/lib/storefront-settings.ts), [`features/admin/StorefrontSettingsManager.tsx`](file:///c:/webnext/features/admin/StorefrontSettingsManager.tsx)
+* **Header Kanan Atas Minimalis (Pemisah ` | `)**:
+  - Kotak-kotak badge berborder tebal di kanan atas faktur digantikan dengan gaya teks minimalis bersih yang dipisahkan oleh tanda pipa ` | `:
+    - Contoh: `FAKTUR PENJUALAN | PENDING | BAYAR TUNAI DI KASIR | AMBIL DI TOKO`
+  - Tersedia opsi pengaturan di Admin Panel (`Admin > Pengaturan Toko > Faktur & Komplain`): dapat memilih antara mode *"Minimalis (Teks Bersih dipisah tanda |)"* (default) dan *"Kreatif (Badge & Pill Kotak Berborder)"*.
+* **Label Total Tagihan**:
+  - Label kotak pembayaran diubah dari `"TOTAL DUE :"` menjadi `"TOTAL :"`.
+* **Presisi Bagian PAYMENT INFO**:
+  - **Metode Cash / Tunai**: Menampilkan *"Metode: Bayar Tunai di Kasir (Cash on Pickup)"* dan *"Lokasi: Kasir Toko saat Pengambilan Unit"*. Seluruh baris rekening bank (`Account` dan `A/C Name`) disembunyikan total.
+  - **Metode QRIS**: Menampilkan *"Metode: QRIS (Scan QR Digital)"* dan *"Detail QR: Scan QRIS Resmi Toko"*. Seluruh baris rekening bank disembunyikan total.
+  - **Metode Transfer Bank**: Barulah menampilkan baris Nama Bank, Nomor Rekening, dan Nama Pemilik Rekening resmi toko.
+
+### 27.4. Verifikasi & Integritas Sistem
+* **TypeScript Compilation**: `npx tsc --noEmit` lolos 0 error.
+* **Unit & Integration Tests**: `npx vitest run` lolos 489/489 test cases (40 test suites, 100% Passed).
+* **Git Status**: Sesuai instruksi pengguna, **tidak ada eksekusi git push**. Seluruh kode tersimpan rapi dan aman di repository lokal.
+
+
+---
+
+## 28. Audit Keamanan & Optimasi Performa Aset Gambar (Security & Performance Hardening)
+
+*Tanggal Pelaksanaan*: 30 Oktober 2026
+*Target*: Memeriksa dan memperkuat celah keamanan (Security Audit), validasi server-side checkout, mitigasi SSRF & XSS pada pengunggahan gambar, optimasi performa aset gambar (Next.js Image Caching), serta kepatuhan larangan git push.
+
+### 28.1. Validasi Keamanan Sisi Server pada Checkout (Defense-in-Depth)
+* **File Terkait**: [`actions/checkout.ts`](file:///c:/webnext/actions/checkout.ts)
+* **Masalah Potensial**:
+  - Walaupun antarmuka pembeli (klien) menonaktifkan QRIS jika belum ada gambar QR atau melarang tunai jika pengiriman bukan pickup, pengujian penetrasi / penyerang langsung via API FormData dapat mencoba mengirimkan nilai metode pembayaran yang tidak sah.
+* **Solusi & Penguatan**:
+  - Penambahan validasi server-side menyeluruh sebelum pesanan dibuat:
+    1. **QRIS**: Memverifikasi `features.qris_enabled !== false` dan keberadaan URL gambar QRIS (`Boolean(qris_image_url?.trim())`). Jika belum diatur atau dinonaktifkan oleh admin, request langsung ditolak dengan pesan error yang ramah.
+    2. **Cash on Pickup**: Memverifikasi bahwa metode pengiriman wajib bernilai `'pickup'`. Jika mencoba menggunakan tunai saat delivery, request langsung ditolak (`"Metode bayar tunai di kasir (Cash on Pickup) hanya dapat digunakan untuk opsi Ambil Sendiri di Toko"`). Selain itu dicek apakah `cash_payment_enabled` aktif di toko.
+    3. **Transfer Bank**: Memverifikasi `bank_transfer_enabled !== false`.
+    4. **Lokasi Pickup**: Memastikan toko memiliki alamat fisik sebelum pembeli memilih metode ambil sendiri di toko.
+
+### 28.2. Proteksi SSRF (Server-Side Request Forgery) & Stored XSS pada Upload Gambar Eksternal
+* **File Terkait**: [`actions/admin.ts`](file:///c:/webnext/actions/admin.ts)
+* **Pencegahan Celah SSRF (`isSafeExternalImageUrl`)**:
+  - Fungsi `saveExternalImageUrlAction` sebelumnya menerima URL eksternal dari input admin tanpa pengecekan host.
+  - Ditambahkan fungsi validasi `isSafeExternalImageUrl`:
+    - Membatasi protokol hanya `http:` dan `https:`.
+    - Memblokir alamat loopback: `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`.
+    - Memblokir metadata cloud endpoint: `169.254.169.254` (AWS/GCP/Azure instance metadata).
+    - Memblokir subnet privat RFC 1918 / IANA: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`.
+    - Memblokir domain lokal internal: `.local`, `.internal`, `.lan`.
+  - Ditambahkan batas waktu fetch `AbortSignal.timeout(10000)` (10 detik) untuk mencegah server menggantung (DoS).
+* **Pencegahan Stored XSS pada Berkas Vektor SVG**:
+  - Berkas SVG yang diunduh dipindai sebelum diunggah ke storage.
+  - Pola berbahaya seperti `<script>`, `javascript:`, event handler inline (`onerror=`, `onload=`, dsb.), `<iframe`, `<foreignObject`, `<embed`, dan `<object` otomatis ditolak.
+  - Ukuran berkas dibatasi maksimal 5 MB untuk menjaga efisiensi penyimpanan dan throughput.
+
+### 28.3. Optimasi Performa & Kecepatan Web (Next.js Image Caching & Lazy Loading)
+* **File Terkait**: [`next.config.ts`](file:///c:/webnext/next.config.ts), [`components/shared/ProductCard.tsx`](file:///c:/webnext/components/shared/ProductCard.tsx)
+* **Next.js Image Optimization Caching**:
+  - `minimumCacheTTL`: Diatur ke 30 hari (`2,592,000` detik), mencegah Next.js melakukan re-compress / resize berulang-ulang untuk gambar yang sama, sehingga menghemat CPU server dan mempercepat respon peramban.
+  - `deviceSizes` & `imageSizes`: Dikonfigurasi presisi agar peramban mengunduh ukuran gambar terkecil yang sesuai dengan viewport perangkat pengguna (mobile, tablet, desktop).
+  - Format prioritas: Modern AVIF dan WebP terkompresi.
+* **Product Card Graceful Fallback & Lazy Loading**:
+  - Komponen `<ProductCard>` kini dilengkapi atribut `loading="lazy"` agar gambar produk di luar viewport awal (below the fold) tidak membebani pemuatan awal halaman (LCP / FCP).
+  - Ditambahkan penanganan state fallback gambar (`onError={() => setImgSrc("/product-image-unavailable.svg")}`) untuk mencegah layout-shift jika terjadi gangguan koneksi ke gambar eksternal.
+
+### 28.4. Verifikasi & Integritas Pengujian
+* **TypeScript Compilation**: `npx tsc --noEmit` lolos 0 error.
+* **Vitest Suite**: 489 dari 489 tes lulus (40 test files, 100% Passed).
+* **Git Policy**: Tidak ada `git push` yang dijalankan sesuai permintaan pengguna (`jangan push gitu`).
+
+
+---
+
+## 29. Perbaikan Sinkronisasi Halaman & Seksi Promo (/promo) dengan Tag Promo Produk
+
+*Tanggal Pelaksanaan*: 30 Oktober 2026
+*Target*: Memastikan seluruh produk yang bertanda tag promo (`is_featured: true`, `discount_price > 0`, maupun produk pilihan promo admin) otomatis muncul di halaman promo (`/promo`) saat tombol Promo di navbar atas atau "Lihat promo" di beranda diklik.
+
+### 29.1. Akar Masalah (Root Cause)
+1. **Ketidaksesuaian Filter pada RPC Database Remote**:
+   - Di database Supabase, fungsi RPC `search_catalog_products` memiliki klausul:
+     `AND (NOT COALESCE(p_promo_only, FALSE) OR p.discount_price IS NOT NULL)`
+   - Klausul tersebut hanya memfilter produk yang memiliki `discount_price` (potongan harga angka), namun mengabaikan produk yang ditandai sebagai Promo Pilihan melalui flag `is_featured: true` (seperti *ASUS All-in-One E1600WKAT*, *Lenovo IdeaPad Slim 3*, dsb. yang diatur di Admin Panel > Produk).
+   - Akibatnya, pemanggilan `getProductsPageAction({ promoOnly: true })` pada halaman `/promo` hanya mengembalikan 1 produk saja (*Galaxy S24 Ultra*) dan melewati seluruh produk promo lainnya.
+2. **Kueri Tag Pencarian**:
+   - Pencarian dengan kata kunci badge (seperti `"promo"`, `"diskon"`, `"sale"`, `"baru"`, `"bestseller"`) pada RPC hanya mencocokkan kolom teks `name/description`, sehingga melewatkan produk bertanda promo jika nama produknya tidak mengandung kata "promo".
+
+### 29.2. Solusi & Perbaikan Menyeluruh
+* **File Terkait**:
+  - [`repositories/product.repository.ts`](file:///c:/webnext/repositories/product.repository.ts)
+  - [`services/product.service.ts`](file:///c:/webnext/services/product.service.ts)
+  - [`actions/product.ts`](file:///c:/webnext/actions/product.ts)
+  - [`lib/products.ts`](file:///c:/webnext/lib/products.ts)
+  - [`app/promo/page.tsx`](file:///c:/webnext/app/promo/page.tsx)
+  - [`supabase/migrations/20261028000000_catalog_specification_filters.sql`](file:///c:/webnext/supabase/migrations/20261028000000_catalog_specification_filters.sql)
+
+* **Detail Implementasi**:
+  1. **Bypass RPC Cerdas pada Repository** ([`repositories/product.repository.ts`](file:///c:/webnext/repositories/product.repository.ts)):
+     - Menambahkan deteksi `shouldBypassRpc = Boolean(options.promoOnly || isTagSearch)`.
+     - Ketika halaman promo dipanggil (`promoOnly: true`) atau pengguna mencari dengan kata kunci badge (`promo`, `diskon`, `sale`, `baru`, `bestseller`), kueri beralih ke *Direct Query* yang secara presisi memeriksa `discount_price.not.is.null,is_featured.eq.true` serta ID produk pilihan admin (`promoProductIds`).
+     - Hasil pencarian dan katalog promo kini mencakup 100% produk bertanda promo, baik yang diskon harga maupun yang ditandai *Promo Pilihan*.
+  2. **Dukungan `promoProductIds` pada Flow Katalog Promo** ([`app/promo/page.tsx`](file:///c:/webnext/app/promo/page.tsx)):
+     - Halaman `/promo` kini meneruskan `promoProductIds: selectedIds` (produk pilihan promo dari pengaturan etalase) ke `getProductsPageAction` dan `toStorefrontProduct`.
+     - Setiap produk promo mendapatkan atribut `isPromo: true` dan badge tag `"Promo"` di antarmuka pembeli.
+  3. **Pemetaan Storefront Presisi** ([`lib/products.ts`](file:///c:/webnext/lib/products.ts)):
+     - `toStorefrontProduct(row, extraPromoIds)` menandai produk sebagai promo jika `is_featured: true`, `discount_price > 0`, atau ID-nya ada di daftar pin promo pilihan.
+  4. **Pembaruan Definisi Skema Migrasi**:
+     - Memperbaiki klausul SQL pada `search_catalog_products` menjadi:
+       `AND (NOT COALESCE(p_promo_only, FALSE) OR (p.discount_price IS NOT NULL OR p.is_featured = TRUE))`
+
+### 29.3. Hasil Pengujian & Verifikasi
+* **TypeScript Compilation**: `npx tsc --noEmit` lolos 0 error.
+* **Vitest Suite**: 489 dari 489 tes lulus (40 test files, 100% Passed).
+* **Git Policy**: Sesuai instruksi, **tidak ada eksekusi git push**. Seluruh perubahan tersimpan rapi secara lokal.

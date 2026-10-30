@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame } from "lucide-react";
+import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag } from "lucide-react";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
@@ -21,6 +21,7 @@ interface ProductCardProps {
 export function ProductCard({ product, badgeContext = "all" }: ProductCardProps) {
   const { addToCart, loadingProductId } = useAddToCart();
   const [saved, setSaved] = useState(false);
+  const [imgSrc, setImgSrc] = useState(product.image || "/product-image-unavailable.svg");
   const router = useRouter();
   const compareIds = useProductCompareStore((state) => state.ids);
   const toggleCompare = useProductCompareStore((state) => state.toggle);
@@ -28,21 +29,30 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
   const payablePrice = product.discountPrice ?? product.price;
   const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
   const isOutOfStock = (product.stock ?? 0) <= 0;
+
+  const toggleWishlist = async () => {
+    try {
+      const res = await toggleWishlistAction(product.id);
+      const isAdded = res.action === "added";
+      setSaved(isAdded);
+      toast.success(
+        isAdded ? "Ditambahkan ke Wishlist" : "Dihapus dari Wishlist",
+        `Produk "${product.name}" ${isAdded ? "berhasil disimpan." : "telah dihapus."}`
+      );
+    } catch (err) {
+      if (err instanceof Error && err.message === "Unauthorized") {
+        toast.info("Perlu Masuk Akun", "Silakan masuk terlebih dahulu untuk menyimpan wishlist.");
+        router.push(`/login?redirect=/product/${product.id}`);
+        return;
+      }
+      toast.error("Gagal", "Terjadi kesalahan saat memperbarui wishlist.");
+    }
+  };
+
   const discountPercent =
     regularPrice != null && regularPrice > payablePrice
       ? Math.round(((regularPrice - payablePrice) / regularPrice) * 100)
       : null;
-
-  const toggleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      const result = await toggleWishlistAction(product.id);
-      setSaved(result.action === "added");
-    } catch (error) {
-      if (error instanceof Error && error.message === "Unauthorized") router.push("/login");
-    }
-  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -69,10 +79,18 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
     product.badges?.includes("Best Seller") ||
     product.badges?.includes("Terlaris")
   );
+  const rawIsPromo = Boolean(
+    product.isPromo ||
+    product.isFeatured ||
+    product.discountPrice != null ||
+    product.badges?.includes("Promo") ||
+    product.badges?.includes("Sale")
+  );
 
-  // In dedicated carousels, prioritize the section's featured theme; in catalog/search show both if applicable
+  // In dedicated carousels, prioritize the section's featured theme; in catalog/search show all if applicable
   const isNew = badgeContext === "bestseller" ? false : rawIsNew;
   const isBestSeller = badgeContext === "new" ? false : rawIsBestSeller;
+  const isPromo = rawIsPromo;
 
   return (
     <div className="group relative flex flex-col h-full overflow-hidden rounded-2xl border border-slate-200/90 bg-card p-3 sm:p-4 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 dark:border-white/10 dark:bg-card dark:hover:border-primary/50">
@@ -86,9 +104,13 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
             </span>
           )}
 
-          {product.discountPrice != null && !isOutOfStock && (
-            <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-500 text-white shadow-2xs">
-              SALE
+          {isPromo && !isOutOfStock && (
+            <span
+              title="Produk Promo Pilihan"
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-extrabold rounded-md bg-rose-500 text-white shadow-2xs tracking-wide"
+            >
+              <Tag className="size-2.5" />
+              Promo
             </span>
           )}
 
@@ -133,11 +155,13 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
           className="relative w-full h-full flex items-center justify-center cursor-pointer"
         >
           <Image
-            src={product.image || "/product-image-unavailable.svg"}
+            src={imgSrc}
             alt={product.name}
             fill
             sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, 50vw"
             className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+            onError={() => setImgSrc("/product-image-unavailable.svg")}
           />
         </Link>
       </div>

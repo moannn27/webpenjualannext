@@ -17,6 +17,11 @@ describe('checkoutSchema', () => {
     expect(checkoutSchema.safeParse(validCheckout).success).toBe(true)
   })
 
+  it('accepts qris and cash_on_pickup payment methods', () => {
+    expect(checkoutSchema.safeParse({ ...validCheckout, paymentMethod: 'qris' }).success).toBe(true)
+    expect(checkoutSchema.safeParse({ ...validCheckout, shippingMethod: 'pickup', paymentMethod: 'cash_on_pickup' }).success).toBe(true)
+  })
+
   it('rejects an invalid phone number and unsupported shipping method', () => {
     const result = checkoutSchema.safeParse({
       ...validCheckout,

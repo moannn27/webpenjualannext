@@ -33,7 +33,7 @@ export async function updateSession(request: NextRequest) {
 
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/admin')
     || request.nextUrl.pathname.startsWith('/profile')
-  const isCheckoutRoute = request.nextUrl.pathname.startsWith('/checkout')
+  const isCheckoutRoute = request.nextUrl.pathname === '/checkout' || (request.nextUrl.pathname.startsWith('/checkout/') && !request.nextUrl.pathname.startsWith('/checkout/success'))
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
   const isServerAction = request.headers.has('Next-Action')
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')

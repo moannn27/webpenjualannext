@@ -8,6 +8,7 @@ import {
   Clock,
   HelpCircle,
   AlertCircle,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -103,6 +104,7 @@ export interface InvoiceStorefrontInfo {
   guaranteeNote?: string;
   complaintWhatsapp?: string;
   complaintInstructions?: string;
+  invoiceHeaderStyle?: "minimalist" | "creative";
 }
 
 export interface OrderInvoiceProps {
@@ -281,20 +283,37 @@ export function OrderInvoice({
   }[paymentState];
 
   const paymentMethodRaw = payment?.payment_method?.toLowerCase() || "";
-  const paymentMethodName =
-    paymentMethodRaw.includes("bca")
-      ? "Transfer Bank (BCA)"
-      : paymentMethodRaw.includes("qris")
-      ? "QRIS"
-      : paymentMethodRaw.includes("mandiri")
-      ? "Transfer Bank (Mandiri)"
-      : paymentMethodRaw.includes("bri")
-      ? "Transfer Bank (BRI)"
-      : paymentMethodRaw.includes("cash") || paymentMethodRaw.includes("tunai")
-      ? "Tunai di Toko"
-      : isPickup
-      ? "Pembayaran Toko / Transfer"
-      : "Transfer Bank";
+  const isCashMethod =
+    paymentMethodRaw.includes("cash") ||
+    paymentMethodRaw.includes("tunai") ||
+    (isPickup &&
+      !paymentMethodRaw.includes("qris") &&
+      !paymentMethodRaw.includes("transfer") &&
+      !paymentMethodRaw.includes("manual") &&
+      !paymentMethodRaw.includes("bank") &&
+      !paymentMethodRaw.includes("bca"));
+  const isQrisMethod = paymentMethodRaw.includes("qris");
+  const isBankTransferMethod = !isCashMethod && !isQrisMethod;
+
+  const paymentMethodName = isQrisMethod
+    ? "QRIS (Scan QR Digital)"
+    : isCashMethod
+    ? "Bayar Tunai di Kasir (Cash on Pickup)"
+    : paymentMethodRaw.includes("bca")
+    ? "Transfer Bank (BCA)"
+    : paymentMethodRaw.includes("mandiri")
+    ? "Transfer Bank (Mandiri)"
+    : paymentMethodRaw.includes("bri")
+    ? "Transfer Bank (BRI)"
+    : "Transfer Bank Manual";
+
+  const paymentMethodShortName = isQrisMethod
+    ? "BAYAR QRIS"
+    : isCashMethod
+    ? "BAYAR TUNAI DI KASIR"
+    : "TRANSFER BANK";
+
+  const isMinimalistHeader = (storefront?.invoiceHeaderStyle ?? "minimalist") === "minimalist";
 
   const formatRupiah = (num: number) =>
     `Rp ${Number(num ?? 0).toLocaleString("id-ID")}`;
@@ -543,14 +562,45 @@ export function OrderInvoice({
               </div>
             </div>
 
-            {/* Right: FAKTUR PENJUALAN Badge, Order #, Date WIB & Status Pills */}
-            <div className="min-w-0 w-full space-y-2 text-left sm:w-auto sm:min-w-[260px] sm:text-right">
-              {/* Badge "FAKTUR PENJUALAN" */}
-              <div className="sm:flex sm:justify-end">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200 print:text-[9px] print:py-0.5 print:px-2.5">
-                  FAKTUR PENJUALAN
-                </span>
-              </div>
+            {/* Right: FAKTUR PENJUALAN, Order #, Date WIB & Minimalist/Creative Header */}
+            <div className="min-w-0 w-full space-y-1.5 text-left sm:w-auto sm:min-w-[280px] sm:text-right">
+              {isMinimalistHeader ? (
+                /* Minimalist Mode: Clean Text Separated by | without heavy box borders */
+                <div className="space-y-1">
+                  <p className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-slate-800 print:text-[10px]">
+                    <span className="text-blue-900 font-extrabold">FAKTUR PENJUALAN</span>
+                    <span className="mx-2 text-slate-300 font-normal">|</span>
+                    <span
+                      className={
+                        isPaymentConfirmed
+                          ? "text-emerald-700 font-bold"
+                          : order.status === "cancelled"
+                          ? "text-rose-700 font-bold"
+                          : "text-amber-700 font-bold"
+                      }
+                    >
+                      {isPaymentConfirmed
+                        ? "LUNAS"
+                        : order.status === "cancelled"
+                        ? "BATAL"
+                        : "PENDING"}
+                    </span>
+                    <span className="mx-2 text-slate-300 font-normal">|</span>
+                    <span className="text-slate-700 font-semibold">{paymentMethodShortName}</span>
+                    <span className="mx-2 text-slate-300 font-normal">|</span>
+                    <span className="text-slate-700 font-semibold">
+                      {isPickup ? "AMBIL DI TOKO" : `KURIR: ${order.courier.toUpperCase()}`}
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                /* Creative Mode: Badges with pills */
+                <div className="sm:flex sm:justify-end">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200 print:text-[9px] print:py-0.5 print:px-2.5">
+                    FAKTUR PENJUALAN
+                  </span>
+                </div>
+              )}
 
               {/* Order Number */}
               <p className="break-all text-lg sm:text-xl font-mono font-black text-slate-900 tracking-tight print:text-base">
@@ -562,31 +612,39 @@ export function OrderInvoice({
                 Tanggal: <span className="font-semibold text-slate-900">{formattedDateTimeWIB}</span>
               </p>
 
-              {/* Badges: Payment Status & Fulfillment Mode */}
-              <div className="pt-1 flex flex-wrap items-center sm:justify-end gap-2">
-                {/* Payment Badge */}
-                {isPaymentConfirmed ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-emerald-50 text-emerald-800 border border-emerald-300 print:text-[8.5px] print:py-0.5 print:px-2">
-                    <CheckCircle2 className="size-3.5 text-emerald-600 print:size-3" />
-                    <span>LUNAS - TERVERIFIKASI</span>
-                  </span>
-                ) : order.status === "cancelled" ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-rose-50 text-rose-800 border border-rose-300 print:text-[8.5px] print:py-0.5 print:px-2">
-                    <AlertCircle className="size-3.5 text-rose-600 print:size-3" />
-                    <span>DIBATALKAN</span>
-                  </span>
-                ) : (
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border print:text-[8.5px] print:py-0.5 print:px-2 ${paymentState === "pending" ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-rose-50 text-rose-800 border-rose-300"}`}>
-                    {paymentState === "pending" ? <Clock className="size-3.5 text-amber-600 print:size-3" /> : <AlertCircle className="size-3.5 text-rose-600 print:size-3" />}
-                    <span>{paymentStateLabel}</span>
-                  </span>
-                )}
+              {!isMinimalistHeader && (
+                /* Creative Mode: Badges: Payment Status & Fulfillment Mode */
+                <div className="pt-1 flex flex-wrap items-center sm:justify-end gap-2">
+                  {/* Payment Badge */}
+                  {isPaymentConfirmed ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-emerald-50 text-emerald-800 border border-emerald-300 print:text-[8.5px] print:py-0.5 print:px-2">
+                      <CheckCircle2 className="size-3.5 text-emerald-600 print:size-3" />
+                      <span>LUNAS - TERVERIFIKASI</span>
+                    </span>
+                  ) : order.status === "cancelled" ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-rose-50 text-rose-800 border border-rose-300 print:text-[8.5px] print:py-0.5 print:px-2">
+                      <AlertCircle className="size-3.5 text-rose-600 print:size-3" />
+                      <span>DIBATALKAN</span>
+                    </span>
+                  ) : (
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide border print:text-[8.5px] print:py-0.5 print:px-2 ${paymentState === "pending" ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-rose-50 text-rose-800 border-rose-300"}`}>
+                      {paymentState === "pending" ? <Clock className="size-3.5 text-amber-600 print:size-3" /> : <AlertCircle className="size-3.5 text-rose-600 print:size-3" />}
+                      <span>{paymentStateLabel}</span>
+                    </span>
+                  )}
 
-                {/* Fulfillment Badge */}
-                <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-700 border border-slate-300 print:text-[8.5px] print:py-0.5 print:px-2">
-                  {isPickup ? "AMBIL DI TOKO" : `KURIR: ${order.courier.toUpperCase()}`}
-                </span>
-              </div>
+                  {/* Tanda Metode Pembayaran Terpilih */}
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-800 border border-slate-300 print:text-[8.5px] print:py-0.5 print:px-2">
+                    <Banknote className="size-3.5 text-slate-600 print:size-3" />
+                    <span>{paymentMethodName}</span>
+                  </span>
+
+                  {/* Fulfillment Badge */}
+                  <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-700 border border-slate-300 print:text-[8.5px] print:py-0.5 print:px-2">
+                    {isPickup ? "AMBIL DI TOKO" : `KURIR: ${order.courier.toUpperCase()}`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -665,7 +723,7 @@ export function OrderInvoice({
             <div className="invoice-table-header bg-[#3730A3] text-white rounded-t-lg px-3 sm:px-6 py-3 grid grid-cols-[minmax(0,1fr)_4rem_2rem_4.5rem] gap-2 items-center text-[9px] sm:grid-cols-[minmax(0,1fr)_9rem_4rem_9rem] sm:gap-3 sm:text-xs font-bold uppercase tracking-wide print:py-2 print:text-[9.5px]">
               <div>Produk</div>
               <div className="text-right"><span className="sm:hidden">Harga</span><span className="hidden sm:inline">Harga Satuan</span></div>
-              <div className="text-center">Jml.</div>
+              <div className="text-center">QTY</div>
               <div className="text-right">Total</div>
             </div>
 
@@ -816,9 +874,9 @@ export function OrderInvoice({
                 </span>
               </div>
 
-              {/* Solid Indigo TOTAL DUE Box */}
+              {/* Solid Indigo TOTAL Box */}
               <div className="invoice-total-due-box mt-3 bg-[#3730A3] text-white px-5 py-3 rounded-lg flex items-center justify-between font-bold shadow-xs print:py-2">
-                <span className="uppercase tracking-wider text-xs sm:text-sm print:text-[10px]">TOTAL DUE :</span>
+                <span className="uppercase tracking-wider text-xs sm:text-sm print:text-[10px]">TOTAL :</span>
                 <span className="font-black text-lg sm:text-xl font-mono print:text-sm">{formatRupiah(order.grand_total)}</span>
               </div>
             </div>
@@ -891,21 +949,37 @@ export function OrderInvoice({
               <div className="grid grid-cols-[auto_auto_1fr] items-baseline gap-x-2 gap-y-1 text-xs text-slate-600 print:text-[8.5px]">
                 <span className="text-slate-500">Metode</span>
                 <span className="text-slate-400 select-none">:</span>
-                <span className="text-slate-800 font-medium">{paymentMethodName}</span>
+                <span className="text-slate-800 font-bold">{paymentMethodName}</span>
 
-                {bankAccounts[0] && (
+                {isQrisMethod ? (
                   <>
+                    <span className="text-slate-500">Detail QR</span>
+                    <span className="text-slate-400 select-none">:</span>
+                    <span className="text-slate-800 font-medium">Scan QRIS Resmi Toko (m-Banking / e-Wallet)</span>
+                  </>
+                ) : isCashMethod ? (
+                  <>
+                    <span className="text-slate-500">Lokasi</span>
+                    <span className="text-slate-400 select-none">:</span>
+                    <span className="text-slate-800 font-medium">Kasir Toko saat Pengambilan Unit</span>
+                  </>
+                ) : bankAccounts[0] ? (
+                  <>
+                    <span className="text-slate-500">Bank</span>
+                    <span className="text-slate-400 select-none">:</span>
+                    <span className="text-slate-800 font-medium">{bankAccounts[0].bank_name}</span>
+
                     <span className="text-slate-500">Account</span>
                     <span className="text-slate-400 select-none">:</span>
                     <span className="font-mono text-slate-800 font-medium">
-                      {bankAccounts[0].account_number} ({bankAccounts[0].bank_name})
+                      {bankAccounts[0].account_number}
                     </span>
 
                     <span className="text-slate-500">A/C Name</span>
                     <span className="text-slate-400 select-none">:</span>
                     <span className="text-slate-800 font-medium">{bankAccounts[0].account_holder}</span>
                   </>
-                )}
+                ) : null}
 
                 <span className="text-slate-500">Status</span>
                 <span className="text-slate-400 select-none">:</span>

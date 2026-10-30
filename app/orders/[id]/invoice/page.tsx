@@ -260,6 +260,7 @@ export default async function OrderInvoicePage({
     guaranteeNote: storefront.invoice?.guarantee_note,
     complaintWhatsapp: storefront.invoice?.complaint_whatsapp,
     complaintInstructions: storefront.invoice?.complaint_instructions,
+    invoiceHeaderStyle: storefront.invoice?.header_style || "minimalist",
   };
 
   const invoiceOrder: InvoiceOrderData = {

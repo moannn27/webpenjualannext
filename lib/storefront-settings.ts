@@ -152,6 +152,7 @@ export function extractCoordinatesFromLocation(
 
 export type StoreInvoiceSettings = {
   header_subtitle?: string;
+  header_style?: "minimalist" | "creative";
   terms_note?: string;
   guarantee_note?: string;
   complaint_whatsapp?: string;
@@ -209,6 +210,8 @@ export type StoreFeaturesSettings = {
   bank_transfer_enabled: boolean;
   cash_payment_enabled: boolean;
   qris_enabled: boolean;
+  qris_image_url?: string;
+  qris_merchant_name?: string;
 
   // Pengumuman & Operasional
   announcement_bar_enabled: boolean;
@@ -237,6 +240,8 @@ export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
   bank_transfer_enabled: true,
   cash_payment_enabled: true,
   qris_enabled: true,
+  qris_image_url: "",
+  qris_merchant_name: "Next Solution Store",
   announcement_bar_enabled: false,
   announcement_bar_text: "🔥 Promo Spesial: Garansi resmi & gratis konsultasi untuk setiap pembelian laptop & PC!",
   store_maintenance_mode: false,
@@ -264,6 +269,8 @@ export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
     bank_transfer_enabled: item.bank_transfer_enabled !== false,
     cash_payment_enabled: item.cash_payment_enabled !== false,
     qris_enabled: item.qris_enabled !== false,
+    qris_image_url: typeof item.qris_image_url === "string" ? item.qris_image_url.trim() : "",
+    qris_merchant_name: typeof item.qris_merchant_name === "string" ? item.qris_merchant_name.trim() : "Next Solution Store",
     announcement_bar_enabled: Boolean(item.announcement_bar_enabled),
     announcement_bar_text: String(item.announcement_bar_text ?? DEFAULT_STORE_FEATURES.announcement_bar_text).trim(),
     store_maintenance_mode: Boolean(item.store_maintenance_mode),
@@ -478,6 +485,7 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   features: DEFAULT_STORE_FEATURES,
   invoice: {
     header_subtitle: "Pusat Komputer, Laptop & Solusi Elektronik Resmi",
+    header_style: "minimalist",
     terms_note: "Simpan faktur fisik atau digital ini sebagai bukti sah transaksi dan garansi resmi. Garansi distributor berlaku dengan kondisi segel utuh. Wajib sertakan video unboxing lengkap saat pengajuan komplain.",
     guarantee_note: "Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi resmi dan administrasi perpajakan.",
     complaint_whatsapp: "628112238310",
@@ -759,6 +767,10 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
         (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.header_subtitle !== ""
           ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.header_subtitle).trim()
           : "Pusat Komputer, Laptop & Solusi Elektronik Resmi",
+      header_style:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.header_style === "creative"
+          ? "creative"
+          : "minimalist",
       terms_note:
         (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.terms_note !== undefined &&
         (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.terms_note !== ""

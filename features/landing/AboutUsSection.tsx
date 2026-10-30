@@ -6,10 +6,11 @@ import { PhotoLayoutRenderer } from "@/components/shared/PhotoLayoutRenderer";
 
 interface AboutUsSectionProps {
   content: AboutUsContent;
+  storeWhatsApp?: string;
   className?: string;
 }
 
-export function AboutUsSection({ content, className = "" }: AboutUsSectionProps) {
+export function AboutUsSection({ content, storeWhatsApp, className = "" }: AboutUsSectionProps) {
   // If explicitly hidden via section_visibility or essential content missing
   if (content.section_visibility?.homepage === false) {
     return null;
@@ -35,6 +36,14 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
     : null;
   const activeStats = (stats?.items || []).filter((s) => s.is_active).slice(0, 4);
   const coreValues = (story?.core_values || []).slice(0, 3);
+
+  // Single source of truth for WhatsApp URL
+  const cleanPhone = (storeWhatsApp || "628112238310").replace(/\D/g, "");
+  const waConsultationUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent("Halo Next Solution, saya ingin konsultasi pilihan laptop.")}`;
+  const secondaryUrl = (hero?.secondary_button_url && !hero.secondary_button_url.includes("wa.me"))
+    ? hero.secondary_button_url
+    : waConsultationUrl;
+  const secondaryLabel = hero?.secondary_button_label || "Konsultasi WhatsApp";
 
   return (
     <section
@@ -108,15 +117,15 @@ export function AboutUsSection({ content, className = "" }: AboutUsSectionProps)
                 <ArrowRight className="h-4 w-4" />
               </Link>
 
-              {hero?.secondary_button_url && hero?.secondary_button_label && (
+              {secondaryUrl && (
                 <Link
-                  href={hero.secondary_button_url}
-                  target={hero.secondary_button_url.startsWith("http") ? "_blank" : undefined}
-                  rel={hero.secondary_button_url.startsWith("http") ? "noopener noreferrer" : undefined}
+                  href={secondaryUrl}
+                  target={secondaryUrl.startsWith("http") ? "_blank" : undefined}
+                  rel={secondaryUrl.startsWith("http") ? "noopener noreferrer" : undefined}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/90 dark:border-white/10 px-5 py-3 text-sm font-semibold shadow-xs transition-all hover:scale-[1.02]"
                 >
                   <MessagesSquare className="h-4 w-4 text-[#0A4EA3] dark:text-blue-400" />
-                  <span>{hero.secondary_button_label}</span>
+                  <span>{secondaryLabel}</span>
                 </Link>
               )}
             </div>

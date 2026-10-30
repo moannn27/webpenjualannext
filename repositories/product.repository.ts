@@ -5,16 +5,20 @@ import { rankRelatedProducts, type ProductCandidate } from '@/lib/product-recomm
 
 export function matchesProductSearch(
   product: {
+    id?: string | null
     name?: string | null
     sku?: string | null
     description?: string | null
     is_best_seller?: boolean | null
     is_new_arrival?: boolean | null
+    is_featured?: boolean | null
+    discount_price?: number | string | null
     brands?: { name?: string | null } | null
     categories?: { name?: string | null } | null
     product_specifications?: { key?: string; value?: string }[] | null
   },
-  query: string
+  query: string,
+  extraPromoIds?: string[]
 ): boolean {
   const normalize = (val: unknown) =>
     String(val ?? '')
@@ -31,9 +35,15 @@ export function matchesProductSearch(
     .join(' ')
   const newTag = product.is_new_arrival ? 'terbaru baru new arrival' : ''
   const bestTag = product.is_best_seller ? 'terlaris bestseller best seller terpopuler' : ''
+  const isPromo = Boolean(
+    product.is_featured ||
+    (product.discount_price != null && Number(product.discount_price) > 0) ||
+    (product.id && extraPromoIds && extraPromoIds.includes(String(product.id)))
+  )
+  const promoTag = isPromo ? 'promo diskon sale potongan pilihan penawaran khusus' : ''
 
   const searchable = normalize(
-    [product.name, product.sku, product.description, brandName, catName, specsText, newTag, bestTag].join(' ')
+    [product.name, product.sku, product.description, brandName, catName, specsText, newTag, bestTag, promoTag].join(' ')
   )
 
   return tokens.every((token) => searchable.includes(token))
@@ -78,6 +88,7 @@ export class ProductRepository extends BaseRepository {
     brandId?: string
     search?: string
     promoOnly?: boolean
+    promoProductIds?: string[]
     sort?: string
     filters?: CatalogFilterParams
   }) {
@@ -92,43 +103,48 @@ export class ProductRepository extends BaseRepository {
     const page = Math.max(1, Math.trunc(options.page))
     const filters = options.filters
 
-    // Attempt RPC if available
+    // Bypass RPC for promo-only or tag keyword search (promo/new/bestseller) so that is_featured products & badge tags are not lost
+    const isTagSearch = Boolean(term && /promo|diskon|sale|terbaru|baru|new|terlaris|bestseller/i.test(term))
+    const shouldBypassRpc = Boolean(options.promoOnly || isTagSearch)
+
     let rpcSuccess = false
     let rpcResult: { rows?: unknown[]; total?: number } | null = null
-    try {
-      const { data, error } = await supabase.rpc('search_catalog_products', {
-        p_page: page,
-        p_page_size: size,
-        p_category_id: options.categoryId ?? null,
-        p_brand_id: options.brandId ?? null,
-        p_search: term || null,
-        p_promo_only: Boolean(options.promoOnly),
-        p_sort: options.sort ?? 'newest',
-        p_price_min: filters?.priceMin ?? null,
-        p_price_max: filters?.priceMax ?? null,
-        p_processor: filters?.processor ?? null,
-        p_ram: filters?.ram ?? null,
-        p_storage: filters?.storage ?? null,
-        p_gpu: filters?.gpu ?? null,
-        p_display: filters?.display ?? null,
-        p_in_stock: filters?.inStock ?? null,
-      })
-      if (!error && data && typeof data === 'object') {
-        rpcResult = data as { rows?: unknown[]; total?: number }
-        if (!term || Number(rpcResult.total ?? 0) > 0) {
-          rpcSuccess = true
+    if (!shouldBypassRpc) {
+      try {
+        const { data, error } = await supabase.rpc('search_catalog_products', {
+          p_page: page,
+          p_page_size: size,
+          p_category_id: options.categoryId ?? null,
+          p_brand_id: options.brandId ?? null,
+          p_search: term || null,
+          p_promo_only: Boolean(options.promoOnly),
+          p_sort: options.sort ?? 'newest',
+          p_price_min: filters?.priceMin ?? null,
+          p_price_max: filters?.priceMax ?? null,
+          p_processor: filters?.processor ?? null,
+          p_ram: filters?.ram ?? null,
+          p_storage: filters?.storage ?? null,
+          p_gpu: filters?.gpu ?? null,
+          p_display: filters?.display ?? null,
+          p_in_stock: filters?.inStock ?? null,
+        })
+        if (!error && data && typeof data === 'object') {
+          rpcResult = data as { rows?: unknown[]; total?: number }
+          if (!term || Number(rpcResult.total ?? 0) > 0) {
+            rpcSuccess = true
+          }
         }
+      } catch {
+        rpcSuccess = false
       }
-    } catch {
-      rpcSuccess = false
-    }
 
-    if (rpcSuccess && rpcResult) {
-      return {
-        rows: rpcResult.rows ?? [],
-        total: Number(rpcResult.total ?? 0),
-        page,
-        pageSize: size,
+      if (rpcSuccess && rpcResult) {
+        return {
+          rows: rpcResult.rows ?? [],
+          total: Number(rpcResult.total ?? 0),
+          page,
+          pageSize: size,
+        }
       }
     }
 
@@ -140,7 +156,13 @@ export class ProductRepository extends BaseRepository {
 
     if (options.categoryId) query = query.eq('category_id', options.categoryId)
     if (options.brandId) query = query.eq('brand_id', options.brandId)
-    if (options.promoOnly) query = query.not('discount_price', 'is', null)
+    if (options.promoOnly) {
+      if (options.promoProductIds && options.promoProductIds.length > 0) {
+        query = query.or(`discount_price.not.is.null,is_featured.eq.true,id.in.(${options.promoProductIds.join(',')})`)
+      } else {
+        query = query.or('discount_price.not.is.null,is_featured.eq.true')
+      }
+    }
     if (filters?.inStock === true) query = query.gt('stock', 0)
     if (filters?.inStock === false) query = query.lte('stock', 0)
 
@@ -156,6 +178,9 @@ export class ProductRepository extends BaseRepository {
       discount_price?: number | string | null
       stock?: number | null
       created_at?: string | null
+      is_featured?: boolean | null
+      is_best_seller?: boolean | null
+      is_new_arrival?: boolean | null
       brands?: { name?: string | null } | null
       categories?: { name?: string | null } | null
       product_specifications?: { key: string; value: string }[] | null
@@ -163,9 +188,18 @@ export class ProductRepository extends BaseRepository {
 
     let rows: FallbackProductRow[] = (rawRows ?? []) as FallbackProductRow[]
 
-    // 1. Text Search matching across name, sku, description, brand, category, specs
+    if (options.promoOnly) {
+      const promoIdSet = new Set(options.promoProductIds ?? [])
+      rows = rows.filter((p) => Boolean(
+        p.is_featured ||
+        (p.discount_price != null && Number(p.discount_price) > 0) ||
+        (p.id && promoIdSet.has(String(p.id)))
+      ))
+    }
+
+    // 1. Text Search matching across name, sku, description, brand, category, specs, badges
     if (term) {
-      rows = rows.filter((product) => matchesProductSearch(product, term))
+      rows = rows.filter((product) => matchesProductSearch(product, term, options.promoProductIds))
     }
 
     // 2. Price filter (payable price: discount_price ?? price)
@@ -277,7 +311,13 @@ export class ProductRepository extends BaseRepository {
 
   async findPromos(limit = 8) {
     const supabase = await this.getClient()
-    const { data, error } = await supabase.from('products').select('*, product_images(*), categories(*), brands(*)').eq('status', 'published').not('discount_price', 'is', null).order('created_at', { ascending: false }).limit(limit)
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, product_images(*), categories(*), brands(*)')
+      .eq('status', 'published')
+      .or('discount_price.not.is.null,is_featured.eq.true')
+      .order('created_at', { ascending: false })
+      .limit(limit)
     if (error) throw error
     return data ?? []
   }

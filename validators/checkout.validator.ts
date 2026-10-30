@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { PAYMENT_METHOD, SHIPPING_METHOD_CODES } from '@/types/checkout'
+import { PAYMENT_METHODS, SHIPPING_METHOD_CODES } from '@/types/checkout'
 
 export const checkoutSchema = z.object({
   recipientName: z.string().trim().min(2).max(150),
@@ -9,7 +9,7 @@ export const checkoutSchema = z.object({
   province: z.string().trim().max(100),
   postalCode: z.string().trim().max(20),
   shippingMethod: z.enum(SHIPPING_METHOD_CODES),
-  paymentMethod: z.literal(PAYMENT_METHOD),
+  paymentMethod: z.enum(PAYMENT_METHODS),
 }).superRefine((data, context) => {
   if (data.shippingMethod === "pickup") return
   const fields = [

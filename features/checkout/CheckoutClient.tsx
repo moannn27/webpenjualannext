@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { Fragment, useState, useEffect, useRef, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -26,6 +28,9 @@ import {
   Truck,
   X,
   Zap,
+  Building2,
+  QrCode,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +42,7 @@ import { emitCartUpdated } from "@/lib/cart-events";
 import { type CartData } from "@/types/cart";
 import {
   PAYMENT_METHOD,
+  type PaymentMethodCode,
   type CheckoutAddress,
   type ShippingMethod,
   type ShippingMethodCode,
@@ -152,6 +158,29 @@ export function CheckoutClient({
   );
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [fulfillmentMode, setFulfillmentMode] = useState<"delivery" | "pickup">(initialFulfillment);
+  const isBankTransferAvailable = features?.bank_transfer_enabled !== false;
+  const isQrisFeatureEnabled = features?.qris_enabled !== false;
+  const hasQrisImage = Boolean(features?.qris_image_url && features.qris_image_url.trim());
+  const isQrisAvailable = isQrisFeatureEnabled;
+  const canSelectQris = isQrisFeatureEnabled && hasQrisImage;
+  const isCashAvailable = features?.cash_payment_enabled !== false && fulfillmentMode === "pickup";
+  const defaultPaymentMethod: PaymentMethodCode = isBankTransferAvailable
+    ? "manual_transfer"
+    : canSelectQris
+    ? "qris"
+    : isCashAvailable
+    ? "cash_on_pickup"
+    : "manual_transfer";
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodCode>(defaultPaymentMethod);
+
+  // Auto-switch away from cash if user switches fulfillmentMode to delivery, or away from QRIS if QR is unconfigured
+  useEffect(() => {
+    if (fulfillmentMode === "delivery" && paymentMethod === "cash_on_pickup") {
+      setPaymentMethod(isBankTransferAvailable ? "manual_transfer" : canSelectQris ? "qris" : "manual_transfer");
+    } else if (paymentMethod === "qris" && !hasQrisImage) {
+      setPaymentMethod(isBankTransferAvailable ? "manual_transfer" : isCashAvailable ? "cash_on_pickup" : "manual_transfer");
+    }
+  }, [fulfillmentMode, paymentMethod, isBankTransferAvailable, canSelectQris, hasQrisImage, isCashAvailable]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [placedOrder, setPlacedOrder] = useState<{
@@ -160,11 +189,14 @@ export function CheckoutClient({
     grandTotal: number;
     courier: string;
     recipientName: string;
+    paymentMethod?: PaymentMethodCode;
     customerPhone?: string;
     customerAddress?: string;
     customerNotes?: string;
     items?: { name: string; quantity: number; subtotal: number }[];
   } | null>(null);
+
+  const step3EnteredAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (initialCart?.cart_items?.length) {
@@ -179,19 +211,11 @@ export function CheckoutClient({
     }
   }, [initialCart]);
 
+  // Clear stale placed order from sessionStorage on mount so users never get hijacked into old order screens
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = sessionStorage.getItem("checkout_placed_order");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed?.orderId && parsed?.orderNumber) {
-            const timer = setTimeout(() => {
-              setPlacedOrder(parsed);
-            }, 0);
-            return () => clearTimeout(timer);
-          }
-        }
+        sessionStorage.removeItem("checkout_placed_order");
       } catch {}
     }
   }, []);
@@ -427,17 +451,46 @@ export function CheckoutClient({
       }
     }
 
+    if (currentStep === 2) {
+      step3EnteredAtRef.current = Date.now();
+    }
+
     setCurrentStep((currentStep + 1) as 2 | 3);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleFinalSubmit = async (event?: FormEvent<HTMLFormElement> | React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+      if ("stopPropagation" in event) {
+        event.stopPropagation();
+      }
+    }
+    if (loading) return;
+    if (currentStep !== 3) {
+      return;
+    }
+    // Prevent any ghost click from step 2 from immediately triggering checkout
+    if (Date.now() - step3EnteredAtRef.current < 500) {
+      return;
+    }
+
+    if (paymentMethod === "qris" && !hasQrisImage) {
+      setLoading(false);
+      const errMsg = "Kode QR resmi toko belum dimasukkan oleh admin di panel pengaturan. Silakan pilih metode pembayaran lain.";
+      setErrorMessage(errMsg);
+      toast.warning("QRIS Belum Dikonfigurasi", errMsg);
+      return;
+    }
+
+    const form = document.getElementById("checkout-form") as HTMLFormElement | null;
+    if (!form) return;
+
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const rawFormData = new FormData(event.currentTarget);
+      const rawFormData = new FormData(form);
 
       // 1. Strict sanitization on customer inputs (strip < and >, trim whitespace)
       const recipientName = sanitizeInput(rawFormData.get("recipientName"));
@@ -490,6 +543,14 @@ export function CheckoutClient({
         return;
       }
 
+      if (paymentMethod === "qris" && !hasQrisImage) {
+        const errMsg = "Metode QRIS belum dapat digunakan karena kode QR toko belum dimasukkan oleh admin di pengaturan.";
+        setErrorMessage(errMsg);
+        toast.error("QR Belum Tersedia", "Kode QR toko belum dimasukkan. Silakan pilih Transfer Bank atau Bayar Tunai di Kasir.");
+        setLoading(false);
+        return;
+      }
+
       // Build sanitized form data
       const sanitizedFormData = new FormData();
       for (const [key, val] of rawFormData.entries()) {
@@ -529,11 +590,13 @@ export function CheckoutClient({
 
         const uniqueOrderId = result.orderNumber || `ORD-${Date.now()}`;
 
+        const chosenPaymentMethod = (sanitizedFormData.get("paymentMethod") as PaymentMethodCode) || paymentMethod;
         const orderData = {
           orderId: result.orderId,
           orderNumber: uniqueOrderId,
           grandTotal: result.grandTotal,
           courier: result.courier,
+          paymentMethod: chosenPaymentMethod,
           recipientName,
           customerPhone: phone,
           customerAddress: addressText,
@@ -589,6 +652,18 @@ export function CheckoutClient({
     const orderId = placedOrder.orderNumber || "ORD-PENDING";
     const addressInfo = placedOrder.customerAddress || (placedOrder.courier === "pickup" ? "Ambil Sendiri di Toko" : "-");
 
+    const paymentLabel = placedOrder.paymentMethod === "qris"
+      ? "QRIS (Scan QR Digital)"
+      : placedOrder.paymentMethod === "cash_on_pickup"
+      ? "Bayar Tunai di Kasir (Cash on Pickup)"
+      : "Transfer Bank Manual";
+
+    const waClosingText = placedOrder.paymentMethod === "cash_on_pickup"
+      ? `Halo Admin ${sName}, saya telah membuat pesanan di atas dengan metode Bayar Tunai di Kasir (Cash on Pickup) dan akan mengambil unit langsung di cabang toko. Mohon pesanan segera disiapkan. Terima kasih!`
+      : placedOrder.paymentMethod === "qris"
+      ? `Halo Admin ${sName}, saya telah membuat pesanan di atas dan melampirkan bukti transaksi scan QRIS. Mohon diverifikasi agar pesanan segera disiapkan. Terima kasih!`
+      : `Halo Admin ${sName}, saya telah membuat pesanan di atas dan mengonfirmasi bukti transfer pembayaran ke rekening toko. Mohon pesanan segera diproses. Terima kasih!`;
+
     const waInvoiceText =
       `*INVOICE PESANAN - ${sName.toUpperCase()}*\n` +
       `=========================================\n` +
@@ -596,6 +671,7 @@ export function CheckoutClient({
       `*Nama Pelanggan:* ${placedOrder.recipientName}\n` +
       `*No. Telepon:* ${placedOrder.customerPhone || "-"}\n` +
       `*Alamat:* ${addressInfo}\n` +
+      `*Metode Pembayaran:* ${paymentLabel}\n` +
       `*Catatan:* ${placedOrder.customerNotes || "-"}\n` +
       `=========================================\n` +
       `*DAFTAR PRODUK:*\n` +
@@ -603,7 +679,7 @@ export function CheckoutClient({
       `=========================================\n` +
       `*GRAND TOTAL:* *${formatCurrency(placedOrder.grandTotal)}*\n` +
       `*Metode Pengiriman:* ${placedOrder.courier === "pickup" ? "Ambil di Toko" : `Kurir (${placedOrder.courier})`}\n\n` +
-      `Halo Admin ${sName}, saya telah membuat pesanan di atas dan mengonfirmasi bukti transfer pembayaran. Mohon pesanan segera diproses. Terima kasih!`;
+      waClosingText;
 
     const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waInvoiceText)}`;
 
@@ -624,10 +700,18 @@ export function CheckoutClient({
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                Pesanan Berhasil Dicatat — Silakan Transfer &amp; Konfirmasi
+                {placedOrder.paymentMethod === "qris"
+                  ? "Pesanan Berhasil Dicatat — Silakan Scan QRIS & Konfirmasi"
+                  : placedOrder.paymentMethod === "cash_on_pickup"
+                  ? "Pesanan Berhasil Dicatat — Bayar Tunai di Kasir saat Ambil Barang"
+                  : "Pesanan Berhasil Dicatat — Silakan Transfer & Konfirmasi"}
               </h1>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                Pesanan Anda telah tersimpan dengan status <strong>Pending</strong>. Silakan transfer tepat sesuai total tagihan ke rekening toko di bawah ini, lalu kirim bukti transfer ke WhatsApp Admin. Faktur pesanan akan diperbarui menjadi <strong>Lunas / Berhasil</strong> setelah admin mengonfirmasi pembayaran Anda.
+                {placedOrder.paymentMethod === "qris"
+                  ? "Pesanan Anda telah tersimpan dengan status Pending. Silakan scan kode QRIS resmi toko di bawah ini menggunakan aplikasi m-Banking atau e-Wallet favorit Anda, lalu kirimkan bukti transaksi ke WhatsApp Admin agar pesanan langsung disiapkan."
+                  : placedOrder.paymentMethod === "cash_on_pickup"
+                  ? "Pesanan Anda telah tersimpan dengan metode Bayar Tunai di Kasir. Silakan kunjungi cabang toko Next Solution untuk mengambil unit dan melakukan pembayaran langsung di kasir toko saat barang diterima."
+                  : "Pesanan Anda telah tersimpan dengan status Pending. Silakan transfer tepat sesuai total tagihan ke rekening toko di bawah ini, lalu kirim bukti transfer ke WhatsApp Admin. Faktur pesanan akan diperbarui menjadi Lunas / Berhasil setelah admin mengonfirmasi pembayaran Anda."}
               </p>
             </div>
           </div>
@@ -636,88 +720,188 @@ export function CheckoutClient({
         <div className="grid gap-6 md:grid-cols-12">
           {/* Left Column: Bank Details & Instructions */}
           <div className="space-y-6 md:col-span-7">
-            {/* Rekening Tujuan Transfer */}
-            <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-border pb-3">
-                <div className="flex items-center gap-2 font-semibold text-base">
-                  <Banknote className="size-5 text-primary" />
-                  <span>Rekening Bank Resmi Toko</span>
+            {/* Detail Pembayaran Sesuai Metode */}
+            {placedOrder.paymentMethod === "qris" ? (
+              <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2 font-semibold text-base">
+                    <QrCode className="size-5 text-violet-600" />
+                    <span>Scan QRIS Resmi Toko</span>
+                  </div>
+                  <span className="text-xs font-semibold text-violet-600 bg-violet-500/10 px-2.5 py-0.5 rounded-full">
+                    QRIS Digital
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground">Transfer Manual</span>
-              </div>
 
-              {bankTransfer.length > 0 ? (
-                <div className="space-y-3">
-                  {bankTransfer.map((bank, idx) => (
-                    <div
-                      key={idx}
-                      className="rounded-xl border border-border bg-muted/20 p-4 transition-all hover:border-primary/40 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-0.5 rounded">
-                          {bank.bank_name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => copyToClipboard(bank.account_number, `bank-${idx}`)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-background border px-2.5 py-1 rounded-md"
-                        >
-                          {copiedKey === `bank-${idx}` ? (
-                            <>
-                              <CheckCheck className="size-3.5 text-emerald-600" />
-                              <span className="text-emerald-600 font-semibold">Tersalin!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="size-3.5" />
-                              <span>Salin Rekening</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      <div>
-                        <p className="font-mono text-xl sm:text-2xl font-bold tracking-widest text-foreground">
-                          {bank.account_number}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Atas Nama: <strong className="text-foreground">{bank.account_holder}</strong>
-                        </p>
-                      </div>
+                <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-border bg-muted/10 space-y-3">
+                  {features?.qris_image_url ? (
+                    <div className="relative size-60 sm:size-64 rounded-xl border-2 border-slate-200 dark:border-white/10 bg-white p-3 shadow-md">
+                      <Image
+                        src={features.qris_image_url}
+                        alt="QRIS Next Solution Store"
+                        fill
+                        className="object-contain p-2"
+                        unoptimized
+                      />
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Informasi nomor rekening dapat diminta langsung ke WhatsApp admin.
-                </p>
-              )}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center size-52 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 text-center">
+                      <QrCode className="size-16 text-muted-foreground mb-2" />
+                      <span className="text-xs font-semibold text-foreground">
+                        {features?.qris_merchant_name || sName}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground mt-1">
+                        Scan QRIS saat pembayaran di toko / via konfirmasi WA
+                      </span>
+                    </div>
+                  )}
 
-              <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground space-y-1">
-                <p className="font-semibold text-foreground">Petunjuk Pembayaran:</p>
-                <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                  <li>Transfer tepat hingga nominal rupiah terakhir.</li>
-                  <li>Simpan foto / screenshot bukti transfer.</li>
-                  <li>Kirim bukti tersebut ke WhatsApp admin agar pembayaran segera disetujui.</li>
-                </ul>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-foreground">
+                      {features?.qris_merchant_name || sName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      NMID / Standard QRIS Nasional (BCA, GoPay, OVO, Dana, ShopeePay, Mandiri, dll)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-foreground">Petunjuk Pembayaran QRIS:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    <li>Buka aplikasi m-Banking atau e-Wallet favorit Anda.</li>
+                    <li>Scan kode QRIS di atas dan periksa nominal tagihan sesuai total pesanan.</li>
+                    <li>Simpan foto / screenshot bukti berhasil transfer, lalu kirimkan ke WhatsApp admin.</li>
+                  </ul>
+                </div>
               </div>
-            </div>
+            ) : placedOrder.paymentMethod === "cash_on_pickup" ? (
+              <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2 font-semibold text-base">
+                    <Banknote className="size-5 text-emerald-600" />
+                    <span>Pembayaran Tunai di Kasir</span>
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
+                    Cash on Pickup
+                  </span>
+                </div>
+
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
+                  <p className="text-sm font-bold text-foreground">
+                    Pesanan Siap Disiapkan untuk Anda!
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Silakan datang langsung ke cabang toko kami. Tunjukkan nomor pesanan <strong>{placedOrder.orderNumber}</strong> ke staf kasir kami saat pengambilan unit.
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-foreground">Petunjuk Pengambilan & Pembayaran:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    <li>Lakukan pembayaran tunai atau debit langsung di kasir toko.</li>
+                    <li>Anda dapat memeriksa segel, kelengkapan unit, dan garansi resmi bersama staf toko.</li>
+                    <li>Hubungi admin melalui WhatsApp di bawah jika ingin mengabarkan estimasi jam kedatangan Anda.</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2 font-semibold text-base">
+                    <Banknote className="size-5 text-primary" />
+                    <span>Rekening Bank Resmi Toko</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Transfer Manual</span>
+                </div>
+
+                {bankTransfer.length > 0 ? (
+                  <div className="space-y-3">
+                    {bankTransfer.map((bank, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-border bg-muted/20 p-4 transition-all hover:border-primary/40 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-0.5 rounded">
+                            {bank.bank_name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(bank.account_number, `bank-${idx}`)}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors bg-background border px-2.5 py-1 rounded-md"
+                          >
+                            {copiedKey === `bank-${idx}` ? (
+                              <>
+                                <CheckCheck className="size-3.5 text-emerald-600" />
+                                <span className="text-emerald-600 font-semibold">Tersalin!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="size-3.5" />
+                                <span>Salin Rekening</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        <div>
+                          <p className="font-mono text-xl sm:text-2xl font-bold tracking-widest text-foreground">
+                            {bank.account_number}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Atas Nama: <strong className="text-foreground">{bank.account_holder}</strong>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Informasi nomor rekening dapat diminta langsung ke WhatsApp admin.
+                  </p>
+                )}
+
+                <div className="rounded-xl bg-muted/40 p-3.5 text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-foreground">Petunjuk Pembayaran:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                    <li>Transfer tepat hingga nominal rupiah terakhir.</li>
+                    <li>Simpan foto / screenshot bukti transfer.</li>
+                    <li>Kirim bukti tersebut ke WhatsApp admin agar pembayaran segera disetujui.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
 
             {/* WA Button Section */}
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 sm:p-6 shadow-xs space-y-3">
               <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold">
                 <MessageCircle className="size-5 shrink-0" />
-                <span>Kirim Bukti Pembayaran ke WhatsApp Admin</span>
+                <span>
+                  {placedOrder.paymentMethod === "cash_on_pickup"
+                    ? "Konfirmasi Pengambilan & Pembayaran Kasir via WhatsApp"
+                    : placedOrder.paymentMethod === "qris"
+                    ? "Kirim Bukti Scan QRIS ke WhatsApp Admin"
+                    : "Kirim Bukti Pembayaran ke WhatsApp Admin"}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Setelah selesai melakukan transfer, klik tombol hijau di bawah untuk terhubung langsung ke WhatsApp Admin dengan nomor pesanan otomatis:
+                {placedOrder.paymentMethod === "cash_on_pickup"
+                  ? "Klik tombol hijau di bawah untuk terhubung langsung ke WhatsApp Admin toko dan mengabarkan pesanan serta estimasi waktu kedatangan Anda ke cabang toko:"
+                  : placedOrder.paymentMethod === "qris"
+                  ? "Setelah menyelesaikan pembayaran scan QRIS, klik tombol di bawah untuk mengirimkan bukti transfer sukses ke WhatsApp Admin:"
+                  : "Setelah selesai melakukan transfer, klik tombol hijau di bawah untuk terhubung langsung ke WhatsApp Admin dengan nomor pesanan otomatis:"}
               </p>
               <Button
                 render={<a href={waUrl} target="_blank" rel="noreferrer" />}
                 className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm sm:text-base gap-2 shadow-sm"
               >
                 <MessageCircle className="size-5 shrink-0" />
-                Kirim Bukti Transfer ke WhatsApp Admin
+                {placedOrder.paymentMethod === "cash_on_pickup"
+                  ? "Konfirmasi Pesanan ke WhatsApp Admin"
+                  : placedOrder.paymentMethod === "qris"
+                  ? "Kirim Bukti Scan QRIS ke WhatsApp Admin"
+                  : "Kirim Bukti Transfer ke WhatsApp Admin"}
               </Button>
             </div>
           </div>
@@ -759,7 +943,13 @@ export function CheckoutClient({
               {/* Total Tagihan */}
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-1">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Total yang Harus Ditransfer</span>
+                  <span>
+                    {placedOrder.paymentMethod === "cash_on_pickup"
+                      ? "Total Pembayaran di Kasir"
+                      : placedOrder.paymentMethod === "qris"
+                      ? "Total Tagihan QRIS"
+                      : "Total yang Harus Ditransfer"}
+                  </span>
                   <button
                     type="button"
                     onClick={() => copyToClipboard(String(placedOrder.grandTotal), "total-amount")}
@@ -805,7 +995,7 @@ export function CheckoutClient({
               {/* Navigation Actions: "kalo mau lanjut baru lanjut" */}
               <div className="pt-3 border-t border-border space-y-2.5">
                 <Button
-                  render={<Link href={`/checkout/success?order_id=${placedOrder.orderId}`} onClick={clearPlacedOrderStorage} />}
+                  render={<Link href={`/orders/${placedOrder.orderId}/invoice`} onClick={clearPlacedOrderStorage} />}
                   className="w-full h-11 rounded-xl font-semibold gap-2 shadow-xs"
                 >
                   <FileText className="size-4" />
@@ -961,7 +1151,17 @@ export function CheckoutClient({
       )}
 
       <div className="grid min-w-0 gap-8 lg:grid-cols-12 lg:items-start">
-        <form onSubmit={handleSubmit} id="checkout-form" className="min-w-0 space-y-8 lg:col-span-7">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentStep === 3) {
+              void handleFinalSubmit(e);
+            }
+          }}
+          id="checkout-form"
+          className="min-w-0 space-y-8 lg:col-span-7"
+        >
           {appliedVoucher && (
             <input type="hidden" name="voucherCode" value={appliedVoucher.code} />
           )}
@@ -1197,34 +1397,193 @@ export function CheckoutClient({
             <div className="flex items-center gap-3">
               <Banknote className="size-5 text-primary" />
               <div>
-                <h2 id="payment-heading" className="text-lg font-semibold">Pembayaran</h2>
-                <p className="text-sm text-muted-foreground">Pembayaran dicatat dengan status menunggu konfirmasi transfer.</p>
+                <h2 id="payment-heading" className="text-lg font-semibold">Metode Pembayaran</h2>
+                <p className="text-sm text-muted-foreground">Pilih metode pembayaran yang paling nyaman untuk Anda.</p>
               </div>
             </div>
-            <input type="hidden" name="paymentMethod" value={PAYMENT_METHOD} />
+            <input type="hidden" name="paymentMethod" value={paymentMethod} />
             {fulfillmentMode === "pickup" && <input type="hidden" name="shippingMethod" value="pickup" />}
-            <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5">
-              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">Transfer manual</p>
-                {bankTransfer.length > 0 ? (
-                  <ul className="mt-3 space-y-2.5">
-                    {bankTransfer.map((b, i) => (
-                      <li key={i} className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card px-4 py-3 text-sm shadow-2xs">
-                        <p className="font-semibold">{b.bank_name}</p>
-                        <p className="mt-0.5 font-mono text-base tracking-widest text-primary">{b.account_number}</p>
-                        <p className="text-xs text-muted-foreground">a.n. {b.account_holder}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">Rekening bank belum diatur. Hubungi admin untuk info transfer.</p>
-                )}
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  Setelah transfer, tekan tombol konfirmasi WhatsApp di halaman berikutnya dan kirim bukti pembayaran agar admin memproses pesananmu.
-                </p>
-              </div>
+
+            {/* Pilihan Kartu Metode Pembayaran */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Transfer Bank */}
+              {isBankTransferAvailable && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setPaymentMethod("manual_transfer");
+                  }}
+                  className={cn(
+                    "flex flex-col items-start p-4 rounded-xl border text-left transition-all cursor-pointer",
+                    paymentMethod === "manual_transfer"
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs"
+                      : "border-border bg-card hover:bg-muted/30"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600">
+                      <Building2 className="size-4" />
+                    </div>
+                    {paymentMethod === "manual_transfer" && (
+                      <CheckCircle2 className="size-4 text-primary" />
+                    )}
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Transfer Bank</span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">BCA, Mandiri, BRI, dsb.</span>
+                </button>
+              )}
+
+              {/* QRIS */}
+              {isQrisAvailable && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!hasQrisImage) {
+                      toast.warning(
+                        "QRIS Belum Dikonfigurasi",
+                        "Kode QR resmi toko belum dimasukkan oleh admin di panel pengaturan. Silakan gunakan Transfer Bank atau Bayar Tunai di Kasir."
+                      );
+                      return;
+                    }
+                    setPaymentMethod("qris");
+                  }}
+                  className={cn(
+                    "flex flex-col items-start p-4 rounded-xl border text-left transition-all",
+                    !hasQrisImage
+                      ? "border-amber-300/80 bg-amber-50/40 dark:bg-amber-950/20 cursor-not-allowed opacity-85"
+                      : paymentMethod === "qris"
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs cursor-pointer"
+                      : "border-border bg-card hover:bg-muted/30 cursor-pointer"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <div className="p-2 rounded-lg bg-violet-500/10 text-violet-600">
+                      <QrCode className="size-4" />
+                    </div>
+                    {!hasQrisImage ? (
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        QR Belum Dimasukkan
+                      </span>
+                    ) : paymentMethod === "qris" ? (
+                      <CheckCircle2 className="size-4 text-primary" />
+                    ) : null}
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Pembayaran QRIS</span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    {!hasQrisImage ? "Belum diisi admin toko" : "Scan BCA, GoPay, OVO, dll."}
+                  </span>
+                </button>
+              )}
+
+              {/* Bayar Tunai di Kasir */}
+              {isCashAvailable && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setPaymentMethod("cash_on_pickup");
+                  }}
+                  className={cn(
+                    "flex flex-col items-start p-4 rounded-xl border text-left transition-all cursor-pointer",
+                    paymentMethod === "cash_on_pickup"
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs"
+                      : "border-border bg-card hover:bg-muted/30"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-2">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <Banknote className="size-4" />
+                    </div>
+                    {paymentMethod === "cash_on_pickup" && (
+                      <CheckCircle2 className="size-4 text-primary" />
+                    )}
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Bayar Tunai di Kasir</span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">Cash saat ambil di toko</span>
+                </button>
+              )}
             </div>
+
+            {/* Konten Detail Metode Pembayaran yang Dipilih */}
+            {paymentMethod === "manual_transfer" ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5">
+                <ShieldCheck className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground">Rekening Transfer Bank Manual</p>
+                  {bankTransfer.length > 0 ? (
+                    <ul className="mt-3 space-y-2.5">
+                      {bankTransfer.map((b, i) => (
+                        <li key={i} className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card px-4 py-3 text-sm shadow-2xs">
+                          <p className="font-semibold">{b.bank_name}</p>
+                          <p className="mt-0.5 font-mono text-base tracking-widest text-primary">{b.account_number}</p>
+                          <p className="text-xs text-muted-foreground">a.n. {b.account_holder}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">Rekening bank belum diatur. Hubungi admin untuk info transfer.</p>
+                  )}
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    Setelah transfer, Anda dapat mengonfirmasi pesanan ke WhatsApp admin dan mengirim bukti pembayaran.
+                  </p>
+                </div>
+              </div>
+            ) : paymentMethod === "qris" ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5">
+                <QrCode className="mt-0.5 size-5 shrink-0 text-violet-600" />
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div>
+                    <p className="font-medium text-foreground">Pembayaran QRIS Digital</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Dapat di-scan menggunakan seluruh aplikasi mobile banking (BCA, Mandiri, BRI, BNI) dan e-wallet (GoPay, OVO, Dana, ShopeePay, LinkAja).
+                    </p>
+                  </div>
+
+                  {features?.qris_image_url ? (
+                    <div className="inline-flex flex-col items-center p-3 rounded-xl border border-border bg-white shadow-xs">
+                      <div className="relative size-44 rounded-lg overflow-hidden">
+                        <Image
+                          src={features.qris_image_url}
+                          alt="QRIS Store Preview"
+                          fill
+                          className="object-contain"
+                          unoptimized
+                        />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 mt-2">
+                        {features?.qris_merchant_name || storeName || "Next Solution Store"}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border bg-card p-4 text-xs text-muted-foreground">
+                      Kode QRIS resmi toko akan ditampilkan lengkap pada ringkasan pesanan setelah pesanan dibuat.
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Setelah melakukan scan dan membayar, Anda akan diarahkan ke faktur untuk mengirim bukti pembayaran ke WhatsApp admin.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5">
+                <Store className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="font-medium text-foreground">Bayar Tunai di Kasir (Cash on Pickup)</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Pesanan Anda akan disiapkan di cabang toko yang Anda pilih. Anda dapat membayar secara tunai atau debit langsung saat mengambil unit.
+                  </p>
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-900 dark:text-emerald-300">
+                    Lokasi Pengambilan: <strong>{activePickup?.name || "Toko"}</strong> ({activePickup?.address || "-"})
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         </form>
 
@@ -1409,26 +1768,58 @@ export function CheckoutClient({
             </span>
           </div>
 
-          <Button
-            type={currentStep === 3 ? "submit" : "button"}
-            form={currentStep === 3 ? "checkout-form" : undefined}
-            onClick={currentStep === 3 ? undefined : continueCheckout}
-            disabled={
-              loading ||
-              (currentStep === 2 && fulfillmentMode === "delivery" && !selectedShipping) ||
-              (currentStep === 2 && !shippingMethods.length && fulfillmentMode === "delivery")
-            }
-            className="mt-6 h-12 w-full active:scale-95 transition-transform"
-          >
-            {loading ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
-            {loading
-              ? "Menyimpan pesanan..."
-              : currentStep === 1
-              ? `Lanjut ke ${fulfillmentStepLabel.toLocaleLowerCase("id-ID")}`
-              : currentStep === 2
-              ? "Lanjut ke pembayaran"
-              : "Buat pesanan"}
-          </Button>
+          {currentStep === 1 ? (
+            <Button
+              key="btn-step-1"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                continueCheckout();
+              }}
+              disabled={loading}
+              className="mt-6 h-12 w-full active:scale-95 transition-transform"
+            >
+              Lanjut ke {fulfillmentStepLabel.toLocaleLowerCase("id-ID")}
+            </Button>
+          ) : currentStep === 2 ? (
+            <Button
+              key="btn-step-2"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                continueCheckout();
+              }}
+              disabled={
+                loading ||
+                (fulfillmentMode === "delivery" && !selectedShipping) ||
+                (!shippingMethods.length && fulfillmentMode === "delivery")
+              }
+              className="mt-6 h-12 w-full active:scale-95 transition-transform"
+            >
+              Lanjut ke pembayaran
+            </Button>
+          ) : (
+            <Button
+              key="btn-step-3"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                void handleFinalSubmit(e);
+              }}
+              disabled={
+                loading ||
+                (paymentMethod === "qris" && !hasQrisImage)
+              }
+              className="mt-6 h-12 w-full active:scale-95 transition-transform"
+            >
+              {loading ? <LoaderCircle className="mr-2 size-4 animate-spin" /> : null}
+              {loading
+                ? "Menyimpan pesanan..."
+                : paymentMethod === "qris" && !hasQrisImage
+                ? "Pilih Metode Lain (QR Belum Dimasukkan)"
+                : "Konfirmasi & Buat Pesanan"}
+            </Button>
+          )}
 
           {currentStep > 1 && (
             <Button

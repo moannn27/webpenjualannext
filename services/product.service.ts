@@ -8,7 +8,7 @@ export class ProductService {
     return await this.repo.findAll(options)
   }
 
-  async getProductsPage(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; sort?: string; filters?: CatalogFilterParams }) {
+  async getProductsPage(options: { page: number; pageSize: number; categoryId?: string; brandId?: string; search?: string; promoOnly?: boolean; promoProductIds?: string[]; sort?: string; filters?: CatalogFilterParams }) {
     return await this.repo.findPage(options)
   }
 

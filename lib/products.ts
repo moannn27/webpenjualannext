@@ -10,6 +10,7 @@ export type StoreProduct = {
   product_specifications?: { id?: string; key: string; value: string; display_order?: number }[];
   stock: number;
   status?: string;
+  is_featured?: boolean;
   is_best_seller?: boolean;
   is_new_arrival?: boolean;
   categories?: { name: string } | null;
@@ -17,10 +18,12 @@ export type StoreProduct = {
   product_images?: { url: string; is_primary: boolean }[];
 };
 
-export function toStorefrontProduct(row: StoreProduct): Product {
+export function toStorefrontProduct(row: StoreProduct, extraPromoIds?: string[]): Product {
   const discount = row.discount_price == null ? null : Number(row.discount_price);
+  const isPromo = Boolean(row.is_featured || (discount !== null && discount > 0) || (extraPromoIds && extraPromoIds.includes(row.id)));
   const badges: string[] = [];
   if (discount !== null) badges.push("Sale");
+  if (isPromo) badges.push("Promo");
   if (row.is_best_seller) badges.push("Best Seller");
   if (row.is_new_arrival) badges.push("Baru");
 
@@ -33,12 +36,14 @@ export function toStorefrontProduct(row: StoreProduct): Product {
     originalPrice: discount === null ? null : Number(row.price),
     stock: row.stock,
     status: row.status ?? "published",
+    isFeatured: Boolean(row.is_featured),
+    isPromo,
     isBestSeller: Boolean(row.is_best_seller),
     isNewArrival: Boolean(row.is_new_arrival),
     category: row.categories?.name ?? "",
     brand: row.brands?.name ?? "",
     image: getSafeProductImageUrl(row.product_images),
     specifications: row.product_specifications ?? [],
-    badges,
+    badges: Array.from(new Set(badges)),
   };
 }

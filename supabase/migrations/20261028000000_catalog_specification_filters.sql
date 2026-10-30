@@ -48,7 +48,7 @@ WITH matched AS (
     WHERE p.status = 'published'
       AND (p_category_id IS NULL OR p.category_id = p_category_id)
       AND (p_brand_id IS NULL OR p.brand_id = p_brand_id)
-      AND (NOT COALESCE(p_promo_only, FALSE) OR p.discount_price IS NOT NULL)
+      AND (NOT COALESCE(p_promo_only, FALSE) OR (p.discount_price IS NOT NULL OR p.is_featured = TRUE))
       AND (p_search IS NULL OR concat_ws(' ', p.name, p.sku, p.description, b.name, c.name) ILIKE '%' || p_search || '%')
       AND (p_price_min IS NULL OR COALESCE(p.discount_price, p.price) >= p_price_min)
       AND (p_price_max IS NULL OR COALESCE(p.discount_price, p.price) <= p_price_max)

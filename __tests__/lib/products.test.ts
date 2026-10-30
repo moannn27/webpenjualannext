@@ -74,4 +74,24 @@ describe('product search matching (matchesProductSearch)', () => {
     expect(matchesProductSearch(sampleProduct, 'asus')).toBe(false)
     expect(matchesProductSearch(sampleProduct, 'lenovo macbook')).toBe(false)
   })
+
+  it('matches promo products when searching for "promo" keyword or using is_featured', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    const promoProduct = { ...sampleProduct, is_featured: true }
+    expect(matchesProductSearch(promoProduct, 'promo')).toBe(true)
+    expect(matchesProductSearch(promoProduct, 'diskon')).toBe(true)
+    expect(matchesProductSearch(sampleProduct, 'promo')).toBe(false)
+    expect(matchesProductSearch({ ...sampleProduct, id: 'pinned-1' }, 'promo', ['pinned-1'])).toBe(true)
+  })
+
+  it('matches badge keywords like baru/new and bestseller/terlaris', async () => {
+    const { matchesProductSearch } = await import('@/repositories/product.repository')
+    const newProduct = { ...sampleProduct, is_new_arrival: true }
+    expect(matchesProductSearch(newProduct, 'baru')).toBe(true)
+    expect(matchesProductSearch(newProduct, 'new')).toBe(true)
+
+    const bestProduct = { ...sampleProduct, is_best_seller: true }
+    expect(matchesProductSearch(bestProduct, 'bestseller')).toBe(true)
+    expect(matchesProductSearch(bestProduct, 'terlaris')).toBe(true)
+  })
 })

@@ -22,7 +22,7 @@ export function ProductDiscovery({
 }: ProductDiscoveryProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
-  const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest" | "newest" | "bestseller">("default");
+  const [sortOption, setSortOption] = useState<"default" | "lowest" | "highest" | "newest" | "bestseller" | "promo">("default");
   const [showAll, setShowAll] = useState(false);
 
   // Derive categories dynamically from constants and products
@@ -34,7 +34,7 @@ export function ProductDiscovery({
         set.add(p.category.trim());
       }
     });
-    return ["Semua", "⚡ Terbaru", "🔥 Terlaris", ...Array.from(set)];
+    return ["Semua", "🏷️ Promo", "⚡ Terbaru", "🔥 Terlaris", ...Array.from(set)];
   }, [initialProducts]);
 
   // Filter and sort products live
@@ -43,25 +43,29 @@ export function ProductDiscovery({
       .filter((product) => {
         const isNew = Boolean(product.isNewArrival || product.badges?.includes("Baru") || product.badges?.includes("Terbaru"));
         const isBest = Boolean(product.isBestSeller || product.badges?.includes("Best Seller") || product.badges?.includes("Terlaris"));
+        const isPromo = Boolean(product.isPromo || product.isFeatured || product.discountPrice != null || product.badges?.includes("Promo") || product.badges?.includes("Sale"));
 
-        // 1. Live search match
+        // 1. Live search match across name, category, brand, sku, and label tags
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase().trim();
           const matchesName = product.name?.toLowerCase().includes(query);
           const matchesCategory = product.category?.toLowerCase().includes(query);
           const matchesBrand = product.brand?.toLowerCase().includes(query);
           const matchesSku = product.sku?.toLowerCase().includes(query);
-          const matchesNew = (query.includes("terbaru") || query.includes("baru")) && isNew;
+          const matchesNew = (query.includes("terbaru") || query.includes("baru") || query.includes("new")) && isNew;
           const matchesBest = (query.includes("terlaris") || query.includes("bestseller") || query.includes("best seller")) && isBest;
+          const matchesPromo = (query.includes("promo") || query.includes("diskon") || query.includes("sale") || query.includes("pilihan") || query.includes("potongan")) && isPromo;
 
-          if (!matchesName && !matchesCategory && !matchesBrand && !matchesSku && !matchesNew && !matchesBest) {
+          if (!matchesName && !matchesCategory && !matchesBrand && !matchesSku && !matchesNew && !matchesBest && !matchesPromo) {
             return false;
           }
         }
 
         // 2. Category / Filter pill match
         if (selectedCategory !== "Semua") {
-          if (selectedCategory === "⚡ Terbaru") {
+          if (selectedCategory === "🏷️ Promo") {
+            if (!isPromo) return false;
+          } else if (selectedCategory === "⚡ Terbaru") {
             if (!isNew) return false;
           } else if (selectedCategory === "🔥 Terlaris") {
             if (!isBest) return false;
@@ -73,6 +77,11 @@ export function ProductDiscovery({
         return true;
       })
       .sort((a, b) => {
+        if (sortOption === "promo") {
+          const isPromoA = a.isPromo || a.isFeatured || a.discountPrice != null ? 1 : 0;
+          const isPromoB = b.isPromo || b.isFeatured || b.discountPrice != null ? 1 : 0;
+          if (isPromoA !== isPromoB) return isPromoB - isPromoA;
+        }
         if (sortOption === "newest") {
           const isNewA = a.isNewArrival ? 1 : 0;
           const isNewB = b.isNewArrival ? 1 : 0;
@@ -143,7 +152,7 @@ export function ProductDiscovery({
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari produk langsung (contoh: Lenovo, IdeaPad, LOQ, Legion)..."
+                placeholder="Cari produk langsung (contoh: promo, baru, terlaris, Asus, Lenovo, LOQ)..."
                 aria-label="Pencarian langsung produk"
                 className="h-10 w-full rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#131418] pl-10 pr-9 text-xs sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400"
               />
@@ -160,15 +169,16 @@ export function ProductDiscovery({
             </div>
 
             {/* Price Sort Dropdown */}
-            <div className="relative w-full sm:w-52 shrink-0">
+            <div className="relative w-full sm:w-56 shrink-0">
               <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <select
                 value={sortOption}
-                onChange={(e) => setSortOption(e.target.value as "default" | "lowest" | "highest" | "newest" | "bestseller")}
+                onChange={(e) => setSortOption(e.target.value as "default" | "lowest" | "highest" | "newest" | "bestseller" | "promo")}
                 aria-label="Urutan harga produk"
                 className="h-10 w-full appearance-none rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#131418] pl-9 pr-8 text-xs sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
               >
                 <option value="default">Urutkan: Rekomendasi</option>
+                <option value="promo">🏷️ Produk Promo Pilihan</option>
                 <option value="newest">⚡ Produk Terbaru</option>
                 <option value="bestseller">🔥 Produk Terlaris</option>
                 <option value="lowest">Harga: Termurah</option>
@@ -246,7 +256,7 @@ export function ProductDiscovery({
             </h3>
             <p className="mt-1.5 max-w-sm text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               {searchQuery
-                ? `Tidak ditemukan produk untuk "${searchQuery}". Coba gunakan kata kunci lain atau pilih kategori berbeda.`
+                ? `Tidak ditemukan produk untuk "${searchQuery}". Coba gunakan kata kunci lain seperti "promo", "baru", atau pilih kategori berbeda.`
                 : "Tidak ada produk yang sesuai dengan kombinasi filter yang Anda pilih saat ini."}
             </p>
             <button

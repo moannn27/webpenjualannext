@@ -28,13 +28,35 @@ export async function proceedToCheckoutAction(formData: FormData) {
     throw new Error(validated.error.issues.map((issue) => issue.message).join(", "))
   }
 
+  // Validate against storefront business rules & security constraints
+  const { data: storefront, error } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
+  if (error) throw new Error('Informasi pengaturan toko belum bisa diperiksa. Silakan coba lagi.')
+  const sfSettings = normalizeStorefrontSettings(storefront?.settings ?? {})
+
   if (validated.data.shippingMethod === 'pickup') {
-    const { data: storefront, error } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
-    if (error) throw new Error('Informasi lokasi pickup belum bisa diperiksa. Coba lagi.')
-    const sfSettings = normalizeStorefrontSettings(storefront?.settings ?? {})
     const hasAddress = Boolean(sfSettings.pickup_info.store_address.trim() || sfSettings.store.address.trim())
     if (!hasAddress) {
       throw new Error('Lokasi pickup belum diatur oleh admin. Silakan pilih pengiriman atau hubungi admin.')
+    }
+  }
+
+  if (validated.data.paymentMethod === 'qris') {
+    if (sfSettings.features.qris_enabled === false) {
+      throw new Error('Metode pembayaran QRIS sedang dinonaktifkan oleh admin toko.')
+    }
+    if (!sfSettings.features.qris_image_url || !sfSettings.features.qris_image_url.trim()) {
+      throw new Error('Metode QRIS belum dapat digunakan karena kode QR toko belum dimasukkan oleh admin di pengaturan.')
+    }
+  } else if (validated.data.paymentMethod === 'cash_on_pickup') {
+    if (validated.data.shippingMethod !== 'pickup') {
+      throw new Error('Metode bayar tunai di kasir (Cash on Pickup) hanya dapat digunakan untuk opsi Ambil Sendiri di Toko.')
+    }
+    if (sfSettings.features.cash_payment_enabled === false) {
+      throw new Error('Metode bayar tunai di kasir sedang dinonaktifkan oleh admin toko.')
+    }
+  } else if (validated.data.paymentMethod === 'manual_transfer') {
+    if (sfSettings.features.bank_transfer_enabled === false) {
+      throw new Error('Metode transfer bank manual sedang dinonaktifkan oleh admin toko.')
     }
   }
 
@@ -57,5 +79,6 @@ export async function proceedToCheckoutAction(formData: FormData) {
     grandTotal: Number(createdOrder?.grand_total || 0),
     courier: createdOrder?.courier || validated.data.shippingMethod,
     recipientName: validated.data.recipientName,
+    paymentMethod: validated.data.paymentMethod,
   }
 }

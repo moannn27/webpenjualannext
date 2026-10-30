@@ -1188,7 +1188,7 @@ export function ManualInvoiceManager({
                   >
                     <div>Produk &amp; Spesifikasi</div>
                     <div className="text-right">Harga Satuan</div>
-                    <div className="text-center">Jml</div>
+                    <div className="text-center">QTY</div>
                     <div className="text-right">Total</div>
                   </div>
 

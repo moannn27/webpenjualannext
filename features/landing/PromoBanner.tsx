@@ -233,7 +233,7 @@ export function PromoBanner({
     <section ref={bannerRef} className="container mx-auto px-4 sm:px-6 lg:px-8">
       {/* High-Performance Lightweight Cyber Gradient Container */}
       <div 
-        className="relative overflow-hidden rounded-[28px] border border-blue-400/30 bg-[#071d49] text-primary-foreground shadow-[0_20px_50px_-15px_rgba(7,29,73,0.5)] sm:rounded-[34px]"
+        className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-blue-400/30 bg-[#071d49] text-primary-foreground shadow-[0_20px_50px_-15px_rgba(7,29,73,0.5)]"
         style={{
           backgroundImage: `
             radial-gradient(circle at 12% 18%, rgba(34, 211, 238, 0.16) 0%, transparent 45%),
@@ -258,7 +258,7 @@ export function PromoBanner({
           </div>
         )}
 
-        <div className="relative z-10 grid grid-cols-1 items-center gap-8 p-6 sm:p-10 lg:grid-cols-12 lg:gap-8 lg:p-10 xl:p-12">
+        <div className="relative z-10 grid grid-cols-1 items-center gap-8 px-6 py-8 sm:px-10 sm:py-10 lg:grid-cols-12 lg:gap-8 lg:px-10 lg:py-12 xl:px-12 xl:py-14">
           {/* Left Side: Headline & Promo Description */}
           <div className="flex flex-col items-start justify-center lg:col-span-4 xl:col-span-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-blue-100/90 sm:mb-4 sm:text-sm">
@@ -304,7 +304,7 @@ export function PromoBanner({
                 onTouchEnd={handleTouchEnd}
               >
                 {/* Continuous 3D Coverflow Carousel Stage */}
-                <div className="relative flex items-center justify-center w-full min-h-[460px] sm:min-h-[485px] lg:min-h-[495px]">
+                <div className="relative flex items-center justify-center w-full min-h-[480px] sm:min-h-[500px] lg:min-h-[515px]">
                   {products.map((product, idx) => {
                     const d = getDistance(idx, safeIndex, products.length);
 
@@ -379,27 +379,31 @@ export function PromoBanner({
                             ) : (
                               <>
                                 <div className="flex flex-wrap items-center gap-1">
-                                  {discountPct ? (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                      Sale {discountPct}%
-                                    </span>
-                                  ) : null}
-                                  {product.isBestSeller && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-950 shadow-xs">
-                                      Best Seller
-                                    </span>
-                                  )}
-                                  {product.isNewArrival && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                      Baru
-                                    </span>
-                                  )}
-                                  {!discountPct && !product.isBestSeller && !product.isNewArrival && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
-                                      Pilihan
-                                    </span>
-                                  )}
-                                </div>
+                                    {discountPct ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                        Sale {discountPct}%
+                                      </span>
+                                    ) : product.isPromo ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                        Promo
+                                      </span>
+                                    ) : null}
+                                    {product.isBestSeller && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-950 shadow-xs">
+                                        Best Seller
+                                      </span>
+                                    )}
+                                    {product.isNewArrival && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                        Baru
+                                      </span>
+                                    )}
+                                    {!discountPct && !product.isPromo && !product.isBestSeller && !product.isNewArrival && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-white shadow-xs">
+                                        Pilihan
+                                      </span>
+                                    )}
+                                  </div>
 
                                 {hasMultiple && (
                                   <span className="text-[11px] font-bold text-muted-foreground tabular-nums">
