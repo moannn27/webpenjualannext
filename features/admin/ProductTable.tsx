@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText, Loader2, AlertTriangle } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import { getVariantGallerySaveBlockReason } from "@/lib/admin-product-variants";
 import {
@@ -82,6 +82,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [exportScope, setExportScope] = useState<"all" | "filtered">("all");
   const [isExporting, setIsExporting] = useState(false);
 
+  // Delete confirm modal state
+  const [deleteConfirm, setDeleteConfirm] = useState<AdminProduct | null>(null);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [savingProduct, setSavingProduct] = useState(false);
+
   // Filters state
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -112,6 +117,17 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Scroll lock when any modal is open
+  useEffect(() => {
+    const isAnyModalOpen = editing !== false || bulkEditOpen || exportModalOpen || deleteConfirm !== null || bulkDeleteConfirm;
+    if (isAnyModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [editing, bulkEditOpen, exportModalOpen, deleteConfirm, bulkDeleteConfirm]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -210,23 +226,33 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       setError(gallerySaveBlockReason);
       return;
     }
-    startTransition(async () => {
-      try {
-        const label = String(formData.get("name") ?? "Produk");
-        const wasEditing = Boolean(formData.get("id"));
-        await saveAdminProductAction(formData);
-        await refresh();
-        setBulkSuccess(`${wasEditing ? "Perubahan produk" : "Produk baru"} "${label}" berhasil disimpan.`);
-        setEditing(false);
-      }
-      catch (cause) { setError(cause instanceof Error ? cause.message : "Produk gagal disimpan."); }
-    });
+    setSavingProduct(true);
+    try {
+      const label = String(formData.get("name") ?? "Produk");
+      const wasEditing = Boolean(formData.get("id"));
+      await saveAdminProductAction(formData);
+      await refresh();
+      setBulkSuccess(`${wasEditing ? "Perubahan produk" : "Produk baru"} "${label}" berhasil disimpan.`);
+      setEditing(false);
+    }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Produk gagal disimpan."); }
+    finally { setSavingProduct(false); }
   };
   const remove = (product: AdminProduct) => {
-    if (!window.confirm(`Hapus produk “${product.name}”?`)) return;
+    setDeleteConfirm(product);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirm) return;
+    const target = deleteConfirm;
+    setDeleteConfirm(null);
     setError("");
     startTransition(async () => {
-      try { await deleteAdminProductAction(product.id); await refresh(); }
+      try {
+        await deleteAdminProductAction(target.id);
+        await refresh();
+        setBulkSuccess(`Produk "${target.name}" berhasil dihapus.`);
+      }
       catch (cause) { setError(cause instanceof Error ? cause.message : "Produk gagal dihapus."); }
     });
   };
@@ -383,7 +409,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Hapus permanen ${selectedIds.size} produk terpilih? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = () => {
+    setBulkDeleteConfirm(false);
     setError("");
     setBulkSuccess("");
     startTransition(async () => {
@@ -1008,7 +1038,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card p-5 shadow-xl sm:p-6">
         <h3 id="product-dialog-title" className="mb-5 text-xl font-bold">{editing ? "Edit produk" : "Tambah produk"}</h3>
-        <form action={save} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={(e) => { e.preventDefault(); void save(new FormData(e.currentTarget)); }} className="grid gap-4 sm:grid-cols-2">
           {editing && <input type="hidden" name="id" value={editing.id} />}
           <input type="hidden" name="specifications" value={JSON.stringify(specifications)} />
           <input type="hidden" name="variants" value={JSON.stringify(variants)} />
@@ -1418,7 +1448,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           </section>
           <ProductImagePicker key={editing?.id ?? "new-product"} initialImages={editing?.product_images ?? []} />
           {error && <p role="alert" className="text-sm text-destructive sm:col-span-2">{error}</p>}
-          <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(false)}>Batal</Button><Button type="submit" disabled={busy}>{busy ? "Menyimpan..." : "Simpan"}</Button></div>
+          <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="outline" onClick={() => setEditing(false)}>Batal</Button><Button type="submit" disabled={savingProduct} className="min-w-[130px]">{savingProduct ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menyimpan...</> : "Simpan Produk"}</Button></div>
         </form>
       </section>
     </div>}
@@ -1779,5 +1809,86 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     >
       <ArrowUp className="size-5" />
     </button>
+
+    {/* Delete Single Product Confirm Modal */}
+    {deleteConfirm && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+        <div className="w-full max-w-sm rounded-2xl bg-card border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="flex items-center gap-3 p-5 border-b bg-destructive/5">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground text-base">Hapus Produk?</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Tindakan ini tidak dapat dibatalkan</p>
+            </div>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="text-sm text-foreground">Anda akan menghapus produk:</p>
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
+              <p className="font-semibold text-sm text-foreground line-clamp-2">{deleteConfirm.name}</p>
+              {deleteConfirm.sku && <p className="text-xs text-muted-foreground mt-0.5">SKU: {deleteConfirm.sku}</p>}
+            </div>
+            <p className="text-xs text-muted-foreground">Semua data produk termasuk gambar, varian, dan spesifikasi akan dihapus permanen.</p>
+          </div>
+          <div className="flex items-center justify-end gap-2 p-4 pt-0">
+            <Button type="button" variant="outline" onClick={() => setDeleteConfirm(null)} disabled={busy} className="rounded-xl">Batal</Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={busy} className="rounded-xl min-w-[100px]">
+              {busy ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus</>}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Bulk Delete Confirm Modal */}
+    {bulkDeleteConfirm && (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+        <div className="w-full max-w-sm rounded-2xl bg-card border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="flex items-center gap-3 p-5 border-b bg-destructive/5">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground text-base">Hapus {selectedIds.size} Produk?</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Tindakan ini tidak dapat dibatalkan</p>
+            </div>
+          </div>
+          <div className="p-5 space-y-3">
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive font-bold text-lg">{selectedIds.size}</span>
+              <div><p className="font-semibold text-sm text-foreground">produk terpilih</p><p className="text-xs text-muted-foreground">akan dihapus permanen</p></div>
+            </div>
+            <p className="text-xs text-muted-foreground">Semua data termasuk gambar, varian, dan spesifikasi akan dihapus dari database dan tidak bisa dipulihkan.</p>
+          </div>
+          <div className="flex items-center justify-end gap-2 p-4 pt-0">
+            <Button type="button" variant="outline" onClick={() => setBulkDeleteConfirm(false)} disabled={busy} className="rounded-xl">Batal</Button>
+            <Button type="button" variant="destructive" onClick={confirmBulkDelete} disabled={busy} className="rounded-xl min-w-[130px]">
+              {busy ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus Semua</>}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Global Saving Overlay */}
+    {savingProduct && (
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="rounded-2xl bg-card border border-border shadow-2xl px-8 py-7 flex flex-col items-center gap-4 min-w-[240px]">
+          <div className="relative flex size-14 items-center justify-center">
+            <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary animate-spin" />
+            <Loader2 className="size-6 text-primary animate-spin" />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="font-bold text-foreground text-sm">Menyimpan Produk...</p>
+            <p className="text-xs text-muted-foreground">Mohon tunggu, sedang memproses data</p>
+          </div>
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+            <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "75%" }} />
+          </div>
+        </div>
+      </div>
+    )}
   </div>;
 }
