@@ -1,206 +1,346 @@
-# Next Solution Store 💻🛒
+<div align="center">
 
-> **E-Commerce & Retail Management System Modern** untuk toko komputer, laptop, gadget, periferal, dan layanan IT. Dibangun secara *full-stack* dengan teknologi mutakhir: **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, **TypeScript**, dan **Supabase (PostgreSQL, Auth, Storage)**.
+<img src="public/logo.png" alt="Next Solution Logo" width="120" />
 
-Dilengkapi dengan **Asisten Rekomendasi Cerdas bertenaga AI (Groq & Gemini failover)**, **Sistem Mass Upload V2 Multi-Format (XLSX, CSV, DOCX, PDF)**, **Sinkronisasi Stok Gudang Real-Time**, serta **Panel Admin Komprehensif**.
+# Next Solution Store
 
----
+**Platform E-Commerce Toko Laptop & Elektronik berbasis Next.js + Supabase**
 
-## 🌟 Fitur Utama Website
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss)](https://tailwindcss.com/)
+[![Vitest](https://img.shields.io/badge/Tests-Vitest-6E9F18?logo=vitest)](https://vitest.dev/)
+[![Netlify](https://img.shields.io/badge/Deploy-Netlify-00C7B7?logo=netlify)](https://netlify.com/)
 
-### 1. 🛍️ Etalase Toko Modern (*Storefront*)
-- **Katalog Multi-Brand & Multi-Kategori**: Jelajahi produk ASUS, Lenovo, Acer, MSI, HP, Axioo, Advan, Apple, Samsung, Logitech, Razer, dan puluhan merek IT ternama lainnya.
-- **Kategori Lengkap**: Laptop (Gaming, Bisnis, Pelajar), PC Desktop & All-in-One (AIO), Monitor, Smartphone, Tablet, Audio, Aksesoris, Penyimpanan (RAM/SSD), dan Printer.
-- **Konsolidasi Varian & Sinkronisasi Galeri**: Satu produk induk dengan banyak pilihan warna, kapasitas RAM, dan SSD. Memilih warna akan secara otomatis memperbarui tampilan gambar produk utama.
-- **Keranjang Belanja Persisten**: Belanjaan tersimpan di peramban pembeli dengan dukungan update kuantitas seketika.
-- **Alur Checkout & Pilihan Pengiriman**:
-  - Ambil di Toko (*Store Pickup*) dengan peta lokasi interaktif gerai (Leaflet).
-  - Kirim ke Alamat pembeli dengan input kontak WhatsApp aktif.
-  - Pilihan pembayaran: Transfer Bank (BCA, Mandiri, BRI, BNI), QRIS, atau Bayar Tunai di Tempat.
-  - Integrasi WhatsApp satu-klik untuk langsung mengirimkan rincian pesanan dan konfirmasi bukti bayar ke admin toko.
-- **Portal Akun Pelanggan**: Login aman (Email/Password & Google One-Tap GIS), riwayat transaksi, pelacakan status pesanan secara *real-time*, dan unduh faktur digital.
-
-### 2. 🤖 Asisten Chatbot AI Rekomendasi (*Smart Sales Consultant*)
-- **Konsultasi Kebutuhan Real-Time**: Memberikan rekomendasi perangkat yang tepat berdasarkan kebutuhan (kuliah, skripsi, kerja kantoran, desain grafis/Revit/Adobe, hingga gaming berat).
-- **Retensi Konteks Cerdas**: Mengingat topik percakapan sebelumnya sehingga rekomendasi tetap relevan saat pengguna mengubah rentang budget (misal: use-case sekolah tidak akan melompat ke gaming).
-- **Multi-Brand Tanpa Bias**: Memberikan alternatif dari berbagai merk yang tersedia di etalase toko.
-- **Penyaringan Stok Fisik Ketat**: Hanya menampilkan unit yang memiliki stok fisik aktif (`stok > 0`); produk yang habis tidak akan disodorkan.
-- **Arsitektur Hybrid Failover**: Sistem beralih otomatis antara Groq API (`gpt-oss-20b`) dan Google Gemini (`gemini-3.5-flash`) jika salah satu provider mengalami limit kuota atau gangguan jaringan.
-
-### 3. ⚙️ Panel Manajemen Admin Komprehensif
-- **Dashboard & Analitik**: Ringkasan omzet penjualan, grafik pesanan, produk terlaris, dan data pelanggan.
-- **Mass Upload V2 (Multi-Format)**: Unggah ribuan produk sekaligus dari berkas **Excel (.xlsx)**, **CSV**, **Word (.docx)**, maupun **PDF Pricelist Distributor** dengan auto-detect varian, validasi harga, dan pencegahan duplikasi SKU.
-- **Sinkronisasi Stok Gudang**: Pembaruan stok berkala dari file Excel gudang dengan modal konfirmasi ramah, indikator animasi proses, dan popup konfirmasi sukses.
-- **Manajemen Produk, Kategori, & Brand**: Manajemen inventaris penuh dengan proteksi *orphan products* (produk wajib dipindahkan ke taksonomi pengganti sebelum kategori/brand dihapus).
-- **Manajemen Pesanan & Faktur Manual**: Verifikasi pembayaran transfer, cetak struk/faktur resmi, dan pembuatan pesanan manual untuk transaksi offline.
-- **Voucher & Promosi**: Kode kupon diskon nominal rupiah atau persentase dengan syarat minimal belanja dan kuota penggunaan.
-- **Manajemen Staf & Keamanan Berjenjang (RBAC)**: Pengelolaan staf toko dengan pemisahan wewenang ketat antara Super Admin dan Admin biasa.
-- **Pengaturan Toko & FAQ Rich-Text**: Kelola profil toko, rekening bank, tautan WhatsApp, lokasi peta, dan konten edukasi menggunakan Tiptap Rich-Text Editor.
+</div>
 
 ---
 
-## 🛠️ Tumpukan Teknologi (*Tech Stack*)
+## 📋 Deskripsi Proyek
 
-| Lapisan | Teknologi |
+**Next Solution Store** adalah aplikasi web e-commerce lengkap untuk toko komputer, laptop, dan aksesori elektronik. Dibangun dengan teknologi modern (Next.js App Router, React 19, TypeScript, Supabase), platform ini mencakup:
+
+- 🛍️ **Storefront publik** — halaman belanja yang lengkap dan responsif
+- ⚙️ **Admin Panel** — manajemen produk, pesanan, voucher, konten, dan laporan bisnis
+- 🤖 **AI Chatbot** — asisten rekomendasi produk berbasis Gemini & Groq LLM
+- 🔒 **Keamanan berlapis** — RLS Supabase, SSRF protection, server-side validation
+
+---
+
+## ✨ Fitur Utama
+
+### 🏪 Storefront (Halaman Publik)
+
+| Fitur | Keterangan |
 |---|---|
-| **Framework** | [Next.js 16](https://nextjs.org/) (App Router dengan `proxy.ts` middleware) |
-| **Frontend UI** | [React 19](https://react.dev/), [Tailwind CSS v4](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/), [Lucide React](https://lucide.dev/) |
-| **State Management** | [Zustand 5](https://zustand.docs.pmnd.rs/) |
-| **Database & Auth** | [Supabase](https://supabase.com/) (PostgreSQL dengan RLS, Supabase Auth, Supabase Storage) |
-| **AI / LLM Engine** | [Groq Cloud](https://groq.com/) & [Google Gemini 2.5/3.5](https://ai.google.dev/) (Failover Routing) |
-| **Document Parsers** | ExcelJS, Mammoth, Cheerio, PDF-Parse |
-| **Testing Suite** | [Vitest 4](https://vitest.dev/) (485 Unit & Integration Tests) |
-| **Type Checking** | TypeScript 5 (Strict Mode) |
+| **Landing Page** | Hero banner carousel, Promo Pilihan, Kategori, Produk Terbaru & Terlaris, Tentang Kami |
+| **Katalog Produk** | Filter kategori, brand, harga, spesifikasi (Processor, RAM, Storage, GPU, Display) |
+| **Pencarian** | Full-text search berdasarkan nama, SKU, brand, spesifikasi, dan label badge |
+| **Badge Produk** | Label **Baru**, **Terlaris**, **Promo** dengan tampilan visual |
+| **Halaman Promo** | Halaman khusus `/promo` menampilkan semua produk dengan tag Promo |
+| **Detail Produk** | Galeri gambar + lightbox, varian (warna/RAM/storage), spesifikasi, ulasan pelanggan |
+| **Perbandingan** | Bandingkan hingga 3 produk secara berdampingan |
+| **Wishlist** | Simpan produk favorit |
+| **Keranjang** | Manajemen item keranjang belanja |
+
+### 🛒 Checkout & Pembayaran
+
+| Fitur | Keterangan |
+|---|---|
+| **3-Step Wizard** | Keranjang → Pengiriman & Pembayaran → Selesai |
+| **Metode Pengiriman** | Ambil di Toko (Pickup) atau Kirim (Delivery) |
+| **Metode Pembayaran** | Transfer Bank, Pembayaran QRIS, Bayar Tunai di Kasir |
+| **Voucher / Diskon** | Kode kupon dengan validasi server-side |
+| **Invoice / Faktur** | Auto-generate faktur penjualan per pesanan |
+| **Informasi Pembayaran** | Ditampilkan sesuai metode: rekening bank / QR code / info kasir |
+| **Konfirmasi WhatsApp** | Tombol kirim bukti transfer langsung ke WhatsApp Admin |
+
+### ⚙️ Admin Panel (`/admin`)
+
+| Modul | Fitur |
+|---|---|
+| **Dashboard** | Statistik ringkas: total pesanan, pendapatan, produk, pelanggan |
+| **Analitik & Laporan** | Grafik penjualan, laporan produk terlaris, ekspor laporan |
+| **Manajemen Produk** | CRUD lengkap, varian, galeri gambar, badge, harga |
+| **Import Massal** | Upload pricelist Excel (Lenovo, ASUS, dll.) dengan mapping otomatis |
+| **Sinkronisasi Stok** | Sync stok dari file Excel pricelist brand |
+| **Kategori & Brand** | Manajemen kategori, brand dengan logo |
+| **Pesanan** | Daftar pesanan, filter status, update status, detail pesanan |
+| **Faktur Manual** | Buat faktur manual untuk transaksi offline |
+| **Voucher** | Buat & kelola kode diskon dengan batas penggunaan & masa berlaku |
+| **Pelanggan & Staf** | Manajemen akun pelanggan dan staf |
+| **Landing Page** | Edit konten hero banner, promo pilihan, seksi, banner |
+| **Fitur & Pengaturan** | Nomor WhatsApp, QRIS, info pickup, rekening bank, pengaturan toko |
+| **Log Aktivitas** | Rekam semua aktivitas admin |
+
+### 🤖 AI Chatbot
+
+- Asisten rekomendasi produk berbasis **Groq LLM** (primary) + **Google Gemini** (fallback)
+- Context-aware: chatbot memahami percakapan sebelumnya
+- Pengetahuan multi-brand: Lenovo, ASUS, dan lainnya
+
+### 🔐 Keamanan
+
+- **Row Level Security (RLS)** Supabase — setiap query tervalidasi di level database
+- **SSRF Protection** — validasi URL pada saat download gambar eksternal
+- **SVG XSS Scanning** — sanitasi file SVG sebelum disimpan
+- **Server-side Checkout Validation** — harga & stok divalidasi ulang di server
+- **Role-based Access** — customer / admin / super-admin
+- **Security Headers** — CSP, X-Frame-Options, HSTS via `next.config.ts`
+
+### ⚡ Performa
+
+- **Next.js Image Optimization** — AVIF/WebP, cache 30 hari
+- **Lazy loading** pada product card
+- **Graceful image fallback** ketika gambar gagal dimuat
+- **Framer Motion** untuk animasi yang ringan dan smooth
 
 ---
 
-## 📋 Prasyarat Sistem (*Prerequisites*)
+## 🛠️ Tech Stack
 
-Pastikan perangkat Anda telah terpasang:
-- **Node.js**: Versi 20.x atau 22.x LTS (disarankan v22+).
-- **npm** (atau **pnpm** / **yarn**).
-- **Git** untuk *version control*.
-- **Akun Supabase**: Proyek aktif untuk database PostgreSQL, Auth, dan Storage.
+| Layer | Teknologi |
+|---|---|
+| **Framework** | Next.js 16 (App Router) |
+| **UI Library** | React 19 |
+| **Language** | TypeScript 5 |
+| **Styling** | Tailwind CSS v4 + shadcn/ui |
+| **Animasi** | Framer Motion |
+| **Database** | Supabase (PostgreSQL) |
+| **Auth** | Supabase Auth + Google OAuth (GIS) |
+| **Storage** | Supabase Storage (gambar produk, QRIS, logo) |
+| **State Management** | Zustand |
+| **Form Handling** | React Hook Form + Zod |
+| **Rich Text Editor** | Tiptap |
+| **AI / LLM** | Groq API + Google Gemini API |
+| **Excel Import** | ExcelJS |
+| **Testing** | Vitest |
+| **Deployment** | Netlify |
 
 ---
 
-## 🚀 Panduan Instalasi & Menjalankan Lokal
+## 📁 Struktur Folder
 
-### 1. Clone Repository
+```
+c:\webnext\
+├── app/                        # Next.js App Router
+│   ├── (public routes)
+│   │   ├── page.tsx            # Landing page
+│   │   ├── products/           # Katalog produk
+│   │   ├── product/[slug]/     # Detail produk
+│   │   ├── promo/              # Halaman promo
+│   │   ├── brands/             # Halaman brand
+│   │   ├── category/           # Halaman kategori
+│   │   ├── cart/               # Keranjang belanja
+│   │   ├── checkout/           # Alur checkout 3-step
+│   │   ├── orders/             # Riwayat pesanan
+│   │   ├── wishlist/           # Wishlist
+│   │   ├── compare/            # Perbandingan produk
+│   │   ├── profile/            # Profil pengguna
+│   │   ├── login/              # Login
+│   │   ├── register/           # Register
+│   │   └── about/              # Tentang Kami
+│   ├── admin/                  # Admin Panel (protected)
+│   │   ├── page.tsx            # Dashboard admin
+│   │   ├── products/           # Manajemen produk
+│   │   ├── orders/             # Manajemen pesanan
+│   │   ├── vouchers/           # Manajemen voucher
+│   │   ├── customers/          # Manajemen pelanggan
+│   │   ├── brands/             # Manajemen brand
+│   │   ├── categories/         # Manajemen kategori
+│   │   ├── invoices/           # Faktur manual
+│   │   ├── stock-sync/         # Sinkronisasi stok
+│   │   ├── reports/            # Laporan bisnis
+│   │   ├── content/            # Manajemen konten landing
+│   │   ├── logs/               # Log aktivitas
+│   │   └── about/              # Tentang toko
+│   └── api/                    # API Routes (server-side)
+├── components/                 # Komponen React reusable
+├── lib/                        # Utility functions, Supabase clients
+├── hooks/                      # Custom React hooks
+├── stores/                     # Zustand state stores
+├── types/                      # TypeScript type definitions
+├── supabase/
+│   └── migrations/             # SQL migration files
+├── public/                     # Static assets
+├── scripts/                    # Node.js helper scripts
+├── .env.example                # Template environment variables
+├── netlify.toml                # Konfigurasi deployment Netlify
+└── next.config.ts              # Konfigurasi Next.js
+```
+
+---
+
+## 🚀 Instalasi & Setup Lokal
+
+### Prasyarat
+
+Pastikan sudah terinstall:
+
+- **Node.js** v20 atau lebih baru — [nodejs.org](https://nodejs.org/)
+- **npm** v10+ (sudah termasuk bersama Node.js)
+- **Git** — [git-scm.com](https://git-scm.com/)
+- **Akun Supabase** (gratis) — [supabase.com](https://supabase.com/)
+- **Supabase CLI** (opsional, untuk push migrasi) — [Install Supabase CLI](https://supabase.com/docs/guides/cli)
+
+---
+
+### Langkah 1 — Clone Repository
+
 ```bash
 git clone https://github.com/moannn27/webpenjualannext.git
 cd webpenjualannext
 ```
 
-### 2. Install Dependensi
+### Langkah 2 — Install Dependencies
+
 ```bash
 npm install
-# atau
-npm ci
 ```
 
-### 3. Konfigurasi Lingkungan (`.env.local`)
-Salin file konfigurasi contoh `.env.example` menjadi `.env.local`:
-```bash
-# Windows (PowerShell)
-Copy-Item .env.example .env.local
+### Langkah 3 — Setup Environment Variables
 
-# Linux / macOS
+Salin file template environment:
+
+```bash
 cp .env.example .env.local
 ```
 
-Buka `.env.local` dan lengkapi variabel berikut:
-```env
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your-publishable-key-or-anon-key
+Buka `.env.local` dan isi semua nilai yang diperlukan (lihat tabel di bawah).
 
-# Service Role Key (Wajib untuk fungsi admin & invitation; Hanya server-side, JANGAN beri prefix NEXT_PUBLIC_)
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+### Langkah 4 — Setup Project Supabase
 
-# Site URL
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+1. Buka [supabase.com](https://supabase.com/) → buat project baru
+2. Pergi ke **Project Settings → API** dan salin:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon (public) key** → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY`
 
-# AI Chatbot LLM Providers (Server-side only)
-# Provider 1: Groq API
-GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=openai/gpt-oss-20b
+### Langkah 5 — Jalankan Migrasi Database
 
-# Provider 2: Google Gemini API (Failover)
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.5-flash
+Pastikan Supabase CLI sudah terinstall dan sudah login (`supabase login`), lalu hubungkan project:
 
-# Provider Order
-LLM_PROVIDER_ORDER=groq,gemini
-
-# Google Identity Services (GIS) / Social Login (Opsional)
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-```
-
-### 4. Setup Database Supabase
-Jika Anda menghubungkan ke proyek Supabase baru, terapkan migrasi database yang ada di folder `supabase/migrations/`:
 ```bash
+supabase link --project-ref <your-project-ref>
 npm run db:push
 ```
-> *Catatan: Jika menggunakan database remote yang sudah terisi data aktif, jangan lakukan reset schema.*
 
-### 5. Jalankan Server Pengembangan (*Development Server*)
+Perintah ini akan menjalankan semua file migrasi di folder `supabase/migrations/` secara berurutan, termasuk:
+- `initial_schema` — Tabel utama (produk, pesanan, pelanggan, dll.)
+- `checkout_rpc` — Stored procedure untuk proses checkout
+- `storage_setup` — Konfigurasi bucket Supabase Storage
+- `rls_setup` — Row Level Security policies
+- `vouchers_indexes_setup` — Index untuk performa query voucher
+
+### Langkah 6 — Setup Admin Pertama
+
+1. Setelah migrasi berjalan, daftarkan akun baru melalui `/register`
+2. Di Supabase Dashboard → **Table Editor → `profiles`**, ubah kolom `role` akun tersebut menjadi `super_admin`
+3. Login kembali, lalu akses `/admin`
+
+### Langkah 7 — Jalankan Development Server
+
 ```bash
 npm run dev
 ```
-Buka peramban Anda di [http://localhost:3000](http://localhost:3000).
+
+Buka [http://localhost:3000](http://localhost:3000) di browser.
 
 ---
 
-## 🧪 Pengujian & Validasi Kode (*Testing & Quality*)
+## 🔑 Variabel Environment
 
-Proyek ini dilengkapi dengan cakupan pengujian otomatis yang komprehensif:
+| Variable | Keterangan | Wajib |
+|---|---|:---:|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL project Supabase kamu | ✅ |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon/public key Supabase | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key (server-only) | ✅ |
+| `NEXT_PUBLIC_SITE_URL` | URL publik website (e.g. `http://localhost:3000`) | ✅ |
+| `GROQ_API_KEY` | API key Groq untuk AI Chatbot (primary LLM) | Opsional |
+| `GROQ_MODEL` | Model Groq yang digunakan | Opsional |
+| `GEMINI_API_KEY` | API key Google Gemini (fallback LLM) | Opsional |
+| `GEMINI_MODEL` | Model Gemini yang digunakan | Opsional |
+| `LLM_PROVIDER_ORDER` | Urutan provider LLM (e.g. `groq,gemini`) | Opsional |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Client ID untuk login Google (GIS) | Opsional |
+
+> **⚠️ Perhatian:** Jangan pernah menggunakan prefix `NEXT_PUBLIC_` untuk `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, atau `GEMINI_API_KEY`. Variabel tersebut hanya boleh diakses di sisi server.
+
+---
+
+## 🧪 Menjalankan Test
 
 ```bash
-# Menjalankan seluruh unit test (Vitest)
-npm run test
-
-# Menjalankan pengecekan tipe data TypeScript
-npx tsc --noEmit
-
-# Menjalankan linter ESLint
-npm run lint
-
-# Membangun aplikasi untuk produksi (Production Build)
-npm run build
+npm test
 ```
 
-### Skrip Utilitas Tambahan:
-- **Audit URL Gambar Produk**: `npm run catalog:images:audit`
-- **Sinkronisasi Gambar Katalog Default**: `npm run catalog:images:sync`
+Atau dengan detail output:
 
----
-
-## 📁 Struktur Direktori Utama
-
-```text
-├── actions/             # Next.js Server Actions (admin, user, checkout, auth)
-├── app/                 # Next.js 16 App Router (halaman etalase, admin, dan API routes)
-│   ├── admin/           # Halaman dasbor panel admin
-│   ├── api/             # API Endpoints (/api/recommend, /api/admin/...)
-│   ├── checkout/        # Halaman checkout & pembayaran
-│   ├── product/[id]/    # Halaman detail produk
-│   └── profile/         # Halaman portal akun pelanggan
-├── components/          # Komponen UI global (Navbar, Footer, Modal, Button)
-├── features/            # Modul fitur terisolasi (admin, checkout, product, profile)
-├── lib/                 # Utilitas inti (Supabase client/middleware, auth, rate-limit, AI assistant)
-├── proxy.ts             # Next.js Proxy/Middleware gerbang keamanan sesi & rute terlindungi
-├── public/              # Berkas aset statis (logo, ikon, gambar default)
-├── supabase/            # Migrasi database PostgreSQL dan konfigurasi Supabase
-├── __tests__/           # Rangkaian pengujian unit & integrasi (Vitest)
-└── docs/                # Dokumentasi teknis terperinci
+```bash
+npx vitest run --reporter=verbose
 ```
 
----
-
-## 🔒 Praktik Keamanan & Perlindungan Data
-
-- **Cryptographic Auth Verification**: Menggunakan `supabase.auth.getUser()` untuk memvalidasi token sesi pengguna secara kriptografis ke server autentikasi Supabase.
-- **Fail-Closed RBAC**: Akses admin dilindungi berjenjang (`requireModulePermission`). Pembuatan dan penyetelan akun admin dibatasi khusus untuk Super Admin.
-- **Anti-Brute Force**: Akun terkunci otomatis setelah 3x gagal memasukkan kata sandi dan status terkunci dicatat pada `app_metadata` (sisi server otoritatif).
-- **Proteksi XSS Upload Berkas**: Penolakan berkas bertipe SVG dan HTML pada avatar dan ulasan untuk mencegah serangan *Stored Cross-Site Scripting*.
-- **Anti-Spoofing Rate Limiting**: Proteksi endpoint AI asisten dari manipulasi header proxy dan serangan bot.
-- **HTTP Security Headers**: Header keamanan standar (`X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`, `Referrer-Policy`, `Permissions-Policy`) aktif di seluruh respons server.
+Proyek ini mencakup **40+ test suite** dengan pengujian unit dan integrasi menggunakan Vitest.
 
 ---
 
-## 📖 Dokumentasi Lanjutan
+## 🌐 Deployment ke Netlify
 
-Untuk panduan teknis yang lebih spesifik, silakan buka dokumen di direktori `docs/`:
-- [Setup PC Baru & Deployment](docs/SETUP_PC_BARU.md)
-- [Panduan Penggunaan Toko](docs/PANDUAN_PENGGUNAAN.md)
-- [Panduan Mass Upload & Branding](docs/PANDUAN_MASS_UPLOAD_DAN_BRANDING.md)
-- [Panduan Galeri Varian & Manifest Gambar](docs/PANDUAN_GALERI_VARIAN_DAN_MANIFEST.md)
-- [Panduan Keamanan & Deploy Netlify](docs/PANDUAN_OPTIMASI_SECURITY_DAN_DEPLOY_NETLIFY.md)
-- [Dokumentasi Optimasi Performance & Aksesibilitas](docs/DOKUMENTASI_OPTIMASI_PERFORMANCE_DAN_A11Y.md)
+Project ini sudah dikonfigurasi untuk Netlify via `netlify.toml`.
+
+**Langkah deploy:**
+
+1. Push repository ke GitHub
+2. Login ke [netlify.com](https://netlify.com/) dan klik **Add new site → Import from Git**
+3. Pilih repository ini
+4. Netlify akan otomatis mendeteksi konfigurasi build dari `netlify.toml`
+5. Di **Site Settings → Environment Variables**, tambahkan semua variabel dari `.env.example` dengan nilai production
+6. Klik **Deploy Site**
+
+> **Catatan:** Pastikan `NEXT_PUBLIC_SITE_URL` diisi dengan URL production (bukan localhost) sebelum deploy.
 
 ---
 
-## 📄 Lisensi & Pemilik
+## 🔧 Scripts yang Tersedia
 
-Dikembangkan untuk **Next Solution Store**. Hak cipta dilindungi undang-undang.
+| Perintah | Fungsi |
+|---|---|
+| `npm run dev` | Jalankan development server |
+| `npm run build` | Build untuk production |
+| `npm start` | Jalankan server production |
+| `npm run lint` | Jalankan ESLint |
+| `npm test` | Jalankan semua test (Vitest) |
+| `npm run db:push` | Push semua migrasi ke Supabase |
+| `npm run catalog:images:audit` | Audit gambar produk (verifikasi URL) |
+| `npm run catalog:images:sync` | Sinkronisasi gambar produk dari seed |
+
+---
+
+## 👤 Akses Admin Panel
+
+Setelah setup selesai:
+
+1. Buka `/admin` — akan redirect ke halaman login jika belum authenticated
+2. Login dengan akun yang sudah di-set sebagai `admin` atau `super_admin`
+3. Gunakan sidebar untuk navigasi antar modul
+
+**Pengaturan awal yang dianjurkan setelah login pertama:**
+- **Fitur & Pengaturan** → isi nomor WhatsApp, upload QRIS, tambah rekening bank, atur info pickup
+- **Brand** → tambah brand yang dijual
+- **Kategori** → tambah kategori produk
+- **Produk** → tambah produk pertama atau gunakan **Upload Massal** dari file Excel pricelist
+
+---
+
+## 📄 Lisensi
+
+Proyek ini bersifat **privat** dan dikembangkan untuk keperluan internal **Next Solution**.  
+Semua hak cipta dilindungi © 2026 Next Solution.
+
+---
+
+<div align="center">
+  <strong>Next Solution</strong> — Pusat Komputer, Laptop & Solusi Elektronik Resmi<br/>
+  Jl. Kartini No.09 · <a href="mailto:support@nextsolution.id">support@nextsolution.id</a>
+</div>
