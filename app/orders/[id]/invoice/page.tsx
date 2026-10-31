@@ -7,10 +7,19 @@ import { notFound, redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const metadata = {
-  title: "Faktur Pembelian Resmi",
-  description: "Faktur dan invoice rincian transaksi pemesanan produk.",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return {
+    title: {
+      absolute: id ? `Faktur ${id}` : "Faktur Penjualan",
+    },
+    description: "Faktur dan invoice rincian transaksi pemesanan produk.",
+  };
+}
 
 const RICH_ORDER_ITEM_SELECT = `
   id,

@@ -811,7 +811,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           {visible.map((product) => {
             const isSelected = selectedIds.has(product.id);
             return (
-              <TableRow key={product.id} className={isSelected ? "bg-primary/5 transition-colors" : "transition-colors"}>
+              <TableRow key={product.id} className={`table-row-optimized transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
                 <TableCell className="text-center">
                   <input
                     type="checkbox"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Script from "next/script";
 import { createClient } from "@/lib/supabase/client";
 import { loginWithGoogle, syncOAuthProfileAndCartAction } from "@/actions/auth";
@@ -109,6 +109,34 @@ export function GoogleAuthButton({
   const [authError, setAuthError] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
+
+  // Deteksi tema gelap (Dark Mode) secara dinamis agar tombol Google otomatis berganti ke filled_black
+  const isDark = useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === "undefined") return () => {};
+      window.addEventListener("theme-change", onChange);
+      window.addEventListener("storage", onChange);
+
+      let observer: MutationObserver | null = null;
+      if (typeof document !== "undefined") {
+        observer = new MutationObserver(() => {
+          onChange();
+        });
+        observer.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+      }
+
+      return () => {
+        window.removeEventListener("theme-change", onChange);
+        window.removeEventListener("storage", onChange);
+        observer?.disconnect();
+      };
+    },
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark"),
+    () => false
+  );
 
   // Normalize Client ID dari environment variable
   const rawClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
@@ -236,7 +264,7 @@ export function GoogleAuthButton({
         if (containerRef.current) {
           containerRef.current.replaceChildren();
           window.google.accounts.id.renderButton(containerRef.current, {
-            theme: "outline",
+            theme: isDark ? "filled_black" : "outline",
             size: "large",
             type: "standard",
             shape: "pill",
@@ -282,7 +310,7 @@ export function GoogleAuthButton({
         } catch {}
       }
     };
-  }, [googleClientId, isGisAvailable, gisScriptLoaded, mode]);
+  }, [googleClientId, isGisAvailable, gisScriptLoaded, mode, isDark]);
 
   // Handler fallback manual/eksplisit - HANYA dipanggil jika user dengan sengaja menekan tombol cadangan
   const handleExplicitOAuthFallback = async () => {

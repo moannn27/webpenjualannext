@@ -132,14 +132,71 @@
   }
   body {
     @apply bg-background text-foreground;
-    transition: background-color 180ms ease, color 180ms ease;
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scrollbar-gutter: stable;
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* GPU promotion for sticky and fixed header elements to eliminate composite jank */
+.sticky,
+header.sticky,
+[data-admin-shell] header,
+[data-admin-header] {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Optimize table row rendering performance for large datasets */
+.table-row-optimized {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 54px;
+}
+
+/* Smooth micro-interaction transitions */
+.smooth-interactive {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.smooth-interactive:active {
+  transform: scale(0.985);
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0 !important;
+}
+
+@page :first {
+  margin: 0 !important;
+}
+
+@page :left {
+  margin: 0 !important;
+}
+
+@page :right {
+  margin: 0 !important;
+}
+
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 0 !important;
+  }
   .no-print,
   [data-admin-shell] aside,
   [data-admin-shell] [data-admin-header],
@@ -158,9 +215,60 @@
     box-shadow: none;
     border: 1px solid #cbd5e1;
   }
+  html,
   body {
-    background: white !important;
-    color: #111827 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: 100% !important;
+    font-size: 11px !important;
+    font-family: var(--font-outfit), var(--font-sans), "Outfit", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .print-invoice-sheet {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 297mm !important;
+    padding: 12mm 16mm 14mm 16mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .invoice-content-wrap {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    min-height: 270mm !important;
+    box-sizing: border-box !important;
+  }
+  .invoice-table-header {
+    background-color: #3730A3 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .invoice-total-due-box {
+    background-color: #3730A3 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .invoice-row-border {
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  tr, .invoice-item-row {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

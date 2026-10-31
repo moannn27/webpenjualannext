@@ -205,170 +205,242 @@ export async function applyStockSyncAction(payload: ApplyStockSyncPayload): Prom
   success: boolean
   appliedCount: number
   historyId?: string
+  error?: string
 }> {
-  const { user, adminName, role } = await requireModulePermission('products')
-  const adminClient = getSupabaseAdminClient()
+  try {
+    const { user, adminName, role } = await requireModulePermission('products')
 
-  const { items, filename, fileHash, includeExternalWarehouse, onlineOrdersAccounted } = payload
+    // Resilient Supabase client: prefer adminClient (service role), fallback seamlessly to authenticated SSR client
+    const client = await (async () => {
+      try {
+        return getSupabaseAdminClient()
+      } catch {
+        return await createClient()
+      }
+    })()
 
-  if (!items || items.length === 0) {
-    throw new Error('Tidak ada item stok yang dipilih untuk diterapkan.')
-  }
+    const { items, filename, fileHash, includeExternalWarehouse, onlineOrdersAccounted } = payload
 
-  // 1. Strict validation: ensure all items are valid non-negative numbers and targetIds exist
-  for (const item of items) {
-    if (!item.targetId || typeof item.targetId !== 'string') {
-      throw new Error(`Target ID tidak valid untuk item SKU ${item.sku}`)
-    }
-    if (typeof item.finalStock !== 'number' || !Number.isFinite(item.finalStock) || item.finalStock < 0) {
-      throw new Error(`Stok akhir untuk ${item.name} (${item.sku}) tidak boleh bernilai negatif: ${item.finalStock}`)
-    }
-  }
-
-  // 2. Perform updates
-  const affectedParentIds = new Set<string>()
-
-  // A. Update variants
-  const variantItems = items.filter((i) => i.targetType === 'variant')
-  for (const vItem of variantItems) {
-    const { error } = await adminClient
-      .from('product_variants')
-      .update({
-        stock: vItem.finalStock,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', vItem.targetId)
-
-    if (error) {
-      throw new Error(`Gagal memperbarui stok varian ${vItem.name}: ${error.message}`)
-    }
-
-    let parentId = vItem.parentProductId
-    if (!parentId) {
-      const { data: vRecord } = await adminClient
-        .from('product_variants')
-        .select('product_id')
-        .eq('id', vItem.targetId)
-        .maybeSingle()
-      if (vRecord?.product_id) {
-        parentId = vRecord.product_id
+    if (!items || items.length === 0) {
+      return {
+        success: false,
+        appliedCount: 0,
+        error: 'Tidak ada item stok yang dipilih untuk diterapkan.',
       }
     }
-    if (parentId) {
-      affectedParentIds.add(parentId)
+
+    // 1. Strict validation: ensure all items are valid non-negative numbers and targetIds exist
+    for (const item of items) {
+      if (!item.targetId || typeof item.targetId !== 'string') {
+        return {
+          success: false,
+          appliedCount: 0,
+          error: `Target ID tidak valid untuk item SKU ${item.sku || 'tanpa SKU'}`,
+        }
+      }
+      if (typeof item.finalStock !== 'number' || !Number.isFinite(item.finalStock) || item.finalStock < 0) {
+        return {
+          success: false,
+          appliedCount: 0,
+          error: `Stok akhir untuk ${item.name} (${item.sku}) tidak boleh bernilai negatif: ${item.finalStock}`,
+        }
+      }
     }
-  }
 
-  // B. Recalculate parent product total stocks for affected variants
-  for (const parentId of affectedParentIds) {
-    const { data: variantsSum } = await adminClient
-      .from('product_variants')
-      .select('stock')
-      .eq('product_id', parentId)
-
-    const totalVariantStock = (variantsSum || []).reduce((acc, v) => acc + (v.stock ?? 0), 0)
-
-    await adminClient
-      .from('products')
-      .update({
-        stock: totalVariantStock,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', parentId)
-  }
-
-  // C. Update standalone products
-  const productItems = items.filter((i) => i.targetType === 'product')
-  for (const pItem of productItems) {
-    const { error } = await adminClient
-      .from('products')
-      .update({
-        stock: pItem.finalStock,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', pItem.targetId)
-
-    if (error) {
-      throw new Error(`Gagal memperbarui stok produk ${pItem.name}: ${error.message}`)
+    // Helper to process database operations concurrently in batches
+    async function runInChunks<T>(arr: T[], chunkSize: number, fn: (item: T) => Promise<void>) {
+      for (let i = 0; i < arr.length; i += chunkSize) {
+        const chunk = arr.slice(i, i + chunkSize)
+        await Promise.all(chunk.map(fn))
+      }
     }
-  }
 
-  // 3. Record Audit Log
-  const modeLabel = onlineOrdersAccounted
-    ? 'Sudah memperhitungkan pesanan online'
-    : 'Belum memperhitungkan pesanan online (dikurangi komitmen pesanan aktif web)'
-  const gudangLuarLabel = includeExternalWarehouse ? 'Termasuk Gudang Luar' : 'Tanpa Gudang Luar'
+    const now = new Date().toISOString()
+    const affectedParentIds = new Set<string>()
 
-  await recordAdminActivity({
-    admin_id: user.id,
-    admin_name: adminName,
-    admin_role: role || 'admin',
-    action: 'update',
-    entity_type: 'product',
-    entity_name: 'Sinkronisasi Stok Offline',
-    details: `Menerapkan pembaruan stok offline dari "${filename}" untuk ${items.length} item. Pengaturan: ${modeLabel}, ${gudangLuarLabel}.`,
-  })
+    // A. Update variants concurrently
+    const variantItems = items.filter((i) => i.targetType === 'variant')
+    const missingParentVariantIds: string[] = []
 
-  // 4. Save to stock_sync_history and stock_sync_items
-  let historyId: string | undefined
-  try {
-    const { data: historyRow, error: histErr } = await adminClient
-      .from('stock_sync_history')
-      .insert({
-        filename,
-        file_hash: fileHash || null,
+    for (const vItem of variantItems) {
+      if (vItem.parentProductId) {
+        affectedParentIds.add(vItem.parentProductId)
+      } else {
+        missingParentVariantIds.push(vItem.targetId)
+      }
+    }
+
+    // If any variant did not have parentProductId populated, batch fetch parent IDs in 1 single query
+    if (missingParentVariantIds.length > 0) {
+      const { data: missingParents } = await client
+        .from('product_variants')
+        .select('id, product_id')
+        .in('id', missingParentVariantIds)
+
+      for (const row of missingParents || []) {
+        if (row.product_id) affectedParentIds.add(row.product_id)
+      }
+    }
+
+    // Execute variant stock updates concurrently in chunks of 15
+    await runInChunks(variantItems, 15, async (vItem) => {
+      const sanitizedStock = Math.max(0, Math.floor(vItem.finalStock))
+      const { error } = await client
+        .from('product_variants')
+        .update({
+          stock: sanitizedStock,
+          updated_at: now,
+        })
+        .eq('id', vItem.targetId)
+
+      if (error) {
+        throw new Error(`Gagal memperbarui stok varian ${vItem.name}: ${error.message}`)
+      }
+    })
+
+    // B. Recalculate parent product total stocks for affected variants in 1 batch query
+    if (affectedParentIds.size > 0) {
+      const parentIdList = Array.from(affectedParentIds)
+      const { data: variantsSum, error: varSumErr } = await client
+        .from('product_variants')
+        .select('product_id, stock')
+        .in('product_id', parentIdList)
+
+      if (!varSumErr && variantsSum) {
+        const sumByParent = new Map<string, number>()
+        for (const pId of parentIdList) {
+          sumByParent.set(pId, 0)
+        }
+        for (const v of variantsSum) {
+          if (v.product_id) {
+            sumByParent.set(v.product_id, (sumByParent.get(v.product_id) ?? 0) + (v.stock ?? 0))
+          }
+        }
+
+        const parentEntries = Array.from(sumByParent.entries())
+        await runInChunks(parentEntries, 15, async ([parentId, totalStock]) => {
+          await client
+            .from('products')
+            .update({
+              stock: totalStock,
+              updated_at: now,
+            })
+            .eq('id', parentId)
+        })
+      }
+    }
+
+    // C. Update standalone products concurrently in chunks of 15
+    const productItems = items.filter((i) => i.targetType === 'product')
+    if (productItems.length > 0) {
+      await runInChunks(productItems, 15, async (pItem) => {
+        const sanitizedStock = Math.max(0, Math.floor(pItem.finalStock))
+        const { error } = await client
+          .from('products')
+          .update({
+            stock: sanitizedStock,
+            updated_at: now,
+          })
+          .eq('id', pItem.targetId)
+
+        if (error) {
+          throw new Error(`Gagal memperbarui stok produk ${pItem.name}: ${error.message}`)
+        }
+      })
+    }
+
+    // 3. Record Audit Log (safe: doesn't block sync if logging has issue)
+    const modeLabel = onlineOrdersAccounted
+      ? 'Sudah memperhitungkan pesanan online'
+      : 'Belum memperhitungkan pesanan online (dikurangi komitmen pesanan aktif web)'
+    const gudangLuarLabel = includeExternalWarehouse ? 'Termasuk Gudang Luar' : 'Tanpa Gudang Luar'
+
+    try {
+      await recordAdminActivity({
         admin_id: user.id,
         admin_name: adminName,
-        total_rows: payload.totalRows,
-        matched_count: payload.matchedCount,
-        unmatched_count: payload.unmatchedCount,
-        conflict_count: payload.conflictCount,
-        applied_count: items.length,
-        include_external_warehouse: includeExternalWarehouse,
-        online_orders_accounted: onlineOrdersAccounted,
-        summary: {
-          itemsApplied: items.length,
-          variantsCount: variantItems.length,
-          productsCount: productItems.length,
-          timestamp: new Date().toISOString(),
-        },
+        admin_role: role || 'admin',
+        action: 'update',
+        entity_type: 'product',
+        entity_name: 'Sinkronisasi Stok Offline',
+        details: `Menerapkan pembaruan stok offline dari "${filename}" untuk ${items.length} item. Pengaturan: ${modeLabel}, ${gudangLuarLabel}.`,
       })
-      .select('id')
-      .single()
-
-    if (!histErr && historyRow) {
-      historyId = historyRow.id
-      const itemLogs = items.map((item) => ({
-        sync_id: historyId,
-        sku: item.sku,
-        product_id: item.parentProductId || (item.targetType === 'product' ? item.targetId : null),
-        variant_id: item.targetType === 'variant' ? item.targetId : null,
-        previous_stock: item.previousStock,
-        new_stock: item.finalStock,
-        excel_stock: item.excelStock,
-        external_warehouse_stock: item.externalWarehouseStock,
-        web_reconciled_qty: item.webReconciledQty,
-        status: 'applied',
-      }))
-
-      if (itemLogs.length > 0) {
-        await adminClient.from('stock_sync_items').insert(itemLogs)
-      }
+    } catch (auditErr) {
+      console.warn('Gagal mencatat audit log:', auditErr)
     }
-  } catch {
-    // If migration table is not yet present on remote DB, action still succeeds safely
-  }
 
-  revalidatePath('/admin/stock-sync')
-  revalidatePath('/admin/products')
-  revalidatePath('/admin')
-  revalidatePath('/products')
-  revalidatePath('/')
+    // 4. Save to stock_sync_history and stock_sync_items
+    let historyId: string | undefined
+    try {
+      const { data: historyRow, error: histErr } = await client
+        .from('stock_sync_history')
+        .insert({
+          filename,
+          file_hash: fileHash || null,
+          admin_id: user.id,
+          admin_name: adminName,
+          total_rows: payload.totalRows,
+          matched_count: payload.matchedCount,
+          unmatched_count: payload.unmatchedCount,
+          conflict_count: payload.conflictCount,
+          applied_count: items.length,
+          include_external_warehouse: includeExternalWarehouse,
+          online_orders_accounted: onlineOrdersAccounted,
+          summary: {
+            itemsApplied: items.length,
+            variantsCount: variantItems.length,
+            productsCount: productItems.length,
+            timestamp: now,
+          },
+        })
+        .select('id')
+        .single()
 
-  return {
-    success: true,
-    appliedCount: items.length,
-    historyId,
+      if (!histErr && historyRow) {
+        historyId = historyRow.id
+        const itemLogs = items.map((item) => ({
+          sync_id: historyId,
+          sku: item.sku,
+          product_id: item.parentProductId || (item.targetType === 'product' ? item.targetId : null),
+          variant_id: item.targetType === 'variant' ? item.targetId : null,
+          previous_stock: Math.max(0, Math.floor(item.previousStock)),
+          new_stock: Math.max(0, Math.floor(item.finalStock)),
+          excel_stock: Math.max(0, Math.floor(item.excelStock)),
+          external_warehouse_stock: Math.max(0, Math.floor(item.externalWarehouseStock)),
+          web_reconciled_qty: Math.max(0, Math.floor(item.webReconciledQty)),
+          status: 'applied',
+        }))
+
+        // Insert logs in chunks of 50
+        for (let i = 0; i < itemLogs.length; i += 50) {
+          const chunk = itemLogs.slice(i, i + 50)
+          await client.from('stock_sync_items').insert(chunk)
+        }
+      }
+    } catch {
+      // If migration table is not yet present on remote DB, action still succeeds safely
+    }
+
+    try {
+      revalidatePath('/admin/stock-sync')
+      revalidatePath('/admin/products')
+      revalidatePath('/admin')
+      revalidatePath('/products')
+      revalidatePath('/')
+    } catch (revErr) {
+      console.warn('Revalidate path warning:', revErr)
+    }
+
+    return {
+      success: true,
+      appliedCount: items.length,
+      historyId,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      appliedCount: 0,
+      error: err instanceof Error ? err.message : 'Terjadi kesalahan saat menerapkan pembaruan stok.',
+    }
   }
 }
-

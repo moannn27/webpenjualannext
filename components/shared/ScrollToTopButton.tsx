@@ -17,9 +17,16 @@ export function ScrollToTopButton() {
   const buttonBottom = getFloatingControlBottom(hasCartBar || hasCompareBar, "back-to-top");
 
   useEffect(() => {
+    let ticking = false;
     const toggleVisibility = () => {
-      if (typeof window !== "undefined") {
-        setVisible(window.scrollY > 350);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          if (typeof window !== "undefined") {
+            setVisible(window.scrollY > 350);
+          }
+          ticking = false;
+        });
+        ticking = true;
       }
     };
 

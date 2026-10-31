@@ -1310,7 +1310,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                       <div className="p-2.5 rounded-lg border border-amber-300/80 bg-amber-50/50 dark:bg-amber-950/20 text-[11px] text-amber-800 dark:text-amber-300 space-y-0.5">
                         <p className="font-bold">⚠️ Kode QR Belum Dimasukkan</p>
                         <p className="text-muted-foreground text-[10.5px]">
-                          Di halaman checkout, opsi QRIS akan bertanda "QR Belum Dimasukkan" dan tidak bisa dipilih pembeli sebelum Anda mengunggah gambar QR di sini.
+                          Di halaman checkout, opsi QRIS akan bertanda &quot;QR Belum Dimasukkan&quot; dan tidak bisa dipilih pembeli sebelum Anda mengunggah gambar QR di sini.
                         </p>
                       </div>
                     )}
