@@ -36,6 +36,8 @@ import {
   type AdminNotificationCategory,
 } from "@/actions/admin";
 
+let clientHourSnapshot: number | null = null;
+
 const CATEGORY_META: Record<
   AdminNotificationCategory,
   { label: string; icon: typeof Bell; color: string; bg: string; border: string; text: string }
@@ -166,9 +168,18 @@ export function AdminHeader({
     window.dispatchEvent(new Event("theme-change"));
   };
 
-  const currentHour = new Date().getHours();
+  const currentHour = useSyncExternalStore(
+    () => () => {},
+    () => {
+      clientHourSnapshot ??= new Date().getHours();
+      return clientHourSnapshot;
+    },
+    () => null
+  );
   const greetingText =
-    currentHour < 11
+    currentHour === null
+      ? "Selamat Datang"
+      : currentHour < 11
       ? "Selamat Pagi"
       : currentHour < 15
       ? "Selamat Siang"

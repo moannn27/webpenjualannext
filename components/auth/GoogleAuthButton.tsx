@@ -186,7 +186,9 @@ export function GoogleAuthButton({
         window.google.accounts.id.initialize({
           client_id: googleClientId,
           nonce: noncePair.hashedNonce,
-          use_fedcm_for_prompt: true,
+          // FedCM's account chooser is browser-owned and ignores the site's dark theme.
+          // Keep the explicitly rendered GIS button as the only Google sign-in surface.
+          use_fedcm_for_prompt: false,
           auto_select: false,
           callback: async (response) => {
             setAuthError("");

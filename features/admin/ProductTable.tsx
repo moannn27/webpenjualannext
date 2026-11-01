@@ -1,10 +1,10 @@
 ﻿"use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText, Loader2, AlertTriangle } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import { getVariantGallerySaveBlockReason } from "@/lib/admin-product-variants";
 import {
@@ -52,6 +52,10 @@ type Option = { id: string; name: string };
 type Specification = { key: string; value: string };
 type Variant = { id?: string; sku?: string | null; color: string; ram: string; storage: string; price: number | null; discount_price: number | null; stock: number; image_url?: string | null; images: string[] };
 
+let clientTimeSnapshot: number | null = null;
+const getClientTimeSnapshot = () => (clientTimeSnapshot ??= Date.now());
+const subscribeToClientTime = () => () => {};
+
 export function ProductTable({ initialProducts, categories, brands, initialSearch = "" }: { initialProducts: AdminProduct[]; categories: Option[]; brands: Option[]; initialSearch?: string }) {
   const [products, setProducts] = useState(initialProducts);
   const [search, setSearch] = useState(initialSearch);
@@ -86,6 +90,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [deleteConfirm, setDeleteConfirm] = useState<AdminProduct | null>(null);
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [isDeletingProducts, setIsDeletingProducts] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filters state
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
@@ -98,10 +104,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const [customPriceMin, setCustomPriceMin] = useState<string>("");
   const [customPriceMax, setCustomPriceMax] = useState<string>("");
   const [recentlyAddedOnly, setRecentlyAddedOnly] = useState(false);
-  const [currentTimestamp] = useState(() => Date.now());
+  // The server snapshot is stable; the browser clock is read after hydration.
+  const currentTimestamp = useSyncExternalStore(subscribeToClientTime, getClientTimeSnapshot, () => null);
 
   const isRecentlyAdded = (createdAt?: string) => {
-    if (!createdAt) return false;
+    if (!createdAt || currentTimestamp === null) return false;
     const createdTime = new Date(createdAt).getTime();
     const diffHours = (currentTimestamp - createdTime) / (1000 * 60 * 60);
     return diffHours >= 0 && diffHours <= 24;
@@ -120,14 +127,25 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
 
   // Scroll lock when any modal is open
   useEffect(() => {
-    const isAnyModalOpen = editing !== false || bulkEditOpen || exportModalOpen || deleteConfirm !== null || bulkDeleteConfirm;
+    const isAnyModalOpen = editing !== false || bulkEditOpen || exportModalOpen || deleteConfirm !== null || bulkDeleteConfirm || isDeletingProducts;
     if (isAnyModalOpen) {
+      const previousBodyOverflow = document.body.style.overflow;
+      const previousRootOverflow = document.documentElement.style.overflow;
       document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previousBodyOverflow;
+        document.documentElement.style.overflow = previousRootOverflow;
+      };
     } else {
       document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
-  }, [editing, bulkEditOpen, exportModalOpen, deleteConfirm, bulkDeleteConfirm]);
+    return () => {
+      document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+    };
+  }, [editing, bulkEditOpen, exportModalOpen, deleteConfirm, bulkDeleteConfirm, isDeletingProducts]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -167,7 +185,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const handleExportStock = async () => {
     try {
       setIsExporting(true);
-      const sourceProducts = exportScope === "filtered" ? visible : products;
+      const sourceProducts = exportScope === "filtered" ? visible : catalogProducts;
       const flattened = flattenProductsForStockExport(sourceProducts);
       const scopeLabel = exportScope === "filtered" ? "Filter-Aktif" : "Semua-Stok";
       const timestamp = new Date().toISOString().slice(0, 10);
@@ -219,6 +237,19 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   };
 
   const refresh = async () => setProducts(await getAdminProductsAction());
+  const handleRefreshProducts = async () => {
+    setIsRefreshing(true);
+    setError("");
+    try {
+      await refresh();
+      setSelectedIds(new Set());
+      setBulkSuccess("Daftar produk berhasil diperbarui.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Gagal memuat ulang daftar produk.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   const save = async (formData: FormData) => {
     setError("");
     const gallerySaveBlockReason = getVariantGallerySaveBlockReason(editing ? editing.variant_gallery_error : undefined);
@@ -245,15 +276,19 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
   const confirmDelete = () => {
     if (!deleteConfirm) return;
     const target = deleteConfirm;
-    setDeleteConfirm(null);
     setError("");
+    setIsDeletingProducts(true);
     startTransition(async () => {
       try {
-        await deleteAdminProductAction(target.id);
+        const result = await deleteAdminProductAction(target.id);
         await refresh();
-        setBulkSuccess(`Produk "${target.name}" berhasil dihapus.`);
+        setBulkSuccess(result.retainedForOrders
+          ? `Produk "${target.name}" dihapus dari katalog. Data pesanan lama tetap disimpan.`
+          : `Produk "${target.name}" berhasil dihapus.`);
+        setDeleteConfirm(null);
       }
       catch (cause) { setError(cause instanceof Error ? cause.message : "Produk gagal dihapus."); }
+      finally { setIsDeletingProducts(false); }
     });
   };
 
@@ -286,6 +321,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     }
 
     // 4. Status filter
+    if (selectedStatus === "all" && product.status === "deleted") return false;
     if (selectedStatus !== "all") {
       if (product.status !== selectedStatus) return false;
     }
@@ -358,10 +394,11 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     setRecentlyAddedOnly(false);
   };
 
-  const recentlyAddedCount = products.filter((p) => isRecentlyAdded(p.created_at)).length;
-  const outOfStockCount = products.filter((p) => (p.stock || 0) === 0).length;
-  const lowStockCount = products.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
-  const inStockCount = products.filter((p) => (p.stock || 0) > 0).length;
+  const catalogProducts = products.filter((product) => product.status !== "deleted");
+  const recentlyAddedCount = catalogProducts.filter((p) => isRecentlyAdded(p.created_at)).length;
+  const outOfStockCount = catalogProducts.filter((p) => (p.stock || 0) === 0).length;
+  const lowStockCount = catalogProducts.filter((p) => (p.stock || 0) > 0 && (p.stock || 0) <= 5).length;
+  const inStockCount = catalogProducts.filter((p) => (p.stock || 0) > 0).length;
 
   const isAllSelected = visible.length > 0 && visible.every((p) => selectedIds.has(p.id));
   const isSomeSelected = visible.some((p) => selectedIds.has(p.id)) && !isAllSelected;
@@ -418,14 +455,19 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
     setBulkSuccess("");
     startTransition(async () => {
       try {
-        await bulkDeleteAdminProductsAction(Array.from(selectedIds));
+        const result = await bulkDeleteAdminProductsAction(Array.from(selectedIds));
         await refresh();
-        setBulkSuccess(`${selectedIds.size} produk berhasil dihapus.`);
+        setBulkSuccess(result.retainedCount > 0
+          ? `${result.deletedCount} produk dihapus; ${result.retainedCount} produk dihapus dari katalog dengan riwayat pesanan tetap tersimpan.`
+          : `${result.deletedCount} produk berhasil dihapus.`);
         setSelectedIds(new Set());
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Gagal menghapus produk terpilih.");
+      } finally {
+        setIsDeletingProducts(false);
       }
     });
+    setIsDeletingProducts(true);
   };
 
   const handleApplyBulkEdit = async (e: React.FormEvent) => {
@@ -477,6 +519,17 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
         <Button
           type="button"
           variant="outline"
+          onClick={handleRefreshProducts}
+          disabled={isRefreshing || isDeletingProducts}
+          aria-label="Muat ulang daftar produk"
+          title="Muat ulang daftar produk"
+          className="size-9 rounded-full border-slate-200 dark:border-white/10 p-0 text-slate-700 dark:text-slate-200"
+        >
+          <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin" : ""}`} />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
           onClick={() => setExportModalOpen(true)}
           className="rounded-full border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-slate-700 dark:text-slate-200 font-semibold shadow-2xs text-xs px-3.5 h-9"
         >
@@ -507,7 +560,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                 : "bg-white dark:bg-[#23252C] text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/10 hover:bg-slate-100"
             }`}
           >
-            Semua ({products.length})
+            Semua ({catalogProducts.length})
           </button>
           <button
             type="button"
@@ -646,6 +699,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             <option value="published">Published</option>
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
+            <option value="deleted">Dihapus (riwayat disimpan)</option>
+            <option value="deleted">Dihapus (riwayat disimpan)</option>
           </select>
         </div>
 
@@ -655,7 +710,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             Menampilkan:
           </span>
           <span className="text-xs font-bold text-foreground">
-            {visible.length} <span className="text-muted-foreground font-normal">dari {products.length} produk</span>
+            {visible.length} <span className="text-muted-foreground font-normal">dari {catalogProducts.length} produk</span>
           </span>
         </div>
       </div>
@@ -982,6 +1037,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                       ? "Terbit"
                       : product.status === "draft"
                       ? "Draf"
+                      : product.status === "deleted"
+                      ? "Dihapus"
                       : "Diarsipkan"}
                   </span>
                 </TableCell>
@@ -1035,8 +1092,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
       </Table>
     </div>
 
-    {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false); }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card p-5 shadow-xl sm:p-6">
+    {editing !== false && <div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden overscroll-none bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(false); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="product-dialog-title" className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl bg-card p-5 shadow-xl sm:p-6">
         <h3 id="product-dialog-title" className="mb-5 text-xl font-bold">{editing ? "Edit produk" : "Tambah produk"}</h3>
         <form onSubmit={(e) => { e.preventDefault(); void save(new FormData(e.currentTarget)); }} className="grid gap-4 sm:grid-cols-2">
           {editing && <input type="hidden" name="id" value={editing.id} />}
@@ -1131,7 +1188,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             </div>
           )}
 
-          <label className="space-y-1 text-sm">Status<select name="status" defaultValue={editing?.status ?? "published"} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="published">Terbit</option><option value="draft">Draft</option><option value="archived">Arsip</option></select></label>
+          <label className="space-y-1 text-sm">Status<select name="status" defaultValue={editing?.status ?? "published"} className="h-9 w-full rounded-lg border border-input bg-background px-2"><option value="published">Terbit</option><option value="draft">Draft</option><option value="archived">Arsip</option><option value="deleted">Dihapus (riwayat disimpan)</option></select></label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_best_seller" defaultChecked={editing?.is_best_seller ?? false} />Tampilkan sebagai best seller</label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_new_arrival" defaultChecked={editing?.is_new_arrival ?? false} />Tampilkan sebagai produk terbaru</label>
           <label className="flex items-center gap-2 pt-6 text-sm"><input type="checkbox" name="is_featured" defaultChecked={editing?.is_featured ?? false} />Tampilkan sebagai Promo Pilihan</label>
@@ -1678,7 +1735,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                     className="mt-0.5"
                   />
                   <div>
-                    <span className="font-bold block text-foreground">Semua Produk ({products.length})</span>
+                    <span className="font-bold block text-foreground">Semua Produk ({catalogProducts.length})</span>
                     <span className="text-[11px] text-muted-foreground">Seluruh katalog toko</span>
                   </div>
                 </label>
@@ -1824,17 +1881,18 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             </div>
           </div>
           <div className="p-5 space-y-3">
-            <p className="text-sm text-foreground">Anda akan menghapus produk:</p>
+            <p className="text-sm text-foreground">Produk ini akan dihapus dari katalog:</p>
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
               <p className="font-semibold text-sm text-foreground line-clamp-2">{deleteConfirm.name}</p>
               {deleteConfirm.sku && <p className="text-xs text-muted-foreground mt-0.5">SKU: {deleteConfirm.sku}</p>}
             </div>
-            <p className="text-xs text-muted-foreground">Semua data produk termasuk gambar, varian, dan spesifikasi akan dihapus permanen.</p>
+            <p className="text-xs text-muted-foreground">Jika produk tercatat di pesanan lama, datanya tetap disimpan untuk menjaga riwayat transaksi.</p>
+            {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
           </div>
           <div className="flex items-center justify-end gap-2 p-4 pt-0">
-            <Button type="button" variant="outline" onClick={() => setDeleteConfirm(null)} disabled={busy} className="rounded-xl">Batal</Button>
-            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={busy} className="rounded-xl min-w-[100px]">
-              {busy ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus</>}
+            <Button type="button" variant="outline" onClick={() => setDeleteConfirm(null)} disabled={busy || isDeletingProducts} className="rounded-xl">Batal</Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={busy || isDeletingProducts} className="rounded-xl min-w-[120px]">
+              {busy || isDeletingProducts ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus</>}
             </Button>
           </div>
         </div>
@@ -1857,14 +1915,14 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <div className="p-5 space-y-3">
             <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 flex items-center gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive font-bold text-lg">{selectedIds.size}</span>
-              <div><p className="font-semibold text-sm text-foreground">produk terpilih</p><p className="text-xs text-muted-foreground">akan dihapus permanen</p></div>
+              <div><p className="font-semibold text-sm text-foreground">produk terpilih</p><p className="text-xs text-muted-foreground">akan dihapus dari katalog</p></div>
             </div>
-            <p className="text-xs text-muted-foreground">Semua data termasuk gambar, varian, dan spesifikasi akan dihapus dari database dan tidak bisa dipulihkan.</p>
+            <p className="text-xs text-muted-foreground">Produk dalam riwayat pesanan akan tetap disimpan untuk menjaga data transaksi.</p>
           </div>
           <div className="flex items-center justify-end gap-2 p-4 pt-0">
-            <Button type="button" variant="outline" onClick={() => setBulkDeleteConfirm(false)} disabled={busy} className="rounded-xl">Batal</Button>
-            <Button type="button" variant="destructive" onClick={confirmBulkDelete} disabled={busy} className="rounded-xl min-w-[130px]">
-              {busy ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus Semua</>}
+            <Button type="button" variant="outline" onClick={() => setBulkDeleteConfirm(false)} disabled={busy || isDeletingProducts} className="rounded-xl">Batal</Button>
+            <Button type="button" variant="destructive" onClick={confirmBulkDelete} disabled={busy || isDeletingProducts} className="rounded-xl min-w-[130px]">
+              {busy || isDeletingProducts ? <><Loader2 className="mr-2 size-4 animate-spin inline" />Menghapus...</> : <><Trash2 className="mr-1.5 size-4 inline" />Ya, Hapus Semua</>}
             </Button>
           </div>
         </div>
@@ -1887,6 +1945,15 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
           <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
             <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "75%" }} />
           </div>
+        </div>
+      </div>
+    )}
+    {isDeletingProducts && (
+      <div className="fixed inset-0 z-[300] flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-150" role="status" aria-live="polite">
+        <div className="flex min-w-[220px] flex-col items-center gap-3 rounded-2xl border border-border bg-card px-7 py-6 shadow-2xl">
+          <Loader2 className="size-9 animate-spin text-destructive" />
+          <p className="text-sm font-semibold text-foreground">Menghapus produk...</p>
+          <p className="text-xs text-muted-foreground">Mohon tunggu sebentar</p>
         </div>
       </div>
     )}

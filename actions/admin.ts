@@ -1181,7 +1181,7 @@ export async function saveAdminProductAction(formData: FormData) {
     }
   }
   const id = String(formData.get('id') ?? '').trim()
-  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice <= 0 || discountPrice >= price)) || !['draft', 'published', 'archived'].includes(status)) {
+  if (!name || !description || !categoryId || !brandId || !Number.isFinite(price) || price < 0 || !Number.isInteger(stock) || stock < 0 || (discountEnabled && (!discountRaw || discountPrice === null || !Number.isFinite(discountPrice) || discountPrice <= 0 || discountPrice >= price)) || !['draft', 'published', 'archived', 'deleted'].includes(status)) {
     throw new Error('Periksa nama, deskripsi, kategori, brand, harga, stok, dan status produk.')
   }
   const slug = name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -1722,8 +1722,41 @@ export async function deleteAdminProductAction(productId: string) {
   const { user, adminName, role } = await requireModulePermission('products')
   if (!productId) throw new Error('ID produk tidak valid.')
   const supabase = await createClient()
-  const { error } = await supabase.from('products').delete().eq('id', productId)
+  const { data: orderReferences, error: referenceError } = await supabase
+    .from('order_items')
+    .select('id')
+    .eq('product_id', productId)
+    .limit(1)
+  if (referenceError) throw new Error(`Gagal memeriksa riwayat pesanan: ${referenceError.message}`)
+
+  if (orderReferences?.length) {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ status: 'deleted' })
+      .eq('id', productId)
+      .select('id')
+    if (error) throw new Error(`Produk tidak dapat diarsipkan: ${error.message}`)
+    if (!data?.length) throw new Error('Produk tidak ditemukan atau tidak dapat diubah.')
+
+    await recordAdminActivity({
+      admin_id: user.id,
+      admin_name: adminName,
+      admin_role: role || 'admin',
+      action: 'update',
+      entity_type: 'product',
+      entity_name: productId,
+      details: `Menghapus produk dari katalog (ID: ${productId}); data produk dipertahankan untuk riwayat pesanan`,
+    })
+    revalidatePath('/admin/products')
+    revalidatePath('/products')
+    revalidatePath('/orders/[id]/invoice', 'page')
+    revalidatePath('/')
+    return { success: true, retainedForOrders: true }
+  }
+
+  const { data, error } = await supabase.from('products').delete().eq('id', productId).select('id')
   if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('Produk tidak ditemukan atau tidak dapat dihapus.')
 
   await recordAdminActivity({
     admin_id: user.id,
@@ -1739,7 +1772,7 @@ export async function deleteAdminProductAction(productId: string) {
   revalidatePath('/products')
   revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
-  return { success: true }
+  return { success: true, retainedForOrders: false }
 }
 
 export async function bulkUpdateAdminProductsStatusAction(
@@ -1843,12 +1876,48 @@ export async function bulkDeleteAdminProductsAction(productIds: string[]) {
   if (!productIds || productIds.length === 0) throw new Error('Pilih minimal satu produk.')
 
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .in('id', productIds)
+  const uniqueIds = [...new Set(productIds.filter((id) => typeof id === 'string' && id.trim()))]
+  if (!uniqueIds.length) throw new Error('Tidak ada ID produk yang valid.')
 
-  if (error) throw new Error(error.message)
+  const { data: existingProducts, error: productsError } = await supabase
+    .from('products')
+    .select('id')
+    .in('id', uniqueIds)
+  if (productsError) throw new Error(`Gagal memeriksa produk: ${productsError.message}`)
+  if ((existingProducts?.length ?? 0) !== uniqueIds.length) {
+    throw new Error('Sebagian produk sudah tidak tersedia. Muat ulang daftar produk lalu coba lagi.')
+  }
+
+  const { data: orderReferences, error: referenceError } = await supabase
+    .from('order_items')
+    .select('product_id')
+    .in('product_id', uniqueIds)
+  if (referenceError) throw new Error(`Gagal memeriksa riwayat pesanan: ${referenceError.message}`)
+
+  const referencedIds = [...new Set((orderReferences ?? []).map((item) => item.product_id).filter(Boolean))]
+  const deletableIds = uniqueIds.filter((id) => !referencedIds.includes(id))
+  let deletedCount = 0
+
+  if (deletableIds.length) {
+    const { data, error } = await supabase.from('products').delete().in('id', deletableIds).select('id')
+    if (error) throw new Error(error.message)
+    deletedCount = data?.length ?? 0
+    if (deletedCount !== deletableIds.length) {
+      throw new Error('Sebagian produk tidak dapat dihapus. Muat ulang daftar produk lalu coba lagi.')
+    }
+  }
+
+  if (referencedIds.length) {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ status: 'deleted' })
+      .in('id', referencedIds)
+      .select('id')
+    if (error) throw new Error(`Produk dengan riwayat pesanan gagal diarsipkan: ${error.message}`)
+    if ((data?.length ?? 0) !== referencedIds.length) {
+      throw new Error('Sebagian produk ber-riwayat pesanan tidak ditemukan atau tidak dapat diarsipkan.')
+    }
+  }
 
   await recordAdminActivity({
     admin_id: user.id,
@@ -1856,15 +1925,15 @@ export async function bulkDeleteAdminProductsAction(productIds: string[]) {
     admin_role: role,
     action: 'delete',
     entity_type: 'product',
-    entity_name: `${productIds.length} produk`,
-    details: `Menghapus massal ${productIds.length} produk`,
+    entity_name: `${uniqueIds.length} produk`,
+    details: `Menghapus ${deletedCount} produk dan menyembunyikan ${referencedIds.length} produk dari katalog sambil mempertahankan relasi riwayat pesanan`,
   })
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
-  return { success: true, count: productIds.length }
+  return { success: true, count: deletedCount + referencedIds.length, deletedCount, retainedCount: referencedIds.length }
 }
 
 export async function getAdminCategoriesAction() {
