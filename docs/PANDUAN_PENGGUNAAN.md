@@ -19,6 +19,13 @@ Panduan ini menjelaskan setup Supabase dan penggunaan storefront/panel admin. Un
 - Untuk publikasi, tambahkan domain produksi dan URL callback pada Authentication → URL Configuration. Gunakan SMTP sendiri untuk email produksi.
 - Jangan pernah menaruh `service_role` key pada variabel `NEXT_PUBLIC_*` atau Git.
 
+### Ulasan produk
+
+- Pelanggan dapat mengirim atau memperbarui ulasan setelah pesanan berstatus diterima dan memiliki pembayaran sukses untuk produk tersebut.
+- Admin dengan izin **Konten & Toko** mengelola balasan/penghapusan di `/admin/reviews`. Izin ini juga diperiksa oleh RLS database, bukan hanya menu atau action aplikasi. Ulasan baru muncul di notifikasi admin beserta nama produk dan nomor pesanan.
+- Rating pada kartu dan halaman produk adalah rata-rata ulasan pembelian terverifikasi. Produk tanpa ulasan tidak diberi rating atau jumlah ulasan palsu; daftar ulasan dapat digulir jika isinya panjang.
+- Terapkan seluruh migration ulasan dan penghapusan massal yang pending sebelum menggunakan versi aplikasi ini; migration tidak diterapkan otomatis oleh build.
+
 ### Akun super admin
 
 Daftarkan akun sendiri lewat `/register`, lalu jalankan query ini dari SQL Editor Supabase. Ganti alamat email dengan email akun yang sudah terdaftar:

@@ -24,6 +24,7 @@ import {
   BRANDS,
 } from "@/lib/recommendation-assistant";
 import { FAQService } from "@/services/faq.service";
+import { ReviewService } from "@/services/review.service";
 import { DEFAULT_STOREFRONT_SETTINGS, normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { DEFAULT_FAQS } from "@/constants/defaultFaqs";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -108,6 +109,8 @@ export const OPENAI_TOOLS: OpenAITool[] = [
     },
   },
 ];
+
+const reviewService = new ReviewService();
 
 export const ALL_CHATBOT_TOOLS: FunctionDeclaration[] = openAIToolsToGemini(OPENAI_TOOLS);
 export const TOOL_CARI_PRODUK: FunctionDeclaration = ALL_CHATBOT_TOOLS[0];
@@ -679,7 +682,11 @@ function fallbackAnswer(
   return `${opening} Kartu di bawah menampilkan ringkasan spesifikasi, harga, dan stok. ${nextQuestion}`;
 }
 
-function toChatProduct(product: Candidate, criteria: ReturnType<typeof getProductCriteria>) {
+function toChatProduct(
+  product: Candidate,
+  criteria: ReturnType<typeof getProductCriteria>,
+  reviewSummary?: { rating: number; count: number }
+) {
   const selectedVariant = getMatchingVariant(product, criteria);
   const graphicsFollowUp = criteria.graphicsQuestion || Boolean(criteria.graphics) || criteria.alternativeRequest || criteria.gaming || criteria.design;
   return {
@@ -692,9 +699,19 @@ function toChatProduct(product: Candidate, criteria: ReturnType<typeof getProduc
     stock: selectedVariant?.stock ?? (product.product_variants?.length
       ? product.product_variants.reduce((total, variant) => total + Math.max(0, Number(variant.stock) || 0), 0)
       : product.stock),
+    ...(reviewSummary ? { rating: reviewSummary.rating, reviews: reviewSummary.count } : {}),
     highlights: getProductHighlights(product, criteria),
     ...(graphicsFollowUp ? { graphicsLabel: getCatalogGraphicsLabel(product) } : {}),
   };
+}
+
+async function getRecommendationReviewSummaries(products: Candidate[]) {
+  try {
+    return await reviewService.getRatingSummaries(products.map((product) => product.id));
+  } catch (error) {
+    console.error("Failed to load recommendation product ratings:", error);
+    return new Map<string, { rating: number; count: number }>();
+  }
 }
 
 function getProductHighlights(product: Candidate, criteria: ReturnType<typeof getProductCriteria>) {
@@ -1210,11 +1227,12 @@ Instruksi balasan:
       isRateLimit = Boolean(handled.isRateLimit);
     }
 
+    const reviewSummaries = await getRecommendationReviewSummaries(products);
     return NextResponse.json({
       answer,
       aiGenerated,
       isRateLimit,
-      products: products.map((product) => toChatProduct(product, criteria)),
+      products: products.map((product) => toChatProduct(product, criteria, reviewSummaries.get(product.id))),
       alternatives: [],
     });
   }
@@ -1371,12 +1389,13 @@ Instruksi balasan:
       isRateLimit = Boolean(handled.isRateLimit);
     }
   }
+  const reviewSummaries = await getRecommendationReviewSummaries([...products, ...alternatives]);
   return NextResponse.json({
     answer,
     aiGenerated,
     isRateLimit,
-    products: products.map((product) => toChatProduct(product, criteria)),
-    alternatives: alternatives.map((product) => toChatProduct(product, criteria)),
+    products: products.map((product) => toChatProduct(product, criteria, reviewSummaries.get(product.id))),
+    alternatives: alternatives.map((product) => toChatProduct(product, criteria, reviewSummaries.get(product.id))),
     alternativeLabel,
   });
 }

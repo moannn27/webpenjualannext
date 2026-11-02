@@ -19,6 +19,7 @@ import {
   CreditCard,
   Layers,
   Package,
+  MessageSquare,
   History,
   Sliders,
 } from "lucide-react";
@@ -90,6 +91,14 @@ const CATEGORY_META: Record<
     border: "border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10",
     text: "text-rose-700 dark:text-rose-400",
   },
+  review: {
+    label: "Ulasan",
+    icon: MessageSquare,
+    color: "text-cyan-600 dark:text-cyan-400",
+    bg: "bg-cyan-500/15",
+    border: "border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10",
+    text: "text-cyan-700 dark:text-cyan-400",
+  },
 };
 
 const ALL_CATEGORY_KEYS: AdminNotificationCategory[] = [
@@ -99,6 +108,7 @@ const ALL_CATEGORY_KEYS: AdminNotificationCategory[] = [
   "catalog",
   "activity",
   "security",
+  "review",
 ];
 
 export function AdminHeader({
@@ -123,11 +133,13 @@ export function AdminHeader({
     "catalog",
     "activity",
     "security",
+    "review",
   ]);
   const [staffConfig, setStaffConfig] = useState<AdminNotificationCategory[]>([
     "order",
     "stock",
     "catalog",
+    "review",
   ]);
   const [configOpen, setConfigOpen] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
@@ -541,6 +553,7 @@ export function AdminHeader({
                       { key: "payment" as AdminNotificationCategory, label: "Edit Pembayaran (Payment)" },
                       { key: "activity" as AdminNotificationCategory, label: "Aktivitas Toko (Activity)" },
                       { key: "security" as AdminNotificationCategory, label: "Keamanan Akun (Security)" },
+                      { key: "review" as AdminNotificationCategory, label: "Ulasan Produk (Review)" },
                     ].map((item) => {
                       const isChecked = staffConfig.includes(item.key);
                       return (

@@ -221,17 +221,7 @@ export function OrderInvoice({
     storefront?.complaintInstructions?.trim() ||
     "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.";
 
-  const bankAccounts =
-    storefront?.bankAccounts && storefront.bankAccounts.length > 0
-      ? storefront.bankAccounts
-      : [
-          {
-            bank_name: "BCA",
-            account_number: "8320192831",
-            account_holder: "Next Solution Store",
-            instructions: "Transfer sesuai nominal total tagihan",
-          },
-        ];
+  const bankAccounts = storefront?.bankAccounts ?? [];
 
   type OrderShippingAddress = {
     recipient_name?: string | null;
@@ -304,6 +294,7 @@ export function OrderInvoice({
       !paymentMethodRaw.includes("bank") &&
       !paymentMethodRaw.includes("bca"));
   const isQrisMethod = paymentMethodRaw.includes("qris");
+  const isBankTransferMethod = !isCashMethod && !isQrisMethod;
 
   const paymentMethodName = isQrisMethod
     ? "QRIS (Scan QR Digital)"
@@ -984,6 +975,14 @@ export function OrderInvoice({
                         <span className="text-slate-500">A/C Name</span>
                         <span className="text-slate-400 select-none">:</span>
                         <span className="text-slate-800 font-medium">{bankAccounts[0].account_holder}</span>
+                      </>
+                    ) : isBankTransferMethod ? (
+                      <>
+                        <span className="text-slate-500">Info</span>
+                        <span className="text-slate-400 select-none">:</span>
+                        <span className="text-amber-700 font-medium">
+                          Hubungi admin untuk mendapatkan rekening resmi toko.
+                        </span>
                       </>
                     ) : null}
 

@@ -302,14 +302,14 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         ...(current.featured_reviews || []),
         {
           id: crypto.randomUUID(),
-          user_name: "Pelanggan Terverifikasi",
+          user_name: "Pelanggan",
           product_id: products[0]?.id || "",
           product_name: products[0]?.name || "Produk Pilihan",
           product_image: "",
           rating: 5,
-          comment: "Produk original bergaransi resmi, pengiriman cepat dan sangat memuaskan.",
+          comment: "",
           date_text: "Terbaru",
-          is_verified: true,
+          is_verified: false,
         },
       ],
     }));
@@ -341,13 +341,13 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
             product_name: rev.product_name,
             product_image: rev.product_image,
             rating: rev.rating,
-            comment: rev.comment,
+            comment: rev.comment ?? "",
             date_text: new Date(rev.created_at).toLocaleDateString("id-ID", {
               day: "numeric",
               month: "short",
               year: "numeric",
             }),
-            is_verified: true,
+            is_verified: rev.is_verified,
           },
         ],
       };

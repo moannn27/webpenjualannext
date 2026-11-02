@@ -13,6 +13,8 @@ export type StoreProduct = {
   is_featured?: boolean;
   is_best_seller?: boolean;
   is_new_arrival?: boolean;
+  rating?: number | null;
+  reviews?: number | null;
   categories?: { name: string } | null;
   brands?: { name: string } | null;
   product_images?: { url: string; is_primary: boolean }[];
@@ -40,6 +42,12 @@ export function toStorefrontProduct(row: StoreProduct, extraPromoIds?: string[])
     isPromo,
     isBestSeller: Boolean(row.is_best_seller),
     isNewArrival: Boolean(row.is_new_arrival),
+    rating: row.rating == null || !Number.isFinite(Number(row.rating))
+      ? undefined
+      : Math.min(5, Math.max(0, Number(row.rating))),
+    reviews: row.reviews == null || !Number.isFinite(Number(row.reviews))
+      ? 0
+      : Math.max(0, Math.trunc(Number(row.reviews))),
     category: row.categories?.name ?? "",
     brand: row.brands?.name ?? "",
     image: getSafeProductImageUrl(row.product_images),

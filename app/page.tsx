@@ -57,7 +57,7 @@ export default async function Home() {
     getStorefrontFeaturedReviewsAction(
       settings.featured_reviews,
       settings.selected_review_ids
-    ).catch(() => settings.featured_reviews),
+    ).catch(() => settings.featured_reviews.map((review) => ({ ...review, is_verified: false }))),
   ]);
   const selectedProducts = selectedRows.map((product) => toStorefrontProduct(product as StoreProduct));
   const selected = (key: "bestsellers" | "newArrivals" | "promo" | "featuredDiscovery", fallback: typeof selectedProducts) => {

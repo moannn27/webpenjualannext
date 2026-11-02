@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag } from "lucide-react";
+import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag, Star } from "lucide-react";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
@@ -29,6 +29,8 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
   const payablePrice = product.discountPrice ?? product.price;
   const regularPrice = product.discountPrice != null ? product.price : product.originalPrice;
   const isOutOfStock = (product.stock ?? 0) <= 0;
+  const reviewCount = Math.max(0, Math.trunc(product.reviews ?? 0));
+  const reviewRating = Number.isFinite(product.rating) ? product.rating : undefined;
 
   const toggleWishlist = async () => {
     try {
@@ -185,6 +187,29 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
             {product.name}
           </h3>
         </Link>
+
+        {reviewCount > 0 && reviewRating !== undefined && (
+          <div
+            className="mt-1.5 flex items-center gap-1.5 text-xs"
+            aria-label={`Rating ${reviewRating.toFixed(1)} dari 5 berdasarkan ${reviewCount} ulasan`}
+          >
+            <span className="flex items-center gap-0.5" aria-hidden="true">
+              {[...Array(5)].map((_, index) => (
+                <Star
+                  key={index}
+                  className={cn(
+                    "size-3.5",
+                    index < Math.round(reviewRating)
+                      ? "fill-amber-400 text-amber-400"
+                      : "fill-muted text-muted-foreground/30"
+                  )}
+                />
+              ))}
+            </span>
+            <span className="font-semibold tabular-nums text-foreground">{reviewRating.toFixed(1)}</span>
+            <span className="text-muted-foreground">({reviewCount.toLocaleString("id-ID")} ulasan)</span>
+          </div>
+        )}
 
         {/* Subtitle / Specs */}
         <p className="text-xs text-muted-foreground line-clamp-1 mt-1">

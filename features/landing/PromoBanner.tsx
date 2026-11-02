@@ -453,12 +453,19 @@ export function PromoBanner({
                               <span className="truncate font-semibold text-primary">
                                 {product.brand || product.category || "Next Solution"}
                               </span>
-                              <div className="flex shrink-0 items-center gap-1">
-                                <Star className="size-3 fill-amber-400 text-amber-400" />
-                                <span className="font-semibold text-foreground">
-                                  {product.rating || "5.0"}
-                                </span>
-                              </div>
+                              {product.reviews && product.rating !== undefined && Number.isFinite(product.rating) ? (
+                                <div
+                                  className="flex shrink-0 items-center gap-1"
+                                  aria-label={`Rating ${product.rating?.toFixed(1)} dari 5 berdasarkan ${product.reviews} ulasan`}
+                                >
+                                  <Star className="size-3 fill-amber-400 text-amber-400" />
+                                  <span className="font-semibold text-foreground">
+                                    {product.rating?.toFixed(1)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="shrink-0 text-[10px] text-muted-foreground">Belum ada ulasan</span>
+                              )}
                             </div>
 
                             <h3 className="line-clamp-2 text-sm sm:text-base font-semibold leading-snug text-foreground">

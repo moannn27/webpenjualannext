@@ -15,6 +15,28 @@ describe('storefront product pricing', () => {
     expect(product.discountPrice).toBeNull()
   })
 
+  it('maps aggregate product review stats and does not invent a rating for unreviewed products', () => {
+    const reviewedProduct = toStorefrontProduct({
+      id: 'p-reviewed',
+      name: 'Laptop',
+      price: 12000000,
+      stock: 1,
+      rating: 4.875,
+      reviews: 8,
+    })
+    const unreviewedProduct = toStorefrontProduct({
+      id: 'p-new',
+      name: 'Laptop Baru',
+      price: 12000000,
+      stock: 1,
+    })
+
+    expect(reviewedProduct.rating).toBe(4.875)
+    expect(reviewedProduct.reviews).toBe(8)
+    expect(unreviewedProduct.rating).toBeUndefined()
+    expect(unreviewedProduct.reviews).toBe(0)
+  })
+
   it('correctly maps is_best_seller and is_new_arrival with appropriate badges', () => {
     const product = toStorefrontProduct({
       id: 'p3',

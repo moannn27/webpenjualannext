@@ -18,6 +18,8 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,8 @@ interface ProductReview {
   rating: number;
   comment?: string | null;
   created_at: string;
+  admin_reply?: string | null;
+  admin_replied_at?: string | null;
   users?: { full_name?: string | null } | null;
 }
 
@@ -179,8 +183,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
 
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const reviewCount = reviews.length;
-  const averageRating = reviewCount ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1) : "—";
+  const reviewCount = product.reviews ?? reviews.length;
+  const averageValue = product.rating ?? (
+    reviews.length
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : null
+  );
+  const averageRating = averageValue === null ? "—" : averageValue.toFixed(1);
 
   useEffect(() => {
     trackViewItem({
@@ -627,7 +636,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         </div>
       </div>
 
-      {/* Section Ulasan Pembeli (Carousel bergerak jika ulasan banyak) */}
+      {/* Section Ulasan Pembeli */}
       <section id="reviews-section" className="mt-14 border-t border-border pt-10">
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
@@ -648,23 +657,23 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                 type="button"
                 onClick={() => {
                   const slider = document.getElementById("reviews-scroll-container");
-                  if (slider) slider.scrollBy({ left: -360, behavior: "smooth" });
+                  if (slider) slider.scrollBy({ top: -320, behavior: "smooth" });
                 }}
                 className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
-                aria-label="Geser ulasan sebelumnya"
+                aria-label="Gulir ulasan ke atas"
               >
-                <ChevronLeft className="size-4" />
+                <ChevronUp className="size-4" />
               </button>
               <button
                 type="button"
                 onClick={() => {
                   const slider = document.getElementById("reviews-scroll-container");
-                  if (slider) slider.scrollBy({ left: 360, behavior: "smooth" });
+                  if (slider) slider.scrollBy({ top: 320, behavior: "smooth" });
                 }}
                 className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
-                aria-label="Geser ulasan berikutnya"
+                aria-label="Gulir ulasan ke bawah"
               >
-                <ChevronRight className="size-4" />
+                <ChevronDown className="size-4" />
               </button>
             </div>
           )}
@@ -685,7 +694,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                       <Star
                         key={i}
                         className={`size-4 ${
-                          i < Math.round(Number(averageRating) || 5)
+                          i < Math.round(Number(averageRating) || 0)
                             ? "fill-amber-400 text-amber-400"
                             : "fill-muted text-muted"
                         }`}
@@ -704,14 +713,12 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               </div>
             </div>
 
-            {/* List of Verified Reviews (Carousel slider horizontal) */}
+            {/* List of verified reviews in a bounded vertical scroll box */}
             <div
               id="reviews-scroll-container"
-              className={cn(
-                reviews.length > 2
-                  ? "flex gap-4 overflow-x-auto pb-4 scroll-smooth snap-x snap-mandatory scrollbar-thin"
-                  : "grid grid-cols-1 md:grid-cols-2 gap-4"
-              )}
+              tabIndex={reviews.length > 2 ? 0 : undefined}
+              aria-label="Daftar ulasan pembeli"
+              className="max-h-[min(70vh,36rem)] space-y-4 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-muted/10 p-3 scroll-smooth scrollbar-thin sm:p-4"
             >
               {reviews.map((review) => {
                 const initials = (review.users?.full_name || "Pelanggan")
@@ -724,10 +731,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                 return (
                   <article
                     key={review.id}
-                    className={cn(
-                      "rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-2xs space-y-3 shrink-0 snap-start transition-all hover:border-primary/40",
-                      reviews.length > 2 ? "w-[290px] sm:w-[350px] md:w-[380px]" : "w-full"
-                    )}
+                    className="w-full rounded-2xl border border-primary/20 bg-card p-5 sm:p-6 shadow-sm space-y-4 transition-all hover:border-primary/40"
                   >
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2.5">
@@ -735,10 +739,10 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                           {initials}
                         </div>
                         <div>
-                          <h4 className="font-bold text-xs sm:text-sm text-foreground truncate max-w-[140px]">
+                          <h4 className="font-bold text-sm sm:text-base text-foreground truncate max-w-[180px]">
                             {review.users?.full_name || "Pelanggan Terverifikasi"}
                           </h4>
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             {new Date(review.created_at).toLocaleDateString("id-ID", {
                               day: "numeric",
                               month: "long",
@@ -768,9 +772,27 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                       </div>
                     </div>
 
-                    <p className="text-xs text-foreground/90 leading-relaxed font-light line-clamp-4">
-                      &ldquo;{review.comment || "Pembeli tidak menyertakan ulasan tertulis."}&rdquo;
-                    </p>
+                    <div className="rounded-xl border border-primary/15 bg-primary/[0.035] p-4 sm:p-5">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Ulasan pembeli</p>
+                      <p className="mt-2 text-sm sm:text-base font-medium leading-relaxed text-foreground line-clamp-5">
+                        &ldquo;{review.comment || "Pembeli tidak menyertakan ulasan tertulis."}&rdquo;
+                      </p>
+                    </div>
+                    {review.admin_reply && (
+                      <div className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2.5">
+                        <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Balasan admin</p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{review.admin_reply}</p>
+                        {review.admin_replied_at && (
+                          <p className="mt-1 text-[9px] text-muted-foreground/80">
+                            {new Date(review.admin_replied_at).toLocaleDateString("id-ID", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </article>
                 );
               })}

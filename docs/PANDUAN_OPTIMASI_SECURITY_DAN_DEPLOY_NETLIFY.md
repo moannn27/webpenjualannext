@@ -81,6 +81,8 @@ Uji ukur lokal dilakukan menggunakan `npx next start -p 3000`:
 
 Migrasi SQL berikut wajib diterapkan secara berurutan pada environment Supabase (Staging / Production):
 
+Daftar di bawah menyorot migration penting, bukan seluruh migration di repo. Sebelum deploy, periksa semua migration pending dengan `npx supabase migration list` dan tinjau perubahan pada target yang benar. Jangan menerapkan hanya sebagian migration yang menjadi prasyarat.
+
 1. **`supabase/migrations/20261104000000_about_us_content.sql`**
    - Membuat tabel `public.about_us_content`.
    - Mengatur Row-Level Security (RLS) untuk akses publik baca dan akses admin tulis.
@@ -92,6 +94,15 @@ Migrasi SQL berikut wajib diterapkan secara berurutan pada environment Supabase 
    - Mengetatkan storage policies untuk bucket `avatars` dan `reviews`.
    - Membuat tabel `public.api_rate_limits` dan RPC `check_rate_limit`.
    - Menambahkan kolom lockout pada `public.users`.
+4. **`supabase/migrations/20261114000000_verified_product_reviews.sql`**
+   - Mengaitkan ulasan ke pesanan, memverifikasi kepemilikan produk, pembayaran sukses, dan status pesanan selesai di database.
+   - Menambahkan balasan admin serta kebijakan akses ulasan yang lebih ketat.
+5. **`supabase/migrations/20261115000000_atomic_bulk_product_delete.sql`**
+   - Memindahkan penghapusan produk massal ke satu operasi database atomik yang hanya dapat dipanggil server.
+6. **`supabase/migrations/20261116000000_review_content_permission.sql`**
+   - Membatasi balasan dan penghapusan ulasan admin berdasarkan izin modul **Konten & Toko**, termasuk saat mengakses database langsung.
+7. **`supabase/migrations/20261117000000_review_reply_content_guard.sql`**
+   - Memastikan perubahan balasan ulasan di database hanya dilakukan oleh admin yang memiliki izin **Konten & Toko**.
 
 ---
 
@@ -105,7 +116,7 @@ File [`netlify.toml`](file:///c:/webnext/netlify.toml) telah disiapkan di root d
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20.20.0"
+  NODE_VERSION = "22"
 
 [[headers]]
   for = "/*"

@@ -23,6 +23,8 @@ export interface StructuredDataProductInput {
   price: number;
   discount_price?: number | null;
   stock?: number;
+  rating?: number;
+  reviews?: number;
   sku?: string | null;
   product_images?: { url: string }[] | null;
   brands?: { name: string } | null;
@@ -89,48 +91,65 @@ export function buildProductJsonLd(
 
   // Only include rating / review if real, valid reviews are present.
   // Never forge ratings or review counts.
-  if (reviews && Array.isArray(reviews) && reviews.length > 0) {
-    const validRatings = reviews.filter(
-      (r) => typeof r.rating === "number" && r.rating >= 1 && r.rating <= 5
-    );
-    if (validRatings.length > 0) {
-      const avg = (
-        validRatings.reduce((sum, r) => sum + r.rating, 0) / validRatings.length
-      ).toFixed(1);
-      jsonLd.aggregateRating = {
-        "@type": "AggregateRating",
-        ratingValue: avg,
-        reviewCount: validRatings.length,
-        bestRating: "5",
-        worstRating: "1",
+  const validRatings = Array.isArray(reviews)
+    ? reviews.filter((review) => typeof review.rating === "number" && review.rating >= 1 && review.rating <= 5)
+    : [];
+  if (
+    typeof product.rating === "number" &&
+    Number.isFinite(product.rating) &&
+    product.rating >= 1 &&
+    product.rating <= 5 &&
+    typeof product.reviews === "number" &&
+    Number.isSafeInteger(product.reviews) &&
+    product.reviews > 0
+  ) {
+    jsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: product.rating.toFixed(1),
+      reviewCount: product.reviews,
+      bestRating: "5",
+      worstRating: "1",
+    };
+  } else if (validRatings.length > 0) {
+    const avg = (
+      validRatings.reduce((sum, review) => sum + review.rating, 0) / validRatings.length
+    ).toFixed(1);
+    jsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: avg,
+      reviewCount: validRatings.length,
+      bestRating: "5",
+      worstRating: "1",
+    };
+  }
+
+  if (validRatings.length > 0) {
+    jsonLd.review = validRatings.slice(0, 5).map((review) => {
+      const item: Record<string, unknown> = {
+        "@type": "Review",
+        author: {
+          "@type": "Person",
+          name: review.users?.full_name || "Pelanggan Terverifikasi",
+        },
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: review.rating,
+          bestRating: "5",
+          worstRating: "1",
+        },
       };
-      jsonLd.review = validRatings.slice(0, 5).map((r) => {
-        const item: Record<string, unknown> = {
-          "@type": "Review",
-          author: {
-            "@type": "Person",
-            name: r.users?.full_name || "Pelanggan Terverifikasi",
-          },
-          reviewRating: {
-            "@type": "Rating",
-            ratingValue: r.rating,
-            bestRating: "5",
-            worstRating: "1",
-          },
-        };
-        if (r.comment) {
-          item.reviewBody = r.comment;
+      if (review.comment) {
+        item.reviewBody = review.comment;
+      }
+      if (review.created_at) {
+        try {
+          item.datePublished = new Date(review.created_at).toISOString().split("T")[0];
+        } catch {
+          // ignore date formatting errors
         }
-        if (r.created_at) {
-          try {
-            item.datePublished = new Date(r.created_at).toISOString().split("T")[0];
-          } catch {
-            // ignore date formatting errors
-          }
-        }
-        return item;
-      });
-    }
+      }
+      return item;
+    });
   }
 
   return jsonLd;
@@ -174,4 +193,3 @@ export function buildStoreJsonLd(store?: {
 
   return jsonLd;
 }
-

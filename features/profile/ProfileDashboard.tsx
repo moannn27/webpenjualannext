@@ -208,6 +208,7 @@ export function ProfileDashboard({
   const [reviewModalItem, setReviewModalItem] = useState<{
     productId: string;
     productName: string;
+    orderId: string;
   } | null>(null);
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComment, setReviewComment] = useState<string>("");
@@ -392,6 +393,7 @@ export function ProfileDashboard({
     try {
       const fd = new FormData();
       fd.set("productId", reviewModalItem.productId);
+      fd.set("orderId", reviewModalItem.orderId);
       fd.set("rating", String(reviewRating));
       fd.set("comment", reviewComment);
       await submitReviewAction(fd);
@@ -826,6 +828,7 @@ export function ProfileDashboard({
                                                     setReviewModalItem({
                                                       productId: prodId,
                                                       productName: item.product_name,
+                                                      orderId: order.id,
                                                     })
                                                   }
                                                   className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-colors shadow-xs"

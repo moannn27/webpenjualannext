@@ -124,6 +124,31 @@ describe("SEO Utilities", () => {
         worstRating: "1",
       });
     });
+
+    it("uses the complete aggregate summary for ratings while retaining available review examples", () => {
+      const product = {
+        id: "prod-5",
+        name: "ASUS Vivobook",
+        price: 12_000_000,
+        stock: 2,
+        rating: 4.9,
+        reviews: 27,
+      };
+
+      const result = buildProductJsonLd(product, [
+        {
+          id: "rev-5",
+          rating: 5,
+          comment: "Sangat bagus",
+          users: { full_name: "Pelanggan" },
+        },
+      ]);
+      const aggregate = result.aggregateRating as Record<string, unknown>;
+
+      expect(aggregate.ratingValue).toBe("4.9");
+      expect(aggregate.reviewCount).toBe(27);
+      expect(result.review).toHaveLength(1);
+    });
   });
 
   describe("buildStoreJsonLd", () => {
@@ -144,4 +169,3 @@ describe("SEO Utilities", () => {
     });
   });
 });
-

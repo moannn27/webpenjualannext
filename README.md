@@ -40,7 +40,7 @@
 | **Pencarian** | Full-text search berdasarkan nama, SKU, brand, spesifikasi, dan label badge |
 | **Badge Produk** | Label **Baru**, **Terlaris**, **Promo** dengan tampilan visual |
 | **Halaman Promo** | Halaman khusus `/promo` menampilkan semua produk dengan tag Promo |
-| **Detail Produk** | Galeri gambar + lightbox, varian (warna/RAM/storage), spesifikasi, ulasan pelanggan |
+| **Detail Produk** | Galeri gambar + lightbox, varian (warna/RAM/storage), spesifikasi, ulasan pelanggan dan rating rata-rata terverifikasi |
 | **Perbandingan** | Bandingkan hingga 3 produk secara berdampingan |
 | **Wishlist** | Simpan produk favorit |
 | **Keranjang** | Manajemen item keranjang belanja |
@@ -68,6 +68,7 @@
 | **Sinkronisasi Stok** | Sync stok dari file Excel pricelist brand |
 | **Kategori & Brand** | Manajemen kategori, brand dengan logo |
 | **Pesanan** | Daftar pesanan, filter status, update status, detail pesanan |
+| **Ulasan Produk** | Ulasan hanya dari pesanan lunas yang sudah diterima; admin mendapat notifikasi produk/pesanan dan dapat membalas atau menghapus ulasan |
 | **Faktur Manual** | Buat faktur manual untuk transaksi offline |
 | **Voucher** | Buat & kelola kode diskon dengan batas penggunaan & masa berlaku |
 | **Pelanggan & Staf** | Manajemen akun pelanggan dan staf |
@@ -179,7 +180,7 @@ c:\webnext\
 
 Pastikan sudah terinstall:
 
-- **Node.js** v20 atau lebih baru — [nodejs.org](https://nodejs.org/)
+- **Node.js** v22 LTS — [nodejs.org](https://nodejs.org/)
 - **npm** v10+ (sudah termasuk bersama Node.js)
 - **Git** — [git-scm.com](https://git-scm.com/)
 - **Akun Supabase** (gratis) — [supabase.com](https://supabase.com/)
@@ -237,7 +238,7 @@ Perintah ini akan menjalankan semua file migrasi di folder `supabase/migrations/
 ### Langkah 6 — Setup Admin Pertama
 
 1. Setelah migrasi berjalan, daftarkan akun baru melalui `/register`
-2. Di Supabase Dashboard → **Table Editor → `profiles`**, ubah kolom `role` akun tersebut menjadi `super_admin`
+2. Di Supabase Dashboard → **Table Editor → `users`**, ubah kolom `role` akun tersebut menjadi `super_admin`
 3. Login kembali, lalu akses `/admin`
 
 ### Langkah 7 — Jalankan Development Server

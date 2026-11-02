@@ -42,12 +42,15 @@ describe("recommendation chat responsive UI", () => {
       products: [{
         id: "loq", name: "Lenovo LOQ 15", price: 15_000_000, discount_price: null,
         stock: 3, image: null, brands: { name: "Lenovo" },
+        rating: 4.9, reviews: 12,
         graphicsLabel: "NVIDIA GeForce RTX 4050",
       }],
     }));
 
     expect(html).toContain("RTX 4050 di atas budget");
     expect(html).toContain("15.000.000");
+    expect(html).toContain("4.9");
+    expect(html).toContain("12 ulasan");
     expect(html).toContain("NVIDIA GeForce RTX 4050");
     expect(html).toContain('href="/product/loq"');
     expect(html).not.toContain("localhost:3000");

@@ -1875,49 +1875,21 @@ export async function bulkDeleteAdminProductsAction(productIds: string[]) {
   const { user, adminName, role } = await requireModulePermission('products')
   if (!productIds || productIds.length === 0) throw new Error('Pilih minimal satu produk.')
 
-  const supabase = await createClient()
-  const uniqueIds = [...new Set(productIds.filter((id) => typeof id === 'string' && id.trim()))]
+  const uniqueIds = [...new Set(productIds
+    .filter((id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id.trim()))
+    .map((id) => id.trim()))]
   if (!uniqueIds.length) throw new Error('Tidak ada ID produk yang valid.')
+  if (uniqueIds.length > 500) throw new Error('Maksimal 500 produk dapat diproses sekaligus.')
 
-  const { data: existingProducts, error: productsError } = await supabase
-    .from('products')
-    .select('id')
-    .in('id', uniqueIds)
-  if (productsError) throw new Error(`Gagal memeriksa produk: ${productsError.message}`)
-  if ((existingProducts?.length ?? 0) !== uniqueIds.length) {
-    throw new Error('Sebagian produk sudah tidak tersedia. Muat ulang daftar produk lalu coba lagi.')
-  }
-
-  const { data: orderReferences, error: referenceError } = await supabase
-    .from('order_items')
-    .select('product_id')
-    .in('product_id', uniqueIds)
-  if (referenceError) throw new Error(`Gagal memeriksa riwayat pesanan: ${referenceError.message}`)
-
-  const referencedIds = [...new Set((orderReferences ?? []).map((item) => item.product_id).filter(Boolean))]
-  const deletableIds = uniqueIds.filter((id) => !referencedIds.includes(id))
-  let deletedCount = 0
-
-  if (deletableIds.length) {
-    const { data, error } = await supabase.from('products').delete().in('id', deletableIds).select('id')
-    if (error) throw new Error(error.message)
-    deletedCount = data?.length ?? 0
-    if (deletedCount !== deletableIds.length) {
-      throw new Error('Sebagian produk tidak dapat dihapus. Muat ulang daftar produk lalu coba lagi.')
-    }
-  }
-
-  if (referencedIds.length) {
-    const { data, error } = await supabase
-      .from('products')
-      .update({ status: 'deleted' })
-      .in('id', referencedIds)
-      .select('id')
-    if (error) throw new Error(`Produk dengan riwayat pesanan gagal diarsipkan: ${error.message}`)
-    if ((data?.length ?? 0) !== referencedIds.length) {
-      throw new Error('Sebagian produk ber-riwayat pesanan tidak ditemukan atau tidak dapat diarsipkan.')
-    }
-  }
+  const supabase = getSupabaseAdminClient()
+  const { data, error } = await supabase.rpc('admin_bulk_delete_products', {
+    p_product_ids: uniqueIds,
+  })
+  if (error) throw new Error(`Gagal memproses penghapusan produk: ${error.message}`)
+  const result = Array.isArray(data) ? data[0] : null
+  if (!result) throw new Error('Database tidak mengembalikan hasil penghapusan produk.')
+  const deletedCount = Number(result.deleted_count)
+  const archivedCount = Number(result.archived_count)
 
   await recordAdminActivity({
     admin_id: user.id,
@@ -1926,14 +1898,14 @@ export async function bulkDeleteAdminProductsAction(productIds: string[]) {
     action: 'delete',
     entity_type: 'product',
     entity_name: `${uniqueIds.length} produk`,
-    details: `Menghapus ${deletedCount} produk dan menyembunyikan ${referencedIds.length} produk dari katalog sambil mempertahankan relasi riwayat pesanan`,
+    details: `Menghapus ${deletedCount} produk dan menyembunyikan ${archivedCount} produk dari katalog sambil mempertahankan relasi riwayat pesanan`,
   })
 
   revalidatePath('/admin/products')
   revalidatePath('/products')
   revalidatePath('/orders/[id]/invoice', 'page')
   revalidatePath('/')
-  return { success: true, count: deletedCount + referencedIds.length, deletedCount, retainedCount: referencedIds.length }
+  return { success: true, count: deletedCount + archivedCount, deletedCount, retainedCount: archivedCount }
 }
 
 export async function getAdminCategoriesAction() {
@@ -2593,7 +2565,8 @@ export type AdminNotificationCategory =
   | 'stock'
   | 'catalog'
   | 'activity'
-  | 'security';
+  | 'security'
+  | 'review';
 
 export type AdminNotificationItem = {
   id: string;
@@ -2615,18 +2588,19 @@ export async function getAdminAllNotificationsAction(): Promise<{
     catalog: number;
     activity: number;
     security: number;
+    reviews: number;
   };
   allowedCategories: AdminNotificationCategory[];
   staffNotificationConfig: AdminNotificationCategory[];
   isSuperAdmin: boolean;
 }> {
-  const { isAdmin, role } = await getAdminAccess();
+  const { isAdmin, role, permissions } = await getCurrentAdminPermissions();
   if (!isAdmin) {
     return {
       notifications: [],
-      counts: { total: 0, orders: 0, payment: 0, stock: 0, catalog: 0, activity: 0, security: 0 },
+      counts: { total: 0, orders: 0, payment: 0, stock: 0, catalog: 0, activity: 0, security: 0, reviews: 0 },
       allowedCategories: [],
-      staffNotificationConfig: ['order', 'stock', 'catalog'],
+      staffNotificationConfig: ['order', 'stock', 'catalog', 'review'],
       isSuperAdmin: false,
     };
   }
@@ -2639,7 +2613,7 @@ export async function getAdminAllNotificationsAction(): Promise<{
   const notifs: AdminNotificationItem[] = [];
 
   // Read settings for audit logs and staff notification configuration
-  let staffNotificationConfig: AdminNotificationCategory[] = ['order', 'stock', 'catalog'];
+  let staffNotificationConfig: AdminNotificationCategory[] = ['order', 'stock', 'catalog', 'review'];
   let auditLogs: Array<{
     id: string;
     admin_name: string;
@@ -2667,6 +2641,57 @@ export async function getAdminAllNotificationsAction(): Promise<{
     }
   } catch {
     // fallback
+  }
+
+  // 2. Ulasan produk baru (Ulasan)
+  try {
+    const adminClient = getSupabaseAdminClient()
+    const { data: recentReviews, error } = await adminClient
+      .from('reviews')
+      .select('id, rating, comment, created_at, order_id, products(name), users(full_name)')
+      .not('order_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error('Gagal memuat notifikasi ulasan admin:', error);
+    } else {
+      const orderIds = [...new Set((recentReviews ?? []).flatMap((review) => review.order_id ? [review.order_id] : []))];
+      const orderNumberById = new Map<string, string>();
+      if (orderIds.length > 0) {
+        const { data: orders, error: ordersError } = await adminClient
+          .from('orders')
+          .select('id, order_number')
+          .in('id', orderIds);
+
+        if (ordersError) throw new Error(`Gagal memuat nomor pesanan notifikasi ulasan: ${ordersError.message}`);
+        for (const order of orders ?? []) {
+          orderNumberById.set(order.id, order.order_number);
+        }
+      }
+
+      for (const review of recentReviews ?? []) {
+        const product = Array.isArray(review.products) ? review.products[0] : review.products;
+        const customer = Array.isArray(review.users) ? review.users[0] : review.users;
+        const productName = product?.name || 'Produk';
+        const orderNumber = review.order_id ? orderNumberById.get(review.order_id) || 'nomor tidak tersedia' : 'nomor tidak tersedia';
+        const excerpt = review.comment?.trim()
+          ? ` — “${review.comment.trim().slice(0, 120)}${review.comment.trim().length > 120 ? '…' : ''}”`
+          : '';
+
+        notifs.push({
+          id: `review-${review.id}`,
+          category: 'review',
+          title: `Ulasan Baru: ${productName}`,
+          description: `${customer?.full_name || 'Pelanggan'} memberi ${review.rating}/5 untuk pesanan #${orderNumber}.${excerpt}`,
+          link: `/admin/reviews?reviewId=${review.id}`,
+          created_at: review.created_at,
+          severity: 'info',
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Gagal menyiapkan notifikasi ulasan admin:', error);
   }
 
   // 1. Akun Terkunci (Keamanan)
@@ -2923,8 +2948,8 @@ export async function getAdminAllNotificationsAction(): Promise<{
 
   // Kategori yang diizinkan untuk dilihat oleh user saat ini
   const allowedCategories: AdminNotificationCategory[] = isSuperAdmin
-    ? ['order', 'payment', 'stock', 'catalog', 'activity', 'security']
-    : staffNotificationConfig;
+    ? ['order', 'payment', 'stock', 'catalog', 'activity', 'security', 'review']
+    : staffNotificationConfig.filter((category) => category !== 'review' || permissions.includes('content'));
 
   // Filter notifikasi sesuai kategori yang diizinkan
   const filteredNotifs = uniqueNotifs
@@ -2939,6 +2964,7 @@ export async function getAdminAllNotificationsAction(): Promise<{
     catalog: filteredNotifs.filter((n) => n.category === 'catalog').length,
     activity: filteredNotifs.filter((n) => n.category === 'activity').length,
     security: filteredNotifs.filter((n) => n.category === 'security').length,
+    reviews: filteredNotifs.filter((n) => n.category === 'review').length,
   };
 
   return {
@@ -2965,6 +2991,7 @@ export async function saveStaffNotificationConfigAction(
     'catalog',
     'activity',
     'security',
+    'review',
   ];
   const cleaned = categories.filter((c) => validCategories.includes(c));
   if (cleaned.length === 0) {
@@ -3052,4 +3079,3 @@ export async function getCurrentAdminAvatarAction() {
     avatarUrl: profile?.avatar_url || (user.user_metadata?.avatar_url as string) || '',
   }
 }
-

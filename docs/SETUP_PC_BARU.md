@@ -5,7 +5,7 @@ Panduan ini untuk meng-clone dan menjalankan toko dari komputer lain, termasuk P
 ## Yang perlu disiapkan
 
 - Git for Windows
-- Node.js 20.9 atau lebih baru (disarankan versi LTS) dan npm
+- Node.js 22 LTS dan npm
 - Akses repository GitHub
 - Akses ke project Supabase yang dipakai aplikasi
 - File environment lokal yang berisi URL dan publishable key Supabase
@@ -71,7 +71,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=SUPABASE-PUBLISHABLE-KEY
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Gunakan publishable key (atau legacy anon key dengan nama `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Jangan pernah menaruh `service_role` key di variabel `NEXT_PUBLIC_*` atau Git. `.env.local` diabaikan oleh Git; tiap komputer mengatur file ini sendiri. `OPENAI_API_KEY` hanya diperlukan untuk jawaban AI, fitur rekomendasi dasar tetap berjalan tanpa API key.
+Gunakan publishable key (atau legacy anon key dengan nama `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Jangan pernah menaruh `service_role` key di variabel `NEXT_PUBLIC_*` atau Git. `.env.local` diabaikan oleh Git; tiap komputer mengatur file ini sendiri. `GROQ_API_KEY` dan/atau `GEMINI_API_KEY` hanya diperlukan untuk jawaban AI, fitur rekomendasi dasar tetap berjalan tanpa API key.
 
 ## Supabase CLI dan database
 
@@ -91,7 +91,7 @@ npm run db:push
 
 Jalankan `db:push` hanya setelah memastikan target project dan riwayat migration cocok. Jangan jalankan `supabase db reset`, `supabase start`, atau perintah Docker pada alur kerja ini. Jangan jalankan `supabase/seed.sql` pada toko yang sudah berisi data. Seed hanya untuk project baru yang kosong, setelah ditinjau.
 
-Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai migration terbaru, termasuk varian produk, impor produk massal, dan koreksi metode pickup oleh Super Admin. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
+Migrations di repo berjalan berurutan dari `20261005000000_initial_schema.sql` sampai migration terbaru, termasuk verifikasi ulasan pembelian, izin database untuk moderasi ulasan, dan penghapusan produk massal yang atomik. Perubahan berikutnya ditambahkan sebagai file migration baru, bukan dengan mengedit migration yang sudah pernah diterapkan.
 
 Jika hanya meng-clone untuk menjalankan aplikasi pada database kantor yang sudah siap, migration tidak perlu dijalankan ulang. Jika ada migration baru, pastikan remote sudah terhubung ke project ref yang benar, bandingkan daftar migration lokal dan remote, lalu terapkan hanya migration yang belum diterapkan. `npm run db:push` mengubah database hosted; periksa perubahan dan backup database sebelum menerapkannya pada toko aktif. Jika riwayat lokal/remote tidak cocok, hentikan dulu dan selesaikan rekonsiliasi migration—jangan mengatasi ketidakcocokan dengan reset.
 
@@ -117,6 +117,7 @@ npm run build
 - **Produk:** CRUD produk, SKU, kategori, brand, harga dan harga promo, spesifikasi, varian warna/RAM/storage dengan stok per varian, status tayang, tanda produk terlaris/terbaru, serta galeri sampai 8 gambar. Upload massal menerima XLSX, CSV, DOCX, atau PDF memakai template tabel yang sama dan menampilkan preview sebelum disimpan. Gambar upload dikompres di browser menjadi WebP maksimal 800 KB dan sisi terpanjang maksimal 1440 px.
 - **Kategori, brand, dan konten landing:** CRUD dan preview gambar. Upload sumber gambar maksimal 15 MB; foto disimpan pada Supabase Storage bucket `products`, `brands`, atau `banners`. Bucket publik untuk pembacaan gambar, sedangkan upload membutuhkan admin.
 - **Pesanan:** nomor pesanan dibuat per tanggal Jakarta dalam format `ORD-YYYYMMDD-NN` dan nomor urut bertambah otomatis. Status pesanan hanya mengikuti alur yang diizinkan; pembayaran sukses diperlukan sebelum pesanan diproses/dikirim. Pembatalan memulihkan stok satu kali.
+- **Ulasan produk:** pelanggan dapat mengulas produk dari pesanan lunas yang sudah diterima. Admin dengan izin konten dapat membalas atau menghapus ulasan; notifikasi admin menyertakan produk dan nomor pesanan.
 - Checkout mendukung pengiriman standar/express dan ambil di toko tanpa ongkir. Pilihan ambil di toko tetap menunggu konfirmasi pembayaran dan admin.
 - **Dashboard/laporan:** ringkasan pesanan, omzet dari transaksi selesai, grafik penjualan, produk terlaris/terendah, dan pelanggan. Laporan bisa diunduh CSV, CSV transaksi, Word-compatible `.doc`, atau dicetak/disimpan sebagai PDF dari dialog print browser.
 - **Konten halaman depan:** section bisa diatur judul, deskripsi, urutan/visibilitas serta konten hero/banner, FAQ, testimoni, informasi toko, dan cabang. Pengelolaan konten dan brand dibatasi untuk super admin.

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   functionQuery: null as string | null,
   customFunctionCall: null as { name: string; id: string; args: Record<string, unknown> } | null,
   catalogError: false,
+  reviewSummaries: new Map<string, { rating: number; count: number }>(),
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -68,6 +69,12 @@ vi.mock("@/services/faq.service", () => ({
   FAQService: class { getActiveFAQs = vi.fn(async () => []); },
 }));
 
+vi.mock("@/services/review.service", () => ({
+  ReviewService: class {
+    getRatingSummaries = vi.fn(async () => mocks.reviewSummaries);
+  },
+}));
+
 import { POST } from "@/app/api/recommend/route";
 import { resetProviderCooldowns } from "@/lib/llm-provider";
 
@@ -118,8 +125,8 @@ async function send(message: string, history: { role: "user" | "assistant"; text
     answer: string;
     error?: string;
     aiGenerated: boolean;
-    products: { id: string; price: number; graphicsLabel?: string | null }[];
-    alternatives?: { id: string; price: number; graphicsLabel?: string | null }[];
+    products: { id: string; price: number; rating?: number; reviews?: number; graphicsLabel?: string | null }[];
+    alternatives?: { id: string; price: number; rating?: number; reviews?: number; graphicsLabel?: string | null }[];
   } };
 }
 
@@ -139,6 +146,7 @@ describe("POST /api/recommend conversation flow", () => {
     mocks.functionQuery = null;
     mocks.customFunctionCall = null;
     mocks.catalogError = false;
+    mocks.reviewSummaries.clear();
   });
 
   afterEach(() => vi.unstubAllEnvs());
@@ -241,6 +249,7 @@ describe("POST /api/recommend conversation flow", () => {
 
   it("switches from product advice to general technology and back without old cards or filters leaking", async () => {
     const history: { role: "user" | "assistant"; text: string }[] = [];
+    mocks.reviewSummaries.set("laptop-integrated", { rating: 4.7, count: 10 });
     mocks.aiText = "Aku menemukan pilihan laptop sesuai anggaran dan kebutuhanmu. Kartu di bawah memuat detail katalog.";
     const firstProductSearch = await send("Cari laptop budget Rp9 juta");
     history.push(
@@ -249,6 +258,10 @@ describe("POST /api/recommend conversation flow", () => {
     );
     expect(firstProductSearch.body.products.every(({ id }) => id.startsWith("laptop-"))).toBe(true);
     expect(firstProductSearch.body.products.map(({ id }) => id)).not.toContain("monitor");
+    expect(firstProductSearch.body.products.find(({ id }) => id === "laptop-integrated")).toMatchObject({
+      rating: 4.7,
+      reviews: 10,
+    });
     expect(mocks.queryCount).toBe(1);
 
     mocks.aiText = "GPU memproses data grafis untuk membentuk gambar yang ditampilkan layar. Kemampuan tiap GPU berbeda menurut arsitektur dan beban kerja.";

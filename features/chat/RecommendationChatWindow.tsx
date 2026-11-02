@@ -18,6 +18,7 @@ import {
   X,
   Sparkles,
   RotateCcw,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trackAiRecommendationClick } from "@/lib/analytics/tracker";
@@ -30,6 +31,8 @@ export type Product = {
   stock: number;
   image: string | null;
   brands: { name: string } | null;
+  rating?: number;
+  reviews?: number;
   highlights?: { key: string; value: string }[];
   graphicsLabel?: string | null;
 };
@@ -79,6 +82,16 @@ export function ProductCards({ products, isExpanded, title }: { products: Produc
               <span>
                 <span className="block truncate text-xs font-semibold transition-colors group-hover:text-primary">{product.name}</span>
                 <span className="block text-[11px] text-muted-foreground">{product.brands?.name || ""} · stok {product.stock}</span>
+                {product.reviews && product.rating !== undefined && (
+                  <span
+                    className="mt-0.5 flex items-center gap-1 text-[11px]"
+                    aria-label={`Rating ${product.rating.toFixed(1)} dari 5 berdasarkan ${product.reviews} ulasan`}
+                  >
+                    <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden="true" />
+                    <span className="font-semibold text-foreground">{product.rating.toFixed(1)}</span>
+                    <span className="text-muted-foreground">({product.reviews.toLocaleString("id-ID")} ulasan)</span>
+                  </span>
+                )}
                 {product.graphicsLabel !== undefined && (
                   <span className="mt-0.5 block text-[11px] text-muted-foreground">
                     Grafis: {product.graphicsLabel || "belum dicantumkan di katalog"}
@@ -463,4 +476,3 @@ export function RecommendationChatWindow({
     </div>
   );
 }
-
