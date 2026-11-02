@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useState, useTransition } from "react";
 import { cleanupUnusedStorageAction } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
@@ -9,8 +11,16 @@ export function CleanupStorageButton() {
   const [busy, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const handleCleanup = () => {
-    if (!window.confirm("Fitur ini akan memindai storage dan menghapus gambar-gambar yang sudah tidak terpakai di database. Lanjutkan?")) return;
+  const handleCleanup = async () => {
+    const confirmed = await confirmAction({
+      title: "Pembersihan Storage Gambar",
+      message: "Fitur ini akan memindai storage dan menghapus gambar-gambar yang sudah tidak terpakai di database. Lanjutkan?",
+      confirmText: "Mulai Pembersihan",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "alert",
+    });
+    if (!confirmed) return;
     
     setMessage(null);
     startTransition(async () => {

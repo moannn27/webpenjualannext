@@ -3,6 +3,10 @@ import { Suspense } from "react";
 import { Outfit } from "next/font/google";
 import { StorefrontChrome } from "@/components/layouts/StorefrontChrome";
 import { NavigationProgress } from "@/components/providers/NavigationProgress";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { ToastNotification } from "@/components/shared/ToastNotification";
+import { ProductShareModal } from "@/components/shared/ProductShareModal";
+import { QuickSearchModal } from "@/components/shared/QuickSearchModal";
 import { getCartAction } from "@/actions/cart";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
@@ -127,6 +131,10 @@ export default async function RootLayout({
         <Suspense fallback={null}>
           <NavigationProgress />
         </Suspense>
+        <ConfirmDialog />
+        <ToastNotification />
+        <ProductShareModal />
+        <QuickSearchModal />
         <StorefrontChrome
           currentUserId={currentUserId}
           cartCount={cartCount}

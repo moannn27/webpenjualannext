@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useState, useEffect, useMemo, useTransition, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -369,10 +371,16 @@ export function ProfileDashboard({
   };
 
   // Konfirmasi Barang Diterima oleh User
-  const handleConfirmDelivered = (orderId: string) => {
-    if (!confirm("Pastikan kamu sudah memeriksa barang fisik dengan baik. Lanjutkan tandai pesanan diterima?")) {
-      return;
-    }
+  const handleConfirmDelivered = async (orderId: string) => {
+    const ok = await confirmAction({
+      title: "Konfirmasi Pesanan Diterima",
+      message: "Pastikan kamu sudah memeriksa barang fisik dengan baik. Lanjutkan tandai pesanan diterima?",
+      confirmText: "Ya, Sudah Diterima",
+      cancelText: "Periksa Dulu",
+      variant: "info",
+      icon: "check",
+    });
+    if (!ok) return;
     startTransition(async () => {
       try {
         await confirmOrderDeliveredAction(orderId);

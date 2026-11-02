@@ -1,3 +1,4 @@
+import { alertAction } from '@/store/useConfirmStore'
 import ExcelJS from 'exceljs'
 import type { AdminSaleItemDetail } from '@/actions/admin'
 
@@ -690,7 +691,7 @@ export function openSalesPrintPdf(
   const html = generateSalesPdfHtml(title, details)
   const printWindow = window.open('', '_blank', 'width=1000,height=800')
   if (!printWindow) {
-    alert('Popup terblokir oleh browser. Harap izinkan popup di browser Anda untuk mencetak atau menyimpan PDF.')
+    void alertAction('Popup Terblokir', 'Popup terblokir oleh browser. Harap izinkan popup di browser Anda untuk mencetak atau menyimpan PDF.', 'warning')
     return
   }
   printWindow.document.open()

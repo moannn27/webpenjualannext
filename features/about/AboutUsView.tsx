@@ -232,9 +232,9 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                           <Award className="h-4 w-4" />
                           <span>Misi Kami</span>
                         </div>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-snug">
-                          {story.mission}
-                        </p>
+                        <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-snug">
+                          <RichTextRenderer content={story.mission} />
+                        </div>
                       </div>
                     )}
 
@@ -244,9 +244,9 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                           <Zap className="h-4 w-4" />
                           <span>Visi Kami</span>
                         </div>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-snug">
-                          {story.vision}
-                        </p>
+                        <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-snug">
+                          <RichTextRenderer content={story.vision} />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -719,9 +719,9 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                   <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white mb-3 leading-tight">
                     {cta.title}
                   </h2>
-                  <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed max-w-xl mb-6">
-                    {cta.description}
-                  </p>
+                  <div className="text-xs sm:text-sm text-blue-100/90 leading-relaxed max-w-xl mb-6">
+                    <RichTextRenderer content={cta.description} />
+                  </div>
 
                   {/* 3 Circular Badge Value Items (Ref: Screenshot 2) */}
                   <div className="space-y-3 mb-8">

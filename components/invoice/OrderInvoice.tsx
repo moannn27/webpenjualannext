@@ -6,7 +6,8 @@ import {
   ArrowLeft,
   HelpCircle,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ThermalReceiptView } from "@/components/invoice/ThermalReceiptView";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { formatDisplayPhone } from "@/lib/phone";
@@ -110,6 +111,7 @@ export interface OrderInvoiceProps {
   backHref?: string;
   backLabel?: string;
   isAdmin?: boolean;
+  initialFormat?: "standard" | "thermal";
 }
 
 function getProductSpecifications(item: InvoiceOrderItem): Array<{ key: string; value: string }> {
@@ -179,13 +181,16 @@ function formatWibFull(dateStr: string): string {
   return dateStr;
 }
 
+// helper state
 export function OrderInvoice({
   order,
   storefront,
   backHref = "/",
   backLabel = "Kembali ke Beranda",
   isAdmin = false,
+  initialFormat = "standard",
 }: OrderInvoiceProps) {
+  const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "thermal">(initialFormat);
   const storeName = storefront?.storeName || "Next Solution";
   const headerSubtitle =
     storefront?.headerSubtitle?.trim() || "Pusat Komputer, Laptop & Solusi Elektronik Resmi";
@@ -479,6 +484,32 @@ export function OrderInvoice({
             {backLabel}
           </Link>
 
+          {/* Format Cetak Selector */}
+          <div className="flex items-center rounded-xl border border-slate-200 dark:border-white/10 p-1 bg-slate-100/80 dark:bg-white/5">
+            <button
+              type="button"
+              onClick={() => setInvoiceFormat("standard")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                invoiceFormat === "standard"
+                  ? "bg-white dark:bg-[#252836] text-[#3730A3] dark:text-blue-400 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              📄 Faktur Resmi (A4)
+            </button>
+            <button
+              type="button"
+              onClick={() => setInvoiceFormat("thermal")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                invoiceFormat === "thermal"
+                  ? "bg-white dark:bg-[#252836] text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              🧾 Struk Kasir / Thermal (58/80mm)
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               type="button"
@@ -554,7 +585,18 @@ export function OrderInvoice({
           </div>
         </div>
 
-        {/* INVOICE PAPER CANVAS (Strictly White Paper Sheet matching reference) */}
+        {/* JIKA FORMAT THERMAL AKTIF */}
+        {invoiceFormat === "thermal" ? (
+          <ThermalReceiptView
+            order={order}
+            storefront={storefront}
+            onPrint={handlePrint}
+            onSwitchToA4={() => setInvoiceFormat("standard")}
+            backHref={backHref}
+            backLabel={backLabel}
+          />
+        ) : (
+          /* INVOICE PAPER CANVAS (Strictly White Paper Sheet matching reference) */
         <div className="print-invoice-sheet bg-white text-slate-900 rounded-2xl border border-slate-200/90 shadow-xl p-8 sm:p-12 print:p-0 print:border-none print:shadow-none print:rounded-none">
           <div className="invoice-content-wrap">
             {/* TOP SECTION: Header, Info Cards, Product Table, Summary */}
@@ -1007,6 +1049,7 @@ export function OrderInvoice({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -18,8 +18,7 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
+  Quote,
   LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,9 +28,10 @@ import { addToCartAction } from "@/actions/cart";
 import { toggleWishlistAction } from "@/actions/wishlist";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { toast } from "@/store/useToastStore";
+import { shareProduct } from "@/store/useShareStore";
 import { useCartStore } from "@/store/useCartStore";
 import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
-import { getAllProductGalleryImages, getOptionCapacity, getProductGalleryImages, getSelectedProductVariant, getSpecificationsForVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
+import { getAllProductGalleryImages, getOptionCapacity, getProductGalleryImages, getSelectedProductVariant, getVariantForAvailableOption, isKnownPromotionalArtwork, isValidProductImageUrl } from "@/lib/product-gallery";
 import { getCleanProductSpecifications } from "@/lib/product-specifications";
 import { trackViewItem, trackAddToCart } from "@/lib/analytics/tracker";
 
@@ -59,7 +59,7 @@ interface ProductReview {
   created_at: string;
   admin_reply?: string | null;
   admin_replied_at?: string | null;
-  users?: { full_name?: string | null } | null;
+  users?: { full_name?: string | null; avatar_url?: string | null } | null;
 }
 
 interface ProductDetailProps {
@@ -100,7 +100,6 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
       product.description
     );
   }, [product.product_specifications, selectedVariant, product.description]);
-  const [activeTab, setActiveTab] = useState<"specs" | "reviews">("specs");
   const [loading, setLoading] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [cartCountAfterAdd, setCartCountAfterAdd] = useState<number | null>(null);
@@ -183,6 +182,49 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
 
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [reviewSlideIndex, setReviewSlideIndex] = useState(0);
+  const [reviewItemsPerPage, setReviewItemsPerPage] = useState(2);
+  const reviewTouchStartX = useRef<number | null>(null);
+  const reviewTouchEndX = useRef<number | null>(null);
+
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth < 768) {
+        setReviewItemsPerPage(1);
+      } else {
+        setReviewItemsPerPage(2);
+      }
+    }
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const maxReviewSlide = Math.max(0, reviews.length - reviewItemsPerPage);
+  const nextReviewSlide = () => {
+    setReviewSlideIndex((prev) => (prev >= maxReviewSlide ? 0 : prev + 1));
+  };
+  const prevReviewSlide = () => {
+    setReviewSlideIndex((prev) => (prev <= 0 ? maxReviewSlide : prev - 1));
+  };
+
+  const handleReviewTouchStart = (e: React.TouchEvent) => {
+    reviewTouchStartX.current = e.targetTouches[0].clientX;
+  };
+  const handleReviewTouchMove = (e: React.TouchEvent) => {
+    reviewTouchEndX.current = e.targetTouches[0].clientX;
+  };
+  const handleReviewTouchEnd = () => {
+    if (!reviewTouchStartX.current || !reviewTouchEndX.current) return;
+    const distance = reviewTouchStartX.current - reviewTouchEndX.current;
+    if (distance > 50) {
+      nextReviewSlide();
+    } else if (distance < -50) {
+      prevReviewSlide();
+    }
+    reviewTouchStartX.current = null;
+    reviewTouchEndX.current = null;
+  };
   const reviewCount = product.reviews ?? reviews.length;
   const averageValue = product.rating ?? (
     reviews.length
@@ -252,18 +294,15 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     }
   };
 
-  const handleShare = async () => {
-    const url = window.location.href;
-    try {
-      if (navigator.share) await navigator.share({ title: product.name, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.info("Tautan Disalin", "Tautan produk telah disalin ke clipboard.");
-        setFeedback("Tautan produk disalin.");
-      }
-    } catch {
-      setFeedback("Tautan produk tidak dapat dibagikan.");
-    }
+  const handleShare = () => {
+    shareProduct({
+      id: product.id,
+      name: product.name,
+      price: productPrice,
+      formattedPrice: formatPrice(productPrice),
+      image: baseImages[0]?.url || (typeof product.image === "string" ? product.image : undefined),
+      brand: product.brands?.name || (typeof product.brand === "string" ? product.brand : undefined),
+    });
   };
 
   const handleWishlist = async () => {
@@ -496,15 +535,21 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
             {product.name}
           </h1>
 
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
-              <Star className="h-4 w-4 fill-primary" />
-              <span>{averageRating}</span>
+          {reviews.length > 0 && (
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
+                <Star className="h-4 w-4 fill-primary" />
+                <span>{averageRating}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth" })}
+                className="text-muted-foreground text-sm hover:underline cursor-pointer"
+              >
+                Baca {reviewCount} ulasan
+              </button>
             </div>
-            <button type="button" onClick={() => document.getElementById("reviews-section")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground text-sm hover:underline cursor-pointer">
-              Baca {reviewCount} ulasan
-            </button>
-          </div>
+          )}
           {feedback && <p role="status" className="mb-4 text-sm text-primary">{feedback}</p>}
 
           <div className="text-4xl font-bold text-foreground mb-8">
@@ -636,191 +681,230 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         </div>
       </div>
 
-      {/* Section Ulasan Pembeli */}
-      <section id="reviews-section" className="mt-14 border-t border-border pt-10">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <span>Ulasan Pembeli</span>
-              <span className="text-sm font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
-                {reviewCount}
-              </span>
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-              Ulasan nyata dari pelanggan terverifikasi yang telah membeli produk ini.
-            </p>
-          </div>
-
-          {reviews.length > 2 && (
-            <div className="hidden sm:flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const slider = document.getElementById("reviews-scroll-container");
-                  if (slider) slider.scrollBy({ top: -320, behavior: "smooth" });
-                }}
-                className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
-                aria-label="Gulir ulasan ke atas"
-              >
-                <ChevronUp className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const slider = document.getElementById("reviews-scroll-container");
-                  if (slider) slider.scrollBy({ top: 320, behavior: "smooth" });
-                }}
-                className="size-9 rounded-full border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
-                aria-label="Gulir ulasan ke bawah"
-              >
-                <ChevronDown className="size-4" />
-              </button>
+      {/* Section Ulasan Pembeli - Hanya tampil jika produk memiliki ulasan dari pembeli terverifikasi */}
+      {reviews.length > 0 && (
+        <section id="reviews-section" className="mt-14 border-t border-border pt-10">
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                ULASAN PELANGGAN
+              </p>
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
+                <span>Ulasan Pembeli</span>
+                <span className="text-xs font-bold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
+                  {reviews.length} ulasan
+                </span>
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                Pengalaman nyata dari pembeli terverifikasi produk pilihan di Next Solution.
+              </p>
             </div>
-          )}
-        </div>
 
-        {reviews.length > 0 ? (
-          <div className="space-y-6">
-            {/* Rating Summary Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 shadow-2xs">
-              <div className="flex items-center gap-3">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-foreground">{averageRating}</span>
+            <div className="flex items-center gap-3">
+              {/* Rating Summary Pill */}
+              <div className="flex items-center gap-2 rounded-2xl border border-border/80 bg-card px-3.5 py-2 shadow-2xs">
+                <div className="flex items-center gap-1">
+                  <Star className="size-4 fill-amber-400 text-amber-400" />
+                  <span className="text-sm font-bold text-foreground tabular-nums">{averageRating}</span>
                   <span className="text-xs text-muted-foreground">/ 5.0</span>
                 </div>
-                <div className="space-y-0.5">
-                  <div className="flex gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`size-4 ${
-                          i < Math.round(Number(averageRating) || 0)
-                            ? "fill-amber-400 text-amber-400"
-                            : "fill-muted text-muted"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Berdasarkan {reviewCount} ulasan pembeli
-                  </p>
+                <span className="h-3.5 w-px bg-border" />
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="size-3.5" />
+                  100% Terverifikasi
+                </span>
+              </div>
+
+              {/* Prev / Next Arrows */}
+              {reviews.length > reviewItemsPerPage && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={prevReviewSlide}
+                    className="size-9 rounded-xl border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
+                    aria-label="Ulasan sebelumnya"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={nextReviewSlide}
+                    className="size-9 rounded-xl border border-border bg-card flex items-center justify-center text-foreground hover:bg-muted transition-colors shadow-2xs cursor-pointer"
+                    aria-label="Ulasan selanjutnya"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
                 </div>
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                <ShieldCheck className="size-4" />
-                100% Pembelian Terverifikasi
-              </div>
+              )}
             </div>
+          </div>
 
-            {/* List of verified reviews in a bounded vertical scroll box */}
+          {/* Reviews Slider */}
+          <div
+            className="relative overflow-hidden"
+            onTouchStart={handleReviewTouchStart}
+            onTouchMove={handleReviewTouchMove}
+            onTouchEnd={handleReviewTouchEnd}
+          >
             <div
-              id="reviews-scroll-container"
-              tabIndex={reviews.length > 2 ? 0 : undefined}
-              aria-label="Daftar ulasan pembeli"
-              className="max-h-[min(70vh,36rem)] space-y-4 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-muted/10 p-3 scroll-smooth scrollbar-thin sm:p-4"
+              className="flex transition-transform duration-500 ease-out"
+              style={{
+                transform: `translateX(-${reviewSlideIndex * (100 / reviewItemsPerPage)}%)`,
+              }}
             >
-              {reviews.map((review) => {
-                const initials = (review.users?.full_name || "Pelanggan")
+              {reviews.map((review, idx) => {
+                const ratingScore = Math.min(5, Math.max(1, review.rating || 5));
+                const customerName = review.users?.full_name || "Pelanggan Terverifikasi";
+                const initials = customerName
                   .split(" ")
-                  .map((n: string) => n[0])
+                  .map((n) => n[0])
                   .slice(0, 2)
                   .join("")
-                  .toUpperCase();
+                  .toUpperCase() || "NS";
+                const formattedDate = new Date(review.created_at).toLocaleDateString("id-ID", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                });
+                const primaryImage =
+                  product.product_images?.find((img) => img.is_primary)?.url ||
+                  product.product_images?.[0]?.url ||
+                  product.image;
 
                 return (
-                  <article
-                    key={review.id}
-                    className="w-full rounded-2xl border border-primary/20 bg-card p-5 sm:p-6 shadow-sm space-y-4 transition-all hover:border-primary/40"
+                  <div
+                    key={review.id || idx}
+                    className="shrink-0 px-2 sm:px-3"
+                    style={{ width: `${100 / reviewItemsPerPage}%` }}
                   >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 font-bold text-xs text-white">
-                          {initials}
+                    <article className="group flex flex-col justify-between h-full rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5 sm:p-6 shadow-2xs hover:shadow-md hover:border-slate-300 dark:hover:border-white/20 transition-all duration-300">
+                      {/* Top: Rating Stars & Badges */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex gap-0.5">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`size-4 ${
+                                    i < ratingScore
+                                      ? "fill-amber-400 text-amber-400"
+                                      : "fill-muted text-muted"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs font-bold text-foreground">
+                              {ratingScore}.0
+                            </span>
+                          </div>
+
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            <ShieldCheck className="size-3.5" />
+                            Terverifikasi
+                          </span>
                         </div>
+
+                        {/* Review Quote / Comment */}
+                        <div className="relative min-h-[70px]">
+                          <Quote className="absolute -left-1 -top-2 size-6 text-primary/15 pointer-events-none" />
+                          <p className="relative text-xs sm:text-sm text-foreground/90 leading-relaxed italic line-clamp-4 font-light pl-4">
+                            &ldquo;{review.comment || "Pembeli tidak menyertakan ulasan tertulis."}&rdquo;
+                          </p>
+                        </div>
+
+                        {/* Reviewer Customer Info */}
+                        <div className="flex items-center gap-3 pt-3 border-t border-border/60">
+                          {review.users?.avatar_url ? (
+                            <div className="relative size-10 shrink-0 overflow-hidden rounded-full border border-border">
+                              <Image
+                                src={review.users.avatar_url}
+                                alt={customerName}
+                                fill
+                                sizes="40px"
+                                className="object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 font-bold text-xs text-white shadow-xs">
+                              {initials}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-xs sm:text-sm text-foreground truncate">
+                              {customerName}
+                            </h3>
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {formattedDate}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom: Pembelian Produk Apa */}
+                      <div className="mt-5 pt-4 border-t border-border/80 space-y-3">
                         <div>
-                          <h4 className="font-bold text-sm sm:text-base text-foreground truncate max-w-[180px]">
-                            {review.users?.full_name || "Pelanggan Terverifikasi"}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(review.created_at).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </p>
+                          <span className="block text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground mb-2">
+                            PRODUK YANG DIBELI:
+                          </span>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-muted/40 p-2.5 sm:p-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {primaryImage ? (
+                                <div className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-border bg-background">
+                                  <Image
+                                    src={primaryImage}
+                                    alt={product.name}
+                                    fill
+                                    sizes="44px"
+                                    className="object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+                                  <Star className="size-5" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-xs text-foreground truncate">
+                                  {product.name}
+                                </h4>
+                                <span className="text-[11px] text-muted-foreground truncate block">
+                                  {product.brands?.name || (typeof product.brand === "string" ? product.brand : "") || "Next Solution Store"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex gap-0.5">
-                          {[...Array(5)].map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`size-3 ${
-                                i < review.rating
-                                  ? "fill-amber-400 text-amber-400"
-                                  : "fill-muted text-muted"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="inline-flex items-center gap-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
-                          <ShieldCheck className="size-2.5" />
-                          Terverifikasi
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-primary/15 bg-primary/[0.035] p-4 sm:p-5">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Ulasan pembeli</p>
-                      <p className="mt-2 text-sm sm:text-base font-medium leading-relaxed text-foreground line-clamp-5">
-                        &ldquo;{review.comment || "Pembeli tidak menyertakan ulasan tertulis."}&rdquo;
-                      </p>
-                    </div>
-                    {review.admin_reply && (
-                      <div className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2.5">
-                        <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Balasan admin</p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{review.admin_reply}</p>
-                        {review.admin_replied_at && (
-                          <p className="mt-1 text-[9px] text-muted-foreground/80">
-                            {new Date(review.admin_replied_at).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </p>
+                        {/* Balasan Admin Toko */}
+                        {review.admin_reply && (
+                          <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 text-xs space-y-1">
+                            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
+                              <span>Balasan Admin Toko</span>
+                              {review.admin_replied_at && (
+                                <span className="font-normal text-muted-foreground">
+                                  {new Date(review.admin_replied_at).toLocaleDateString("id-ID", {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-foreground/90 leading-relaxed font-normal">
+                              {review.admin_reply}
+                            </p>
+                          </div>
                         )}
                       </div>
-                    )}
-                  </article>
+                    </article>
+                  </div>
                 );
               })}
             </div>
           </div>
-        ) : (
-          /* Empty State (When no reviews yet) */
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/20 p-8 text-center space-y-3">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <ShieldCheck className="size-6" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="font-bold text-base text-foreground">Belum Ada Ulasan Pembeli</h4>
-              <p className="text-xs sm:text-sm text-muted-foreground max-w-md">
-                Ulasan untuk produk ini hanya dapat diberikan oleh pembeli terverifikasi setelah pesanan diterima dan selesai.
-              </p>
-            </div>
-            <div className="pt-2">
-              <Link
-                href="/profile"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-              >
-                Sudah membeli produk ini? Berikan ulasan di Pesanan Saya &rarr;
-              </Link>
-            </div>
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Lightbox / Modal Layar Penuh Gambar Produk */}
       {isLightboxOpen && (

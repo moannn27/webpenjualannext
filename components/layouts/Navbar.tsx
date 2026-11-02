@@ -5,13 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, ShoppingCart, Heart, User, Menu, ChevronDown, LayoutGrid, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { BrandText } from "@/components/shared/BrandText";
-import { getStoreSearchHref } from "@/lib/search-intent";
+import { openQuickSearch } from "@/store/useQuickSearchStore";
 import { CART_UPDATED_EVENT } from "@/lib/cart-events";
 import { useCartStore } from "@/store/useCartStore";
 import type { StorefrontSettings } from "@/lib/storefront-settings";
@@ -90,19 +88,9 @@ export function Navbar({
   const [displayCartCount, setDisplayCartCount] = React.useState(cartCount);
   const [previousCartCount, setPreviousCartCount] = React.useState(cartCount);
   const [isScrolled, setIsScrolled] = React.useState(false);
-  const [search, setSearch] = React.useState("");
-  const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
   const accountRef = React.useRef<HTMLDivElement>(null);
   const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const router = useRouter();
-
-  const submitSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query = search.trim();
-    router.push(getStoreSearchHref(query));
-    setMobileSearchOpen(false);
-  };
 
   React.useEffect(() => {
     let ticking = false;
@@ -357,24 +345,41 @@ export function Navbar({
 
           {/* Search, Actions */}
           <div className="relative flex min-w-0 flex-1 items-center justify-end gap-3 lg:flex-none lg:w-auto">
-            <form onSubmit={submitSearch} className="relative hidden w-full max-w-sm items-center sm:flex lg:w-72 xl:w-80">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Cari produk atau spesifikasi..."
-                className="w-full bg-white dark:bg-[#1A1C23] border border-slate-300/90 dark:border-white/20 pl-9 rounded-full text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 shadow-2xs transition-all duration-200"
-              />
-            </form>
+            {/* Desktop Quick Search Trigger */}
+            <div
+              onClick={() => openQuickSearch()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openQuickSearch();
+                }
+              }}
+              aria-label="Pencarian Cepat Toko (Tekan Ctrl+K)"
+              className="relative hidden w-full max-w-sm items-center sm:flex lg:w-72 xl:w-80 cursor-pointer group"
+            >
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-primary transition-colors" />
+              <div className="w-full h-9 bg-white dark:bg-[#1A1C23] border border-slate-300/90 dark:border-white/20 pl-9 pr-14 rounded-full text-xs sm:text-sm text-muted-foreground flex items-center shadow-2xs group-hover:border-primary/60 transition-all duration-200">
+                <span className="truncate">Cari produk atau spesifikasi...</span>
+              </div>
+              <div className="absolute right-2.5 top-2 flex items-center gap-0.5">
+                <kbd className="inline-flex items-center px-1.5 py-0.5 rounded border border-border/80 bg-muted/60 text-[10px] font-semibold text-muted-foreground tracking-tighter">
+                  Ctrl K
+                </kbd>
+              </div>
+            </div>
 
-            <Button variant="ghost" size="icon" className="rounded-full sm:hidden" aria-label="Cari produk" aria-expanded={mobileSearchOpen} onClick={() => setMobileSearchOpen((open) => !open)}>
+            {/* Mobile Quick Search Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full sm:hidden"
+              aria-label="Pencarian cepat produk"
+              onClick={() => openQuickSearch()}
+            >
               <Search className="size-5" />
             </Button>
-            {mobileSearchOpen && <form onSubmit={submitSearch} className="absolute left-0 right-0 top-14 z-50 flex items-center rounded-full bg-background border border-slate-300 dark:border-white/20 p-2 shadow-lg sm:hidden">
-              <Input autoFocus type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari produk..." aria-label="Cari produk" className="border-none bg-transparent" />
-              <Button type="submit" size="sm" className="ml-2 rounded-full">Cari</Button>
-            </form>}
             
             <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-border/80 bg-card/80 p-1 shadow-sm backdrop-blur-sm sm:gap-1">
               <ThemeToggle className="size-9 rounded-full transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" />

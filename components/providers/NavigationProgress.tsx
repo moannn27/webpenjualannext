@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 
 function NavigationProgressBar() {
   const pathname = usePathname();
@@ -43,7 +44,7 @@ function NavigationProgressBar() {
     if (timerRef.current) clearInterval(timerRef.current);
 
     setVisible(true);
-    setProgress(18);
+    setProgress(20);
 
     // Increment progress smoothly towards 85%
     timerRef.current = setInterval(() => {
@@ -53,12 +54,12 @@ function NavigationProgressBar() {
         if (prev < 90) return prev + 1;
         return prev;
       });
-    }, 200);
+    }, 180);
 
     // Safety timeout in case navigation is cancelled or takes unusually long
     safetyTimeoutRef.current = setTimeout(() => {
       stopProgress();
-    }, 10000);
+    }, 8000);
   }, [stopProgress]);
 
   // Complete progress whenever URL pathname or searchParams change
@@ -115,11 +116,13 @@ function NavigationProgressBar() {
     document.addEventListener("click", handleAnchorClick, true);
     window.addEventListener("app:start-loading", handleStartLoading);
     window.addEventListener("app:stop-loading", handleStopLoading);
+    window.addEventListener("popstate", handleStartLoading);
 
     return () => {
       document.removeEventListener("click", handleAnchorClick, true);
       window.removeEventListener("app:start-loading", handleStartLoading);
       window.removeEventListener("app:stop-loading", handleStopLoading);
+      window.removeEventListener("popstate", handleStartLoading);
       if (timerRef.current) clearInterval(timerRef.current);
       if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
       if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
@@ -129,23 +132,39 @@ function NavigationProgressBar() {
   if (!visible && progress === 0) return null;
 
   return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={progress}
-      aria-label="Memuat halaman..."
-      className="fixed top-0 left-0 right-0 z-[99999] pointer-events-none transition-opacity duration-300"
-      style={{ opacity: visible ? 1 : 0 }}
-    >
+    <>
+      {/* Top glowing progress bar */}
       <div
-        className="h-[3px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-400 shadow-[0_0_12px_rgba(37,99,235,0.8)] transition-all duration-300 ease-out"
-        style={{ width: `${progress}%` }}
-      />
-    </div>
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+        aria-label="Memuat halaman..."
+        className="fixed top-0 left-0 right-0 z-[99999] pointer-events-none transition-opacity duration-300"
+        style={{ opacity: visible ? 1 : 0 }}
+      >
+        <div
+          className="h-[3.5px] bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-400 shadow-[0_0_16px_rgba(37,99,235,0.9),0_0_6px_rgba(99,102,241,0.8)] transition-all duration-300 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Floating Transition Badge (Top Right) */}
+      <div
+        className={`fixed top-4 right-4 sm:top-5 sm:right-6 z-[99999] pointer-events-none transition-all duration-300 ${
+          visible
+            ? "opacity-100 translate-y-0 scale-100"
+            : "opacity-0 -translate-y-2 scale-95"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 rounded-full border border-blue-500/25 bg-background/95 dark:bg-[#1E2028]/95 px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-xl backdrop-blur-md dark:border-white/10">
+          <LoaderCircle className="size-3.5 animate-spin text-blue-600 dark:text-blue-400" />
+          <span className="tracking-tight text-[11.5px]">Memuat transisi...</span>
+        </div>
+      </div>
+    </>
   );
 }
-
 
 export function NavigationProgress() {
   return (

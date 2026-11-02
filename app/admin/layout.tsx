@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentAdminPermissions } from "@/lib/auth/permissions";
 import { AdminShell } from "@/components/layouts/AdminShell";
 import { AdminHeader } from "@/components/layouts/AdminHeader";
+import { AdminSectionLoading } from "@/components/admin/AdminSectionLoading";
+import { AdminRealtimeOrderNotifier } from "@/components/admin/AdminRealtimeOrderNotifier";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Next Solution",
@@ -28,7 +31,12 @@ export default async function AdminLayout({
         avatarUrl={perms.avatarUrl}
         isSuperAdmin={perms.isSuperAdmin}
       />
-      <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+      <AdminRealtimeOrderNotifier />
+      <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        <Suspense fallback={<AdminSectionLoading />}>
+          {children}
+        </Suspense>
+      </main>
     </AdminShell>
   );
 }

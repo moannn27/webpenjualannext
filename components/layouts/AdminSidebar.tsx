@@ -33,6 +33,8 @@ import {
   Info,
   FileText,
   MessageSquareText,
+  MessageCircleQuestion,
+  ShieldCheck,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -153,6 +155,8 @@ export function AdminSidebar({
       links: [
         { name: "Landing page", href: "/admin/content", icon: Images, permission: "content" as AdminModuleKey },
         { name: "Tentang Kami (About)", href: "/admin/about", icon: Info, permission: "content" as AdminModuleKey },
+        { name: "FAQ (Tanya Jawab)", href: "/admin/faq", icon: MessageCircleQuestion, permission: "content" as AdminModuleKey },
+        { name: "Syarat & Kebijakan", href: "/admin/legal", icon: ShieldCheck, permission: "content" as AdminModuleKey },
         { name: "Fitur & Pengaturan", href: "/admin/content?tab=features", icon: SlidersHorizontal, permission: "content" as AdminModuleKey },
       ],
     },
@@ -193,6 +197,9 @@ export function AdminSidebar({
               aria-label={link.href === "/admin/orders" && pendingOrders ? `${link.name}, ${pendingOrders} menunggu` : link.name}
               onClick={() => {
                 setMobileOpen(false);
+                if (typeof window !== "undefined" && pathname !== link.href) {
+                  window.dispatchEvent(new CustomEvent("app:start-loading"));
+                }
                 if (isFeaturesLink) {
                   setCurrentTab("features");
                   window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "features" }));

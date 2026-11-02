@@ -13,10 +13,10 @@ export class AdminService extends BaseRepository {
       supabase.from('categories').select('id', { count: 'exact', head: true }),
       supabase.from('products').select('id', { count: 'exact', head: true }).lte('stock', threshold),
       supabase.from('products')
-        .select('id, name, sku, stock, price, brands(name), categories(name)')
+        .select('id, name, sku, stock, price, brands(name), categories(name), product_images(url, is_primary)')
         .lte('stock', threshold)
         .order('stock', { ascending: true })
-        .limit(10),
+        .limit(25),
       supabase.from('orders').select('id, order_number, status, grand_total, created_at, users(full_name)').order('created_at', { ascending: false }).limit(5),
       supabase.rpc('get_admin_sales_chart', { p_days: 30 }),
     ])
@@ -36,11 +36,15 @@ export class AdminService extends BaseRepository {
       price?: unknown
       brands?: { name?: unknown } | { name?: unknown }[] | null
       categories?: { name?: unknown } | { name?: unknown }[] | null
+      product_images?: { url?: string; is_primary?: boolean }[] | null
     }
 
     const lowStockItems = ((lowStockList.data ?? []) as RawLowStockProduct[]).map((p) => {
       const brandObj = Array.isArray(p.brands) ? p.brands[0] : p.brands
       const catObj = Array.isArray(p.categories) ? p.categories[0] : p.categories
+      const images = Array.isArray(p.product_images) ? p.product_images : []
+      const primaryImage = images.find((i) => i.is_primary)?.url || images[0]?.url || null
+
       return {
         id: String(p.id),
         name: String(p.name || 'Produk tanpa nama'),
@@ -49,6 +53,7 @@ export class AdminService extends BaseRepository {
         price: Number(p.price ?? 0),
         brand: String(brandObj?.name || '-'),
         category: String(catObj?.name || '-'),
+        image: primaryImage,
       }
     })
 

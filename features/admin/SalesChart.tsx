@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useId, useMemo, useEffect, useRef, useTransition } from "react";
+import { alertAction } from "@/store/useConfirmStore";
 import {
   TrendingUp,
   ShoppingBag,
@@ -128,7 +129,7 @@ function SalesExportDropdown({
       }
     } catch (err) {
       console.error("Gagal mengekspor data penjualan:", err);
-      alert("Terjadi kendala saat mengekspor laporan.");
+      void alertAction("Gagal Ekspor", "Terjadi kendala saat mengekspor laporan penjualan.", "danger");
     } finally {
       setIsExporting(false);
     }

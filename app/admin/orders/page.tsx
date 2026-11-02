@@ -5,13 +5,15 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { OrderSortSelect } from "@/features/admin/OrderSortSelect";
 import { OrderActionModal } from "@/features/admin/OrderActionModal";
+import { OrderWhatsAppButton } from "@/components/admin/OrderWhatsAppButton";
 import { OrderRefreshButton } from "@/features/admin/OrderRefreshButton";
 import { getCurrentAdminPermissions } from "@/lib/auth/permissions";
 import { resolveOrderCustomerIdentity } from "@/lib/orders/customer-identity";
 import { 
   Search, 
   MessageCircle, 
-  FileText, 
+  FileText,
+  Printer, 
   Plus,
   TrendingUp, 
   Clock, 
@@ -472,18 +474,45 @@ export default async function AdminOrdersPage({
                       </span>
                     </TableCell>
 
-                    {/* 8. Aksi (Faktur & Modal Tindakan Lengkap) */}
+                    {/* 8. Aksi (WhatsApp, Faktur, Thermal & Tindakan Lengkap) */}
                     <TableCell className="py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <OrderWhatsAppButton
+                          variant="icon"
+                          payload={{
+                            customerName,
+                            customerPhone,
+                            orderNumber: order.order_number,
+                            grandTotal: Number(order.grand_total || 0),
+                            isPickup,
+                            courier: order.courier,
+                            items: (order.order_items ?? []).map((i: { product_name?: string | null; quantity?: number | null }) => ({
+                              name: i.product_name || "Produk",
+                              quantity: i.quantity || 1,
+                            })),
+                          }}
+                        />
+
                         <a
                           href={`/orders/${order.id}/invoice`}
                           target="_blank"
                           rel="noreferrer"
-                          aria-label={`Buka invoice pesanan ${order.order_number}`}
-                          title="Lihat Faktur / Invoice"
+                          aria-label={`Buka faktur resmi pesanan ${order.order_number}`}
+                          title="Lihat Faktur Resmi (A4)"
                           className="size-8 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#23252C] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 transition shadow-2xs"
                         >
                           <FileText className="size-3.5" />
+                        </a>
+
+                        <a
+                          href={`/orders/${order.id}/invoice?format=thermal`}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Cetak struk kasir thermal pesanan ${order.order_number}`}
+                          title="Cetak Struk Kasir / Thermal (58/80mm)"
+                          className="size-8 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#23252C] hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400 transition shadow-2xs"
+                        >
+                          <Printer className="size-3.5" />
                         </a>
 
                         <OrderActionModal order={order} isSuperAdmin={isSuperAdmin} canDeleteOrder={canDeleteOrder} />

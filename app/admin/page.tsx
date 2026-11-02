@@ -16,13 +16,13 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Sparkles,
 } from "lucide-react";
 import { getDashboardStatsAction, getAdminAllNotificationsAction } from "@/actions/admin";
 import { getAdminAccess } from "@/lib/auth/admin";
 import { getAdminAuditLogsAction } from "@/actions/admin-permissions";
 import type { AdminAuditLog } from "@/lib/storefront-settings";
 import { SalesChart } from "@/features/admin/SalesChart";
+import { CriticalStockWidget } from "@/features/admin/CriticalStockWidget";
 import { CleanupStorageButton } from "@/features/admin/CleanupStorageButton";
 import { createClient } from "@/lib/supabase/server";
 
@@ -319,101 +319,12 @@ export default async function AdminOverview(props: {
 
           {/* Bottom 2 Sub-Cards Row (Your Cards & Goals equivalent) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Card A: "Your cards" equivalent -> Status Inventaris & Pantauan Stok */}
-            <div
-              id="stok-menipis"
-              className="finly-card bg-white dark:bg-[#23252C] rounded-[26px] p-6 border border-slate-100 dark:border-white/5 shadow-xs flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    Katalog &amp; Inventaris
-                  </h3>
-                  <Link
-                    href="/admin/products"
-                    className="text-xs font-semibold text-[#7C5CFC] hover:underline"
-                  >
-                    Semua Produk
-                  </Link>
-                </div>
-
-                {/* Sleek Gradient Inventory Card Preview */}
-                <div className="bg-gradient-to-tr from-[#7C5CFC] via-[#8565FD] to-[#A78BFA] p-5 rounded-2xl text-white shadow-md relative overflow-hidden select-none">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold tracking-wider opacity-85 uppercase">
-                      Next Solution Inventory
-                    </span>
-                    <Sparkles className="size-4 opacity-80" />
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-[11px] opacity-75">STATUS STOK AMAN</p>
-                    <p className="text-xl font-black tracking-tight mt-0.5">
-                      {safeStockCount} / {stats.totalProducts} Unit Siap Jual
-                    </p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between text-[11px] opacity-90 pt-1 border-t border-white/15">
-                    <span>{stats.lowStockProducts} item perlu restock</span>
-                    <span className="font-mono font-bold">Thres: ≤{threshold}</span>
-                  </div>
-                </div>
-
-                {/* Threshold Filter Selector */}
-                <div className="mt-4 flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-white/5">
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    Batas stok:
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {[3, 5, 10, 15, 20].map((val) => (
-                      <Link
-                        key={val}
-                        href={`/admin?threshold=${val}#stok-menipis`}
-                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all ${
-                          threshold === val
-                            ? "bg-[#7C5CFC] text-white shadow-xs"
-                            : "text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10"
-                        }`}
-                      >
-                        ≤{val}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Low Stock Items List */}
-                <div className="mt-4 space-y-2 max-h-[170px] overflow-y-auto pr-1">
-                  {stats.lowStockItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/admin/products?search=${encodeURIComponent(item.sku !== "-" ? item.sku : item.name)}`}
-                      className="group flex items-center justify-between gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-[#7C5CFC]/40 hover:bg-slate-50 dark:hover:bg-white/5 transition"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-[#7C5CFC] transition-colors">
-                          {item.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          SKU: {item.sku} • {item.brand}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded-full font-mono text-[11px] font-bold shrink-0 ${
-                          item.stock === 0
-                            ? "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400"
-                            : "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
-                        }`}
-                      >
-                        {item.stock} unit
-                      </span>
-                    </Link>
-                  ))}
-                  {!stats.lowStockItems.length && (
-                    <div className="py-8 text-center text-xs text-slate-400">
-                      Semua stok aman! Tidak ada produk ≤ {threshold} unit.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Widget Peringatan Stok Kritis Interaktif */}
+            <CriticalStockWidget
+              items={stats.lowStockItems}
+              threshold={threshold}
+              totalLowStockCount={stats.lowStockProducts}
+            />
 
             {/* Card B: "Goals" equivalent -> Target & Performa Toko */}
             <div className="finly-card bg-white dark:bg-[#23252C] rounded-[26px] p-6 border border-slate-100 dark:border-white/5 shadow-xs flex flex-col justify-between">

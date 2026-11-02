@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag, Star } from "lucide-react";
+import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag, Star, Share2 } from "lucide-react";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { toggleWishlistAction } from "@/actions/wishlist";
 import { useProductCompareStore } from "@/store/useProductCompareStore";
 import { collectLaptopSpecifications } from "@/lib/product-specifications";
 import { toast } from "@/store/useToastStore";
+import { shareProduct } from "@/store/useShareStore";
 import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
@@ -137,8 +138,29 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
           )}
         </div>
 
-        {/* Top-Right: Wishlist Action (isolated, touch friendly on mobile/tablet) */}
-        <div className="absolute top-2.5 right-2.5 z-20">
+        {/* Top-Right: Actions (Share & Wishlist) */}
+        <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              shareProduct({
+                id: product.id,
+                name: product.name,
+                price: payablePrice,
+                formattedPrice: formatPrice(payablePrice),
+                image: product.image,
+                brand: product.brand,
+                specs: specsSummary || undefined,
+              });
+            }}
+            aria-label={`Bagikan ${product.name}`}
+            title="Bagikan produk"
+            className="size-7 sm:size-8 rounded-full bg-white/95 dark:bg-slate-900/90 backdrop-blur-xs border border-slate-200/70 dark:border-white/10 flex items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-all opacity-80 sm:opacity-0 sm:group-hover:opacity-100 shadow-2xs cursor-pointer"
+          >
+            <Share2 className="size-3.5 sm:size-4" />
+          </button>
           <button
             type="button"
             onClick={toggleWishlist}

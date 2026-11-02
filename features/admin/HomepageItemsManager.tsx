@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useEffect, useState, useTransition, useMemo, type FormEvent } from "react";
 import Image from "next/image";
 import { Check, CheckCircle2, MessageSquareQuote, Package, Pencil, Plus, Search, Sparkles, Star, Trash, X } from "lucide-react";
@@ -151,8 +153,9 @@ export function HomepageItemsManager({
     });
   };
 
-  const remove = (type: "faq" | "testimonial", item: Item) => {
-    if (!window.confirm("Hapus konten ini dari website?")) return;
+  const remove = async (type: "faq" | "testimonial", item: Item) => {
+    const ok = await confirmAction({ title: "Hapus Konten Beranda", message: "Hapus konten ini dari website?", confirmText: "Hapus", variant: "danger", icon: "trash" });
+    if (!ok) return;
     setError("");
     setNotice("");
     startTransition(async () => {
@@ -768,16 +771,17 @@ export function HomepageItemsManager({
                       placeholder="Contoh: Pembeli Ideapad slim 3"
                     />
                   </label>
-                  <label className="space-y-1 text-sm sm:col-span-2">
-                    Ulasan / Testimoni
-                    <textarea
+                  <div className="sm:col-span-2">
+                    <RichTextEditor
                       name="content"
                       defaultValue={editingTestimonial?.content ?? ""}
-                      required
+                      label="Ulasan / Testimoni"
                       placeholder="Tulis ulasan pembeli..."
-                      className="min-h-28 w-full rounded-lg border border-input bg-background p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      required
+                      minHeight="140px"
+                      helperText="Format teks ulasan pembeli dengan cetak tebal, miring, atau penekanan."
                     />
-                  </label>
+                  </div>
                   <label className="space-y-1 text-sm">
                     Rating
                     <select

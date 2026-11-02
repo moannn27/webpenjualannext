@@ -57,10 +57,13 @@ interface RawOrderRecord {
 
 export default async function OrderInvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ format?: string }>;
 }) {
   const { id } = await params;
+  const { format } = (await searchParams) ?? {};
   if (!id) notFound();
 
   const supabase = await createClient();
@@ -298,6 +301,7 @@ export default async function OrderInvoicePage({
       backHref={backHref}
       backLabel={backLabel}
       isAdmin={isAdmin}
+      initialFormat={format === "thermal" ? "thermal" : "standard"}
     />
   );
 }

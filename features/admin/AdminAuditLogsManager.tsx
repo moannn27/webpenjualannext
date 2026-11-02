@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { clearAdminAuditLogsAction } from "@/actions/admin-permissions";
@@ -57,10 +59,16 @@ export function AdminAuditLogsManager({ logs, isSuperAdmin }: AdminAuditLogsMana
     return matchesSearch && matchesAdmin && matchesEntity && matchesAction;
   });
 
-  const handleClearLogs = () => {
-    if (!confirm("Apakah Anda yakin ingin menghapus semua riwayat log aktivitas?")) {
-      return;
-    }
+  const handleClearLogs = async () => {
+    const ok = await confirmAction({
+      title: "Hapus Log Aktivitas",
+      message: "Apakah Anda yakin ingin menghapus semua riwayat log aktivitas? Tindakan ini tidak dapat dibatalkan.",
+      confirmText: "Hapus Semua Log",
+      cancelText: "Batal",
+      variant: "danger",
+      icon: "trash",
+    });
+    if (!ok) return;
     setError("");
     startTransition(async () => {
       try {

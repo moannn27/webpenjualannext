@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction, alertAction } from "@/store/useConfirmStore";
+
 import React, { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -129,8 +131,16 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
     });
   };
 
-  const handleResetToDefault = () => {
-    if (window.confirm("Apakah Anda yakin ingin mengembalikan semua konten Tentang Kami ke setelan awal default Next Solution Store?")) {
+  const handleResetToDefault = async () => {
+    const confirmed = await confirmAction({
+      title: "Kembalikan Konten Awal",
+      message: "Apakah Anda yakin ingin mengembalikan semua konten Tentang Kami ke setelan awal default Next Solution Store?",
+      confirmText: "Kembalikan Default",
+      cancelText: "Batal",
+      variant: "warning",
+      icon: "alert",
+    });
+    if (confirmed) {
       setContent(DEFAULT_ABOUT_US_CONTENT);
       setStatusMessage({ type: "success", text: "Konten dikembalikan ke default. Klik 'Simpan Perubahan' untuk menerapkan." });
     }
@@ -469,7 +479,7 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                           const url = await uploadImageFile(file);
                           updateContent("og_image", url);
                         } catch (err) {
-                          alert(err instanceof Error ? err.message : "Gagal upload gambar.");
+                          void alertAction("Gagal Mengunggah", err instanceof Error ? err.message : "Gagal upload gambar.", "danger");
                         }
                       }}
                     />
@@ -681,30 +691,26 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Misi Toko
-                </label>
-                <textarea
-                  rows={2}
+                <RichTextEditor
+                  label="Misi Toko"
                   value={content.story.mission}
-                  onChange={(e) =>
-                    updateContent("story", { ...content.story, mission: e.target.value })
+                  onChange={(val) =>
+                    updateContent("story", { ...content.story, mission: val })
                   }
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-transparent p-3 text-xs sm:text-sm"
+                  placeholder="Tuliskan misi toko..."
+                  minHeight="100px"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Visi Toko
-                </label>
-                <textarea
-                  rows={2}
+                <RichTextEditor
+                  label="Visi Toko"
                   value={content.story.vision}
-                  onChange={(e) =>
-                    updateContent("story", { ...content.story, vision: e.target.value })
+                  onChange={(val) =>
+                    updateContent("story", { ...content.story, vision: val })
                   }
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-transparent p-3 text-xs sm:text-sm"
+                  placeholder="Tuliskan visi toko..."
+                  minHeight="100px"
                 />
               </div>
             </div>
@@ -817,8 +823,9 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm(`Hapus statistik "${stat.label}"?`)) {
+                        onClick={async () => {
+                          const ok = await confirmAction({ title: "Hapus Statistik", message: `Hapus statistik "${stat.label}"?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+                          if (ok) {
                             const updated = content.stats.items.filter((it) => it.id !== stat.id);
                             updateContent("stats", { ...content.stats, items: updated });
                           }
@@ -998,8 +1005,9 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          if (window.confirm(`Hapus keunggulan "${val.title}"?`)) {
+                        onClick={async () => {
+                          const ok = await confirmAction({ title: "Hapus Keunggulan", message: `Hapus keunggulan "${val.title}"?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+                          if (ok) {
                             const updated = content.values.items.filter((it) => it.id !== val.id);
                             updateContent("values", { ...content.values, items: updated });
                           }
@@ -1168,8 +1176,9 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(`Hapus brand "${b.name}"?`)) {
+                      onClick={async () => {
+                        const ok = await confirmAction({ title: "Hapus Brand Partner", message: `Hapus brand "${b.name}"?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+                        if (ok) {
                           const updated = content.brands.items.filter((it) => it.id !== b.id);
                           updateContent("brands", { ...content.brands, items: updated });
                         }
@@ -1329,8 +1338,9 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(`Hapus langkah "${st.title}"?`)) {
+                      onClick={async () => {
+                        const ok = await confirmAction({ title: "Hapus Langkah", message: `Hapus langkah "${st.title}"?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+                        if (ok) {
                           const updated = content.process.steps.filter((it) => it.id !== st.id);
                           updateContent("process", { ...content.process, steps: updated });
                         }
@@ -1497,8 +1507,9 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(`Hapus staf "${m.name}"?`)) {
+                      onClick={async () => {
+                        const ok = await confirmAction({ title: "Hapus Anggota Staf", message: `Hapus staf "${m.name}"?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+                        if (ok) {
                           const updated = content.team_gallery.members.filter((it) => it.id !== m.id);
                           updateContent("team_gallery", {
                             ...content.team_gallery,
@@ -1589,7 +1600,7 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
                                 members: updated,
                               });
                             } catch (err) {
-                              alert(err instanceof Error ? err.message : "Gagal upload gambar.");
+                              void alertAction("Gagal Mengunggah", err instanceof Error ? err.message : "Gagal upload gambar.", "danger");
                             }
                           }}
                         />
@@ -1651,16 +1662,14 @@ export function AboutUsManager({ initialContent }: AboutUsManagerProps) {
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Deskripsi
-              </label>
-              <textarea
-                rows={2}
+              <RichTextEditor
+                label="Deskripsi Call to Action (CTA)"
                 value={content.cta.description}
-                onChange={(e) =>
-                  updateContent("cta", { ...content.cta, description: e.target.value })
+                onChange={(val) =>
+                  updateContent("cta", { ...content.cta, description: val })
                 }
-                className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-transparent p-3 text-xs sm:text-sm"
+                placeholder="Tuliskan kalimat ajakan untuk berbelanja..."
+                minHeight="100px"
               />
             </div>
 
@@ -1868,8 +1877,9 @@ function PhotoLayoutConfigEditor({
     setEditingImageId(newImg.id);
   };
 
-  const removeImage = (id: string) => {
-    if (window.confirm("Hapus foto ini dari tata letak?")) {
+  const removeImage = async (id: string) => {
+    const ok = await confirmAction({ title: "Hapus Foto", message: "Hapus foto ini dari tata letak?", confirmText: "Hapus", variant: "danger", icon: "trash" });
+    if (ok) {
       updateConfig({ images: (config.images || []).filter((img) => img.id !== id) });
       if (editingImageId === id) setEditingImageId(null);
     }
@@ -2135,7 +2145,7 @@ function PhotoLayoutConfigEditor({
                               const url = await onUploadImage(file);
                               updateImageField(img.id, { url });
                             } catch (err) {
-                              alert(err instanceof Error ? err.message : "Gagal upload gambar.");
+                              void alertAction("Gagal Mengunggah", err instanceof Error ? err.message : "Gagal upload gambar.", "danger");
                             }
                           }}
                         />

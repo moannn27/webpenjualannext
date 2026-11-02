@@ -22,6 +22,8 @@ import {
   MessageSquare,
   History,
   Sliders,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -30,6 +32,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { logout } from "@/actions/auth";
 import { useCartStore } from "@/store/useCartStore";
+import { useAdminSoundStore } from "@/store/useAdminSoundStore";
+import { playOrderNotificationChime } from "@/lib/sound/order-chime";
 import {
   getAdminAllNotificationsAction,
   saveStaffNotificationConfigAction,
@@ -149,6 +153,16 @@ export function AdminHeader({
   const notifRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
+  const soundEnabled = useAdminSoundStore((s) => s.soundEnabled);
+  const toggleSoundStore = useAdminSoundStore((s) => s.toggleSound);
+
+  const handleToggleSound = () => {
+    const nextState = !soundEnabled;
+    toggleSoundStore();
+    if (nextState) {
+      playOrderNotificationChime();
+    }
+  };
 
   const isDark = useSyncExternalStore(
     (onChange) => {
@@ -441,6 +455,26 @@ export function AdminHeader({
             </div>
           </div>
         </div>
+
+        {/* SUARA PERINGATAN PESANAN BARU (AUDIO CHIME ALERT TOGGLE) */}
+        <button
+          type="button"
+          onClick={handleToggleSound}
+          title={
+            soundEnabled
+              ? "Peringatan Suara Pesanan Baru Aktif (Klik untuk Mode Senyap)"
+              : "Peringatan Suara Pesanan Baru Senyap (Klik untuk Aktifkan Suara)"
+          }
+          aria-label={soundEnabled ? "Matikan suara pesanan" : "Aktifkan suara pesanan"}
+          className={cn(
+            "size-10 rounded-full border flex items-center justify-center transition-all cursor-pointer shadow-xs",
+            soundEnabled
+              ? "border-emerald-300 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+              : "border-slate-200/80 dark:border-white/10 bg-white dark:bg-[#23252C] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+          )}
+        >
+          {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+        </button>
 
         {/* PUSAT NOTIFIKASI MULTI-KATEGORI */}
         <div ref={notifRef} className="relative">

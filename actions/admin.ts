@@ -2286,7 +2286,7 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
 }
 
 export async function getAdminHomepageItemsAction() {
-  await requireSuperAdmin()
+  await requireModulePermission('content')
   const supabase = await createClient()
   const [faqs, testimonials] = await Promise.all([
     supabase.from('faqs').select('*').order('display_order'),
@@ -2298,7 +2298,7 @@ export async function getAdminHomepageItemsAction() {
 }
 
 export async function saveHomepageItemAction(formData: FormData) {
-  await requireSuperAdmin()
+  await requireModulePermission('content')
   const type = String(formData.get('type') ?? '')
   const id = String(formData.get('id') ?? '').trim()
   const isActive = formData.get('is_active') === 'on'
@@ -2309,8 +2309,9 @@ export async function saveHomepageItemAction(formData: FormData) {
   if (type === 'faq') {
     const question = String(formData.get('question') ?? '').trim()
     const answer = String(formData.get('answer') ?? '').trim()
+    const category = String(formData.get('category') ?? '').trim()
     if (!question || !answer) throw new Error('Pertanyaan dan jawaban wajib diisi.')
-    const payload = { question, answer, display_order: order, is_active: isActive }
+    const payload = { question, answer, category: category || null, display_order: order, is_active: isActive }
     result = id ? await supabase.from('faqs').update(payload).eq('id', id) : await supabase.from('faqs').insert(payload)
   } else {
     const name = String(formData.get('name') ?? '').trim()
@@ -2323,24 +2324,28 @@ export async function saveHomepageItemAction(formData: FormData) {
   }
   if (result.error) throw new Error(result.error.message)
   revalidatePath('/admin/content')
+  revalidatePath('/admin/faq')
+  revalidatePath('/faq')
   revalidatePath('/')
   return { success: true }
 }
 
 export async function deleteHomepageItemAction(type: 'faq' | 'testimonial', id: string) {
-  await requireSuperAdmin()
+  await requireModulePermission('content')
   const table = type === 'faq' ? 'faqs' : type === 'testimonial' ? 'testimonials' : null
   if (!table || !id) throw new Error('Konten tidak valid.')
   const supabase = await createClient()
   const { error } = await supabase.from(table).delete().eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/admin/content')
+  revalidatePath('/admin/faq')
+  revalidatePath('/faq')
   revalidatePath('/')
   return { success: true }
 }
 
 export async function seedDefaultFaqsAction() {
-  await requireSuperAdmin()
+  await requireModulePermission('content')
   const supabase = await createClient()
   const { data: existing } = await supabase.from('faqs').select('id').limit(1)
   if (existing && existing.length > 0) {

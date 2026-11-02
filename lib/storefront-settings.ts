@@ -194,6 +194,10 @@ export type StorefrontSettings = {
   voucher_targeting?: Record<string, VoucherTargeting>;
   features: StoreFeaturesSettings;
   invoice: StoreInvoiceSettings;
+  legal?: {
+    terms?: import('@/lib/legal-content').LegalDocument;
+    privacy?: import('@/lib/legal-content').LegalDocument;
+  };
 };
 
 export type StoreFeaturesSettings = {

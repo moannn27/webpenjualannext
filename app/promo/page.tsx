@@ -11,7 +11,6 @@ import {
 import { getProductsByIdsAction, getProductsPageAction } from "@/actions/product";
 import { getCategoriesAction, getBrandsAction } from "@/actions/catalog";
 import { getStorefrontSettingsAction } from "@/actions/content";
-import { ProductCard } from "@/components/shared/ProductCard";
 import { PagedProductCatalog } from "@/features/catalog/PagedProductCatalog";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { toStorefrontProduct, type StoreProduct } from "@/lib/products";

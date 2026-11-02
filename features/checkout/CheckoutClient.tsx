@@ -41,7 +41,6 @@ import { syncCartAction } from "@/actions/cart";
 import { emitCartUpdated } from "@/lib/cart-events";
 import { type CartData } from "@/types/cart";
 import {
-  PAYMENT_METHOD,
   type PaymentMethodCode,
   type CheckoutAddress,
   type ShippingMethod,

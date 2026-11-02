@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -218,8 +220,16 @@ export function VoucherManager({
     });
   };
 
-  const handleDelete = (id: string, code: string) => {
-    if (!confirm(`Hapus kupon voucher "${code}"? Tindakan ini tidak dapat dibatalkan.`)) {
+  const handleDelete = async (id: string, code: string) => {
+    const confirmed = await confirmAction({
+      title: "Hapus Kupon Voucher",
+      message: `Hapus kupon voucher "${code}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Hapus Kupon",
+      cancelText: "Batal",
+      variant: "danger",
+      icon: "trash",
+    });
+    if (!confirmed) {
       return;
     }
     startTransition(async () => {

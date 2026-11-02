@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import Image from "next/image";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -177,8 +179,9 @@ export function LandingContentManager({ initialBanners }: { initialBanners: Bann
     }
   };
 
-  const remove = (banner: Banner) => {
-    if (!window.confirm(`Hapus konten “${banner.title}”?`)) return;
+  const remove = async (banner: Banner) => {
+    const ok = await confirmAction({ title: "Hapus Konten Promo", message: `Hapus konten “${banner.title}”?`, confirmText: "Hapus", variant: "danger", icon: "trash" });
+    if (!ok) return;
     startTransition(async () => {
       try {
         await deleteLandingBannerAction(banner.id);

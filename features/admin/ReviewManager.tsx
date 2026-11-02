@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useMemo, useState, useTransition } from "react";
 import { MessageSquare, Search, Send, Star, Trash2 } from "lucide-react";
 import {
@@ -64,8 +66,16 @@ export function ReviewManager({
     });
   };
 
-  const removeReview = (review: AdminReviewWithDetails) => {
-    if (!window.confirm(`Hapus ulasan "${review.product_name}" dari ${review.user_name}?`)) return;
+  const removeReview = async (review: AdminReviewWithDetails) => {
+    const confirmed = await confirmAction({
+      title: "Hapus Ulasan Produk",
+      message: `Hapus ulasan "${review.product_name}" dari ${review.user_name}? Tindakan ini akan menghapus ulasan secara permanen dari halaman produk.`,
+      confirmText: "Hapus Ulasan",
+      cancelText: "Batal",
+      variant: "danger",
+      icon: "trash",
+    });
+    if (!confirmed) return;
     setError("");
     setNotice("");
     startTransition(async () => {

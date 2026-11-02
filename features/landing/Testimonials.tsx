@@ -1,4 +1,5 @@
 import { Star } from "lucide-react";
+import { RichTextRenderer } from "@/components/shared/RichTextRenderer";
 
 type Testimonial = { id: string; name: string; role?: string | null; content: string; rating?: number | null };
 
@@ -28,9 +29,9 @@ export function Testimonials({ testimonials = [], title = "What Our Customers Sa
                 />
               ))}
             </div>
-            <p className="text-lg text-foreground mb-8 flex-1 italic font-light">
-              &ldquo;{testimonial.content}&rdquo;
-            </p>
+            <div className="text-foreground mb-8 flex-1 text-sm sm:text-base leading-relaxed">
+              <RichTextRenderer content={testimonial.content} />
+            </div>
             <div className="flex items-center gap-4 mt-auto">
               <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary" aria-hidden="true">
                 {testimonial.name.slice(0, 1).toUpperCase()}

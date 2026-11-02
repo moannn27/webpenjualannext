@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   FileText,
-  MessageCircle,
+  Printer,
   ExternalLink,
   CheckCircle2,
   AlertCircle,
@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { OrderWhatsAppButton } from "@/components/admin/OrderWhatsAppButton";
 import { cn } from "@/lib/utils";
 import {
   updateAdminOrderStatusAction,
@@ -133,11 +134,7 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
   const address = order.shipping_address as Record<string, unknown> | null;
   const items = order.order_items ?? [];
 
-  // Parse phone for WhatsApp URL
-  const cleanPhone = customerPhone.replace(/\D/g, "").replace(/^0/, "62");
-  const waUrl = cleanPhone
-    ? `https://wa.me/${cleanPhone}?text=Halo%20${encodeURIComponent(customerName)}%2C%20kami%20dari%20Next%20Solution%20mengenai%20pesanan%20%23${order.order_number}.`
-    : null;
+
 
   // Handle Payment Status Update
   const handlePaymentChange = (nextStatus: "success" | "failed") => {
@@ -569,17 +566,21 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                       <p className="text-xs text-slate-400 mt-0.5">Tidak ada no. telepon</p>
                     )}
                   </div>
-                  {waUrl && (
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs mt-1"
-                    >
-                      <MessageCircle className="size-3.5" />
-                      <span>Chat WhatsApp Pembeli</span>
-                    </a>
-                  )}
+                  <OrderWhatsAppButton
+                    variant="button"
+                    payload={{
+                      customerName,
+                      customerPhone,
+                      orderNumber: order.order_number,
+                      grandTotal: Number(order.grand_total || 0),
+                      isPickup,
+                      courier: order.courier || undefined,
+                      items: items.map((i) => ({
+                        name: i.product_name || "Produk",
+                        quantity: i.quantity || 1,
+                      })),
+                    }}
+                  />
                 </div>
 
                 {/* Metode & Alamat Pengiriman */}
@@ -967,7 +968,18 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2563EB] hover:underline"
                 >
                   <FileText className="size-4" />
-                  <span>Buka Faktur / Invoice Resmi</span>
+                  <span>Faktur Resmi (A4)</span>
+                  <ExternalLink className="size-3" />
+                </a>
+
+                <a
+                  href={`/orders/${order.id}/invoice?format=thermal`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  <Printer className="size-4" />
+                  <span>Struk Kasir (Thermal)</span>
                   <ExternalLink className="size-3" />
                 </a>
 

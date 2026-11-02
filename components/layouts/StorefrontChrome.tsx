@@ -6,7 +6,6 @@ import { Navbar } from "@/components/layouts/Navbar";
 import { Footer } from "@/components/layouts/Footer";
 import { RecommendationChat, WhatsAppFloatingButton } from "@/features/chat/RecommendationChat";
 import { ProductCompareBar } from "@/features/catalog/ProductCompareBar";
-import { ToastNotification } from "@/components/shared/ToastNotification";
 import { ScrollToTopButton } from "@/components/shared/ScrollToTopButton";
 import { MobileStickyCartBar } from "@/components/layouts/MobileStickyCartBar";
 import { AnalyticsTracker } from "@/components/providers/AnalyticsTracker";
@@ -78,7 +77,6 @@ export function StorefrontChrome({
         <WhatsAppFloatingButton whatsappNumber={settings.store.whatsapp || ""} />
       )}
       <ScrollToTopButton />
-      <ToastNotification />
       <MobileStickyCartBar />
     </>
   );

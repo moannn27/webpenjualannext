@@ -97,7 +97,28 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md bg-card p-8 rounded-[32px] border border-border shadow-lg">
+      <div className="w-full max-w-md bg-card p-8 rounded-[32px] border border-border shadow-lg relative overflow-hidden">
+        {loading && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-card/95 backdrop-blur-md p-6 text-center animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="relative mb-5 flex size-16 items-center justify-center rounded-3xl bg-primary/10 border border-primary/20 shadow-lg shadow-primary/10">
+              <div className="absolute inset-0 rounded-3xl bg-primary/20 animate-ping opacity-25" />
+              <LoaderCircle className="size-8 animate-spin text-primary" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground tracking-tight mb-1.5">
+              {loadingText}
+            </h3>
+            <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+              Memverifikasi akun dan menyiapkan sesi Anda. Mohon tunggu transisi masuk...
+            </p>
+            <div className="mt-5 w-48 h-1.5 rounded-full bg-muted/60 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 rounded-full animate-pulse w-3/4" />
+            </div>
+          </div>
+        )}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Selamat Datang</h1>
           <p className="text-muted-foreground">Masuk ke akun Next Solution Store Anda</p>

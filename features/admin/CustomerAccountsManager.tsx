@@ -1,5 +1,7 @@
 "use client";
 
+import { confirmAction } from "@/store/useConfirmStore";
+
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -205,16 +207,16 @@ export function CustomerAccountsManager({
 
   const lockedCustomers = customers.filter((c) => Boolean(c.is_password_locked));
 
-  const handleUnlockAccount = (account: Account) => {
-    if (
-      !confirm(
-        `Buka kunci akses ganti password untuk akun "${
-          account.full_name || account.email
-        }"? Hitungan percobaan salah sandi akan dibersihkan kembali ke 0.`
-      )
-    ) {
-      return;
-    }
+  const handleUnlockAccount = async (account: Account) => {
+    const ok = await confirmAction({
+      title: "Buka Kunci Akses Akun",
+      message: `Buka kunci akses ganti password untuk akun "${account.full_name || account.email}"? Hitungan percobaan salah sandi akan dibersihkan kembali ke 0.`,
+      confirmText: "Buka Kunci",
+      cancelText: "Batal",
+      variant: "default",
+      icon: "info",
+    });
+    if (!ok) return;
     setError("");
     startTransition(async () => {
       try {
