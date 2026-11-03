@@ -19,6 +19,7 @@ import {
   Maximize2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Quote,
   LoaderCircle,
 } from "lucide-react";
@@ -71,6 +72,13 @@ interface ProductDetailProps {
     name: string;
     leadTime: string;
   };
+  stockLocations?: Array<{
+    id?: string;
+    name: string;
+    city?: string;
+    address?: string;
+    leadTime: string;
+  }>;
 }
 
 type ProductGalleryImage = {
@@ -84,8 +92,14 @@ type ProductGalleryImage = {
 
 const FALLBACK_PRODUCT_IMAGE = "/product-image-unavailable.svg";
 
-export function ProductDetail({ product, reviews = [], initialCartQuantities = [], stockLocation }: ProductDetailProps) {
+export function ProductDetail({ product, reviews = [], initialCartQuantities = [], stockLocation, stockLocations = [] }: ProductDetailProps) {
   const router = useRouter();
+  const [showAllStockBranches, setShowAllStockBranches] = useState(false);
+  const effectiveStockLocations = useMemo(() => {
+    if (stockLocations && stockLocations.length > 0) return stockLocations;
+    if (stockLocation) return [{ id: "single", name: stockLocation.name, leadTime: stockLocation.leadTime }];
+    return [];
+  }, [stockLocations, stockLocation]);
   const [quantity, setQuantity] = useState(1);
   const variants = useMemo(() => product.product_variants ?? [], [product.product_variants]);
   const [selectedVariantId, setSelectedVariantId] = useState(
@@ -633,15 +647,60 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
               </span>
             </div>
 
-            {stockLocation && availableStock > 0 && (
-              <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2.5 text-xs text-foreground animate-in fade-in duration-200">
-                <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                  <span className="font-semibold text-emerald-950 dark:text-emerald-200">Stok Fisik Toko:</span>
-                  <span className="text-muted-foreground truncate">{stockLocation.name}</span>
-                  <span className="text-muted-foreground/60">•</span>
-                  <span className="font-medium text-emerald-700 dark:text-emerald-400">{stockLocation.leadTime}</span>
+            {effectiveStockLocations.length > 0 && availableStock > 0 && (
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3 text-xs text-foreground animate-in fade-in duration-200 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Store className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="font-semibold text-emerald-950 dark:text-emerald-200">
+                      {effectiveStockLocations.length === 1
+                        ? "Stok Fisik Toko:"
+                        : `Stok Fisik Tersedia di ${effectiveStockLocations.length} Gerai Cabang:`}
+                    </span>
+                  </div>
+                  {effectiveStockLocations.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllStockBranches((prev) => !prev)}
+                      className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{showAllStockBranches ? "Tutup Gerai" : "Lihat Semua Cabang"}</span>
+                      <ChevronDown className={cn("size-3.5 transition-transform", showAllStockBranches && "rotate-180")} />
+                    </button>
+                  )}
                 </div>
+
+                {effectiveStockLocations.length === 1 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
+                    <span className="truncate font-medium text-foreground">{effectiveStockLocations[0].name}</span>
+                    <span className="text-muted-foreground/60">•</span>
+                    <span className="font-medium text-emerald-700 dark:text-emerald-400">{effectiveStockLocations[0].leadTime}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 pt-0.5">
+                    {(showAllStockBranches ? effectiveStockLocations : effectiveStockLocations.slice(0, 1)).map((loc, idx) => (
+                      <div key={loc.id || idx} className="flex flex-wrap items-center justify-between gap-1.5 rounded-lg bg-background/70 dark:bg-background/40 px-2.5 py-1.5 border border-emerald-500/15">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <MapPin className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="font-medium text-foreground truncate text-xs">{loc.name}</span>
+                          {loc.city && (
+                            <span className="rounded bg-muted px-1.5 py-0.2 text-[10px] text-muted-foreground">
+                              {loc.city}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 shrink-0">
+                          {loc.leadTime}
+                        </span>
+                      </div>
+                    ))}
+                    {!showAllStockBranches && effectiveStockLocations.length > 1 && (
+                      <p className="text-[11px] text-muted-foreground pl-1">
+                        + {effectiveStockLocations.length - 1} cabang gerai lainnya siap melayani. Klik &quot;Lihat Semua Cabang&quot; untuk detail.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

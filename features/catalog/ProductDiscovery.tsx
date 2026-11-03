@@ -34,7 +34,7 @@ export function ProductDiscovery({
         set.add(p.category.trim());
       }
     });
-    return ["Semua", "🏷️ Promo", "⚡ Terbaru", "🔥 Terlaris", ...Array.from(set)];
+    return ["Semua", "Promo", "Terbaru", "Terlaris", ...Array.from(set)];
   }, [initialProducts]);
 
   // Filter and sort products live
@@ -63,11 +63,11 @@ export function ProductDiscovery({
 
         // 2. Category / Filter pill match
         if (selectedCategory !== "Semua") {
-          if (selectedCategory === "🏷️ Promo") {
+          if (selectedCategory === "Promo" || selectedCategory === "🏷️ Promo") {
             if (!isPromo) return false;
-          } else if (selectedCategory === "⚡ Terbaru") {
+          } else if (selectedCategory === "Terbaru" || selectedCategory === "⚡ Terbaru") {
             if (!isNew) return false;
-          } else if (selectedCategory === "🔥 Terlaris") {
+          } else if (selectedCategory === "Terlaris" || selectedCategory === "🔥 Terlaris") {
             if (!isBest) return false;
           } else if (product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
             return false;
@@ -178,9 +178,9 @@ export function ProductDiscovery({
                 className="h-10 w-full appearance-none rounded-xl border border-slate-200/70 dark:border-white/10 bg-white dark:bg-[#131418] pl-9 pr-8 text-xs sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
               >
                 <option value="default">Urutkan: Rekomendasi</option>
-                <option value="promo">🏷️ Produk Promo Pilihan</option>
-                <option value="newest">⚡ Produk Terbaru</option>
-                <option value="bestseller">🔥 Produk Terlaris</option>
+                <option value="promo">Produk Promo Pilihan</option>
+                <option value="newest">Produk Terbaru</option>
+                <option value="bestseller">Produk Terlaris</option>
                 <option value="lowest">Harga: Termurah</option>
                 <option value="highest">Harga: Termahal</option>
               </select>

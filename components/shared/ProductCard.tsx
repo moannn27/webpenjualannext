@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Heart, GitCompareArrows, Sparkles, Flame, Tag, Star, Share2 } from "lucide-react";
+import { ShoppingCart, Heart, GitCompareArrows, Flame, Tag, Star, Share2 } from "lucide-react";
 import { type Product } from "@/store/useProductStore";
 import { useAddToCart } from "@/features/cart/useAddToCart";
 import { useState } from "react";
@@ -122,7 +122,6 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
               title="Produk Terbaru"
               className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold rounded-md bg-blue-600 text-white shadow-2xs tracking-wide"
             >
-              <Sparkles className="size-2.5" />
               Baru
             </span>
           )}

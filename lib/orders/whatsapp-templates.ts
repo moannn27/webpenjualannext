@@ -47,26 +47,26 @@ export function buildOrderWhatsAppLinks(payload: OrderWhatsAppPayload) {
 
   // 1. Template: Siap Diambil di Gerai (Pick-up)
   const pickupMessage =
-    `Halo Kak *${payload.customerName}*! 👋\n\n` +
+    `Halo Kak *${payload.customerName}*,\n\n` +
     `Kabar baik dari *${store}*, pesanan Anda dengan No. Faktur *#${payload.orderNumber}* sudah selesai disiapkan dan *SIAP DIAMBIL* di gerai kami.\n\n` +
-    `📦 *Rincian Pesanan:*\n${itemsSummary}${moreItems}\n` +
+    `*Rincian Pesanan:*\n${itemsSummary}${moreItems}\n` +
     `Total: *${totalFormatted}*\n\n` +
-    `📍 *Lokasi Pengambilan (Gerai):*\n` +
+    `*Lokasi Pengambilan (Gerai):*\n` +
     `${store}\n${address}\n` +
     `Jam Operasional: Senin - Sabtu (09.00 - 18.00 WIB)\n\n` +
-    `Silakan tunjukkan pesan ini atau sebutkan nomor pesanan kepada staf kasir kami saat pengambilan. Terima kasih! 🙏✨`;
+    `Silakan tunjukkan pesan ini atau sebutkan nomor pesanan kepada staf kasir kami saat pengambilan. Terima kasih.`;
 
   // 2. Template: Konfirmasi Pembayaran (Payment Reminder)
   const paymentMessage =
     `Halo Kak *${payload.customerName}*! 👋\n\n` +
     `Terima kasih telah berbelanja di *${store}*.\n` +
     `Pesanan Anda *#${payload.orderNumber}* saat ini tercatat menunggu konfirmasi pembayaran.\n\n` +
-    `💳 *Total Tagihan:* *${totalFormatted}*\n` +
-    `📦 *Barang:* ${payload.items?.[0]?.name || "Produk pesanan"}\n\n` +
+    `*Total Tagihan:* *${totalFormatted}*\n` +
+    `*Barang:* ${payload.items?.[0]?.name || "Produk pesanan"}\n\n` +
     `Pembayaran dapat ditransfer ke rekening resmi toko:\n` +
     `• BCA: 123-456-7890 a/n Next Solution\n` +
     `• Mandiri: 987-654-3210 a/n Next Solution\n\n` +
-    `Setelah melakukan transfer, mohon kirimkan bukti foto/screenshot transfer ke chat ini agar pesanan dapat segera diproses. Terima kasih! 🙏`;
+    `Setelah melakukan transfer, mohon kirimkan bukti foto/screenshot transfer ke chat ini agar pesanan dapat segera diproses. Terima kasih.`;
 
   // 3. Template: Pesanan Sedang Dikirim / Ekspedisi
   const courierName = payload.courier ? payload.courier.toUpperCase() : "Ekspedisi";
@@ -74,16 +74,16 @@ export function buildOrderWhatsAppLinks(payload: OrderWhatsAppPayload) {
     ? `\nNo. Resi Pengiriman: *${payload.trackingNumber}*`
     : "";
   const shippingMessage =
-    `Halo Kak *${payload.customerName}*! 🚚\n\n` +
+    `Halo Kak *${payload.customerName}*,\n\n` +
     `Pesanan Anda *#${payload.orderNumber}* dari *${store}* telah kami serahkan ke pihak jasa kirim dan saat ini *SEDANG DALAM PENGIRIMAN*.\n\n` +
-    `📦 *Ekspedisi:* ${courierName}${resiText}\n` +
+    `*Ekspedisi:* ${courierName}${resiText}\n` +
     `Total: *${totalFormatted}*\n\n` +
-    `Paket akan segera tiba di alamat tujuan. Harap rekam video unboxing saat paket diterima untuk klaim garansi. Terima kasih atas kepercayaan Anda! ✨`;
+    `Harap rekam video unboxing saat paket diterima untuk kemudahan klaim garansi resmi jika diperlukan. Terima kasih atas kepercayaan Anda.`;
 
   // 4. Template: Tanya Kabar / Bantuan CS
   const supportMessage =
     `Halo Kak *${payload.customerName}*,\n` +
-    `Kami dari Admin Layanan Pelanggan *${store}* terkait pesanan *#${payload.orderNumber}*.\n` +
+    `Kami dari Layanan Pelanggan *${store}* terkait pesanan *#${payload.orderNumber}*.\n` +
     `Apakah ada kendala atau informasi pesanan yang bisa kami bantu?`;
 
   const baseUrl = phone ? `https://wa.me/${phone}` : "";

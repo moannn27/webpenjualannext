@@ -69,12 +69,29 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   ]);
 
   const sfSettings = normalizeStorefrontSettings(sfRow?.data?.settings ?? {});
-  const stockLocation = sfSettings.features.stock_location_display_enabled
-    ? {
-        name: sfSettings.features.stock_location_name || "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
-        leadTime: sfSettings.features.stock_location_lead_time || "Siap Diambil di Toko / Dikirim Cepat",
-      }
-    : undefined;
+  const activeStockLocations = sfSettings.features.stock_location_display_enabled
+    ? (sfSettings.features.stock_locations && sfSettings.features.stock_locations.length > 0
+        ? sfSettings.features.stock_locations
+            .filter((loc) => loc.is_active !== false)
+            .map((loc) => ({
+              id: loc.id,
+              name: loc.name,
+              city: loc.city,
+              address: loc.address,
+              leadTime: loc.lead_time,
+            }))
+        : [
+            {
+              id: "loc-default",
+              name: sfSettings.features.stock_location_name || "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
+              city: "Bandung",
+              address: "Jl. Kartini No. 09",
+              leadTime: sfSettings.features.stock_location_lead_time || "Siap Diambil di Toko / Dikirim Cepat",
+            },
+          ])
+    : [];
+
+  const stockLocation = activeStockLocations[0];
 
   const productJsonLd = buildProductJsonLd(product, reviews ?? []);
   const subtitle = getRecommendationSubtitle(product as unknown as ProductCandidate);
@@ -86,7 +103,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd).replace(/</g, '\\u003c') }}
       />
-      <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} stockLocation={stockLocation} />
+      <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} stockLocation={stockLocation} stockLocations={activeStockLocations} />
       {relatedProducts.length > 0 && (
         <div className="mt-24">
           <FeaturedProducts

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MapPin, ExternalLink, MessageCircle } from "lucide-react";
+import { MapPin, ExternalLink, MessageCircle, Clock } from "lucide-react";
 import type { StoreBranch } from "@/lib/storefront-settings";
 
 export function FooterBranchSelector({ branches }: { branches: StoreBranch[] }) {
@@ -56,7 +56,7 @@ export function FooterBranchSelector({ branches }: { branches: StoreBranch[] }) 
 
           {selectedBranch.operating_hours && (
             <p className="text-muted-foreground text-[11px]">
-              🕒 {selectedBranch.operating_hours}
+              <Clock className="size-3.5 inline mr-1 text-slate-400" />{selectedBranch.operating_hours}
             </p>
           )}
 

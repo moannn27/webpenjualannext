@@ -44,7 +44,7 @@ export const DEFAULT_FAQS: DefaultFaqItem[] = [
   },
   {
     question: "Apakah saya bisa konsultasi spesifikasi sebelum membeli laptop atau PC?",
-    answer: "Sangat bisa! Anda dapat menggunakan fitur Asisten AI Pintar di website kami untuk rekomendasi spesifikasi instan, atau hubungi CS kami via WhatsApp. Kami siap membantu merekomendasikan perangkat yang paling cocok sesuai kebutuhan kerja, sekolah, desain grafis, maupun gaming.",
+    answer: "Sangat bisa! Anda dapat menggunakan fitur fitur Rekomendasi Spesifikasi di website kami untuk rekomendasi spesifikasi instan, atau hubungi CS kami via WhatsApp. Kami siap membantu merekomendasikan perangkat yang paling cocok sesuai kebutuhan kerja, sekolah, desain grafis, maupun gaming.",
     category: "Konsultasi",
     display_order: 6,
     is_active: true,

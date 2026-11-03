@@ -173,6 +173,7 @@ export type StoreInvoiceSettings = {
   complaint_whatsapp?: string;
   complaint_instructions?: string;
   tax_invoice_enabled?: boolean;
+  tax_calculation_type?: "inclusive" | "exclusive";
   tax_rate_percent?: number;
   company_tax_name?: string;
   company_npwp?: string;
@@ -256,8 +257,19 @@ export type StoreFeaturesSettings = {
 
   // Lokasi Fisik Stok
   stock_location_display_enabled?: boolean;
+  stock_location_mode?: "all_branches" | "selected_branches" | "custom";
+  stock_locations?: StoreStockLocation[];
   stock_location_name?: string;
   stock_location_lead_time?: string;
+};
+
+export type StoreStockLocation = {
+  id: string;
+  name: string;
+  city?: string;
+  address?: string;
+  lead_time: string;
+  is_active?: boolean;
 };
 
 export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
@@ -283,9 +295,42 @@ export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
   whatsapp_chat_button: true,
   ai_recommendation_chat: true,
   stock_location_display_enabled: false,
+  stock_location_mode: "all_branches",
+  stock_locations: [
+    {
+      id: "loc-bandung-main",
+      name: "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
+      city: "Bandung",
+      address: "Jl. Kartini No. 09",
+      lead_time: "Siap Diambil di Toko / Dikirim Cepat",
+      is_active: true,
+    },
+  ],
   stock_location_name: "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
   stock_location_lead_time: "Siap Diambil di Toko / Dikirim Cepat",
 };
+
+export function normalizeStoreStockLocation(raw: unknown, index = 0): StoreStockLocation {
+  if (!raw || typeof raw !== "object") {
+    return {
+      id: `stock-loc-${index + 1}`,
+      name: `Gerai ${index + 1}`,
+      city: "Bandung",
+      address: "",
+      lead_time: "Siap Diambil di Toko / Dikirim Cepat",
+      is_active: true,
+    };
+  }
+  const item = raw as Partial<StoreStockLocation>;
+  return {
+    id: String(item.id || `stock-loc-${index + 1}`).trim(),
+    name: String(item.name || `Gerai ${index + 1}`).trim(),
+    city: item.city ? String(item.city).trim() : undefined,
+    address: item.address ? String(item.address).trim() : undefined,
+    lead_time: String(item.lead_time || "Siap Diambil di Toko / Dikirim Cepat").trim(),
+    is_active: item.is_active !== false,
+  };
+}
 
 export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
   if (!raw || typeof raw !== "object") {
@@ -315,6 +360,29 @@ export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
     whatsapp_chat_button: item.whatsapp_chat_button !== false,
     ai_recommendation_chat: item.ai_recommendation_chat !== false,
     stock_location_display_enabled: Boolean(item.stock_location_display_enabled),
+    stock_location_mode:
+      item.stock_location_mode === "selected_branches" || item.stock_location_mode === "custom"
+        ? item.stock_location_mode
+        : "all_branches",
+    stock_locations:
+      Array.isArray(item.stock_locations) && item.stock_locations.length > 0
+        ? item.stock_locations.map(normalizeStoreStockLocation)
+        : [
+            {
+              id: "loc-bandung-main",
+              name:
+                typeof item.stock_location_name === "string" && item.stock_location_name.trim()
+                  ? item.stock_location_name.trim()
+                  : (DEFAULT_STORE_FEATURES.stock_location_name ?? "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)"),
+              city: "Bandung",
+              address: "Jl. Kartini No. 09",
+              lead_time:
+                typeof item.stock_location_lead_time === "string" && item.stock_location_lead_time.trim()
+                  ? item.stock_location_lead_time.trim()
+                  : (DEFAULT_STORE_FEATURES.stock_location_lead_time ?? "Siap Diambil di Toko / Dikirim Cepat"),
+              is_active: true,
+            },
+          ],
     stock_location_name: typeof item.stock_location_name === "string" && item.stock_location_name.trim() ? item.stock_location_name.trim() : (DEFAULT_STORE_FEATURES.stock_location_name ?? "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)"),
     stock_location_lead_time: typeof item.stock_location_lead_time === "string" && item.stock_location_lead_time.trim() ? item.stock_location_lead_time.trim() : (DEFAULT_STORE_FEATURES.stock_location_lead_time ?? "Siap Diambil di Toko / Dikirim Cepat"),
   };
@@ -483,6 +551,11 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
     guarantee_note: "Simpan faktur ini sebagai bukti pembelian yang sah untuk klaim garansi resmi dan administrasi perpajakan.",
     complaint_whatsapp: "628112238310",
     complaint_instructions: "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.",
+    tax_invoice_enabled: false,
+    tax_calculation_type: "inclusive",
+    tax_rate_percent: 11,
+    company_tax_name: "CV NEXT SOLUTION",
+    company_npwp: "",
   },
 };
 
@@ -793,6 +866,10 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
           ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.complaint_instructions).trim()
           : "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.",
       tax_invoice_enabled: Boolean((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_invoice_enabled),
+      tax_calculation_type:
+        (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_calculation_type === "exclusive"
+          ? "exclusive"
+          : "inclusive",
       tax_rate_percent: Number((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_rate_percent) > 0 ? Number((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_rate_percent) : 11,
       company_tax_name: String((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.company_tax_name ?? "").trim(),
       company_npwp: String((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.company_npwp ?? "").trim(),

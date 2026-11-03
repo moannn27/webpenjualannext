@@ -120,7 +120,7 @@ export function AboutUsView({ content }: AboutUsViewProps) {
                 >
                   {hero.badge && (
                     <div className="inline-flex items-center gap-2 self-start rounded-full bg-blue-50 dark:bg-blue-950/60 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-[#0A4EA3] dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shadow-xs mb-4">
-                      <Sparkles className="h-3.5 w-3.5" />
+                      <ShieldCheck className="h-3.5 w-3.5" />
                       <span>{hero.badge}</span>
                     </div>
                   )}

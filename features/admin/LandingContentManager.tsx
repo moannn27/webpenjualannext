@@ -61,18 +61,18 @@ const emptyDraft = (placement: "hero" | "promo", displayOrder: number = 0): Draf
 });
 
 const PRESET_URLS = [
-  { label: "🛍️ Semua Produk", url: "/products", defaultBtn: "Lihat Semua Produk" },
-  { label: "💻 Laptop", url: "/products?category=laptops", defaultBtn: "Beli Laptop" },
-  { label: "🎮 Gaming Laptops", url: "/products?category=gaming-laptops", defaultBtn: "Cek Laptop Gaming" },
-  { label: "🖥️ Komputer PC", url: "/products?category=pc", defaultBtn: "Lihat PC Desktop" },
-  { label: "🎧 Aksesoris", url: "/products?category=accessories", defaultBtn: "Pilih Aksesoris" },
-  { label: "🏷️ Promo & Voucher", url: "/promo", defaultBtn: "Cek Promo Sekarang" },
-  { label: "🏠 Beranda (Home)", url: "/", defaultBtn: "Mulai Belanja" },
+  { label: "Semua Produk", url: "/products", defaultBtn: "Lihat Semua Produk" },
+  { label: "Laptop", url: "/products?category=laptops", defaultBtn: "Beli Laptop" },
+  { label: "Gaming Laptops", url: "/products?category=gaming-laptops", defaultBtn: "Cek Laptop Gaming" },
+  { label: "Komputer PC", url: "/products?category=pc", defaultBtn: "Lihat PC Desktop" },
+  { label: "Aksesoris", url: "/products?category=accessories", defaultBtn: "Pilih Aksesoris" },
+  { label: "Promo & Voucher", url: "/promo", defaultBtn: "Cek Promo Sekarang" },
+  { label: "Beranda (Home)", url: "/", defaultBtn: "Mulai Belanja" },
 ];
 
 const PRESET_HERO_TEMPLATES = [
   {
-    name: "🎮 Laptop Gaming RTX",
+    name: "Laptop Gaming RTX",
     title: "Slide Laptop Gaming",
     subtitle: "LENOVO LEGION & ASUS ROG",
     headline: "Laptop Gaming & Performa Tinggi",

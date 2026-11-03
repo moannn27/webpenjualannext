@@ -21,7 +21,6 @@ import {
   PackageCheck,
   ShieldCheck,
   ShoppingCart,
-  Sparkles,
   Store,
   Tag,
   TicketPercent,
@@ -320,10 +319,24 @@ export function CheckoutClient({
   const shippingPrice = fulfillmentMode === "pickup" ? 0 : selectedShipping?.price ?? 0;
   const taxableAmount = Math.max(0, subtotal - discountAmount);
   const taxRatePercent = Number(invoiceSettings?.tax_rate_percent ?? 11);
+  const isInclusiveTax = (invoiceSettings?.tax_calculation_type ?? "inclusive") === "inclusive";
+
+  // DPP and Tax calculation based on inclusive/exclusive setting
+  const inclusiveDpp = Math.round(taxableAmount / (1 + taxRatePercent / 100));
+  const inclusiveTax = taxableAmount - inclusiveDpp;
+  const exclusiveTax = Math.round(taxableAmount * (taxRatePercent / 100));
+
   const taxAmount = taxInvoiceRequested
-    ? Math.round(taxableAmount * (taxRatePercent / 100))
+    ? (isInclusiveTax ? inclusiveTax : exclusiveTax)
     : 0;
-  const finalTotal = taxableAmount + shippingPrice + taxAmount;
+  const dppAmount = taxInvoiceRequested
+    ? (isInclusiveTax ? inclusiveDpp : taxableAmount)
+    : taxableAmount;
+
+  // In inclusive mode, tax is already included in product prices so finalTotal doesn't inflate
+  const finalTotal = isInclusiveTax
+    ? taxableAmount + shippingPrice
+    : taxableAmount + shippingPrice + (taxInvoiceRequested ? exclusiveTax : 0);
 
   const handleApplyVoucher = async () => {
     if (!voucherInput.trim()) {
@@ -661,6 +674,11 @@ export function CheckoutClient({
                 requested: true,
                 companyName: taxCompanyName.trim(),
                 npwp: taxNpwp.trim(),
+                taxAddress: taxAddress.trim(),
+                taxPercent: taxRatePercent,
+                taxAmount: taxAmount,
+                dppAmount: dppAmount,
+                calculationType: isInclusiveTax ? "inclusive" : "exclusive",
               }
             : undefined,
         };
@@ -1352,7 +1370,10 @@ export function CheckoutClient({
                         Menggunakan Faktur Pajak
                       </span>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        Centang jika pesanan ini atas nama perusahaan / instansi / PKP dan membutuhkan faktur pajak resmi.
+                        Centang jika pesanan ini atas nama perusahaan / instansi / PKP dan membutuhkan faktur pajak resmi
+                        {isInclusiveTax
+                          ? " (Harga sudah termasuk PPN 11%, total tagihan tidak bertambah)."
+                          : ` (PPN ${taxRatePercent}% akan ditambahkan pada total pembayaran).`}
                       </p>
                     </div>
                   </label>
@@ -1783,7 +1804,7 @@ export function CheckoutClient({
                 {/* Info detail keuntungan voucher */}
                 <div className="rounded-lg bg-background/90 p-2.5 border border-emerald-500/25 space-y-1 shadow-2xs">
                   <p className="font-medium text-emerald-950 dark:text-emerald-100 flex items-start gap-1.5">
-                    <Sparkles className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
                       Selamat! Kamu mendapatkan voucher{" "}
                       <strong className="text-emerald-700 dark:text-emerald-400 font-bold">
@@ -1806,7 +1827,7 @@ export function CheckoutClient({
                     <div className="pl-5 flex flex-wrap gap-1.5 pt-0.5 text-[10px]">
                       {appliedVoucher.isNewCustomerOnly ? (
                         <span className="rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 font-semibold flex items-center gap-1">
-                          <Sparkles className="size-2.5" /> Khusus Pembeli Pertama
+                          <Tag className="size-2.5" /> Khusus Pembeli Pertama
                         </span>
                       ) : null}
                       {appliedVoucher.applicableCategoryNames?.length ? (
@@ -1891,15 +1912,33 @@ export function CheckoutClient({
               </dd>
             </div>
             {taxInvoiceRequested && (
-              <div className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
-                <dt className="flex items-center gap-1 font-medium">
-                  <FileText className="size-3.5 text-blue-600 dark:text-blue-400" />
-                  <span>Pajak PPN ({taxRatePercent}%)</span>
-                </dt>
-                <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">
-                  +{formatCurrency(taxAmount)}
-                </dd>
-              </div>
+              isInclusiveTax ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
+                    <dt className="flex items-center gap-1 font-medium">
+                      <FileText className="size-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Pajak PPN ({taxRatePercent}% Sudah Termasuk)</span>
+                    </dt>
+                    <dd className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(taxAmount)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4 text-xs text-muted-foreground pl-4">
+                    <span>Dasar Pengenaan Pajak (DPP)</span>
+                    <span className="tabular-nums font-mono">{formatCurrency(dppAmount)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
+                  <dt className="flex items-center gap-1 font-medium">
+                    <FileText className="size-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>Pajak PPN ({taxRatePercent}%)</span>
+                  </dt>
+                  <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                    +{formatCurrency(taxAmount)}
+                  </dd>
+                </div>
+              )
             )}
           </dl>
 

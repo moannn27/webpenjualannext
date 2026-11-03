@@ -52,6 +52,15 @@ describe("Quick Search Command Palette System", () => {
     closeQuickSearch();
   });
 
+  it("exports default popular search keywords as fallback", async () => {
+    const { DEFAULT_POPULAR_SEARCHES } = await import("@/components/shared/QuickSearchModal");
+    expect(DEFAULT_POPULAR_SEARCHES).toBeDefined();
+    expect(Array.isArray(DEFAULT_POPULAR_SEARCHES)).toBe(true);
+    expect(DEFAULT_POPULAR_SEARCHES).toContain("Laptop Gaming");
+    expect(DEFAULT_POPULAR_SEARCHES).toContain("Lenovo IdeaPad");
+    expect(DEFAULT_POPULAR_SEARCHES).toContain("ASUS ROG");
+  });
+
   it("opens quick search modal without initial query", () => {
     openQuickSearch();
 

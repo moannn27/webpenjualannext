@@ -64,14 +64,7 @@ export default function RegisterPage() {
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [redirectTarget, setRedirectTarget] = useState("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const redir = new URLSearchParams(window.location.search).get("redirect");
-      if (redir) setRedirectTarget(redir);
-    }
-  }, []);
+  const [redirectTarget] = useState(() => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") || "" : ""));
 
   useEffect(() => {
     getStorefrontSettingsAction()

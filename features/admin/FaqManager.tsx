@@ -119,8 +119,16 @@ export function FaqManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
     });
   };
 
-  const handleDelete = (id: string, question: string) => {
-    if (!window.confirm(`Hapus FAQ: "${question}"?`)) return;
+  const handleDelete = async (id: string, question: string) => {
+    const confirmed = await confirmAction({
+      title: "Hapus Tanya Jawab (FAQ)",
+      message: `Hapus pertanyaan FAQ: "${question}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Hapus FAQ",
+      cancelText: "Batal",
+      variant: "danger",
+      icon: "trash",
+    });
+    if (!confirmed) return;
 
     setError("");
     setNotice("");

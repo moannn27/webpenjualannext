@@ -29,6 +29,7 @@ import {
   type BankTransferInfo,
   type FeaturedReviewItem,
   type StoreFeaturesSettings,
+  type StoreStockLocation,
 } from "@/lib/storefront-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -324,6 +325,89 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     };
   }, []);
 
+  const syncStockLocationsFromStoreBranches = () => {
+    const branches = settings.store.branches || [];
+    if (!branches.length) {
+      setNotice("Belum ada cabang resmi yang tersimpan di Pengaturan Cabang Toko.");
+      return;
+    }
+    const currentList = settings.features.stock_locations || [];
+    const knownNames = new Set(currentList.map((loc) => loc.name.toLowerCase().trim()));
+    const newItems: StoreStockLocation[] = branches
+      .filter((b) => !knownNames.has(b.name.toLowerCase().trim()))
+      .map((b) => ({
+        id: b.id || `loc-branch-${b.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+        name: b.name,
+        city: b.city || "Bandung",
+        address: b.address || "",
+        lead_time: "Siap Diambil di Toko / Dikirim Cepat",
+        is_active: b.is_active !== false,
+      }));
+    if (newItems.length === 0) {
+      setNotice("Semua cabang toko resmi sudah ada di daftar lokasi stok gerai.");
+      return;
+    }
+    const updated = [...currentList, ...newItems];
+    updateFeatures("stock_locations", updated);
+    const firstActive = updated.find((loc) => loc.is_active) || updated[0];
+    if (firstActive) {
+      updateFeatures("stock_location_name", firstActive.name);
+      updateFeatures("stock_location_lead_time", firstActive.lead_time);
+    }
+    setNotice(`${newItems.length} cabang toko resmi berhasil disinkronkan ke lokasi stok gerai.`);
+  };
+
+  const addCustomStockLocation = () => {
+    const currentList = settings.features.stock_locations || [];
+    const newLoc: StoreStockLocation = {
+      id: `loc-custom-${currentList.length + 1}`,
+      name: `Cabang Toko ${currentList.length + 1}`,
+      city: "Bandung",
+      address: "",
+      lead_time: "Siap Diambil di Toko / Dikirim Cepat",
+      is_active: true,
+    };
+    const updated = [...currentList, newLoc];
+    updateFeatures("stock_locations", updated);
+    const firstActive = updated.find((loc) => loc.is_active) || updated[0];
+    if (firstActive) {
+      updateFeatures("stock_location_name", firstActive.name);
+      updateFeatures("stock_location_lead_time", firstActive.lead_time);
+    }
+    setNotice("Lokasi cabang baru berhasil ditambahkan.");
+  };
+
+  const updateStockLocationItem = <K extends keyof StoreStockLocation>(
+    id: string,
+    field: K,
+    value: StoreStockLocation[K]
+  ) => {
+    const currentList = settings.features.stock_locations || [];
+    const updated = currentList.map((loc) => (loc.id === id ? { ...loc, [field]: value } : loc));
+    updateFeatures("stock_locations", updated);
+    const firstActive = updated.find((loc) => loc.is_active) || updated[0];
+    if (firstActive) {
+      updateFeatures("stock_location_name", firstActive.name);
+      updateFeatures("stock_location_lead_time", firstActive.lead_time);
+    }
+  };
+
+  const removeStockLocationItem = (id: string) => {
+    const currentList = settings.features.stock_locations || [];
+    if (currentList.length <= 1) {
+      setNotice("Minimal harus ada 1 lokasi stok fisik di gerai.");
+      return;
+    }
+    const updated = currentList.filter((loc) => loc.id !== id);
+    updateFeatures("stock_locations", updated);
+    const firstActive = updated.find((loc) => loc.is_active) || updated[0];
+    if (firstActive) {
+      updateFeatures("stock_location_name", firstActive.name);
+      updateFeatures("stock_location_lead_time", firstActive.lead_time);
+    }
+    setNotice("Lokasi cabang berhasil dihapus dari daftar stok fisik.");
+  };
+
   const updateFeatures = <K extends keyof StoreFeaturesSettings>(
     key: K,
     value: StoreFeaturesSettings[K]
@@ -1830,26 +1914,118 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                   </label>
                 </div>
                 {settings.features.stock_location_display_enabled && (
-                  <div className="space-y-3 pt-1 border-t border-border/60">
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">Nama Cabang / Gudang Fisik:</label>
-                      <Input
-                        value={settings.features.stock_location_name ?? ""}
-                        onChange={(e) => updateFeatures("stock_location_name", e.target.value)}
-                        placeholder="Contoh: Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)"
-                        className="text-xs h-9"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Nama gerai fisik atau gudang utama tempat unit produk disimpan.</p>
+                  <div className="space-y-4 pt-3 border-t border-border/60">
+                    <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 p-3 rounded-xl border border-border/50">
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground">Daftar Cabang & Gerai Fisik Toko</h4>
+                        <p className="text-[11px] text-muted-foreground">
+                          Kelola cabang toko fisik yang memiliki stok unit untuk ditampilkan kepada pembeli pada halaman detail produk.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {settings.store.branches && settings.store.branches.length > 0 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-xs h-8 gap-1.5 cursor-pointer"
+                            onClick={syncStockLocationsFromStoreBranches}
+                          >
+                            <RefreshCw className="size-3.5" />
+                            Sinkronkan dari Cabang Toko
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs h-8 gap-1.5 cursor-pointer"
+                          onClick={addCustomStockLocation}
+                        >
+                          <Plus className="size-3.5" />
+                          Tambah Cabang / Gudang
+                        </Button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-foreground">Keterangan Waktu / Kesiapan:</label>
-                      <Input
-                        value={settings.features.stock_location_lead_time ?? ""}
-                        onChange={(e) => updateFeatures("stock_location_lead_time", e.target.value)}
-                        placeholder="Contoh: Siap Diambil di Toko / Dikirim Cepat"
-                        className="text-xs h-9"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Keterangan kesiapan unit pembeli (misal: "Siap Diambil di Toko / Dikirim Cepat").</p>
+
+                    {/* List of branches */}
+                    <div className="space-y-3">
+                      {(settings.features.stock_locations && settings.features.stock_locations.length > 0
+                        ? settings.features.stock_locations
+                        : [
+                            {
+                              id: "loc-bandung-main",
+                              name: settings.features.stock_location_name || "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
+                              city: "Bandung",
+                              lead_time: settings.features.stock_location_lead_time || "Siap Diambil di Toko / Dikirim Cepat",
+                              is_active: true,
+                            },
+                          ]
+                      ).map((loc, idx) => (
+                        <div
+                          key={loc.id || idx}
+                          className={cn(
+                            "rounded-xl border p-3.5 space-y-3 transition-all",
+                            loc.is_active !== false
+                              ? "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10"
+                              : "border-border/60 bg-muted/20 opacity-75"
+                          )}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  className="sr-only peer"
+                                  checked={loc.is_active !== false}
+                                  onChange={(e) => updateStockLocationItem(loc.id, "is_active", e.target.checked)}
+                                />
+                                <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                              </label>
+                              <span className="text-xs font-semibold text-foreground">
+                                Cabang #{idx + 1} {loc.is_active !== false ? "(Aktif Tampil)" : "(Nonaktif)"}
+                              </span>
+                              {loc.city && (
+                                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                  {loc.city}
+                                </span>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                              onClick={() => removeStockLocationItem(loc.id)}
+                              aria-label={`Hapus cabang ${loc.name}`}
+                            >
+                              <Trash2 className="size-3.5 mr-1" />
+                              Hapus
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-medium text-foreground">Nama Cabang / Gerai Fisik:</label>
+                              <Input
+                                value={loc.name}
+                                onChange={(e) => updateStockLocationItem(loc.id, "name", e.target.value)}
+                                placeholder="Contoh: Gerai Utama Bandung (Jl. Kartini No. 09)"
+                                className="text-xs h-8.5 bg-background"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[11px] font-medium text-foreground">Keterangan Waktu / Kesiapan Stok:</label>
+                              <Input
+                                value={loc.lead_time}
+                                onChange={(e) => updateStockLocationItem(loc.id, "lead_time", e.target.value)}
+                                placeholder="Contoh: Siap Diambil di Toko / Dikirim Cepat"
+                                className="text-xs h-8.5 bg-background"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -3551,45 +3727,96 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
               </div>
 
               {settings.invoice?.tax_invoice_enabled && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-border/60 animate-in fade-in duration-200">
-                  <div className="space-y-1 sm:col-span-1">
+                <div className="space-y-4 pt-3 border-t border-border/60 animate-in fade-in duration-200">
+                  {/* Metode Perhitungan Pajak */}
+                  <div className="space-y-2">
                     <label className="text-xs font-semibold text-foreground">
-                      Tarif PPN (%)
+                      Metode Perhitungan Pajak
                     </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      value={settings.invoice?.tax_rate_percent ?? 11}
-                      onChange={(e) => updateInvoice("tax_rate_percent", Number(e.target.value) || 11)}
-                      className="rounded-xl h-9 text-xs font-mono"
-                    />
-                    <p className="text-[11px] text-muted-foreground">Standar PPN Indonesia saat ini: 11%.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div
+                        onClick={() => updateInvoice("tax_calculation_type", "inclusive")}
+                        className={cn(
+                          "cursor-pointer rounded-xl border p-3.5 transition-all text-left",
+                          (settings.invoice?.tax_calculation_type ?? "inclusive") === "inclusive"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border/70 hover:border-border hover:bg-muted/30"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground">
+                            Harga Sudah Termasuk Pajak (Inclusive)
+                          </span>
+                          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                            Rekomendasi
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                          Harga barang di etalase sudah mencakup PPN 11%. Total tagihan pembeli tidak bertambah, melainkan dipecah menjadi DPP (Dasar Pengenaan Pajak) dan PPN pada invoice.
+                        </p>
+                      </div>
+
+                      <div
+                        onClick={() => updateInvoice("tax_calculation_type", "exclusive")}
+                        className={cn(
+                          "cursor-pointer rounded-xl border p-3.5 transition-all text-left",
+                          settings.invoice?.tax_calculation_type === "exclusive"
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-border/70 hover:border-border hover:bg-muted/30"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-foreground">
+                            Harga Belum Termasuk Pajak (Exclusive)
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                          Harga barang belum termasuk PPN. Nilai PPN akan ditambahkan di atas subtotal pesanan (+11%) saat pembeli meminta faktur pajak resmi.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1 sm:col-span-1">
-                    <label className="text-xs font-semibold text-foreground">
-                      Nama PKP / Badan Usaha Penjual
-                    </label>
-                    <Input
-                      value={settings.invoice?.company_tax_name ?? ""}
-                      onChange={(e) => updateInvoice("company_tax_name", e.target.value)}
-                      placeholder="Contoh: CV NEXT SOLUTION"
-                      className="rounded-xl h-9 text-xs"
-                    />
-                    <p className="text-[11px] text-muted-foreground">Tercetak di faktur sebagai nama PKP Penjual.</p>
-                  </div>
-                  <div className="space-y-1 sm:col-span-1">
-                    <label className="text-xs font-semibold text-foreground">
-                      NPWP PKP Penjual
-                    </label>
-                    <Input
-                      value={settings.invoice?.company_npwp ?? ""}
-                      onChange={(e) => updateInvoice("company_npwp", e.target.value)}
-                      placeholder="Contoh: 01.234.567.8-012.000"
-                      className="rounded-xl h-9 text-xs font-mono"
-                    />
-                    <p className="text-[11px] text-muted-foreground">Nomor NPWP resmi penjual untuk penerbitan e-Faktur.</p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1 sm:col-span-1">
+                      <label className="text-xs font-semibold text-foreground">
+                        Tarif PPN (%)
+                      </label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.1}
+                        value={settings.invoice?.tax_rate_percent ?? 11}
+                        onChange={(e) => updateInvoice("tax_rate_percent", Number(e.target.value) || 11)}
+                        className="rounded-xl h-9 text-xs font-mono"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Standar PPN Indonesia saat ini: 11%.</p>
+                    </div>
+                    <div className="space-y-1 sm:col-span-1">
+                      <label className="text-xs font-semibold text-foreground">
+                        Nama PKP / Badan Usaha Penjual
+                      </label>
+                      <Input
+                        value={settings.invoice?.company_tax_name ?? ""}
+                        onChange={(e) => updateInvoice("company_tax_name", e.target.value)}
+                        placeholder="Contoh: CV NEXT SOLUTION"
+                        className="rounded-xl h-9 text-xs"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Tercetak di faktur sebagai nama PKP Penjual.</p>
+                    </div>
+                    <div className="space-y-1 sm:col-span-1">
+                      <label className="text-xs font-semibold text-foreground">
+                        NPWP PKP Penjual
+                      </label>
+                      <Input
+                        value={settings.invoice?.company_npwp ?? ""}
+                        onChange={(e) => updateInvoice("company_npwp", e.target.value)}
+                        placeholder="Contoh: 01.234.567.8-012.000"
+                        className="rounded-xl h-9 text-xs font-mono"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Nomor NPWP resmi penjual untuk penerbitan e-Faktur.</p>
+                    </div>
                   </div>
                 </div>
               )}

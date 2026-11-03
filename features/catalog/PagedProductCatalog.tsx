@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw, Sparkles } from "lucide-react";
+import { Search, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw, Tag } from "lucide-react";
 import { ProductCard } from "@/components/shared/ProductCard";
 import type { Product } from "@/store/useProductStore";
 import type { CatalogSearchParams } from "@/lib/catalog-filters";
@@ -231,7 +231,7 @@ export function PagedProductCatalog({
                       className="peer sr-only"
                     />
                     <span className="flex h-full w-full items-center justify-center gap-1.5 bg-background px-3 text-xs transition-colors hover:bg-accent peer-checked:bg-primary peer-checked:text-primary-foreground">
-                      <Sparkles className="size-3.5" />
+                      <Tag className="size-3.5" />
                       Promo saja
                     </span>
                   </label>

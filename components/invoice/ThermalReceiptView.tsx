@@ -39,6 +39,8 @@ export function ThermalReceiptView({
     npwp?: string;
     tax_percent?: number;
     tax_amount?: number;
+    dpp_amount?: number;
+    calculation_type?: "inclusive" | "exclusive";
   } | undefined;
 
   const paymentState = getOrderPaymentState(order.payments);
@@ -258,11 +260,31 @@ export function ThermalReceiptView({
 
         {taxInvoice?.requested && (() => {
           const taxRate = Number(taxInvoice.tax_percent) > 0 ? Number(taxInvoice.tax_percent) : 11;
+          const isInclusive = taxInvoice.calculation_type !== "exclusive";
           const taxableAmount = Math.max(0, Number(order.total_amount || 0) - Number(order.discount_amount || 0));
-          const taxAmount = Number(taxInvoice.tax_amount) > 0
+          const dpp = taxInvoice.dpp_amount !== undefined && Number(taxInvoice.dpp_amount) > 0
+            ? Number(taxInvoice.dpp_amount)
+            : isInclusive
+            ? Math.round(taxableAmount / (1 + taxRate / 100))
+            : taxableAmount;
+          const taxAmount = taxInvoice.tax_amount !== undefined && Number(taxInvoice.tax_amount) > 0
             ? Number(taxInvoice.tax_amount)
+            : isInclusive
+            ? taxableAmount - dpp
             : Math.round(taxableAmount * (taxRate / 100));
-          return (
+
+          return isInclusive ? (
+            <>
+              <div className="flex justify-between text-slate-700 font-medium pt-0.5 border-t border-dashed border-slate-300">
+                <span>DPP</span>
+                <span className="font-mono font-semibold">{formatIdr(dpp)}</span>
+              </div>
+              <div className="flex justify-between text-slate-700 font-medium">
+                <span>PPN ({taxRate}% Inc)</span>
+                <span className="font-mono font-semibold">{formatIdr(taxAmount)}</span>
+              </div>
+            </>
+          ) : (
             <div className="flex justify-between text-slate-700 font-medium pt-0.5 border-t border-dashed border-slate-300">
               <span>Pajak PPN ({taxRate}%)</span>
               <span className="font-mono font-semibold">+{formatIdr(taxAmount)}</span>

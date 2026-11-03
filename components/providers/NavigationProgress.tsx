@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useState, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { LoaderCircle } from "lucide-react";
 
 function NavigationProgressBar() {
   const pathname = usePathname();

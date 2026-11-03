@@ -113,13 +113,13 @@ export default function LeafletBranchMap({
         const popupContent = `
           <div style="min-width: 220px; font-family: inherit; padding: 4px;">
             <div style="display: inline-block; background: #EEF2FF; color: #4338CA; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; margin-bottom: 6px; text-transform: uppercase;">
-              📍 ${branch.city}
+              ${branch.city}
             </div>
             <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #0F172A;">${branch.name}</h4>
             <p style="margin: 0 0 8px; font-size: 11px; line-height: 1.4; color: #64748B;">${branch.address}</p>
             ${
               branch.operating_hours
-                ? `<p style="margin: 0 0 8px; font-size: 11px; color: #475569;">🕒 <b>${branch.operating_hours}</b></p>`
+                ? `<p style="margin: 0 0 8px; font-size: 11px; color: #475569;"><b>Jam Buka:</b> ${branch.operating_hours}</p>`
                 : ""
             }
             <div style="display: flex; gap: 6px; margin-top: 8px;">
@@ -278,7 +278,7 @@ export default function LeafletBranchMap({
       <div ref={mapContainerRef} className="h-[380px] w-full sm:h-[460px] lg:h-[500px] z-0" />
       <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex justify-between items-center text-xs text-foreground bg-background/90 backdrop-blur px-3.5 py-2 rounded-xl border border-border/80 shadow-md sm:left-4 sm:right-4">
         <span className="flex items-center gap-1.5 font-medium text-muted-foreground text-[11px] sm:text-xs">
-          <span>📍</span> Geser & klik titik cabang di peta untuk lihat lokasinya
+          Geser & klik titik cabang di peta untuk melihat lokasi
         </span>
         <button
           type="button"

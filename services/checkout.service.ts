@@ -400,54 +400,87 @@ export class CheckoutService {
 
       // Synchronize Tax Invoice (Faktur Pajak) and add tax amount to grand_total if requested by customer
       if (input.taxInvoiceRequested) {
-        try {
-          const adminClient = getSupabaseAdminClient();
-          const [{ data: orderRow }, { data: sfData }] = await Promise.all([
-            adminClient.from('orders').select('shipping_address, total_amount, discount_amount, shipping_amount, grand_total').eq('id', orderId).maybeSingle(),
-            adminClient.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle(),
-          ]);
+        const adminClient = getSupabaseAdminClient();
+        const [{ data: orderRow, error: orderFetchErr }, { data: sfData }] = await Promise.all([
+          adminClient
+            .from('orders')
+            .select('shipping_address, total_amount, discount_amount, shipping_amount, grand_total')
+            .eq('id', orderId)
+            .maybeSingle(),
+          adminClient
+            .from('storefront_settings')
+            .select('settings')
+            .eq('id', 'main')
+            .maybeSingle(),
+        ]);
 
-          const currentAddr = (orderRow?.shipping_address as Record<string, unknown>) || {};
-          const currentSettings = normalizeStorefrontSettings(sfData?.settings ?? {});
-          const taxPercent = currentSettings.invoice?.tax_rate_percent ?? 11;
+        if (orderFetchErr || !orderRow) {
+          throw new Error(`Gagal memuat data pesanan untuk faktur pajak: ${orderFetchErr?.message || 'Pesanan tidak ditemukan'}`);
+        }
 
-          // Calculate tax based on net order amount (subtotal - discount)
-          const orderSubtotal = Number(orderRow?.total_amount || 0);
-          const orderDiscount = Number(orderRow?.discount_amount || 0);
-          const orderShipping = Number(orderRow?.shipping_amount || 0);
-          const taxableAmount = Math.max(0, orderSubtotal - orderDiscount);
-          const taxAmount = Math.round(taxableAmount * (taxPercent / 100));
-          const newGrandTotal = taxableAmount + orderShipping + taxAmount;
+        const currentAddr = (orderRow.shipping_address as Record<string, unknown>) || {};
+        const currentSettings = normalizeStorefrontSettings(sfData?.settings ?? {});
+        const taxPercent = currentSettings.invoice?.tax_rate_percent ?? 11;
+        const taxCalculationType = currentSettings.invoice?.tax_calculation_type ?? 'inclusive';
+        const isInclusive = taxCalculationType === 'inclusive';
 
-          await Promise.all([
-            adminClient
-              .from('orders')
-              .update({
-                grand_total: newGrandTotal,
-                shipping_address: {
-                  ...currentAddr,
-                  tax_invoice: {
-                    requested: true,
-                    company_name: input.taxCompanyName?.trim() || '',
-                    npwp: input.taxNpwp?.trim() || '',
-                    tax_address: input.taxAddress?.trim() || '',
-                    tax_percent: taxPercent,
-                    tax_amount: taxAmount,
-                  },
+        // Calculate tax based on net order amount (subtotal - discount)
+        const orderSubtotal = Number(orderRow.total_amount || 0);
+        const orderDiscount = Number(orderRow.discount_amount || 0);
+        const orderShipping = Number(orderRow.shipping_amount || 0);
+        const taxableAmount = Math.max(0, orderSubtotal - orderDiscount);
+
+        let taxAmount = 0;
+        let dppAmount = taxableAmount;
+        let newGrandTotal = taxableAmount + orderShipping;
+
+        if (isInclusive) {
+          // Mode Inclusive: Harga barang sudah termasuk pajak, grand total tidak bertambah
+          dppAmount = Math.round(taxableAmount / (1 + taxPercent / 100));
+          taxAmount = taxableAmount - dppAmount;
+          newGrandTotal = taxableAmount + orderShipping;
+        } else {
+          // Mode Exclusive: Pajak ditambahkan di atas subtotal
+          dppAmount = taxableAmount;
+          taxAmount = Math.round(taxableAmount * (taxPercent / 100));
+          newGrandTotal = taxableAmount + orderShipping + taxAmount;
+        }
+
+        const [orderUpdateRes, paymentUpdateRes] = await Promise.all([
+          adminClient
+            .from('orders')
+            .update({
+              grand_total: newGrandTotal,
+              shipping_address: {
+                ...currentAddr,
+                tax_invoice: {
+                  requested: true,
+                  company_name: input.taxCompanyName?.trim() || '',
+                  npwp: input.taxNpwp?.trim() || '',
+                  tax_address: input.taxAddress?.trim() || '',
+                  tax_percent: taxPercent,
+                  tax_amount: taxAmount,
+                  dpp_amount: dppAmount,
+                  calculation_type: isInclusive ? 'inclusive' : 'exclusive',
                 },
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', orderId),
-            adminClient
-              .from('payments')
-              .update({
-                amount: newGrandTotal,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('order_id', orderId),
-          ]);
-        } catch (taxErr) {
-          console.error('Failed to sync tax invoice or update grand_total:', taxErr);
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', orderId),
+          adminClient
+            .from('payments')
+            .update({
+              amount: newGrandTotal,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('order_id', orderId),
+        ]);
+
+        if (orderUpdateRes.error) {
+          throw new Error(`Gagal memperbarui faktur pajak pada pesanan: ${orderUpdateRes.error.message}`);
+        }
+        if (paymentUpdateRes.error) {
+          throw new Error(`Gagal memperbarui total tagihan pembayaran pajak: ${paymentUpdateRes.error.message}`);
         }
       }
 

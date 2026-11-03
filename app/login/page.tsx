@@ -17,12 +17,61 @@ export default function LoginPage() {
     const err = new URLSearchParams(window.location.search).get("error");
     return err ? decodeURIComponent(err) : "";
   });
+  const [redirectTarget] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("redirect") || "";
+  });
   const [attention, setAttention] = useState<{
     type: "wishlist" | "checkout" | "cart" | "generic";
     title: string;
     description: string;
-  } | null>(null);
-  const [redirectTarget, setRedirectTarget] = useState("");
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const redir = params.get("redirect") || "";
+    const notice = params.get("notice") || "";
+    const isWishlist = notice === "wishlist" || redir.toLowerCase().includes("wishlist");
+    const isCheckout = notice === "checkout" || redir.toLowerCase().includes("checkout");
+    const isCart = notice === "cart";
+
+    if (isWishlist) {
+      return {
+        type: "wishlist",
+        title: "Perhatian: Masuk untuk Akses Wishlist",
+        description:
+          "Untuk membuka dan mengelola daftar produk favorit Anda di Wishlist, silakan masuk ke akun Anda terlebih dahulu.",
+      };
+    } else if (isCheckout) {
+      return {
+        type: "checkout",
+        title: "Perhatian: Masuk untuk Melanjutkan Pembayaran",
+        description:
+          "Untuk melanjutkan proses pemesanan, alamat pengiriman, dan checkout pembayaran, silakan masuk ke akun Anda terlebih dahulu.",
+      };
+    } else if (isCart) {
+      return {
+        type: "cart",
+        title: "Perhatian: Masuk untuk Menambah ke Keranjang",
+        description:
+          "Silakan masuk ke akun Anda terlebih dahulu untuk menambahkan produk pilihan ke keranjang belanja.",
+      };
+    } else if (notice === "profile" || redir.toLowerCase().includes("profile")) {
+      return {
+        type: "generic",
+        title: "Perhatian: Masuk untuk Akses Profil Akun",
+        description:
+          "Untuk melihat riwayat pesanan, profil, dan pengaturan akun Anda, silakan masuk ke akun Anda terlebih dahulu.",
+      };
+    } else if (notice === "invoice" || redir.toLowerCase().includes("invoice")) {
+      return {
+        type: "generic",
+        title: "Perhatian: Masuk untuk Melihat Faktur Pesanan",
+        description:
+          "Silakan masuk ke akun Anda terlebih dahulu untuk membuka rincian faktur pembayaran pesanan Anda.",
+      };
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Memeriksa akun...");
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
@@ -30,63 +79,6 @@ export default function LoginPage() {
   const [verificationSent, setVerificationSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const redir = params.get("redirect") || "";
-    const notice = params.get("notice") || "";
-    const err = params.get("error");
-    if (err) setError(decodeURIComponent(err));
-    if (redir) setRedirectTarget(redir);
-
-    const isWishlist = notice === "wishlist" || redir.toLowerCase().includes("wishlist");
-    const isCheckout = notice === "checkout" || redir.toLowerCase().includes("checkout");
-    const isCart = notice === "cart";
-
-    if (isWishlist) {
-      setAttention({
-        type: "wishlist",
-        title: "Perhatian: Masuk untuk Akses Wishlist",
-        description:
-          "Untuk membuka dan mengelola daftar produk favorit Anda di Wishlist, silakan masuk ke akun Anda terlebih dahulu.",
-      });
-    } else if (isCheckout) {
-      setAttention({
-        type: "checkout",
-        title: "Perhatian: Masuk untuk Melanjutkan Pembayaran",
-        description:
-          "Untuk melanjutkan proses pemesanan, alamat pengiriman, dan checkout pembayaran, silakan masuk ke akun Anda terlebih dahulu.",
-      });
-    } else if (isCart) {
-      setAttention({
-        type: "cart",
-        title: "Perhatian: Masuk untuk Menambah ke Keranjang",
-        description:
-          "Silakan masuk ke akun Anda terlebih dahulu untuk menambahkan produk pilihan ke keranjang belanja.",
-      });
-    } else if (notice === "profile" || redir.toLowerCase().includes("profile")) {
-      setAttention({
-        type: "generic",
-        title: "Perhatian: Masuk untuk Akses Profil Akun",
-        description:
-          "Untuk melihat riwayat pesanan, profil, dan pengaturan akun Anda, silakan masuk ke akun Anda terlebih dahulu.",
-      });
-    } else if (notice === "invoice" || redir.toLowerCase().includes("invoice")) {
-      setAttention({
-        type: "generic",
-        title: "Perhatian: Masuk untuk Akses Faktur",
-        description:
-          "Silakan masuk ke akun Anda terlebih dahulu untuk melihat atau mencetak faktur pesanan.",
-      });
-    } else if (redir && !redir.startsWith("/login")) {
-      setAttention({
-        type: "generic",
-        title: "Perhatian: Autentikasi Diperlukan",
-        description:
-          "Halaman ini memerlukan akun. Silakan masuk ke akun Anda terlebih dahulu untuk melanjutkan.",
-      });
-    }
-  }, []);
 
   useEffect(() => {
     getStorefrontSettingsAction()

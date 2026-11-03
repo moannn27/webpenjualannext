@@ -11,7 +11,6 @@ import {
   X,
   Loader2,
   ArrowRight,
-  Sparkles,
   Tag,
   HelpCircle,
   ShieldCheck,
@@ -315,7 +314,7 @@ function QuickSearchDialog({ initialQuery, popularKeywords, onClose }: QuickSear
           {/* 2. Popular Quick Searches */}
           <div className="space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-              <Sparkles className="size-3.5 text-amber-500" />
+              <Tag className="size-3.5 text-blue-500" />
               <span>Pencarian Cepat Populer</span>
             </div>
             <div className="flex flex-wrap gap-2">

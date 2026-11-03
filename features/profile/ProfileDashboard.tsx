@@ -127,7 +127,7 @@ function OrderProgress({ order }: { order: Order }) {
   if (order.status === "cancelled") {
     return (
       <p className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm font-medium text-destructive">
-        ❌ Pesanan dibatalkan.
+        Pesanan dibatalkan.
       </p>
     );
   }
@@ -673,7 +673,7 @@ export function ProfileDashboard({
                                   Pesanan Sedang Dalam Pengiriman Kurir
                                 </p>
                                 <p className="text-blue-800/90 dark:text-blue-300/90 leading-relaxed">
-                                  📹 <strong>Wajib Simpan Bukti:</strong> Mohon ambil <strong>foto &amp; video unboxing lengkap tanpa jeda</strong> saat membuka paket untuk bukti sah klaim jika ada kerusakan atau cacat barang.
+                                  <strong>Wajib Simpan Bukti:</strong> Mohon ambil <strong>foto &amp; video unboxing lengkap tanpa jeda</strong> saat membuka paket untuk bukti sah klaim jika ada kerusakan atau cacat barang.
                                 </p>
                                 <p className="text-blue-800/90 dark:text-blue-300/90 leading-relaxed">
                                   ⏱️ <strong>Batas Konfirmasi:</strong> Kamu memiliki jeda maksimal <strong>2 hari (48 jam)</strong> untuk memeriksa barang dan menekan tombol di bawah. Jika dalam 2 hari tidak ada konfirmasi, sistem akan secara otomatis menandai barang sebagai <strong>Selesai / Diterima</strong>.
@@ -744,7 +744,7 @@ export function ProfileDashboard({
                                   Pesanan ini telah dibatalkan. Jika Anda sudah melakukan pembayaran, pengembalian dana akan diproses ke rekening Anda. Hubungi layanan pelanggan melalui WhatsApp untuk konfirmasi pengembalian dana.
                                 </p>
                                 <p className="text-xs font-medium text-red-700 dark:text-red-400">
-                                  ⚠️ Catatan: Pesanan yang dibatalkan tidak dapat diulas.
+                                  Catatan: Pesanan yang dibatalkan tidak dapat diulas.
                                 </p>
                               </div>
                             </div>

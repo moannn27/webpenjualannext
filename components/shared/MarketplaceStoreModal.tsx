@@ -115,7 +115,7 @@ export function MarketplaceStoreModal({
         {/* Footer Note */}
         <div className="mt-5 border-t border-border pt-4 text-center">
           <p className="text-[11px] text-muted-foreground">
-            🛡️ Pastikan bertransaksi hanya melalui tautan toko resmi kami di atas.
+            Pastikan bertransaksi hanya melalui tautan toko resmi kami di atas.
           </p>
         </div>
       </div>

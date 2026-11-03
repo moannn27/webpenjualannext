@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   HelpCircle,
   FileText,
+  Receipt,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThermalReceiptView } from "@/components/invoice/ThermalReceiptView";
@@ -80,6 +81,8 @@ export interface InvoiceOrderData {
       tax_address?: string;
       tax_percent?: number;
       tax_amount?: number;
+      dpp_amount?: number;
+      calculation_type?: "inclusive" | "exclusive";
     };
   } | null;
   order_items: InvoiceOrderItem[];
@@ -262,6 +265,8 @@ export function OrderInvoice({
       tax_address?: string;
       tax_percent?: number;
       tax_amount?: number;
+      dpp_amount?: number;
+      calculation_type?: "inclusive" | "exclusive";
     };
   };
 
@@ -512,7 +517,7 @@ export function OrderInvoice({
                   : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              📄 Faktur Resmi (A4)
+              <FileText className="size-3.5 inline mr-1" /> Faktur Resmi (A4)
             </button>
             <button
               type="button"
@@ -523,7 +528,7 @@ export function OrderInvoice({
                   : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              🧾 Struk Kasir / Thermal (58/80mm)
+              <Receipt className="size-3.5 inline mr-1" /> Struk Kasir / Thermal (58/80mm)
             </button>
           </div>
 
@@ -960,11 +965,41 @@ export function OrderInvoice({
 
                   {address?.tax_invoice?.requested && (() => {
                     const taxRate = Number(address.tax_invoice.tax_percent) > 0 ? Number(address.tax_invoice.tax_percent) : 11;
+                    const isInclusive = address.tax_invoice.calculation_type !== "exclusive";
                     const taxableAmount = Math.max(0, Number(order.total_amount || 0) - Number(order.discount_amount || 0));
-                    const taxAmount = Number(address.tax_invoice.tax_amount) > 0
+
+                    const dpp = address.tax_invoice.dpp_amount !== undefined && Number(address.tax_invoice.dpp_amount) > 0
+                      ? Number(address.tax_invoice.dpp_amount)
+                      : isInclusive
+                      ? Math.round(taxableAmount / (1 + taxRate / 100))
+                      : taxableAmount;
+
+                    const taxAmount = address.tax_invoice.tax_amount !== undefined && Number(address.tax_invoice.tax_amount) > 0
                       ? Number(address.tax_invoice.tax_amount)
+                      : isInclusive
+                      ? taxableAmount - dpp
                       : Math.round(taxableAmount * (taxRate / 100));
-                    return (
+
+                    return isInclusive ? (
+                      <>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-bold uppercase tracking-wider text-[11px] print:text-[9.5px]">
+                            DASAR PENGENAAN PAJAK (DPP) :
+                          </span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {formatRupiah(dpp)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600">
+                          <span className="font-bold uppercase tracking-wider text-[11px] print:text-[9.5px]">
+                            PAJAK PPN ({taxRate}% SUDAH TERMASUK) :
+                          </span>
+                          <span className="font-mono font-bold text-emerald-700">
+                            {formatRupiah(taxAmount)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
                       <div className="flex justify-between items-center text-slate-600">
                         <span className="font-bold uppercase tracking-wider text-[11px] print:text-[9.5px]">
                           PAJAK PPN ({taxRate}%) :

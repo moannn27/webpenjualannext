@@ -6,7 +6,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Bot,
+  MessageSquareText,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -16,7 +16,6 @@ import {
   MessageCircle,
   Send,
   X,
-  Sparkles,
   RotateCcw,
   Star,
 } from "lucide-react";
@@ -258,14 +257,14 @@ export function RecommendationChatWindow({
         <header className="flex items-center justify-between bg-gradient-to-br from-primary via-primary to-primary/85 p-3.5 text-primary-foreground shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="flex size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-xs">
-              <Bot className="size-5" />
+              <MessageSquareText className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-semibold tracking-tight">AI Assistant</h2>
+                <h2 className="text-sm font-semibold tracking-tight">Konsultasi Produk</h2>
                 <span className="flex size-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/20" />
               </div>
-              <p className="text-[11px] text-primary-foreground/80">Asisten Next Solution Store</p>
+              <p className="text-[11px] text-primary-foreground/80">Konsultan Spesifikasi Toko</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -360,12 +359,7 @@ export function RecommendationChatWindow({
                 </div>
               )}
 
-              {message.role === "assistant" && !message.isError && !message.isRateLimit && message.aiGenerated && (
-                <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 select-none">
-                  <Sparkles className="size-3 shrink-0" />
-                  <span>Dijawab oleh AI</span>
-                </div>
-              )}
+
 
               {/* Product Cards Attachment */}
               {message.products?.length ? <ProductCards products={message.products} isExpanded={isExpanded} /> : null}
@@ -378,7 +372,7 @@ export function RecommendationChatWindow({
           {messages.length === 1 && (
             <div className="flex flex-wrap gap-2 pt-1 animate-in fade-in duration-300">
               <div className="w-full text-[11px] font-medium text-muted-foreground flex items-center gap-1 mb-0.5">
-                <Sparkles className="size-3 text-primary" />
+                <MessageCircle className="size-3 text-primary" />
                 Pilihan cepat untuk mulai:
               </div>
               {suggestions.map((suggestion) => (

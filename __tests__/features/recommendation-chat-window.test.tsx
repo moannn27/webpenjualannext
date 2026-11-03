@@ -23,8 +23,8 @@ describe("recommendation chat responsive UI", () => {
       onClose: vi.fn(),
     }));
 
-    expect(html).toContain("AI Assistant");
-    expect(html).toContain("Asisten Next Solution Store");
+    expect(html).toContain("Konsultasi Produk");
+    expect(html).toContain("Konsultan Spesifikasi Toko");
     expect(html).not.toContain("Next Assistant");
     expect(html).toContain("100dvh");
     expect(html).toContain("safe-area-inset-bottom");

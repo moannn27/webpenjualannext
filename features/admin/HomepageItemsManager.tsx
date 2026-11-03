@@ -705,7 +705,7 @@ export function HomepageItemsManager({
                       ? "Edit FAQ"
                       : "Tambah FAQ"
                     : editing.isFromReview
-                    ? "✨ Jadikan Testimoni dari Review"
+                    ? "Jadikan Testimoni dari Review"
                     : editing.item?.id
                     ? "Edit Testimoni"
                     : "Tambah Testimoni Manual"}

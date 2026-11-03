@@ -645,6 +645,24 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                         {String((address?.tax_invoice as { npwp?: string })?.npwp || "-")}
                       </p>
                     </div>
+                    {Boolean((address?.tax_invoice as { dpp_amount?: number })?.dpp_amount) && (
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">DPP (Dasar Pengenaan Pajak):</span>
+                        <p className="font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                          {money(Number((address?.tax_invoice as { dpp_amount?: number })?.dpp_amount))}
+                        </p>
+                      </div>
+                    )}
+                    {Boolean((address?.tax_invoice as { tax_amount?: number })?.tax_amount) && (
+                      <div>
+                        <span className="text-slate-500 dark:text-slate-400">
+                          Nilai PPN ({Number((address?.tax_invoice as { tax_percent?: number })?.tax_percent || 11)}% {((address?.tax_invoice as { calculation_type?: string })?.calculation_type === 'exclusive') ? 'Exclusive' : 'Inclusive'}):
+                        </span>
+                        <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {money(Number((address?.tax_invoice as { tax_amount?: number })?.tax_amount))}
+                        </p>
+                      </div>
+                    )}
                     {(address?.tax_invoice as { tax_address?: string })?.tax_address && (
                       <div className="sm:col-span-2">
                         <span className="text-slate-500 dark:text-slate-400">Alamat Terdaftar Pajak:</span>

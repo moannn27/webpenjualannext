@@ -152,5 +152,27 @@ describe("OrderInvoice Data Structure & Logic", () => {
     expect(ppn).toBe(1100000);   // Rp 1.100.000
     expect(dpp + ppn).toBe(grandTotal);
   });
+
+  it("accurately handles both inclusive and exclusive calculation modes for tax invoices", () => {
+    // Case from user's screenshot: Subtotal Rp 51.499.000
+    const subtotal = 51499000;
+    const taxRate = 11;
+
+    // 1. Inclusive mode (harga sudah termasuk PPN)
+    const inclusiveDpp = Math.round(subtotal / (1 + taxRate / 100));
+    const inclusivePpn = subtotal - inclusiveDpp;
+    expect(inclusiveDpp).toBe(46395495);
+    expect(inclusivePpn).toBe(5103505);
+    expect(inclusiveDpp + inclusivePpn).toBe(subtotal);
+    // Grand total does not increase in inclusive mode
+    const inclusiveGrandTotal = subtotal + 0; // free pickup
+    expect(inclusiveGrandTotal).toBe(51499000);
+
+    // 2. Exclusive mode (PPN ditambahkan di atas subtotal)
+    const exclusivePpn = Math.round(subtotal * (taxRate / 100));
+    const exclusiveGrandTotal = subtotal + 0 + exclusivePpn;
+    expect(exclusivePpn).toBe(5664890);
+    expect(exclusiveGrandTotal).toBe(57163890);
+  });
 });
 

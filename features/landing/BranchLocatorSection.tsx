@@ -281,7 +281,7 @@ export function BranchLocatorSection({
               <div className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-5 shadow-xs">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary uppercase tracking-wide">
-                    📍 {selectedBranch.city}
+                    {selectedBranch.city}
                   </span>
                   <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                     {activeBranches.length > 0 ? "Cabang Terpilih" : "Toko Utama"}

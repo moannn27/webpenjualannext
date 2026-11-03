@@ -3,7 +3,7 @@ import {
   ChevronRight,
   Home,
   Flame,
-  Sparkles,
+  Tag,
   Percent,
   ShieldCheck,
   Zap,
@@ -60,7 +60,7 @@ export default async function PromoPage({ searchParams }: { searchParams: Promis
                 <Flame className="size-5" />
               </div>
               <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 dark:border-white/10 bg-slate-100/80 dark:bg-white/5 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                <Sparkles className="size-3.5 text-amber-500" />
+                <Tag className="size-3.5 text-amber-500" />
                 <span>Promo &amp; Penawaran Pilihan</span>
               </div>
             </div>
