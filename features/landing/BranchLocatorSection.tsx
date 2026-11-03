@@ -229,7 +229,7 @@ export function BranchLocatorSection({
             <span>
               {activeBranches.length > 0
                 ? "Ketik kota atau lokasi Anda di atas untuk mencari cabang terdekat."
-                : "Informasi lokasi toko utama kami saat ini. Cabang baru dapat ditambahkan melalui panel admin."}
+                : "Informasi lokasi dan alamat gerai utama kami saat ini."}
             </span>
             {/* Quick City Filter Pills if multiple cities exist */}
             {availableCities.length > 0 && (
@@ -291,7 +291,7 @@ export function BranchLocatorSection({
                   {selectedBranch.name}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-3">
-                  {selectedBranch.address || "Alamat toko belum diatur."}
+                  {selectedBranch.address || "Alamat toko sedang diperbarui."}
                 </p>
 
                 <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200/60 dark:border-white/10 pt-3 mb-4">
@@ -334,7 +334,7 @@ export function BranchLocatorSection({
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-6 text-center text-xs text-slate-400">
-                Belum ada lokasi toko atau cabang yang dikonfigurasi. Atur melalui Admin Panel.
+                Informasi alamat gerai sedang disiapkan. Silakan hubungi kami via WhatsApp untuk panduan lokasi.
               </div>
             )}
 

@@ -33,6 +33,13 @@ export function ThermalReceiptView({
   const customerName = customer.name || "Pelanggan";
   const customerPhone = customer.phone || "";
   const isPickup = order.courier === "pickup";
+  const taxInvoice = (order.shipping_address as Record<string, unknown> | null)?.tax_invoice as {
+    requested?: boolean;
+    company_name?: string;
+    npwp?: string;
+    tax_percent?: number;
+    tax_amount?: number;
+  } | undefined;
 
   const paymentState = getOrderPaymentState(order.payments);
   const paymentStateLabel =
@@ -167,6 +174,22 @@ export function ThermalReceiptView({
               {isPickup ? "Ambil di Gerai (Pickup)" : `Kirim (${order.courier.toUpperCase()})`}
             </span>
           </div>
+          {taxInvoice?.requested && (
+            <>
+              <div className="flex justify-between pt-0.5 border-t border-dashed border-slate-300">
+                <span className="text-slate-600">Faktur Pajak</span>
+                <span className="font-bold">Diminta</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600">NPWP</span>
+                <span className="font-mono text-right truncate max-w-[190px]">{taxInvoice.npwp}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600">Perusahaan</span>
+                <span className="font-medium text-right truncate max-w-[190px]">{taxInvoice.company_name}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Divider */}
@@ -232,6 +255,20 @@ export function ThermalReceiptView({
             {formatIdr(order.grand_total)}
           </span>
         </div>
+
+        {taxInvoice?.requested && (() => {
+          const taxRate = Number(taxInvoice.tax_percent) > 0 ? Number(taxInvoice.tax_percent) : 11;
+          const taxableAmount = Math.max(0, Number(order.total_amount || 0) - Number(order.discount_amount || 0));
+          const taxAmount = Number(taxInvoice.tax_amount) > 0
+            ? Number(taxInvoice.tax_amount)
+            : Math.round(taxableAmount * (taxRate / 100));
+          return (
+            <div className="flex justify-between text-slate-700 font-medium pt-0.5 border-t border-dashed border-slate-300">
+              <span>Pajak PPN ({taxRate}%)</span>
+              <span className="font-mono font-semibold">+{formatIdr(taxAmount)}</span>
+            </div>
+          );
+        })()}
 
         <div className="space-y-0.5 pt-1 text-[10px] text-slate-600">
           <div className="flex justify-between">

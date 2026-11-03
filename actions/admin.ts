@@ -2220,6 +2220,13 @@ export async function saveStorefrontSettingsAction(settings: unknown) {
       if (typeof item.account_holder !== 'string' || !item.account_holder.trim()) throw new Error('Nama pemilik rekening harus diisi.')
     }
   }
+  const searchObj = (settings as { search?: { popular_keywords?: unknown } }).search
+  if (searchObj && searchObj.popular_keywords !== undefined) {
+    if (!Array.isArray(searchObj.popular_keywords)) throw new Error('Data kata kunci pencarian tidak valid.')
+    for (const kw of searchObj.popular_keywords) {
+      if (typeof kw !== 'string' || kw.length > 50) throw new Error('Kata kunci pencarian tidak boleh lebih dari 50 karakter.')
+    }
+  }
   const featuredReviews = (settings as { featured_reviews?: unknown }).featured_reviews
   if (featuredReviews !== undefined && !Array.isArray(featuredReviews)) throw new Error('Data ulasan produk tidak valid.')
   if (Array.isArray(featuredReviews)) {

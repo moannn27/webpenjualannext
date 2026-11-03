@@ -154,7 +154,7 @@ export function PromoBanner({
       setSavedProducts((prev) => ({ ...prev, [productId]: res.action === "added" }));
     } catch (err) {
       if (err instanceof Error && err.message === "Unauthorized") {
-        router.push("/login");
+        router.push("/login?notice=wishlist");
       }
     }
   };

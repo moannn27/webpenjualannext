@@ -360,13 +360,14 @@ export function Navbar({
               className="relative hidden w-full max-w-sm items-center sm:flex lg:w-72 xl:w-80 cursor-pointer group"
             >
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-primary transition-colors" />
-              <div className="w-full h-9 bg-white dark:bg-[#1A1C23] border border-slate-300/90 dark:border-white/20 pl-9 pr-14 rounded-full text-xs sm:text-sm text-muted-foreground flex items-center shadow-2xs group-hover:border-primary/60 transition-all duration-200">
-                <span className="truncate">Cari produk atau spesifikasi...</span>
+              <div className="w-full h-9 bg-white dark:bg-[#1A1C23] border border-slate-300/90 dark:border-white/20 pl-9 pr-24 rounded-full text-xs sm:text-sm text-muted-foreground flex items-center shadow-2xs group-hover:border-primary/60 transition-all duration-200">
+                <span className="truncate">Cari produk & spesifikasi...</span>
               </div>
-              <div className="absolute right-2.5 top-2 flex items-center gap-0.5">
-                <kbd className="inline-flex items-center px-1.5 py-0.5 rounded border border-border/80 bg-muted/60 text-[10px] font-semibold text-muted-foreground tracking-tighter">
-                  Ctrl K
-                </kbd>
+              <div className="absolute right-2 top-1.5 flex items-center">
+                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100/90 dark:bg-white/10 px-2 py-0.5 text-[10.5px] font-medium text-slate-500 dark:text-slate-400 group-hover:text-primary transition-colors">
+                  <span className="font-semibold text-[10px]">Cari</span>
+                  <kbd className="font-mono text-[9px] font-bold text-slate-400 dark:text-slate-500">⌘K</kbd>
+                </span>
               </div>
             </div>
 
@@ -398,7 +399,6 @@ export function Navbar({
                   <Link href="/cart" onClick={() => setAccountOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">Keranjang</Link>
                   <div className="my-1 border-t" />
                   <div className="flex items-center justify-between px-3 py-1 text-sm"><span>Mode tema</span><ThemeToggle /></div>
-                  <p className="px-3 pb-1 text-[11px] text-muted-foreground">Menu tertutup otomatis saat tidak digunakan.</p>
                 </div>}
               </div>
               <Button variant="ghost" size="icon" className="relative size-9 rounded-full text-foreground transition-all duration-200 hover:bg-muted active:scale-95 sm:size-10" aria-label={effectiveCartCount ? `Keranjang, ${effectiveCartCount} barang` : "Keranjang"} render={<Link href="/cart" />}>

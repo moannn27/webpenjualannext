@@ -40,4 +40,41 @@ describe('checkoutSchema', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it('validates B2B tax invoice fields when requested', () => {
+    // Valid tax invoice request
+    const validTax = checkoutSchema.safeParse({
+      ...validCheckout,
+      taxInvoiceRequested: true,
+      taxCompanyName: 'CV Next Solution ',
+      taxNpwp: '01.234.567.8-012.000',
+      taxAddress: 'Jl. KARTINI  NO . 09',
+    })
+    expect(validTax.success).toBe(true)
+
+    // Rejects if taxInvoiceRequested is true but company name is missing
+    const missingCompany = checkoutSchema.safeParse({
+      ...validCheckout,
+      taxInvoiceRequested: true,
+      taxCompanyName: '',
+      taxNpwp: '01.234.567.8-012.000',
+    })
+    expect(missingCompany.success).toBe(false)
+
+    // Rejects if taxInvoiceRequested is true but NPWP is too short
+    const shortNpwp = checkoutSchema.safeParse({
+      ...validCheckout,
+      taxInvoiceRequested: true,
+      taxCompanyName: 'PT Test',
+      taxNpwp: '123',
+    })
+    expect(shortNpwp.success).toBe(false)
+
+    // Accepts when taxInvoiceRequested is false without any tax fields
+    const notRequested = checkoutSchema.safeParse({
+      ...validCheckout,
+      taxInvoiceRequested: false,
+    })
+    expect(notRequested.success).toBe(true)
+  })
 })

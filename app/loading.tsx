@@ -1,24 +1,34 @@
-import { LoaderCircle } from "lucide-react";
-
 export default function Loading() {
   return (
     <main
       role="status"
       aria-live="polite"
-      className="flex min-h-[60vh] flex-col items-center justify-center gap-3.5 px-4 text-center animate-in fade-in duration-200"
+      className="container mx-auto min-h-[60vh] px-4 py-8 sm:py-12 sm:px-6 lg:px-8 space-y-8 animate-in fade-in duration-300"
     >
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-xs">
-        <LoaderCircle className="size-7 animate-spin" aria-hidden="true" />
+      {/* Header Skeleton */}
+      <div className="space-y-3">
+        <div className="h-8 w-48 sm:w-64 rounded-2xl bg-slate-200/80 dark:bg-white/10 animate-pulse" />
+        <div className="h-4 w-72 sm:w-96 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />
       </div>
-      <div className="space-y-1">
-        <h2 className="text-base font-bold text-foreground tracking-tight">
-          Memuat Halaman...
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Mohon tunggu sebentar, kami sedang menyiapkan data untuk Anda.
-        </p>
+
+      {/* Product Cards Grid Skeleton */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-slate-200/70 dark:border-white/5 bg-white dark:bg-[#1E2028] p-4 space-y-3 shadow-2xs"
+          >
+            <div className="aspect-square w-full rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />
+            <div className="h-4 w-3/4 rounded-lg bg-slate-200/80 dark:bg-white/10 animate-pulse" />
+            <div className="h-3.5 w-1/2 rounded bg-slate-100 dark:bg-white/5 animate-pulse" />
+            <div className="flex items-center justify-between pt-2">
+              <div className="h-5 w-24 rounded-lg bg-slate-200/80 dark:bg-white/10 animate-pulse" />
+              <div className="size-8 rounded-full bg-slate-100 dark:bg-white/5 animate-pulse" />
+            </div>
+          </div>
+        ))}
       </div>
-      <span className="sr-only">Mohon tunggu, halaman sedang dimuat.</span>
+      <span className="sr-only">Memuat halaman...</span>
     </main>
   );
 }

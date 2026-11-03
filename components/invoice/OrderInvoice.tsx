@@ -5,6 +5,7 @@ import {
   MessageCircle,
   ArrowLeft,
   HelpCircle,
+  FileText,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ThermalReceiptView } from "@/components/invoice/ThermalReceiptView";
@@ -71,6 +72,14 @@ export interface InvoiceOrderData {
       name?: string;
       email?: string;
       phone?: string;
+    };
+    tax_invoice?: {
+      requested?: boolean;
+      company_name?: string;
+      npwp?: string;
+      tax_address?: string;
+      tax_percent?: number;
+      tax_amount?: number;
     };
   } | null;
   order_items: InvoiceOrderItem[];
@@ -224,7 +233,7 @@ export function OrderInvoice({
 
   const complaintInstructions =
     storefront?.complaintInstructions?.trim() ||
-    "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.";
+    "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Layanan Pelanggan dengan menyertakan nomor faktur dan video unboxing utuh.";
 
   const bankAccounts = storefront?.bankAccounts ?? [];
 
@@ -245,6 +254,14 @@ export function OrderInvoice({
       store_name?: string;
       order_number?: string;
       notes?: string;
+    };
+    tax_invoice?: {
+      requested?: boolean;
+      company_name?: string;
+      npwp?: string;
+      tax_address?: string;
+      tax_percent?: number;
+      tax_amount?: number;
     };
   };
 
@@ -283,7 +300,7 @@ export function OrderInvoice({
   const isPaymentConfirmed = paymentState === "paid";
   const paymentStateLabel = {
     paid: "LUNAS - TERVERIFIKASI",
-    pending: "PENDING - MENUNGGU VERIFIKASI ADMIN",
+    pending: "PENDING - MENUNGGU VERIFIKASI PEMBAYARAN",
     failed: "PEMBAYARAN GAGAL / KEDALUWARSA",
     refunded: "PEMBAYARAN DIKEMBALIKAN",
   }[paymentState];
@@ -325,7 +342,7 @@ export function OrderInvoice({
   // WhatsApp confirmation message
   const waTarget = storeWhatsapp.startsWith("0") ? "62" + storeWhatsapp.slice(1) : storeWhatsapp;
   const waMessage =
-    `Halo Admin ${displayStoreName},\nSaya ingin konfirmasi pesanan:\n` +
+    `Halo ${displayStoreName},\nSaya ingin konfirmasi pesanan:\n` +
     `• Nomor Faktur: *${order.order_number}*\n` +
     `• Nama Pembeli: *${recipientName}*\n` +
     `• Tanggal: ${formattedDateOnly}\n` +
@@ -344,7 +361,7 @@ export function OrderInvoice({
     order.order_items.length > 4 ? `\n• ...dan ${order.order_items.length - 4} item lainnya` : "";
 
   const complaintMessage =
-    `Halo Admin ${storeName},\n` +
+    `Halo ${storeName},\n` +
     `Saya ingin mengajukan komplain / bantuan terkait pesanan saya:\n\n` +
     `📋 *Rincian Pesanan:*\n` +
     `• Nomor Faktur: *${order.order_number}*\n` +
@@ -366,7 +383,7 @@ export function OrderInvoice({
     : cleanRecipientPhone;
   const adminFollowUpMsg =
     `Halo Kak ${recipientName},\n` +
-    `Kami dari Admin & Layanan Pelanggan ${storeName} terkait pesanan Kakak No. *${order.order_number}*.\n` +
+    `Kami dari Layanan Pelanggan ${storeName} terkait pesanan Kakak No. *${order.order_number}*.\n` +
     `Apakah ada kendala pada pesanan atau informasi yang bisa kami bantu?`;
   const adminFollowUpWaUrl =
     customerWaTarget.length >= 8
@@ -755,6 +772,37 @@ export function OrderInvoice({
                 </div>
               </div>
 
+              {/* B2B Tax Invoice Card */}
+              {address?.tax_invoice?.requested && (
+                <div className="mt-4 rounded-xl border border-slate-200/90 bg-slate-50/70 p-4 space-y-1.5 text-xs print:rounded-lg print:p-2.5 print:text-[9.5px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-[#3730A3] uppercase tracking-wider text-[10.5px] print:text-[9px] flex items-center gap-1.5">
+                      <FileText className="size-3.5 text-[#3730A3]" />
+                      INFORMASI FAKTUR PAJAK PPN
+                    </p>
+                    <span className="inline-flex items-center rounded-md bg-white border border-slate-200/80 px-2 py-0.5 text-[10px] font-semibold text-slate-700 print:text-[8.5px]">
+                      e-Faktur Diminta
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pt-1">
+                    <p className="text-slate-700">
+                      <span className="text-slate-500 font-normal">Nama Perusahaan / PKP:</span>{" "}
+                      <span className="font-semibold text-slate-900">{address.tax_invoice.company_name}</span>
+                    </p>
+                    <p className="text-slate-700">
+                      <span className="text-slate-500 font-normal">NPWP / NIK:</span>{" "}
+                      <span className="font-mono font-bold text-slate-900">{address.tax_invoice.npwp}</span>
+                    </p>
+                    {address.tax_invoice.tax_address && (
+                      <p className="text-slate-700 sm:col-span-2">
+                        <span className="text-slate-500 font-normal">Alamat Terdaftar Pajak:</span>{" "}
+                        <span className="text-slate-800">{address.tax_invoice.tax_address}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* TABLE: SOLID INDIGO HEADER BAR & PURE TEXT ROWS */}
               <div className="mt-6 print:mt-4">
                 {/* Table Header Bar */}
@@ -910,6 +958,24 @@ export function OrderInvoice({
                     </span>
                   </div>
 
+                  {address?.tax_invoice?.requested && (() => {
+                    const taxRate = Number(address.tax_invoice.tax_percent) > 0 ? Number(address.tax_invoice.tax_percent) : 11;
+                    const taxableAmount = Math.max(0, Number(order.total_amount || 0) - Number(order.discount_amount || 0));
+                    const taxAmount = Number(address.tax_invoice.tax_amount) > 0
+                      ? Number(address.tax_invoice.tax_amount)
+                      : Math.round(taxableAmount * (taxRate / 100));
+                    return (
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-bold uppercase tracking-wider text-[11px] print:text-[9.5px]">
+                          PAJAK PPN ({taxRate}%) :
+                        </span>
+                        <span className="font-mono font-bold text-slate-900">
+                          +{formatRupiah(taxAmount)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   {/* Solid Indigo TOTAL Box */}
                   <div className="invoice-total-due-box mt-3 bg-[#3730A3] text-white px-5 py-3 rounded-xl flex items-center justify-between font-bold shadow-xs print:py-2.5 print:rounded-lg">
                     <span className="uppercase tracking-wider text-xs sm:text-sm print:text-[10.5px]">TOTAL :</span>
@@ -1023,7 +1089,7 @@ export function OrderInvoice({
                         <span className="text-slate-500">Info</span>
                         <span className="text-slate-400 select-none">:</span>
                         <span className="text-amber-700 font-medium">
-                          Hubungi admin untuk mendapatkan rekening resmi toko.
+                          Hubungi layanan pelanggan untuk mendapatkan rekening resmi toko.
                         </span>
                       </>
                     ) : null}

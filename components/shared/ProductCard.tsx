@@ -45,7 +45,7 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
     } catch (err) {
       if (err instanceof Error && err.message === "Unauthorized") {
         toast.info("Perlu Masuk Akun", "Silakan masuk terlebih dahulu untuk menyimpan wishlist.");
-        router.push(`/login?redirect=/product/${product.id}`);
+        router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
         return;
       }
       toast.error("Gagal", "Terjadi kesalahan saat memperbarui wishlist.");

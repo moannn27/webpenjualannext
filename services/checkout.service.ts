@@ -398,6 +398,59 @@ export class CheckoutService {
         }
       }
 
+      // Synchronize Tax Invoice (Faktur Pajak) and add tax amount to grand_total if requested by customer
+      if (input.taxInvoiceRequested) {
+        try {
+          const adminClient = getSupabaseAdminClient();
+          const [{ data: orderRow }, { data: sfData }] = await Promise.all([
+            adminClient.from('orders').select('shipping_address, total_amount, discount_amount, shipping_amount, grand_total').eq('id', orderId).maybeSingle(),
+            adminClient.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle(),
+          ]);
+
+          const currentAddr = (orderRow?.shipping_address as Record<string, unknown>) || {};
+          const currentSettings = normalizeStorefrontSettings(sfData?.settings ?? {});
+          const taxPercent = currentSettings.invoice?.tax_rate_percent ?? 11;
+
+          // Calculate tax based on net order amount (subtotal - discount)
+          const orderSubtotal = Number(orderRow?.total_amount || 0);
+          const orderDiscount = Number(orderRow?.discount_amount || 0);
+          const orderShipping = Number(orderRow?.shipping_amount || 0);
+          const taxableAmount = Math.max(0, orderSubtotal - orderDiscount);
+          const taxAmount = Math.round(taxableAmount * (taxPercent / 100));
+          const newGrandTotal = taxableAmount + orderShipping + taxAmount;
+
+          await Promise.all([
+            adminClient
+              .from('orders')
+              .update({
+                grand_total: newGrandTotal,
+                shipping_address: {
+                  ...currentAddr,
+                  tax_invoice: {
+                    requested: true,
+                    company_name: input.taxCompanyName?.trim() || '',
+                    npwp: input.taxNpwp?.trim() || '',
+                    tax_address: input.taxAddress?.trim() || '',
+                    tax_percent: taxPercent,
+                    tax_amount: taxAmount,
+                  },
+                },
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', orderId),
+            adminClient
+              .from('payments')
+              .update({
+                amount: newGrandTotal,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('order_id', orderId),
+          ]);
+        } catch (taxErr) {
+          console.error('Failed to sync tax invoice or update grand_total:', taxErr);
+        }
+      }
+
       return { id: orderId! };
     } catch (err: unknown) {
       const adminClient = getSupabaseAdminClient();

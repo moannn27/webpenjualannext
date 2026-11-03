@@ -288,7 +288,7 @@ export function ProfileDashboard({
         }
         setPasswordSuccess("Kunci akun telah dibuka! Anda sekarang dapat memasukkan kata sandi baru.");
       } else {
-        setPasswordError("Akun masih terkunci. Silakan hubungi admin toko via WhatsApp agar dibantu reset.");
+        setPasswordError("Akun masih terkunci. Silakan hubungi layanan bantuan toko via WhatsApp agar dibantu reset.");
       }
     } catch {
       setPasswordError("Gagal memeriksa status kunci. Silakan muat ulang halaman.");
@@ -304,7 +304,7 @@ export function ProfileDashboard({
 
     if (failedAttempts >= 3) {
       setPasswordError(
-        "Form ubah kata sandi telah dikunci karena 3x salah kata sandi lama. Silakan hubungi admin."
+        "Form ubah kata sandi telah dikunci karena 3x salah kata sandi lama. Silakan hubungi layanan bantuan toko."
       );
       return;
     }
@@ -343,7 +343,7 @@ export function ProfileDashboard({
           }
           if (nextCount >= 3) {
             setPasswordError(
-              "Anda telah 3x salah memasukkan kata sandi lama. Akses ubah sandi dikunci. Silakan hubungi admin toko agar dibantu reset kata sandi."
+              "Anda telah 3x salah memasukkan kata sandi lama. Akses ubah sandi dikunci. Silakan hubungi layanan bantuan toko agar dibantu reset kata sandi."
             );
           } else {
             setPasswordError(
@@ -704,10 +704,10 @@ export function ProfileDashboard({
                                   Pesanan Siap Diambil di Toko
                                 </p>
                                 <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                                  Silakan datang ke toko <strong>{String(order.shipping_address?.pickup_location ?? "Toko Next Solution")}</strong> dan tunjukkan nomor pesanan ini ke admin/kasir.
+                                  Silakan datang ke toko <strong>{String(order.shipping_address?.pickup_location ?? "Toko Next Solution")}</strong> dan tunjukkan nomor pesanan ini ke kasir toko.
                                 </p>
                                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                                  Setelah barang diambil, admin akan menandai pesanan selesai dan kamu bisa memberikan ulasan produk.
+                                  Setelah barang diambil, pesanan akan diperbarui menjadi selesai dan Anda dapat memberikan ulasan produk.
                                 </p>
                               </div>
                             </div>
@@ -741,7 +741,7 @@ export function ProfileDashboard({
                                   Pesanan Dibatalkan (Informasi Pengembalian Dana)
                                 </p>
                                 <p className="text-red-800/90 dark:text-red-300/90 leading-relaxed">
-                                  Pesanan ini telah dibatalkan. Jika kamu sudah melakukan pembayaran, uang refund akan dikembalikan oleh admin ke rekening kamu. Hubungi admin melalui WhatsApp untuk konfirmasi pengembalian dana.
+                                  Pesanan ini telah dibatalkan. Jika Anda sudah melakukan pembayaran, pengembalian dana akan diproses ke rekening Anda. Hubungi layanan pelanggan melalui WhatsApp untuk konfirmasi pengembalian dana.
                                 </p>
                                 <p className="text-xs font-medium text-red-700 dark:text-red-400">
                                   ⚠️ Catatan: Pesanan yang dibatalkan tidak dapat diulas.
@@ -1035,7 +1035,7 @@ export function ProfileDashboard({
                     <Input name="email" type="email" autoComplete="email" defaultValue={profile?.email ?? ""} required />
                   </label>
                   <p className="-mt-2 text-xs text-muted-foreground">
-                    Jika email diubah, Supabase akan mengirim email konfirmasi.
+                    Jika email diubah, tautan konfirmasi akan dikirimkan ke alamat email baru Anda.
                   </p>
                   <label className="block space-y-2 text-sm font-medium">
                     Nomor HP
@@ -1082,20 +1082,20 @@ export function ProfileDashboard({
                       Akses Ubah Sandi Dikunci
                     </h3>
                     <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
-                      Anda telah salah memasukkan kata sandi lama sebanyak <strong>3 kali</strong>. Demi keamanan akun Anda, silakan hubungi admin toko agar dibantu reset kata sandi, atau gunakan tautan lupa kata sandi.
+                      Anda telah salah memasukkan kata sandi lama sebanyak <strong>3 kali</strong>. Demi keamanan akun Anda, silakan hubungi layanan bantuan toko agar dibantu reset kata sandi, atau gunakan tautan lupa kata sandi.
                     </p>
 
                     <div className="mt-5 flex flex-col sm:flex-row gap-2.5 justify-center">
                       <a
                         href={`https://wa.me/${formatWhatsAppNumber(storeWhatsapp || "081234567890")}?text=${encodeURIComponent(
-                          `Halo Admin, saya mengalami kendala lupa / salah kata sandi pada akun saya:\n- Nama: ${name}\n- Email: ${profile?.email || "-"}\nMohon bantuan untuk reset kata sandi akun saya. Terima kasih!`
+                          `Halo tim layanan bantuan, saya mengalami kendala salah kata sandi pada akun saya:\n- Nama: ${name}\n- Email: ${profile?.email || "-"}\nMohon bantuan untuk verifikasi dan pembukaan akun saya. Terima kasih!`
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 transition-colors"
                       >
                         <MessageCircle className="size-4" />
-                        Hubungi Admin via WhatsApp
+                        Hubungi Bantuan via WhatsApp
                       </a>
                       <Link
                         href="/forgot-password"
@@ -1113,7 +1113,7 @@ export function ProfileDashboard({
                         className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:underline underline-offset-2 transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         <CheckCircle2 className="size-3.5 text-primary" />
-                        {checkingUnlock ? "Memeriksa status dari server..." : "Sudah dibantu reset oleh admin? Buka Kunci Sekarang"}
+                        {checkingUnlock ? "Memeriksa status akun..." : "Sudah selesai reset kata sandi? Buka Kunci Sekarang"}
                       </button>
                     </div>
                   </div>

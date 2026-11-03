@@ -124,7 +124,7 @@ Tugasmu adalah membantu calon pembeli dan pelanggan dengan ramah, santai, soluti
 INFORMASI PENTING TOKO (GUNAKAN LANGSUNG UNTUK PERTANYAAN UMUM TANPA TOOL):
 - Toko: Next Solution Store (Spesialis Komputer, Laptop, PC Desktop, Monitor, dan Gadget Resmi)
 - Alamat Cabang Fisik: ${DEFAULT_STOREFRONT_SETTINGS.store.address}, ${DEFAULT_STOREFRONT_SETTINGS.store.city}
-- WhatsApp Admin: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (Bisa hubungi untuk bantuan langsung / pesanan khusus)
+- WhatsApp Layanan: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (Bisa hubungi untuk bantuan langsung / pesanan khusus)
 - Jam Operasional Toko: Senin - Sabtu: 09.00 - 18.00 WIB. Hari Minggu & Libur Nasional toko fisik tutup. Transaksi web aktif 24 jam.
 - Cara Pesan di Web: Pilih produk di katalog web -> Masukkan ke Keranjang -> Buka Checkout -> Masukkan alamat pengiriman atau pilih Ambil di Tempat (Store Pickup) -> Pilih metode pembayaran (Transfer Bank / QRIS) -> Selesaikan transaksi dan simpan nomor pesanan (contoh: ORD-271026-01).
 - Metode Pembayaran: Transfer Bank Manual/Virtual Account (BCA, Mandiri, BRI, BNI), QRIS instan otomatis, atau tunai/kartu debit saat Store Pickup di cabang toko.
@@ -551,7 +551,7 @@ export async function executeCekPesanan(
     console.error("[Cek Pesanan Error]", err);
     return {
       success: false,
-      message: "Terjadi kendala teknis saat memeriksa database pesanan. Silakan coba kembali sesaat lagi.",
+      message: "Terjadi kendala saat memeriksa riwayat pesanan Anda. Silakan coba kembali sesaat lagi.",
     };
   }
 }
@@ -649,7 +649,7 @@ function fallbackAnswer(
 
   if (!products.length) {
     if (mentionedSeries.length > 0) {
-      return `Saat ini unit ready untuk seri **${mentionedSeries.map((s) => s.toUpperCase()).join(" / ")}** dengan kriteria tersebut belum tersedia di stok toko kami. Silakan cek seri lainnya atau hubungi admin WhatsApp kami untuk pemesanan khusus.`;
+      return `Saat ini unit ready untuk seri **${mentionedSeries.map((s) => s.toUpperCase()).join(" / ")}** dengan kriteria tersebut belum tersedia di stok toko kami. Silakan cek seri lainnya atau hubungi WhatsApp kami untuk pemesanan khusus.`;
     }
     return `Saat ini belum ada pilihan ${categoryLabel} yang cocok dan ready di toko kami untuk kriteria atau budget tersebut. Coba sesuaikan rentang budget atau tanyakan pilihan ${categoryLabel} lainnya.`;
   }
@@ -907,7 +907,7 @@ export async function POST(request: Request) {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       {
-        error: "Mohon maaf, antrean chat asisten kami saat ini sedang penuh. Silakan coba kembali beberapa menit ke depan atau hubungi admin WhatsApp toko kami.",
+        error: "Mohon maaf, antrean chat asisten kami saat ini sedang penuh. Silakan coba kembali beberapa menit ke depan atau hubungi layanan WhatsApp toko kami.",
         isRateLimit: true,
       },
       {
@@ -961,7 +961,7 @@ export async function POST(request: Request) {
 
   if (storefrontSettings.features?.ai_recommendation_chat === false) {
     return NextResponse.json({
-      answer: `Fitur chatbot AI sedang dinonaktifkan oleh toko. Untuk pertanyaan dan konsultasi produk, silakan hubungi admin kami melalui WhatsApp di +${storefrontSettings.store.whatsapp || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp}.`,
+      answer: `Fitur chatbot AI sedang dinonaktifkan oleh toko. Untuk pertanyaan dan konsultasi produk, silakan hubungi tim kami melalui WhatsApp di +${storefrontSettings.store.whatsapp || DEFAULT_STOREFRONT_SETTINGS.store.whatsapp}.`,
       aiGenerated: false,
       isRateLimit: false,
       products: [],
@@ -1095,7 +1095,7 @@ export async function POST(request: Request) {
     const faq = findRelevantFaq(message, faqContext);
     const fallback = faq
       ? `${faq.answer}\n\nInfo lainnya ada di [Halaman FAQ](/faq).`
-      : "Aku belum menemukan panduan yang memastikan informasi itu. Coba cek [Halaman FAQ](/faq) atau hubungi admin WhatsApp Next Solution Store.";
+      : "Aku belum menemukan panduan yang memastikan informasi itu. Coba cek [Halaman FAQ](/faq) atau hubungi WhatsApp Next Solution Store.";
 
     let answer = fallback;
     let aiGenerated = false;
@@ -1104,7 +1104,7 @@ export async function POST(request: Request) {
     try {
       const storeInfoContext = `Informasi Toko Next Solution Store:
 - Alamat: ${DEFAULT_STOREFRONT_SETTINGS.store.address}, ${DEFAULT_STOREFRONT_SETTINGS.store.city}
-- WhatsApp Admin: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (atau klik tombol WhatsApp di web)
+- WhatsApp Layanan: +${DEFAULT_STOREFRONT_SETTINGS.store.whatsapp} (atau klik tombol WhatsApp di web)
 - Layanan Pembayaran: Transfer Bank (BCA, Mandiri, BRI, BNI), QRIS instan otomatis, dan pembayaran tunai/debit saat ambil di toko cabang.
 - Layanan Pengiriman: Kurir reguler, kargo antarkota, dan kurir Instant/Same-Day area lokal dengan bubble wrap tebal, asuransi penuh, dan opsi packing kayu.
 - Ambil di Tempat (Store Pickup): Bisa pilih Store Pickup saat checkout, lalu cek fisik unit langsung di cabang toko.
@@ -1124,7 +1124,7 @@ ${JSON.stringify(faqContext.length ? faqContext : DEFAULT_FAQS)}
 Instruksi balasan:
 1. Jawablah langsung, santai, ramah, dan solutif dalam 1-3 kalimat bahasa Indonesia.
 2. Gunakan fakta dari data di atas saja, jangan mengarang kebijakan baru.
-3. Bila relevan, arahkan ke [Halaman FAQ](/faq) atau kontak WhatsApp admin toko.`;
+3. Bila relevan, arahkan ke [Halaman FAQ](/faq) atau kontak WhatsApp layanan toko.`;
 
       const currentMessages: ChatMessage[] = [
         { role: "user", content: servicePrompt },

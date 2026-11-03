@@ -10,7 +10,21 @@ export const checkoutSchema = z.object({
   postalCode: z.string().trim().max(20),
   shippingMethod: z.enum(SHIPPING_METHOD_CODES),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  taxInvoiceRequested: z.boolean().optional(),
+  taxCompanyName: z.string().trim().max(200).optional(),
+  taxNpwp: z.string().trim().max(50).optional(),
+  taxAddress: z.string().trim().max(300).optional(),
+  taxPercent: z.number().optional(),
+  taxAmount: z.number().optional(),
 }).superRefine((data, context) => {
+  if (data.taxInvoiceRequested) {
+    if (!data.taxCompanyName || data.taxCompanyName.length < 2) {
+      context.addIssue({ code: "custom", path: ["taxCompanyName"], message: "Nama perusahaan / badan usaha wajib diisi untuk faktur pajak." })
+    }
+    if (!data.taxNpwp || data.taxNpwp.length < 6) {
+      context.addIssue({ code: "custom", path: ["taxNpwp"], message: "Nomor NPWP / NIK wajib diisi untuk faktur pajak." })
+    }
+  }
   if (data.shippingMethod === "pickup") return
   const fields = [
     ["streetAddress", data.streetAddress, 5, "Alamat lengkap minimal 5 karakter."],

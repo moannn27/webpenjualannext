@@ -14,6 +14,7 @@ export async function proceedToCheckoutAction(formData: FormData) {
   if (!user) throw new Error("Unauthorized")
 
   // Validate form data
+  const taxRequested = formData.get('taxInvoiceRequested') === 'true' || formData.get('taxInvoiceRequested') === 'on'
   const validated = checkoutSchema.safeParse({
     recipientName: formData.get('recipientName') ?? '',
     phone: formData.get('phone') ?? '',
@@ -23,6 +24,12 @@ export async function proceedToCheckoutAction(formData: FormData) {
     postalCode: formData.get('postalCode') ?? '',
     shippingMethod: formData.get('shippingMethod'),
     paymentMethod: formData.get('paymentMethod'),
+    taxInvoiceRequested: taxRequested,
+    taxCompanyName: String(formData.get('taxCompanyName') ?? '').trim(),
+    taxNpwp: String(formData.get('taxNpwp') ?? '').trim(),
+    taxAddress: String(formData.get('taxAddress') ?? '').trim(),
+    taxPercent: formData.get('taxPercent') ? Number(formData.get('taxPercent')) : undefined,
+    taxAmount: formData.get('taxAmount') ? Number(formData.get('taxAmount')) : undefined,
   })
   if (!validated.success) {
     throw new Error(validated.error.issues.map((issue) => issue.message).join(", "))

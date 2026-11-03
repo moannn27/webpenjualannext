@@ -5,14 +5,24 @@ import { getUserReviewsAction } from "@/actions/review";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { ProfileDashboard } from "@/features/profile/ProfileDashboard";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string | string[] }>
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const params = await searchParams
-  const initialTab = params.tab === 'settings' ? 'settings' : 'orders'
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login?redirect=/profile&notice=profile");
+  }
+
+  const params = await searchParams;
+  const initialTab = params.tab === "settings" ? "settings" : "orders";
   const [profile, orders, wishlist, reviews, rawSettings] = await Promise.all([
     getUserProfileAction().catch(() => null),
     getUserOrdersAction().catch(() => []),

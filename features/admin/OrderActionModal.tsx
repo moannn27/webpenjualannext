@@ -618,6 +618,45 @@ export function OrderActionModal({ order, isSuperAdmin = false, canDeleteOrder =
                 </div>
               </div>
 
+                            {/* Informasi Faktur Pajak (Jika Diminta) */}
+              {Boolean((address?.tax_invoice as { requested?: boolean } | undefined)?.requested) && (
+                <div className="rounded-2xl border border-blue-200/80 dark:border-blue-900/40 bg-blue-50/30 dark:bg-blue-950/20 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-blue-200/60 dark:border-blue-900/40 pb-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="size-4 text-[#2563EB]" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                        Informasi Faktur Pajak
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-950/80 border border-blue-300/60 dark:border-blue-800 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                      e-Faktur Diminta
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Nama Perusahaan / PKP:</span>
+                      <p className="font-bold text-slate-900 dark:text-white mt-0.5">
+                        {String((address?.tax_invoice as { company_name?: string })?.company_name || "-")}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">NPWP / NIK:</span>
+                      <p className="font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                        {String((address?.tax_invoice as { npwp?: string })?.npwp || "-")}
+                      </p>
+                    </div>
+                    {(address?.tax_invoice as { tax_address?: string })?.tax_address && (
+                      <div className="sm:col-span-2">
+                        <span className="text-slate-500 dark:text-slate-400">Alamat Terdaftar Pajak:</span>
+                        <p className="text-slate-800 dark:text-slate-200 mt-0.5">
+                          {String((address?.tax_invoice as { tax_address?: string })?.tax_address)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* FITUR EDIT FAKTUR ORDERAN */}
               <div className="rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/20 dark:bg-blue-950/10 p-4 space-y-3">
                 <div className="flex items-center justify-between">

@@ -35,7 +35,9 @@ interface SearchProductItem {
   image?: string;
 }
 
-const POPULAR_SEARCHES = [
+export const DEFAULT_POPULAR_SEARCHES = [
+  // default fallback
+
   "Laptop Gaming",
   "Lenovo IdeaPad",
   "ASUS ROG",
@@ -66,10 +68,12 @@ function formatIdr(amount: number) {
 
 interface QuickSearchDialogProps {
   initialQuery: string;
+  popularKeywords?: string[];
   onClose: () => void;
 }
 
-function QuickSearchDialog({ initialQuery, onClose }: QuickSearchDialogProps) {
+function QuickSearchDialog({ initialQuery, popularKeywords, onClose }: QuickSearchDialogProps) {
+  const activeKeywords = popularKeywords && popularKeywords.length > 0 ? popularKeywords : DEFAULT_POPULAR_SEARCHES;
   const router = useRouter();
   const [query, setLocalQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchProductItem[]>([]);
@@ -315,7 +319,7 @@ function QuickSearchDialog({ initialQuery, onClose }: QuickSearchDialogProps) {
               <span>Pencarian Cepat Populer</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {POPULAR_SEARCHES.map((keyword) => (
+              {activeKeywords.map((keyword) => (
                 <button
                   key={keyword}
                   type="button"
@@ -379,7 +383,7 @@ function QuickSearchDialog({ initialQuery, onClose }: QuickSearchDialogProps) {
   );
 }
 
-export function QuickSearchModal() {
+export function QuickSearchModal({ popularKeywords }: { popularKeywords?: string[] } = {}) {
   const { isOpen, query, closeSearch, openSearch } = useQuickSearchStore();
 
   // Global Ctrl+K / Cmd+K shortcut
@@ -401,5 +405,5 @@ export function QuickSearchModal() {
 
   if (!isOpen) return null;
 
-  return <QuickSearchDialog initialQuery={query} onClose={closeSearch} />;
+  return <QuickSearchDialog initialQuery={query} popularKeywords={popularKeywords} onClose={closeSearch} />;
 }

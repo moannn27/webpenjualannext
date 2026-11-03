@@ -48,7 +48,7 @@ import {
   type PickupLocation,
 } from "@/types/checkout";
 
-import { type BankTransferInfo, type StoreFeaturesSettings } from "@/lib/storefront-settings";
+import { type BankTransferInfo, type StoreFeaturesSettings, type StoreInvoiceSettings } from "@/lib/storefront-settings";
 import { getCartItemAvailableStock, getCartItemUnitPrice } from "@/lib/cart-utils";
 import { toast } from "@/components/Toast";
 import { useCartStore } from "@/store/useCartStore";
@@ -131,6 +131,7 @@ interface CheckoutClientProps {
   features?: StoreFeaturesSettings;
   storeWhatsapp?: string;
   storeName?: string;
+  invoiceSettings?: StoreInvoiceSettings;
 }
 
 export function CheckoutClient({
@@ -144,6 +145,7 @@ export function CheckoutClient({
   features,
   storeWhatsapp,
   storeName,
+  invoiceSettings,
 }: CheckoutClientProps) {
   const router = useRouter();
   const hasTriggeredSyncRef = useRef(false);
@@ -172,6 +174,12 @@ export function CheckoutClient({
     : "manual_transfer";
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodCode>(defaultPaymentMethod);
 
+  // B2B Tax Invoice (Faktur Pajak PPN) states
+  const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
+  const [taxCompanyName, setTaxCompanyName] = useState("");
+  const [taxNpwp, setTaxNpwp] = useState("");
+  const [taxAddress, setTaxAddress] = useState("");
+
   // Auto-switch away from cash if user switches fulfillmentMode to delivery, or away from QRIS if QR is unconfigured
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -195,6 +203,7 @@ export function CheckoutClient({
     customerAddress?: string;
     customerNotes?: string;
     items?: { name: string; quantity: number; subtotal: number }[];
+    taxInvoice?: { requested: boolean; companyName: string; npwp: string; taxPercent?: number; taxAmount?: number };
   } | null>(null);
 
   const step3EnteredAtRef = useRef<number>(0);
@@ -309,7 +318,12 @@ export function CheckoutClient({
 
   const discountAmount = appliedVoucher ? appliedVoucher.discountAmount : 0;
   const shippingPrice = fulfillmentMode === "pickup" ? 0 : selectedShipping?.price ?? 0;
-  const finalTotal = Math.max(0, subtotal - discountAmount) + shippingPrice;
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
+  const taxRatePercent = Number(invoiceSettings?.tax_rate_percent ?? 11);
+  const taxAmount = taxInvoiceRequested
+    ? Math.round(taxableAmount * (taxRatePercent / 100))
+    : 0;
+  const finalTotal = taxableAmount + shippingPrice + taxAmount;
 
   const handleApplyVoucher = async () => {
     if (!voucherInput.trim()) {
@@ -428,6 +442,21 @@ export function CheckoutClient({
         }
       }
 
+      if (taxInvoiceRequested) {
+        if (!taxCompanyName.trim()) {
+          const errMsg = "Nama perusahaan / badan usaha wajib diisi untuk penerbitan faktur pajak.";
+          setErrorMessage(errMsg);
+          toast.error("Validasi Faktur Pajak", errMsg);
+          return;
+        }
+        if (!taxNpwp.trim() || taxNpwp.trim().length < 6) {
+          const errMsg = "Nomor NPWP / NIK wajib diisi (minimal 6 karakter) untuk penerbitan faktur pajak.";
+          setErrorMessage(errMsg);
+          toast.error("Validasi Faktur Pajak", errMsg);
+          return;
+        }
+      }
+
       // Re-verify all checkout item prices and stock strictly against constants/products.ts
       const stockCheck = verifyCartItemStock(initialCart.cart_items);
       if (!stockCheck.valid) {
@@ -445,9 +474,9 @@ export function CheckoutClient({
 
     if (currentStep === 2 && fulfillmentMode === "pickup") {
       if (!activePickup?.address?.trim()) {
-        const errMsg = "Alamat pickup belum diatur oleh admin. Silakan hubungi admin atau pilih pengiriman ke alamat.";
+        const errMsg = "Alamat pickup toko sedang disiapkan. Silakan hubungi layanan toko atau pilih opsi pengiriman kurir ke alamat Anda.";
         setErrorMessage(errMsg);
-        toast.warning("Alamat Belum Diatur", errMsg);
+        toast.warning("Opsi Ambil di Toko Belum Tersedia", errMsg);
         return;
       }
     }
@@ -478,9 +507,9 @@ export function CheckoutClient({
 
     if (paymentMethod === "qris" && !hasQrisImage) {
       setLoading(false);
-      const errMsg = "Kode QR resmi toko belum dimasukkan oleh admin di panel pengaturan. Silakan pilih metode pembayaran lain.";
+      const errMsg = "Metode pembayaran QRIS saat ini sedang dalam pemeliharaan. Silakan pilih metode pembayaran lain seperti Transfer Bank atau Tunai di Kasir.";
       setErrorMessage(errMsg);
-      toast.warning("QRIS Belum Dikonfigurasi", errMsg);
+      toast.warning("QRIS Belum Tersedia", errMsg);
       return;
     }
 
@@ -535,6 +564,21 @@ export function CheckoutClient({
         }
       }
 
+      if (taxInvoiceRequested) {
+        if (!taxCompanyName.trim()) {
+          setErrorMessage("Nama perusahaan / badan usaha wajib diisi untuk penerbitan faktur pajak.");
+          toast.error("Validasi Faktur Pajak", "Nama perusahaan tidak boleh kosong.");
+          setLoading(false);
+          return;
+        }
+        if (!taxNpwp.trim() || taxNpwp.trim().length < 6) {
+          setErrorMessage("Nomor NPWP / NIK wajib diisi (minimal 6 karakter) untuk faktur pajak.");
+          toast.error("Validasi Faktur Pajak", "Nomor NPWP / NIK tidak valid.");
+          setLoading(false);
+          return;
+        }
+      }
+
       // 3. Re-verify all checkout item prices and stock strictly against constants/products.ts
       const stockCheck = verifyCartItemStock(initialCart.cart_items);
       if (!stockCheck.valid) {
@@ -545,9 +589,9 @@ export function CheckoutClient({
       }
 
       if (paymentMethod === "qris" && !hasQrisImage) {
-        const errMsg = "Metode QRIS belum dapat digunakan karena kode QR toko belum dimasukkan oleh admin di pengaturan.";
+        const errMsg = "Metode pembayaran QRIS saat ini sedang dalam pemeliharaan. Silakan gunakan Transfer Bank atau Bayar Tunai di Kasir.";
         setErrorMessage(errMsg);
-        toast.error("QR Belum Tersedia", "Kode QR toko belum dimasukkan. Silakan pilih Transfer Bank atau Bayar Tunai di Kasir.");
+        toast.error("QRIS Sedang Pemeliharaan", "Silakan gunakan metode Transfer Bank atau Bayar Tunai di Kasir.");
         setLoading(false);
         return;
       }
@@ -569,6 +613,15 @@ export function CheckoutClient({
         sanitizedFormData.set("city", city);
         sanitizedFormData.set("province", province);
         sanitizedFormData.set("postalCode", postalCode);
+      }
+
+      sanitizedFormData.set("taxInvoiceRequested", taxInvoiceRequested ? "true" : "false");
+      if (taxInvoiceRequested) {
+        sanitizedFormData.set("taxCompanyName", sanitizeInput(taxCompanyName));
+        sanitizedFormData.set("taxNpwp", sanitizeInput(taxNpwp));
+        sanitizedFormData.set("taxAddress", sanitizeInput(taxAddress));
+        sanitizedFormData.set("taxPercent", String(taxRatePercent));
+        sanitizedFormData.set("taxAmount", String(taxAmount));
       }
 
       const result = await proceedToCheckoutAction(sanitizedFormData);
@@ -603,6 +656,13 @@ export function CheckoutClient({
           customerAddress: addressText,
           customerNotes: notes || "-",
           items: itemizedProducts,
+          taxInvoice: taxInvoiceRequested
+            ? {
+                requested: true,
+                companyName: taxCompanyName.trim(),
+                npwp: taxNpwp.trim(),
+              }
+            : undefined,
         };
 
         setPlacedOrder(orderData);
@@ -673,6 +733,9 @@ export function CheckoutClient({
       `*No. Telepon:* ${placedOrder.customerPhone || "-"}\n` +
       `*Alamat:* ${addressInfo}\n` +
       `*Metode Pembayaran:* ${paymentLabel}\n` +
+      (placedOrder.taxInvoice?.requested
+        ? `*Faktur Pajak PPN:* Ya (a.n. ${placedOrder.taxInvoice.companyName} - NPWP: ${placedOrder.taxInvoice.npwp})\n`
+        : "") +
       `*Catatan:* ${placedOrder.customerNotes || "-"}\n` +
       `=========================================\n` +
       `*DAFTAR PRODUK:*\n` +
@@ -712,7 +775,7 @@ export function CheckoutClient({
                   ? "Pesanan Anda telah tersimpan dengan status Pending. Silakan scan kode QRIS resmi toko di bawah ini menggunakan aplikasi m-Banking atau e-Wallet favorit Anda, lalu kirimkan bukti transaksi ke WhatsApp Admin agar pesanan langsung disiapkan."
                   : placedOrder.paymentMethod === "cash_on_pickup"
                   ? "Pesanan Anda telah tersimpan dengan metode Bayar Tunai di Kasir. Silakan kunjungi cabang toko Next Solution untuk mengambil unit dan melakukan pembayaran langsung di kasir toko saat barang diterima."
-                  : "Pesanan Anda telah tersimpan dengan status Pending. Silakan transfer tepat sesuai total tagihan ke rekening toko di bawah ini, lalu kirim bukti transfer ke WhatsApp Admin. Faktur pesanan akan diperbarui menjadi Lunas / Berhasil setelah admin mengonfirmasi pembayaran Anda."}
+                  : "Pesanan Anda telah tersimpan dengan status Pending. Silakan transfer tepat sesuai total tagihan ke rekening toko di bawah ini, lalu kirim bukti transfer ke WhatsApp Layanan Pelanggan kami. Status pesanan akan otomatis diperbarui menjadi Lunas setelah pembayaran Anda terverifikasi."}
               </p>
             </div>
           </div>
@@ -772,7 +835,7 @@ export function CheckoutClient({
                   <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                     <li>Buka aplikasi m-Banking atau e-Wallet favorit Anda.</li>
                     <li>Scan kode QRIS di atas dan periksa nominal tagihan sesuai total pesanan.</li>
-                    <li>Simpan foto / screenshot bukti berhasil transfer, lalu kirimkan ke WhatsApp admin.</li>
+                    <li>Simpan foto atau tangkapan layar bukti transfer, lalu kirimkan ke WhatsApp toko kami.</li>
                   </ul>
                 </div>
               </div>
@@ -802,7 +865,7 @@ export function CheckoutClient({
                   <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                     <li>Lakukan pembayaran tunai atau debit langsung di kasir toko.</li>
                     <li>Anda dapat memeriksa segel, kelengkapan unit, dan garansi resmi bersama staf toko.</li>
-                    <li>Hubungi admin melalui WhatsApp di bawah jika ingin mengabarkan estimasi jam kedatangan Anda.</li>
+                    <li>Hubungi tim toko kami melalui WhatsApp jika ingin mengabarkan estimasi jam kedatangan Anda.</li>
                   </ul>
                 </div>
               </div>
@@ -859,7 +922,7 @@ export function CheckoutClient({
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Informasi nomor rekening dapat diminta langsung ke WhatsApp admin.
+                    Informasi nomor rekening resmi dapat diminta langsung ke WhatsApp toko kami.
                   </p>
                 )}
 
@@ -868,7 +931,7 @@ export function CheckoutClient({
                   <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                     <li>Transfer tepat hingga nominal rupiah terakhir.</li>
                     <li>Simpan foto / screenshot bukti transfer.</li>
-                    <li>Kirim bukti tersebut ke WhatsApp admin agar pembayaran segera disetujui.</li>
+                    <li>Kirim bukti tersebut ke WhatsApp toko kami agar pembayaran segera diverifikasi.</li>
                   </ul>
                 </div>
               </div>
@@ -991,6 +1054,14 @@ export function CheckoutClient({
                     Menunggu Verifikasi Admin (Pending)
                   </span>
                 </div>
+                {placedOrder.taxInvoice?.requested && (
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-muted-foreground">Faktur Pajak</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      Diminta (a.n. {placedOrder.taxInvoice.companyName})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Navigation Actions: "kalo mau lanjut baru lanjut" */}
@@ -1177,7 +1248,7 @@ export function CheckoutClient({
               <MapPin className="size-5 text-primary" />
               <div>
                 <h2 id="fulfillment-heading" className="text-lg font-semibold">Pilih cara menerima pesanan</h2>
-                <p className="text-sm text-muted-foreground">Pesanan akan diverifikasi admin setelah pembayaran.</p>
+                <p className="text-sm text-muted-foreground">Pesanan akan segera diproses setelah pembayaran terverifikasi.</p>
               </div>
             </div>
 
@@ -1210,7 +1281,7 @@ export function CheckoutClient({
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold">Ambil di toko</span>
                     <span className="mt-1 block text-xs text-muted-foreground">
-                      Gratis ongkir. Pilih lokasi toko dan ambil setelah dikonfirmasi admin.
+                      Gratis ongkir. Pilih lokasi gerai dan ambil setelah pesanan siap.
                     </span>
                   </span>
                 </label>
@@ -1265,6 +1336,65 @@ export function CheckoutClient({
                   maxLength={255}
                 />
               </label>
+
+              {invoiceSettings?.tax_invoice_enabled && (
+                <div className="sm:col-span-2 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/5 p-4 transition-all duration-200">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 rounded border-slate-300 text-primary accent-primary"
+                      checked={taxInvoiceRequested}
+                      onChange={(e) => setTaxInvoiceRequested(e.target.checked)}
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <FileText className="size-4 text-primary" />
+                        Menggunakan Faktur Pajak
+                      </span>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Centang jika pesanan ini atas nama perusahaan / instansi / PKP dan membutuhkan faktur pajak resmi.
+                      </p>
+                    </div>
+                  </label>
+
+                  {taxInvoiceRequested && (
+                    <div className="mt-4 grid gap-3.5 pt-3.5 border-t border-slate-200 dark:border-white/10 sm:grid-cols-2 animate-in fade-in duration-200">
+                      <label className="space-y-1.5 text-xs font-medium sm:col-span-2">
+                        Nama Perusahaan / Badan Usaha / PKP *
+                        <Input
+                          placeholder="Contoh: CV NEXT SOLUTION"
+                          value={taxCompanyName}
+                          onChange={(e) => setTaxCompanyName(e.target.value)}
+                          className="h-9 text-xs"
+                          required
+                          maxLength={150}
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs font-medium">
+                        NPWP (16 Digit) / NIK Terdaftar *
+                        <Input
+                          placeholder="Contoh: 01.234.567.8-012.000 / 3201..."
+                          value={taxNpwp}
+                          onChange={(e) => setTaxNpwp(e.target.value)}
+                          className="h-9 text-xs font-mono"
+                          required
+                          maxLength={30}
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs font-medium">
+                        Alamat Terdaftar Pajak (Opsional)
+                        <Input
+                          placeholder="Kosongkan jika sama dengan alamat pengiriman"
+                          value={taxAddress}
+                          onChange={(e) => setTaxAddress(e.target.value)}
+                          className="h-9 text-xs"
+                          maxLength={255}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -1322,7 +1452,7 @@ export function CheckoutClient({
                         {loc.address ? (
                           <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{loc.address}</p>
                         ) : (
-                          <p className="mt-1 text-sm text-amber-700">Alamat pickup belum diatur.</p>
+                          <p className="mt-1 text-sm text-amber-700">Alamat toko sedang diperbarui.</p>
                         )}
                         {loc.maps_url && (
                           <a
@@ -1342,7 +1472,7 @@ export function CheckoutClient({
 
                 <div className="rounded-xl border border-slate-200/80 dark:border-white/10 bg-[#F8F9FA] dark:bg-white/5 p-4 text-xs text-muted-foreground flex items-center gap-2.5">
                   <PackageCheck className="size-4 text-emerald-600 shrink-0" />
-                  <span>Admin akan menghubungi kamu melalui WhatsApp setelah pesanan siap untuk mengonfirmasi waktu pengambilan.</span>
+                  <span>Tim toko kami akan menghubungi Anda via WhatsApp setelah pesanan siap diambil.</span>
                 </div>
               </div>
             ) : shippingMethods.length > 0 ? (
@@ -1446,7 +1576,7 @@ export function CheckoutClient({
                     if (!hasQrisImage) {
                       toast.warning(
                         "QRIS Belum Dikonfigurasi",
-                        "Kode QR resmi toko belum dimasukkan oleh admin di panel pengaturan. Silakan gunakan Transfer Bank atau Bayar Tunai di Kasir."
+                        "Metode QRIS saat ini sedang dalam pemeliharaan. Silakan gunakan Transfer Bank atau Bayar Tunai di Kasir."
                       );
                       return;
                     }
@@ -1467,7 +1597,7 @@ export function CheckoutClient({
                     </div>
                     {!hasQrisImage ? (
                       <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                        QR Belum Dimasukkan
+                        Sedang Pemeliharaan
                       </span>
                     ) : paymentMethod === "qris" ? (
                       <CheckCircle2 className="size-4 text-primary" />
@@ -1475,7 +1605,7 @@ export function CheckoutClient({
                   </div>
                   <span className="font-semibold text-sm text-foreground">Pembayaran QRIS</span>
                   <span className="text-[11px] text-muted-foreground mt-0.5">
-                    {!hasQrisImage ? "Belum diisi admin toko" : "Scan BCA, GoPay, OVO, dll."}
+                    {!hasQrisImage ? "Sedang dalam pemeliharaan" : "Scan BCA, GoPay, OVO, dll."}
                   </span>
                 </button>
               )}
@@ -1527,10 +1657,10 @@ export function CheckoutClient({
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-1 text-sm text-muted-foreground">Rekening bank belum diatur. Hubungi admin untuk info transfer.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Informasi rekening transfer resmi dapat diminta langsung melalui WhatsApp kami.</p>
                   )}
                   <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    Setelah transfer, Anda dapat mengonfirmasi pesanan ke WhatsApp admin dan mengirim bukti pembayaran.
+                    Setelah transfer, Anda dapat mengirimkan bukti pembayaran via WhatsApp kami untuk verifikasi.
                   </p>
                 </div>
               </div>
@@ -1567,7 +1697,7 @@ export function CheckoutClient({
                   )}
 
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Setelah melakukan scan dan membayar, Anda akan diarahkan ke faktur untuk mengirim bukti pembayaran ke WhatsApp admin.
+                    Setelah melakukan scan dan membayar, Anda akan diarahkan ke faktur untuk mengirimkan bukti pembayaran via WhatsApp.
                   </p>
                 </div>
               </div>
@@ -1760,6 +1890,17 @@ export function CheckoutClient({
                   : "Pilih metode"}
               </dd>
             </div>
+            {taxInvoiceRequested && (
+              <div className="flex justify-between gap-4 text-slate-700 dark:text-slate-300">
+                <dt className="flex items-center gap-1 font-medium">
+                  <FileText className="size-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Pajak PPN ({taxRatePercent}%)</span>
+                </dt>
+                <dd className="font-semibold tabular-nums text-slate-900 dark:text-white">
+                  +{formatCurrency(taxAmount)}
+                </dd>
+              </div>
+            )}
           </dl>
 
           <div className="flex items-baseline justify-between gap-4 border-t border-border pt-4">
@@ -1817,7 +1958,7 @@ export function CheckoutClient({
               {loading
                 ? "Menyimpan pesanan..."
                 : paymentMethod === "qris" && !hasQrisImage
-                ? "Pilih Metode Lain (QR Belum Dimasukkan)"
+                ? "Pilih Metode Lain (Sedang Pemeliharaan)"
                 : "Konfirmasi & Buat Pesanan"}
             </Button>
           )}
@@ -1835,7 +1976,7 @@ export function CheckoutClient({
           )}
 
           <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">
-            Total final dihitung ulang dan disimpan oleh database.
+            Transaksi Anda terlindungi enkripsi dan terverifikasi secara aman.
           </p>
         </aside>
       </div>

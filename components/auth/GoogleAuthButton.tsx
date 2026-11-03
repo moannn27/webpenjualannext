@@ -319,7 +319,7 @@ export function GoogleAuthButton({
     setAuthError("");
     onErrorRef.current?.("");
     setLoading(true);
-    setLoadingText("Menghubungkan ke OAuth Supabase cadangan...");
+    setLoadingText("Menghubungkan ke Google...");
     onStartRef.current?.();
 
     try {
@@ -430,7 +430,7 @@ export function GoogleAuthButton({
               disabled={disabled || loading}
               className="w-full text-xs text-muted-foreground hover:text-foreground h-9 rounded-xl"
             >
-              Gunakan OAuth Redirect Cadangan (Supabase)
+              Gunakan Login Google Alternatif
             </Button>
           </div>
         </div>

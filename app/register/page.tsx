@@ -64,6 +64,14 @@ export default function RegisterPage() {
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [redirectTarget, setRedirectTarget] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const redir = new URLSearchParams(window.location.search).get("redirect");
+      if (redir) setRedirectTarget(redir);
+    }
+  }, []);
 
   useEffect(() => {
     getStorefrontSettingsAction()
@@ -412,7 +420,7 @@ export default function RegisterPage() {
             </div>
 
             <GoogleAuthButton
-              redirectPath="/profile"
+              redirectPath={redirectTarget || "/profile"}
               mode="signup"
               onStart={() => setError("")}
               onError={(msg) => setError(msg)}
@@ -423,7 +431,7 @@ export default function RegisterPage() {
 
         <div className="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">
           Sudah punya akun?{" "}
-          <Link href="/login" className="text-primary font-medium hover:underline">
+          <Link href={redirectTarget ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : "/login"} className="text-primary font-medium hover:underline">
             Masuk di sini
           </Link>
         </div>

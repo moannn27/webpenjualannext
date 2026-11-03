@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LoaderCircle, Heart, ShoppingCart, Info, X } from "lucide-react";
 import { login } from "@/actions/auth";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { resendVerificationAction } from "@/actions/auth_extended";
@@ -17,12 +17,76 @@ export default function LoginPage() {
     const err = new URLSearchParams(window.location.search).get("error");
     return err ? decodeURIComponent(err) : "";
   });
+  const [attention, setAttention] = useState<{
+    type: "wishlist" | "checkout" | "cart" | "generic";
+    title: string;
+    description: string;
+  } | null>(null);
+  const [redirectTarget, setRedirectTarget] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Memeriksa akun...");
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
   const [email, setEmail] = useState("");
   const [verificationSent, setVerificationSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const redir = params.get("redirect") || "";
+    const notice = params.get("notice") || "";
+    const err = params.get("error");
+    if (err) setError(decodeURIComponent(err));
+    if (redir) setRedirectTarget(redir);
+
+    const isWishlist = notice === "wishlist" || redir.toLowerCase().includes("wishlist");
+    const isCheckout = notice === "checkout" || redir.toLowerCase().includes("checkout");
+    const isCart = notice === "cart";
+
+    if (isWishlist) {
+      setAttention({
+        type: "wishlist",
+        title: "Perhatian: Masuk untuk Akses Wishlist",
+        description:
+          "Untuk membuka dan mengelola daftar produk favorit Anda di Wishlist, silakan masuk ke akun Anda terlebih dahulu.",
+      });
+    } else if (isCheckout) {
+      setAttention({
+        type: "checkout",
+        title: "Perhatian: Masuk untuk Melanjutkan Pembayaran",
+        description:
+          "Untuk melanjutkan proses pemesanan, alamat pengiriman, dan checkout pembayaran, silakan masuk ke akun Anda terlebih dahulu.",
+      });
+    } else if (isCart) {
+      setAttention({
+        type: "cart",
+        title: "Perhatian: Masuk untuk Menambah ke Keranjang",
+        description:
+          "Silakan masuk ke akun Anda terlebih dahulu untuk menambahkan produk pilihan ke keranjang belanja.",
+      });
+    } else if (notice === "profile" || redir.toLowerCase().includes("profile")) {
+      setAttention({
+        type: "generic",
+        title: "Perhatian: Masuk untuk Akses Profil Akun",
+        description:
+          "Untuk melihat riwayat pesanan, profil, dan pengaturan akun Anda, silakan masuk ke akun Anda terlebih dahulu.",
+      });
+    } else if (notice === "invoice" || redir.toLowerCase().includes("invoice")) {
+      setAttention({
+        type: "generic",
+        title: "Perhatian: Masuk untuk Akses Faktur",
+        description:
+          "Silakan masuk ke akun Anda terlebih dahulu untuk melihat atau mencetak faktur pesanan.",
+      });
+    } else if (redir && !redir.startsWith("/login")) {
+      setAttention({
+        type: "generic",
+        title: "Perhatian: Autentikasi Diperlukan",
+        description:
+          "Halaman ini memerlukan akun. Silakan masuk ke akun Anda terlebih dahulu untuk melanjutkan.",
+      });
+    }
+  }, []);
 
   useEffect(() => {
     getStorefrontSettingsAction()
@@ -79,7 +143,6 @@ export default function LoginPage() {
     }
   };
 
-
   const handleResendVerification = async () => {
     const formData = new FormData();
     formData.set("email", email);
@@ -98,33 +161,61 @@ export default function LoginPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md bg-card p-8 rounded-[32px] border border-border shadow-lg relative overflow-hidden">
-        {loading && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-card/95 backdrop-blur-md p-6 text-center animate-in fade-in zoom-in-95 duration-200"
-          >
-            <div className="relative mb-5 flex size-16 items-center justify-center rounded-3xl bg-primary/10 border border-primary/20 shadow-lg shadow-primary/10">
-              <div className="absolute inset-0 rounded-3xl bg-primary/20 animate-ping opacity-25" />
-              <LoaderCircle className="size-8 animate-spin text-primary" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground tracking-tight mb-1.5">
-              {loadingText}
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-              Memverifikasi akun dan menyiapkan sesi Anda. Mohon tunggu transisi masuk...
-            </p>
-            <div className="mt-5 w-48 h-1.5 rounded-full bg-muted/60 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-sky-400 rounded-full animate-pulse w-3/4" />
-            </div>
-          </div>
-        )}
+
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Selamat Datang</h1>
           <p className="text-muted-foreground">Masuk ke akun Next Solution Store Anda</p>
         </div>
 
-        <form action={handleLogin} className="space-y-4">
+        {attention && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mb-6 flex items-start justify-between gap-3.5 rounded-2xl border p-4 text-left transition-all duration-300 animate-in fade-in slide-in-from-top-2 ${
+              attention.type === "wishlist"
+                ? "border-rose-500/25 bg-rose-500/10 text-rose-950 dark:border-rose-500/30 dark:bg-rose-950/25 dark:text-rose-200"
+                : attention.type === "checkout"
+                ? "border-amber-500/25 bg-amber-500/10 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/25 dark:text-amber-200"
+                : attention.type === "cart"
+                ? "border-blue-500/25 bg-blue-500/10 text-blue-950 dark:border-blue-500/30 dark:bg-blue-950/25 dark:text-blue-200"
+                : "border-primary/25 bg-primary/10 text-foreground dark:border-primary/30 dark:bg-primary/20"
+            }`}
+          >
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <div
+                className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+                  attention.type === "wishlist"
+                    ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                    : attention.type === "checkout"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    : attention.type === "cart"
+                    ? "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                    : "bg-primary/15 text-primary"
+                }`}
+              >
+                {attention.type === "wishlist" && <Heart className="size-4.5 fill-rose-500/25" />}
+                {attention.type === "checkout" && <ShoppingCart className="size-4.5" />}
+                {attention.type === "cart" && <ShoppingCart className="size-4.5" />}
+                {attention.type === "generic" && <Info className="size-4.5" />}
+              </div>
+              <div className="flex-1 min-w-0 text-xs">
+                <p className="font-semibold text-sm leading-snug">{attention.title}</p>
+                <p className="mt-1 leading-relaxed opacity-90">{attention.description}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAttention(null)}
+              className="text-muted-foreground hover:text-foreground p-1 rounded-lg transition-colors -mr-1 -mt-1 shrink-0"
+              aria-label="Tutup pemberitahuan"
+              title="Tutup"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        <form action={handleLogin} onSubmit={() => { setLoading(true); setLoadingText("Memeriksa akun & kata sandi..."); }} className="space-y-4">
           {error && <div className="text-destructive text-sm text-center bg-destructive/10 p-3 rounded-xl border border-destructive/20" role="alert">
             {error}
             {error.startsWith("Email atau password tidak sesuai.") && (
@@ -185,13 +276,13 @@ export default function LoginPage() {
             type="submit"
             disabled={loading}
             size="lg"
-            className="w-full rounded-full h-12 text-base mt-2 font-bold transition-all shadow-md disabled:opacity-85"
+            className="w-full rounded-full h-12 text-base mt-2 font-bold transition-all shadow-md cursor-pointer disabled:cursor-not-allowed disabled:opacity-80"
             aria-busy={loading}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <LoaderCircle className="size-5 animate-spin" />
-                <span>{loadingText}</span>
+                <LoaderCircle className="size-4.5 animate-spin" />
+                <span>{loadingText || "Memeriksa Akun..."}</span>
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
@@ -214,7 +305,7 @@ export default function LoginPage() {
             </div>
 
             <GoogleAuthButton
-              redirectPath={typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("redirect") || "/profile") : "/profile"}
+              redirectPath={redirectTarget || (typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("redirect") || "/profile") : "/profile")}
               mode="signin"
               onStart={() => setError("")}
               onError={(msg) => setError(msg)}
@@ -225,7 +316,10 @@ export default function LoginPage() {
 
         <div className="mt-8 pt-6 border-t border-border text-center text-sm text-muted-foreground">
           Belum punya akun?{" "}
-          <Link href="/register" className="text-primary font-medium hover:underline">
+          <Link
+            href={redirectTarget ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : "/register"}
+            className="text-primary font-medium hover:underline"
+          >
             Daftar di sini
           </Link>
         </div>

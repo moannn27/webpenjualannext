@@ -13,6 +13,7 @@ import {
   ExternalLink,
   MessageCircle,
   Send,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -107,6 +108,32 @@ function ShareDialogContent({ product, onClose }: ShareDialogContentProps) {
     shareUrl
   )}`;
 
+  const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+    shareUrl
+  )}`;
+
+  const lineUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(
+    shareUrl
+  )}`;
+
+  const emailUrl = `mailto:?subject=${encodeURIComponent(
+    `Rekomendasi Produk: ${product.name}`
+  )}&body=${encodeURIComponent(
+    `Halo! Cek produk menarik ini di Next Solution Store:\n${product.name}\n${formattedPrice ? `Harga: ${formattedPrice}\n` : ""}\nLihat selengkapnya di:\n${shareUrl}`
+  )}`;
+
+  const handleInstagramShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Tautan Disalin!", "Tautan disalin ke clipboard. Membuka Instagram...");
+      setTimeout(() => {
+        window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+      }, 500);
+    } catch {
+      window.open("https://www.instagram.com/", "_blank", "noopener,noreferrer");
+    }
+  };
+
   return (
     <div
       role="dialog"
@@ -178,6 +205,18 @@ function ShareDialogContent({ product, onClose }: ShareDialogContentProps) {
             Pilih media untuk membagikan:
           </p>
 
+          {canNativeShare && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleNativeShare}
+              className="w-full rounded-2xl gap-2 font-semibold text-xs h-10 border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100/70 dark:hover:bg-blue-900/30 cursor-pointer shadow-xs transition-all"
+            >
+              <Share2 className="size-4" />
+              <span>Bagikan ke Aplikasi Lain (Instagram Stories, TikTok, Chat...)</span>
+            </Button>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {/* WhatsApp */}
             <a
@@ -193,6 +232,20 @@ function ShareDialogContent({ product, onClose }: ShareDialogContentProps) {
                 WhatsApp
               </span>
             </a>
+
+            {/* Instagram */}
+            <button
+              type="button"
+              onClick={handleInstagramShare}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-50/50 dark:bg-rose-950/20 p-3 text-center transition-all hover:bg-rose-100/70 dark:hover:bg-rose-950/40 hover:scale-[1.02] cursor-pointer group"
+            >
+              <div className="size-10 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                IG
+              </div>
+              <span className="text-xs font-bold text-rose-800 dark:text-rose-300">
+                Instagram
+              </span>
+            </button>
 
             {/* Telegram */}
             <a
@@ -236,6 +289,49 @@ function ShareDialogContent({ product, onClose }: ShareDialogContentProps) {
               </div>
               <span className="text-xs font-bold text-blue-800 dark:text-blue-300">
                 Facebook
+              </span>
+            </a>
+
+            {/* LinkedIn */}
+            <a
+              href={linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-sky-600/20 bg-sky-50/40 dark:bg-sky-950/20 p-3 text-center transition-all hover:bg-sky-100/70 dark:hover:bg-sky-950/40 hover:scale-[1.02] cursor-pointer group"
+            >
+              <div className="size-10 rounded-full bg-[#0A66C2] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                in
+              </div>
+              <span className="text-xs font-bold text-sky-900 dark:text-sky-300">
+                LinkedIn
+              </span>
+            </a>
+
+            {/* Line */}
+            <a
+              href={lineUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-emerald-600/20 bg-emerald-50/40 dark:bg-emerald-950/20 p-3 text-center transition-all hover:bg-emerald-100/70 dark:hover:bg-emerald-950/40 hover:scale-[1.02] cursor-pointer group"
+            >
+              <div className="size-10 rounded-full bg-[#06C755] text-white flex items-center justify-center font-bold text-[10px] tracking-tighter shadow-sm">
+                LINE
+              </div>
+              <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                LINE
+              </span>
+            </a>
+
+            {/* Email */}
+            <a
+              href={emailUrl}
+              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-300/40 dark:border-white/10 bg-slate-100/50 dark:bg-white/5 p-3 text-center transition-all hover:bg-slate-200/60 dark:hover:bg-white/10 hover:scale-[1.02] cursor-pointer group"
+            >
+              <div className="size-10 rounded-full bg-slate-700 text-white flex items-center justify-center shadow-sm">
+                <Mail className="size-5" />
+              </div>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Email
               </span>
             </a>
           </div>

@@ -8,6 +8,8 @@ import { getRecommendationSubtitle, type ProductCandidate } from "@/lib/product-
 import { notFound } from "next/navigation";
 import { buildProductJsonLd } from "@/lib/seo";
 import { stripHtmlToPlainText } from "@/lib/sanitize-html";
+import { createClient } from "@/lib/supabase/server";
+import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
 import { isKnownPromotionalArtwork } from "@/lib/product-gallery";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -58,11 +60,21 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     notFound();
   }
 
-  const [relatedProducts, reviews, cartQuantities] = await Promise.all([
+  const supabase = await createClient();
+  const [relatedProducts, reviews, cartQuantities, sfRow] = await Promise.all([
     getRelatedProductsAction(id, 8, product).catch(() => []),
     getProductReviewsAction(id).catch(() => []),
     getProductCartQuantitiesAction(id).catch(() => []),
+    supabase.from("storefront_settings").select("settings").eq("id", "main").maybeSingle(),
   ]);
+
+  const sfSettings = normalizeStorefrontSettings(sfRow?.data?.settings ?? {});
+  const stockLocation = sfSettings.features.stock_location_display_enabled
+    ? {
+        name: sfSettings.features.stock_location_name || "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
+        leadTime: sfSettings.features.stock_location_lead_time || "Siap Diambil di Toko / Dikirim Cepat",
+      }
+    : undefined;
 
   const productJsonLd = buildProductJsonLd(product, reviews ?? []);
   const subtitle = getRecommendationSubtitle(product as unknown as ProductCandidate);
@@ -74,7 +86,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd).replace(/</g, '\\u003c') }}
       />
-      <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} />
+      <ProductDetail product={product} reviews={reviews ?? []} initialCartQuantities={cartQuantities} stockLocation={stockLocation} />
       {relatedProducts.length > 0 && (
         <div className="mt-24">
           <FeaturedProducts
@@ -82,7 +94,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
             subtitle={subtitle}
             type="bestseller"
             viewAllHref={categoryLink}
-            initialData={relatedProducts.map((item) => toStorefrontProduct(item as StoreProduct))}
+            initialData={(relatedProducts as StoreProduct[]).map((item) => toStorefrontProduct(item))}
           />
         </div>
       )}

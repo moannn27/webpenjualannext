@@ -49,6 +49,12 @@ export default async function AdminOrdersPage({
   const { status: filterStatus = "", search: filterSearch = "", sort: sortOption = "date_desc" } = (await searchParams) ?? {};
   const orders = await getAdminOrdersAction();
 
+  const isTaxInvoiceOrder = (o: (typeof orders)[number]) => {
+    const addr = o.shipping_address as Record<string, unknown> | null;
+    const tax = addr?.tax_invoice as { requested?: boolean } | undefined;
+    return Boolean(tax?.requested);
+  };
+
   const counts = {
     pending: orders.filter((o) => o.status === "pending").length,
     processing: orders.filter((o) => o.status === "processing").length,
@@ -56,6 +62,7 @@ export default async function AdminOrdersPage({
     shipped: orders.filter((o) => o.status === "shipped").length,
     delivered: orders.filter((o) => o.status === "delivered").length,
     cancelled: orders.filter((o) => o.status === "cancelled").length,
+    tax_invoice: orders.filter(isTaxInvoiceOrder).length,
   };
 
   const tabs = [
@@ -66,10 +73,15 @@ export default async function AdminOrdersPage({
     { value: "shipped", label: "Dikirim", count: counts.shipped },
     { value: "delivered", label: "Selesai", count: counts.delivered },
     { value: "cancelled", label: "Dibatalkan", count: counts.cancelled },
+    { value: "tax_invoice", label: "Faktur Pajak", count: counts.tax_invoice },
   ];
 
   const filteredOrders = orders.filter((order) => {
-    if (filterStatus && order.status !== filterStatus) return false;
+    if (filterStatus === "tax_invoice") {
+      if (!isTaxInvoiceOrder(order)) return false;
+    } else if (filterStatus && order.status !== filterStatus) {
+      return false;
+    }
     if (filterSearch) {
       const term = filterSearch.toLowerCase();
       const orderNum = order.order_number?.toLowerCase() ?? "";
@@ -78,7 +90,11 @@ export default async function AdminOrdersPage({
       const items = (order.order_items ?? [])
         .map((i: { product_name?: string | null }) => i.product_name?.toLowerCase() ?? "")
         .join(" ");
-      if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term) && !items.includes(term)) {
+      const taxData = (order.shipping_address as Record<string, unknown> | null)?.tax_invoice as { company_name?: string; npwp?: string } | undefined;
+      const taxCompany = (taxData?.company_name ?? "").toLowerCase();
+      const taxNpwp = (taxData?.npwp ?? "").toLowerCase();
+
+      if (!orderNum.includes(term) && !customer.includes(term) && !phone.includes(term) && !items.includes(term) && !taxCompany.includes(term) && !taxNpwp.includes(term)) {
         return false;
       }
     }
@@ -369,17 +385,28 @@ export default async function AdminOrdersPage({
                   >
                     {/* 1. No. Pesanan */}
                     <TableCell className="py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
-                          {order.order_number}
-                        </span>
-                        {isPickup ? (
-                          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                            <Store className="size-2.5" /> Toko
+                      <div className="flex flex-col gap-1 items-start">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-slate-900 dark:text-white">
+                            {order.order_number}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-                            <Truck className="size-2.5" /> Kirim
+                          {isPickup ? (
+                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                              <Store className="size-2.5" /> Toko
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                              <Truck className="size-2.5" /> Kirim
+                            </span>
+                          )}
+                        </div>
+                        {isTaxInvoiceOrder(order) && (
+                          <span
+                            title={`Faktur Pajak: ${(address?.tax_invoice as { company_name?: string; npwp?: string })?.company_name || ""} (NPWP: ${(address?.tax_invoice as { company_name?: string; npwp?: string })?.npwp || ""})`}
+                            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900/60 shadow-2xs"
+                          >
+                            <FileText className="size-2.5 text-blue-600 dark:text-blue-400" />
+                            Faktur Pajak
                           </span>
                         )}
                       </div>

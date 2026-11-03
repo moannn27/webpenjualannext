@@ -17,6 +17,7 @@ import { getAllReviewsForAdminAction, type AdminReviewWithDetails } from "@/acti
 import {
   DEFAULT_STOREFRONT_SETTINGS,
   DEFAULT_FEATURED_REVIEWS,
+  DEFAULT_POPULAR_KEYWORDS,
   CITY_COORDINATES,
   extractCoordinatesFromLocation,
   normalizeStorefrontSettings,
@@ -183,6 +184,45 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
   const [busyAvatar, setBusyAvatar] = useState(false);
   const [uploadingMarketplaceId, setUploadingMarketplaceId] = useState<string | null>(null);
   const [savingExternalUrlId, setSavingExternalUrlId] = useState<string | null>(null);
+  const [newKeywordInput, setNewKeywordInput] = useState("");
+
+  const updatePopularKeywords = (keywords: string[]) => {
+    setSettings((current) => ({
+      ...current,
+      search: {
+        ...current.search,
+        popular_keywords: keywords,
+      },
+    }));
+  };
+
+  const handleAddKeyword = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = newKeywordInput.trim();
+    if (!trimmed) return;
+    const currentList = settings.search?.popular_keywords || [];
+    if (currentList.some((k) => k.toLowerCase() === trimmed.toLowerCase())) {
+      setNotice(`Kata kunci "${trimmed}" sudah ada di daftar.`);
+      return;
+    }
+    if (currentList.length >= 25) {
+      setNotice("Maksimal 25 kata kunci populer.");
+      return;
+    }
+    updatePopularKeywords([...currentList, trimmed]);
+    setNewKeywordInput("");
+    setNotice(`Kata kunci "${trimmed}" berhasil ditambahkan.`);
+  };
+
+  const handleRemoveKeyword = (keywordToRemove: string) => {
+    const currentList = settings.search?.popular_keywords || [];
+    updatePopularKeywords(currentList.filter((k) => k !== keywordToRemove));
+  };
+
+  const handleResetKeywords = () => {
+    updatePopularKeywords([...DEFAULT_POPULAR_KEYWORDS]);
+    setNotice("Kata kunci pencarian populer telah dikembalikan ke rekomendasi bawaan.");
+  };
 
   useEffect(() => {
     getCurrentAdminAvatarAction()
@@ -200,19 +240,32 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
         setActiveSettingsTab(tab as typeof activeSettingsTab);
         if (shouldScroll) {
           setTimeout(() => {
+            if (typeof window !== "undefined" && window.location.hash.includes("stock-location")) {
+              const el = document.getElementById("storefront-stock-location");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+                return;
+              }
+            }
+            if (typeof window !== "undefined" && window.location.hash.includes("search-tags")) {
+              const el = document.getElementById("storefront-search-tags");
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+                return;
+              }
+            }
             if (tab === "branding") {
               const el = document.getElementById("storefront-branding-section") || document.getElementById("storefront-settings-tabs");
               if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
             } else if (tab === "features") {
               const el = document.getElementById("storefront-features-section") || document.getElementById("storefront-settings-tabs");
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            } else if (tab === "invoice") {
+              const el = document.getElementById("storefront-invoice-section") || document.getElementById("storefront-settings-tabs");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
             } else if (tab !== "all") {
               const el = document.getElementById("storefront-settings-tabs");
-              if (el) {
-                el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
             }
           }, 100);
         }
@@ -714,7 +767,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
           { id: "branches", label: "Cabang & Peta", icon: MapPin },
           { id: "reviews", label: "Ulasan Produk", icon: Star },
           { id: "store", label: "Profil & Rekening", icon: Phone },
-          { id: "invoice", label: "Faktur & Komplain", icon: FileText },
+          { id: "invoice", label: "Faktur & Pajak PPN (B2B)", icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSettingsTab === tab.id;
@@ -1752,6 +1805,156 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
                     ? "Aktif: Banner toko libur tampil di atas navbar."
                     : "Nonaktif: Banner toko libur dinonaktifkan."}
                 </p>
+              </div>
+
+              {/* Lokasi Fisik Stok Produk */}
+              <div id="storefront-stock-location" className="rounded-xl border border-border bg-background p-4 space-y-3 scroll-mt-28">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <Store className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">Status Lokasi Stok Fisik</h3>
+                      <p className="text-xs text-muted-foreground">Tampilkan informasi ketersediaan unit di gerai toko pada detail produk</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={Boolean(settings.features.stock_location_display_enabled)}
+                      onChange={(e) => updateFeatures("stock_location_display_enabled", e.target.checked)}
+                    />
+                    <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                {settings.features.stock_location_display_enabled && (
+                  <div className="space-y-3 pt-1 border-t border-border/60">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-foreground">Nama Cabang / Gudang Fisik:</label>
+                      <Input
+                        value={settings.features.stock_location_name ?? ""}
+                        onChange={(e) => updateFeatures("stock_location_name", e.target.value)}
+                        placeholder="Contoh: Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)"
+                        className="text-xs h-9"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Nama gerai fisik atau gudang utama tempat unit produk disimpan.</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-foreground">Keterangan Waktu / Kesiapan:</label>
+                      <Input
+                        value={settings.features.stock_location_lead_time ?? ""}
+                        onChange={(e) => updateFeatures("stock_location_lead_time", e.target.value)}
+                        placeholder="Contoh: Siap Diambil di Toko / Dikirim Cepat"
+                        className="text-xs h-9"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Keterangan kesiapan unit pembeli (misal: "Siap Diambil di Toko / Dikirim Cepat").</p>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {settings.features.stock_location_display_enabled
+                    ? "Aktif: Badge lokasi fisik toko & kesiapan unit tampil di halaman produk pembeli."
+                    : "Nonaktif: Keterangan lokasi stok disembunyikan."}
+                </p>
+              </div>
+            </div>
+
+            {/* KATA KUNCI PENCARIAN CEPAT POPULER (QUICK SEARCH MODAL ⌘K) */}
+            <div id="storefront-search-tags" className="rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-card p-5 sm:p-6 shadow-xs scroll-mt-24 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Search className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                      Kata Kunci Pencarian Cepat Populer
+                      <span className="rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-[11px] font-semibold">
+                        Modal ⌘K
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Atur tombol tag pencarian instan yang muncul di pop-up pencarian web sebelum pengunjung mengetik.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetKeywords}
+                    className="text-xs rounded-xl h-8.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <RefreshCw className="size-3.5 mr-1.5" />
+                    Pulihkan Bawaan
+                  </Button>
+                </div>
+              </div>
+
+              {/* Active Keywords Tags */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground mb-2.5">
+                  <span>Daftar Tag Aktif ({(settings.search?.popular_keywords || []).length})</span>
+                  <span className="text-[11px] font-normal text-muted-foreground/80">Klik tombol silang (✕) pada tag untuk menghapus</span>
+                </div>
+                {(settings.search?.popular_keywords || []).length > 0 ? (
+                  <div className="flex flex-wrap gap-2 p-3.5 rounded-xl border border-dashed border-border/80 bg-muted/20 min-h-[52px] items-center">
+                    {(settings.search?.popular_keywords || []).map((keyword) => (
+                      <span
+                        key={keyword}
+                        className="group inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-2xs transition-all hover:border-destructive/40"
+                      >
+                        <span>{keyword}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveKeyword(keyword)}
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full p-0.5 transition-colors cursor-pointer"
+                          aria-label={`Hapus kata kunci ${keyword}`}
+                          title="Hapus"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground bg-muted/10">
+                    Belum ada kata kunci pencarian populer yang aktif. Tambahkan kata kunci di bawah ini atau klik &quot;Pulihkan Bawaan&quot;.
+                  </div>
+                )}
+              </div>
+
+              {/* Form Tambah Kata Kunci Baru */}
+              <form onSubmit={handleAddKeyword} className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    value={newKeywordInput}
+                    onChange={(e) => setNewKeywordInput(e.target.value)}
+                    placeholder="Ketik kata kunci baru (contoh: Monitor Gaming, ASUS ROG, Core i7, SSD 1TB, RAM 32GB)..."
+                    maxLength={40}
+                    className="pl-9 h-11 rounded-xl text-xs sm:text-sm bg-muted/20"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={!newKeywordInput.trim()}
+                  className="h-11 rounded-xl px-5 text-xs sm:text-sm font-semibold shrink-0 cursor-pointer"
+                >
+                  <Plus className="size-4 mr-1.5" />
+                  Tambah Kata Kunci
+                </Button>
+              </form>
+
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground leading-relaxed flex items-start gap-2">
+                <span className="text-base select-none">💡</span>
+                <span>
+                  <strong>Tips:</strong> Kata kunci yang Anda atur di sini akan langsung muncul sebagai tombol tag cepat di modal pencarian pop-up toko (⌘K). Pengunjung cukup mengklik tag untuk langsung disaringkan ke produk terkait secara otomatis.
+                </span>
               </div>
             </div>
           </div>
@@ -3320,6 +3523,76 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
               <p className="text-xs text-muted-foreground">
                 Panduan komplain yang tampil pada box bantuan pesanan pelanggan.
               </p>
+            </div>
+
+            {/* Opsi Faktur Pajak B2B */}
+            <div className="space-y-4 md:col-span-2 rounded-2xl border border-border/80 bg-slate-50/50 dark:bg-white/5 p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <FileText className="size-4 text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">
+                      Opsi Permintaan Faktur Pajak PPN (B2B)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Izinkan pembeli meminta faktur pajak / e-Faktur PPN saat checkout dan melampirkan identitas NPWP perusahaan.
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={Boolean(settings.invoice?.tax_invoice_enabled)}
+                    onChange={(e) => updateInvoice("tax_invoice_enabled", e.target.checked)}
+                  />
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
+              {settings.invoice?.tax_invoice_enabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-border/60 animate-in fade-in duration-200">
+                  <div className="space-y-1 sm:col-span-1">
+                    <label className="text-xs font-semibold text-foreground">
+                      Tarif PPN (%)
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={settings.invoice?.tax_rate_percent ?? 11}
+                      onChange={(e) => updateInvoice("tax_rate_percent", Number(e.target.value) || 11)}
+                      className="rounded-xl h-9 text-xs font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Standar PPN Indonesia saat ini: 11%.</p>
+                  </div>
+                  <div className="space-y-1 sm:col-span-1">
+                    <label className="text-xs font-semibold text-foreground">
+                      Nama PKP / Badan Usaha Penjual
+                    </label>
+                    <Input
+                      value={settings.invoice?.company_tax_name ?? ""}
+                      onChange={(e) => updateInvoice("company_tax_name", e.target.value)}
+                      placeholder="Contoh: CV NEXT SOLUTION"
+                      className="rounded-xl h-9 text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Tercetak di faktur sebagai nama PKP Penjual.</p>
+                  </div>
+                  <div className="space-y-1 sm:col-span-1">
+                    <label className="text-xs font-semibold text-foreground">
+                      NPWP PKP Penjual
+                    </label>
+                    <Input
+                      value={settings.invoice?.company_npwp ?? ""}
+                      onChange={(e) => updateInvoice("company_npwp", e.target.value)}
+                      placeholder="Contoh: 01.234.567.8-012.000"
+                      className="rounded-xl h-9 text-xs font-mono"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Nomor NPWP resmi penjual untuk penerbitan e-Faktur.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

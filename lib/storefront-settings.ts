@@ -150,6 +150,21 @@ export function extractCoordinatesFromLocation(
   return { lat: -6.9185411, lng: 107.6165665, detectedCity: "Bandung" };
 }
 
+export type StoreSearchSettings = {
+  popular_keywords: string[];
+};
+
+export const DEFAULT_POPULAR_KEYWORDS: string[] = [
+  "Laptop Gaming",
+  "Lenovo IdeaPad",
+  "ASUS ROG",
+  "Apple MacBook",
+  "Core i5",
+  "SSD NVMe",
+  "RAM 16GB",
+  "RTX",
+];
+
 export type StoreInvoiceSettings = {
   header_subtitle?: string;
   header_style?: "minimalist" | "creative";
@@ -157,6 +172,10 @@ export type StoreInvoiceSettings = {
   guarantee_note?: string;
   complaint_whatsapp?: string;
   complaint_instructions?: string;
+  tax_invoice_enabled?: boolean;
+  tax_rate_percent?: number;
+  company_tax_name?: string;
+  company_npwp?: string;
 };
 
 export type StorefrontSettings = {
@@ -194,6 +213,7 @@ export type StorefrontSettings = {
   voucher_targeting?: Record<string, VoucherTargeting>;
   features: StoreFeaturesSettings;
   invoice: StoreInvoiceSettings;
+  search: StoreSearchSettings;
   legal?: {
     terms?: import('@/lib/legal-content').LegalDocument;
     privacy?: import('@/lib/legal-content').LegalDocument;
@@ -233,6 +253,11 @@ export type StoreFeaturesSettings = {
   // CS & Asisten AI
   whatsapp_chat_button: boolean;
   ai_recommendation_chat: boolean;
+
+  // Lokasi Fisik Stok
+  stock_location_display_enabled?: boolean;
+  stock_location_name?: string;
+  stock_location_lead_time?: string;
 };
 
 export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
@@ -257,6 +282,9 @@ export const DEFAULT_STORE_FEATURES: StoreFeaturesSettings = {
   product_guarantee_badges: true,
   whatsapp_chat_button: true,
   ai_recommendation_chat: true,
+  stock_location_display_enabled: false,
+  stock_location_name: "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)",
+  stock_location_lead_time: "Siap Diambil di Toko / Dikirim Cepat",
 };
 
 export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
@@ -286,6 +314,9 @@ export function normalizeStoreFeatures(raw: unknown): StoreFeaturesSettings {
     product_guarantee_badges: item.product_guarantee_badges !== false,
     whatsapp_chat_button: item.whatsapp_chat_button !== false,
     ai_recommendation_chat: item.ai_recommendation_chat !== false,
+    stock_location_display_enabled: Boolean(item.stock_location_display_enabled),
+    stock_location_name: typeof item.stock_location_name === "string" && item.stock_location_name.trim() ? item.stock_location_name.trim() : (DEFAULT_STORE_FEATURES.stock_location_name ?? "Gerai Utama Next Solution Bandung (Jl. Kartini No. 09)"),
+    stock_location_lead_time: typeof item.stock_location_lead_time === "string" && item.stock_location_lead_time.trim() ? item.stock_location_lead_time.trim() : (DEFAULT_STORE_FEATURES.stock_location_lead_time ?? "Siap Diambil di Toko / Dikirim Cepat"),
   };
 }
 
@@ -442,6 +473,9 @@ export const DEFAULT_STOREFRONT_SETTINGS: StorefrontSettings = {
   admin_audit_logs: [],
   voucher_targeting: {},
   features: DEFAULT_STORE_FEATURES,
+  search: {
+    popular_keywords: DEFAULT_POPULAR_KEYWORDS,
+  },
   invoice: {
     header_subtitle: "Pusat Komputer, Laptop & Solusi Elektronik Resmi",
     header_style: "minimalist",
@@ -720,6 +754,14 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
         ? (input.voucher_targeting as Record<string, VoucherTargeting>)
         : {},
     features: normalizeStoreFeatures((input as { features?: unknown })?.features),
+    search: {
+      popular_keywords: Array.isArray((input as { search?: { popular_keywords?: unknown } })?.search?.popular_keywords)
+        ? (input as { search?: { popular_keywords?: unknown[] } }).search!.popular_keywords!
+            .map((k) => (typeof k === "string" ? k.trim() : ""))
+            .filter((k) => Boolean(k) && k.length <= 50)
+            .slice(0, 25)
+        : DEFAULT_POPULAR_KEYWORDS,
+    },
     invoice: {
       header_subtitle:
         (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.header_subtitle !== undefined &&
@@ -750,6 +792,10 @@ export function normalizeStorefrontSettings(value: unknown): StorefrontSettings 
         (input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.complaint_instructions !== ""
           ? String((input as { invoice?: Partial<StoreInvoiceSettings> }).invoice!.complaint_instructions).trim()
           : "Ajukan komplain pesanan atau klaim garansi langsung melalui WhatsApp Admin dengan menyertakan nomor faktur dan video unboxing utuh.",
+      tax_invoice_enabled: Boolean((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_invoice_enabled),
+      tax_rate_percent: Number((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_rate_percent) > 0 ? Number((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.tax_rate_percent) : 11,
+      company_tax_name: String((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.company_tax_name ?? "").trim(),
+      company_npwp: String((input as { invoice?: Partial<StoreInvoiceSettings> })?.invoice?.company_npwp ?? "").trim(),
     },
   };
 }

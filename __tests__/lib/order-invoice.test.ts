@@ -122,5 +122,35 @@ describe("OrderInvoice Data Structure & Logic", () => {
     expect(sampleStorefront.bankAccounts?.[0].account_number).toBe("8320192831");
     expect(sampleStorefront.storeEmail).toBe("support@nextsolution.com");
   });
+
+  it("handles B2B tax invoice data and accurately computes tax-inclusive DPP & PPN", () => {
+    const taxOrder: InvoiceOrderData = {
+      ...sampleOrder,
+      grand_total: 11100000, // Rp 11.100.000 (tax-inclusive 11%)
+      shipping_address: {
+        ...sampleOrder.shipping_address,
+        tax_invoice: {
+          requested: true,
+          company_name: "PT Solusi Teknologi Indonesia",
+          npwp: "01.234.567.8-123.000",
+          tax_address: "Kawasan Industri MM2100, Cikarang",
+          tax_percent: 11,
+        },
+      },
+    };
+
+    expect(taxOrder.shipping_address?.tax_invoice?.requested).toBe(true);
+    expect(taxOrder.shipping_address?.tax_invoice?.company_name).toBe("PT Solusi Teknologi Indonesia");
+    expect(taxOrder.shipping_address?.tax_invoice?.npwp).toBe("01.234.567.8-123.000");
+
+    const taxRate = taxOrder.shipping_address?.tax_invoice?.tax_percent ?? 11;
+    const grandTotal = taxOrder.grand_total;
+    const dpp = Math.round(grandTotal / (1 + taxRate / 100));
+    const ppn = grandTotal - dpp;
+
+    expect(dpp).toBe(10000000); // Rp 10.000.000
+    expect(ppn).toBe(1100000);   // Rp 1.100.000
+    expect(dpp + ppn).toBe(grandTotal);
+  });
 });
 

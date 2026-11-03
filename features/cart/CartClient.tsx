@@ -117,7 +117,7 @@ export function CartClient({
       router.push("/checkout");
     } catch (err) {
       if (err instanceof Error && err.message === "Unauthorized") {
-        router.push("/login?redirect=/checkout");
+        router.push("/login?redirect=/checkout&notice=checkout");
       } else {
         router.push("/checkout");
       }

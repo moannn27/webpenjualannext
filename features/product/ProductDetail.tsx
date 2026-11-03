@@ -12,6 +12,7 @@ import {
   Share2,
   Plus,
   Minus,
+  MapPin,
   Store,
   Headphones,
   X,
@@ -66,6 +67,10 @@ interface ProductDetailProps {
   product: ProductDetailData;
   reviews?: ProductReview[];
   initialCartQuantities?: { variant_id: string | null; quantity: number }[];
+  stockLocation?: {
+    name: string;
+    leadTime: string;
+  };
 }
 
 type ProductGalleryImage = {
@@ -79,7 +84,7 @@ type ProductGalleryImage = {
 
 const FALLBACK_PRODUCT_IMAGE = "/product-image-unavailable.svg";
 
-export function ProductDetail({ product, reviews = [], initialCartQuantities = [] }: ProductDetailProps) {
+export function ProductDetail({ product, reviews = [], initialCartQuantities = [], stockLocation }: ProductDetailProps) {
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
   const variants = useMemo(() => product.product_variants ?? [], [product.product_variants]);
@@ -275,7 +280,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
           "Silakan Masuk Terlebih Dahulu",
           "Anda perlu login untuk menambahkan produk ke keranjang."
         );
-        router.push(`/login?redirect=/product/${product.id}`);
+        router.push(`/login?redirect=/product/${product.id}&notice=cart`);
       } else {
         const rawMsg = error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.";
         const lower = rawMsg.toLowerCase();
@@ -321,7 +326,7 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     } catch (error) {
       if (error instanceof Error && error.message === "Unauthorized") {
         toast.warning("Silakan Masuk", "Masuk untuk menyimpan produk ke wishlist.");
-        router.push(`/login?redirect=/product/${product.id}`);
+        router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
       } else {
         toast.error("Gagal Wishlist", "Wishlist gagal diperbarui.");
         setFeedback("Wishlist gagal diperbarui.");
@@ -627,6 +632,18 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
                 {availableStock > 0 ? (selectedCartQuantity ? `Stok ${availableStock} · ${selectedCartQuantity} di keranjang · ${remainingStock} bisa ditambah` : `${availableStock} unit tersedia` ) : "Varian ini sedang habis"}
               </span>
             </div>
+
+            {stockLocation && availableStock > 0 && (
+              <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2.5 text-xs text-foreground animate-in fade-in duration-200">
+                <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                  <span className="font-semibold text-emerald-950 dark:text-emerald-200">Stok Fisik Toko:</span>
+                  <span className="text-muted-foreground truncate">{stockLocation.name}</span>
+                  <span className="text-muted-foreground/60">•</span>
+                  <span className="font-medium text-emerald-700 dark:text-emerald-400">{stockLocation.leadTime}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <Button disabled={loading || remainingStock <= 0 || quantity > remainingStock} onClick={handleAddToCart} size="lg" className="rounded-full w-full h-14 text-lg mb-8">

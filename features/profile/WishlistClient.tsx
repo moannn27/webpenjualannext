@@ -90,23 +90,23 @@ export function WishlistClient({ initialWishlist }: { initialWishlist: WishlistI
               } as unknown as StoreProduct);
 
               return (
-                <div key={item.id} className="relative group/wishlist flex flex-col">
+                <div key={item.id} className="group/wishlist flex flex-col justify-between rounded-2xl transition-all">
                   <ProductCard product={storefrontProduct} />
-                  {/* Delete Button on top-right */}
-                  <button
+                  <Button
                     type="button"
-                    aria-label={`Hapus ${rawProduct.name} dari wishlist`}
+                    variant="ghost"
+                    size="sm"
                     disabled={busyId === item.product_id}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void remove(item.product_id);
-                    }}
-                    className="absolute top-2.5 right-2.5 z-20 size-8 rounded-full bg-white/95 dark:bg-slate-900/95 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-slate-200/80 dark:border-white/10 shadow-sm flex items-center justify-center transition-all hover:scale-110 cursor-pointer disabled:opacity-50"
-                    title="Hapus dari Wishlist"
+                    onClick={() => void remove(item.product_id)}
+                    className="w-full mt-2.5 h-9 rounded-xl border border-slate-200/80 dark:border-white/10 text-xs font-semibold text-muted-foreground hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/70 dark:hover:bg-rose-950/30 transition-all gap-1.5 cursor-pointer disabled:opacity-50"
                   >
-                    {busyId === item.product_id ? <LoaderCircle className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
-                  </button>
+                    {busyId === item.product_id ? (
+                      <LoaderCircle className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    <span>Hapus dari Wishlist</span>
+                  </Button>
                 </div>
               );
             })}

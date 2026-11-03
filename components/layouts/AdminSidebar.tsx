@@ -32,9 +32,12 @@ import {
   RefreshCw,
   Info,
   FileText,
+  MapPin,
+  ReceiptText,
   MessageSquareText,
   MessageCircleQuestion,
   ShieldCheck,
+  Search,
 } from "lucide-react";
 
 export function AdminSidebar({
@@ -141,11 +144,13 @@ export function AdminSidebar({
       links: [
         { name: "Produk", href: "/admin/products", icon: Package, permission: "products" as AdminModuleKey },
         { name: "Sinkronisasi Stok", href: "/admin/stock-sync", icon: RefreshCw, permission: "products" as AdminModuleKey },
+        { name: "Lokasi Stok Gerai", href: "/admin/content?tab=features#storefront-stock-location", icon: MapPin, permission: "content" as AdminModuleKey },
         { name: "Kategori", href: "/admin/categories", icon: Tags, permission: "categories" as AdminModuleKey },
         { name: "Brand", href: "/admin/brands", icon: Store, permission: "brands" as AdminModuleKey },
         { name: "Pesanan", href: "/admin/orders", icon: ShoppingCart, permission: "orders" as AdminModuleKey },
         { name: "Ulasan Produk", href: "/admin/reviews", icon: MessageSquareText, permission: "content" as AdminModuleKey },
         { name: "Faktur Manual", href: "/admin/invoices", icon: FileText, permission: "invoices" as AdminModuleKey },
+        { name: "Pajak & Faktur (B2B)", href: "/admin/content?tab=invoice", icon: ReceiptText, permission: "content" as AdminModuleKey },
         { name: "Voucher", href: "/admin/vouchers", icon: TicketPercent, permission: "vouchers" as AdminModuleKey },
         { name: "Pelanggan & Staf", href: "/admin/customers", icon: Users, permission: "customers" as AdminModuleKey },
       ],
@@ -158,6 +163,7 @@ export function AdminSidebar({
         { name: "FAQ (Tanya Jawab)", href: "/admin/faq", icon: MessageCircleQuestion, permission: "content" as AdminModuleKey },
         { name: "Syarat & Kebijakan", href: "/admin/legal", icon: ShieldCheck, permission: "content" as AdminModuleKey },
         { name: "Fitur & Pengaturan", href: "/admin/content?tab=features", icon: SlidersHorizontal, permission: "content" as AdminModuleKey },
+        { name: "Pencarian Populer (⌘K)", href: "/admin/content?tab=features#storefront-search-tags", icon: Search, permission: "content" as AdminModuleKey },
       ],
     },
   ];
@@ -176,14 +182,21 @@ export function AdminSidebar({
           {group.title}
         </h2>
         {group.links.map((link) => {
-          const isFeaturesLink = link.href.includes("tab=features");
+          const isInvoiceLink = link.href.includes("tab=invoice");
+          const isStockLocationLink = link.href.includes("stock-location");
+          const isSearchTagsLink = link.href.includes("search-tags");
+          const isFeaturesLink = link.href.includes("tab=features") && !isStockLocationLink && !isSearchTagsLink;
           const isLandingPageLink = link.href === "/admin/content";
 
           let isActive = false;
-          if (isFeaturesLink) {
+          if (isInvoiceLink) {
+            isActive = pathname === "/admin/content" && currentTab === "invoice";
+          } else if (isStockLocationLink) {
+            isActive = pathname === "/admin/content" && (currentTab === "features" || currentTab === "all");
+          } else if (isFeaturesLink) {
             isActive = pathname === "/admin/content" && currentTab === "features";
           } else if (isLandingPageLink) {
-            isActive = pathname === "/admin/content" && currentTab !== "features";
+            isActive = pathname === "/admin/content" && (!currentTab || currentTab === "branding" || currentTab === "sections");
           } else {
             isActive = pathname === link.href || (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
           }
@@ -200,7 +213,28 @@ export function AdminSidebar({
                 if (typeof window !== "undefined" && pathname !== link.href) {
                   window.dispatchEvent(new CustomEvent("app:start-loading"));
                 }
-                if (isFeaturesLink) {
+                if (isInvoiceLink) {
+                  setCurrentTab("invoice");
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "invoice" }));
+                  if (pathname === "/admin/content") {
+                    const el = document.getElementById("storefront-invoice-section") || document.getElementById("storefront-settings-tabs");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                } else if (isStockLocationLink) {
+                  setCurrentTab("features");
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "features" }));
+                  if (pathname === "/admin/content") {
+                    const el = document.getElementById("storefront-stock-location") || document.getElementById("storefront-features-section");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                } else if (isSearchTagsLink) {
+                  setCurrentTab("features");
+                  window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "features" }));
+                  if (pathname === "/admin/content") {
+                    const el = document.getElementById("storefront-search-tags") || document.getElementById("storefront-features-section");
+                    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                } else if (isFeaturesLink) {
                   setCurrentTab("features");
                   window.dispatchEvent(new CustomEvent("admin-switch-tab", { detail: "features" }));
                   if (pathname === "/admin/content") {

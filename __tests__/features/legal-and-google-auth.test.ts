@@ -145,7 +145,7 @@ describe("Legal Pages - Privacy Policy & Terms and Conditions", () => {
       // Must display error notice
       expect(html).toContain("Google Identity Services tidak tersedia");
       // Must NOT automatically redirect; fallback is available ONLY as an explicit secondary button
-      expect(html).toContain("Gunakan OAuth Redirect Cadangan (Supabase)");
+      expect(html).toContain("Gunakan Login Google Alternatif");
     });
 
     it("executes signInWithIdToken and avoids signInWithOAuth during GIS callback", async () => {

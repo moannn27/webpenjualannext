@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function CheckoutPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login?redirect=/checkout");
+  if (!user) redirect("/login?redirect=/checkout&notice=checkout");
 
   const cart = await getCartAction();
 
@@ -70,6 +70,7 @@ export default async function CheckoutPage() {
       features={sfSettings.features}
       storeWhatsapp={sfSettings.store.whatsapp || "6281234567890"}
       storeName={sfSettings.pickup_info.store_name || "Next Solution Store"}
+      invoiceSettings={sfSettings.invoice}
     />
   );
 }

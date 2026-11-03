@@ -336,7 +336,7 @@ export function PagedProductCatalog({
               Menampilkan <strong className="font-semibold text-foreground">{total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)}</strong> dari <strong className="font-semibold text-foreground">{total.toLocaleString("id-ID")}</strong> produk
             </span>
           </div>
-          <span className="text-xs text-muted-foreground/80">{pageSize} produk per halaman · diatur super admin</span>
+          <span className="text-xs text-muted-foreground/80">{pageSize} produk per halaman</span>
         </div>
 
         {/* Products Grid */}

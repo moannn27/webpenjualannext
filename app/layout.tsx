@@ -134,7 +134,7 @@ export default async function RootLayout({
         <ConfirmDialog />
         <ToastNotification />
         <ProductShareModal />
-        <QuickSearchModal />
+        <QuickSearchModal popularKeywords={settings.search.popular_keywords} />
         <StorefrontChrome
           currentUserId={currentUserId}
           cartCount={cartCount}
