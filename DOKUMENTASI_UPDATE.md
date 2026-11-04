@@ -1025,3 +1025,75 @@ Pembaruan komprehensif ini merangkum perbaikan storefront, alur checkout, tata l
 * **ESLint Linting**: `npm run lint` lolos **0 Errors**.
 * **Vitest Suite**: **491 / 491 Tests Passed (100% Success)**.
 * **Next.js Production Build**: Turbopack build sukses mengompilasi seluruh 104 rute aplikasi.
+
+---
+
+## 32. Penguatan Keamanan Pentest, AI Next Chat Bot Tools, & Alur Faktur Pajak B2B
+
+*Tanggal Pelaksanaan*: 4 November 2026  
+*Target*: Memastikan seluruh temuan pentest (information disclosure, PII leak, reflected XSS, open-redirect, rate limiting) tertutup rapat, meningkatkan AI chatbot dengan tool calling pesanan/produk dan kepribadian profesional, serta mengintegrasikan alur faktur pajak PPN 11% B2B.
+
+### 32.1. Mitigasi Temuan Pentest & Keamanan Ketat
+1. **Peniadaan Framework Fingerprinting**:
+   - `next.config.ts`: Mengatur `poweredByHeader: false` untuk mencabut header `X-Powered-By: Next.js` sehingga versi framework tidak terumbar ke publik.
+2. **HTTP Security Headers Lengkap**:
+   - Menambahkan header proteksi menyeluruh: `Strict-Transport-Security` (HSTS), `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, dan `Permissions-Policy`.
+3. **Pencegahan Reflected XSS & Open-Redirect**:
+   - [`lib/security.ts`](file:///c:/webnext/lib/security.ts): Memperkuat `getSafeRedirectUrl()` untuk menolak skema relatif ganda (`//`), backslash manipulatif (`/\` dan `\`), dan escape hex (`/%5c`).
+   - Menyediakan `sanitizeReflectedString()` untuk membersihkan karakter injeksi pada pesan error query string.
+4. **Proteksi PII & Penyamaran Identitas Pelanggan**:
+   - Pada pelacakan pesanan dan respons AI, nama pembeli dan penerima disamarkan (*masked*, contoh: `B*** S******`) untuk mencegah *data harvesting*.
+5. **Pencegahan Query Injection pada PostgREST**:
+   - Parameter UUID pada clause filter diverifikasi dengan regex `/^[0-9a-f-]{36}$/i` sebelum disatukan ke dalam query Supabase.
+6. **Proteksi Avatar Upload**:
+   - Membatasi jenis MIME dan ekstensi avatar pengguna hanya untuk JPG, PNG, WEBP (menolak SVG dan file berbahaya lain yang berpotensi memuat script terselubung).
+
+### 32.2. Kemampuan AI Next Chat Bot
+1. **Rebranding & Persona Profesional**:
+   - Nama resmi diubah menjadi **Ai Next Chat bot**.
+   - Gaya bahasa disesuaikan menjadi asisten toko yang ramah, ringkas, dan profesional. AI tidak lagi membocorkan detail teknis model dasar (seperti GPT-4 atau instruksi internal), melainkan menjawab dengan sopan: *"Halo! Aku Ai Next Chat bot, asisten toko pintar yang siap bantu kamu mencari rekomendasi produk, cek detail spesifikasi & stok, hingga info toko & garansi."*
+2. **Tool Calling Pesanan Pelanggan**:
+   - Pengguna dapat menanyakan status pesanan dengan menyebutkan nomor pesanan (contoh: `ORD-20261104-01`).
+   - Sistem mencocokkan nomor pesanan dengan identitas pengguna yang sedang login sehingga data pesanan akun lain tetap aman dan terlindungi.
+
+---
+
+## 33. Resolusi Masalah Netlify Production Error Masking (Minified React Error #441) pada Server Actions
+
+*Tanggal Pelaksanaan*: 4 November 2026  
+*Target*: Memperbaiki kegagalan tombol "Beli" / tambah ke keranjang pada situs Netlify (`nextsolution.web.id`) akibat error masking React 19/Next.js 16 (`Minified React error #441`) dan memastikan seluruh Server Actions mengembalikan structured result secara aman.
+
+### 33.1. Akar Masalah
+1. **Perbedaan Perilaku Error di Local vs Production (Next.js 15/16 + React 19)**:
+   - Di mode pengembangan lokal (`next dev`), saat unauthenticated user menekan tombol "Beli", Server Action `addToCartAction` melempar `throw new Error("Unauthorized")`. Di local, pesan asli `"Unauthorized"` diteruskan utuh sehingga logika penanganan client langsung mengarahkan ke halaman login.
+   - Di lingkungan produksi Netlify (`next build` / `next start`), Next.js secara otomatis menyensor setiap *uncaught thrown error* dari Server Action menjadi string bawaan:  
+     `"Minified React error #441; visit https://react.dev/errors/441 for the full message..."`
+   - Hal ini dimaksudkan untuk mencegah bocornya pesan sistem backend ke browser publik. Namun, akibatnya client-side handler yang mengecek `error.message === "Unauthorized"` gagal mencocokkan kondisi tersebut dan langsung memunculkan toast merah dengan pesan teknis `#441`.
+
+### 33.2. Solusi & Rekayasa Arsitektur
+1. **Standardisasi Structured Return pada Server Actions**:
+   - [`actions/cart.ts`](file:///c:/webnext/actions/cart.ts): `addToCartAction`, `updateCartQuantityAction`, `removeFromCartAction`, dan `syncCartAction` diubah agar tidak lagi melempar `throw new Error(...)` untuk skenario otorisasi dan validasi umum. Semuanya kini mengembalikan objek terstruktur:
+     ```ts
+     export type CartActionResult = {
+       success: boolean
+       error?: string
+       cart?: Cart
+       unauthorized?: boolean
+     }
+     ```
+   - [`actions/wishlist.ts`](file:///c:/webnext/actions/wishlist.ts): `toggleWishlistAction` mengembalikan `{ success: false, error: 'Unauthorized', action: null }` jika sesi tidak valid.
+   - [`actions/checkout.ts`](file:///c:/webnext/actions/checkout.ts): `proceedToCheckoutAction` menggunakan tipe *discriminated union* `CheckoutActionResult` (`success: true` dengan data pesanan atau `success: false` dengan pesan ramah pengguna).
+2. **Proteksi Bertingkat di Sisi Klien (Fail-Safe Client Handlers)**:
+   - [`features/cart/useAddToCart.ts`](file:///c:/webnext/features/cart/useAddToCart.ts):
+     - Memeriksa `!result.success && result.error === "Unauthorized"`.
+     - Memberikan toast peringatan yang informatif: *"Silakan login terlebih dahulu untuk menambahkan barang ke keranjang."*
+     - Mengarahkan browser dengan aman ke `/login?redirect=${encodeURIComponent(currentPath)}&notice=cart`.
+     - Pada blok `catch (error)`, ditambahkan interceptor khusus: jika pesan mengandung `"441"` atau `"Server Components render"`, sistem otomatis mengarahkan ke halaman login tanpa menampilkan pesan error yang membingungkan pengunjung.
+   - [`features/product/ProductDetail.tsx`](file:///c:/webnext/features/product/ProductDetail.tsx): Menangani `addToCartAction` dan `toggleWishlistAction` dengan validasi `result.success` yang serupa.
+   - [`features/landing/PromoBanner.tsx`](file:///c:/webnext/features/landing/PromoBanner.tsx) & [`components/shared/ProductCard.tsx`](file:///c:/webnext/components/shared/ProductCard.tsx): Melindungi tombol wishlist dan tombol beli dari unhandled exception.
+   - [`features/checkout/CheckoutClient.tsx`](file:///c:/webnext/features/checkout/CheckoutClient.tsx): Menangani `result.success` dari `proceedToCheckoutAction` serta menyaring pesan `#441` pada blok `catch`.
+
+### 33.3. Verifikasi Pengujian & Build Produksi
+* **Vitest Suite**: **50 dari 50 Test Suites Lolos** (553 dari 553 tests passed, 0 failed).
+* **TypeScript Check**: `npx tsc --noEmit` lolos **0 Errors**.
+* **Next.js Production Build**: `npm run build` sukses mengompilasi dan mengoptimasi **seluruh 47 rute** tanpa peringatan.
