@@ -35,7 +35,7 @@ const money = (value: number) => `Rp ${Number(value ?? 0).toLocaleString("id-ID"
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; search?: string; sort?: string }>;
+  searchParams: Promise<{ status?: string; search?: string; sort?: string; page?: string }>;
 }) {
   try {
     await requireModulePermission("orders");
@@ -46,7 +46,7 @@ export default async function AdminOrdersPage({
   const { role, permissions } = await getCurrentAdminPermissions();
   const isSuperAdmin = role === "super_admin";
   const canDeleteOrder = isSuperAdmin || permissions.includes("delete_orders");
-  const { status: filterStatus = "", search: filterSearch = "", sort: sortOption = "date_desc" } = (await searchParams) ?? {};
+  const { status: filterStatus = "", search: filterSearch = "", sort: sortOption = "date_desc", page: pageParam = "1" } = (await searchParams) ?? {};
   const orders = await getAdminOrdersAction();
 
   const isTaxInvoiceOrder = (o: (typeof orders)[number]) => {
@@ -113,6 +113,24 @@ export default async function AdminOrdersPage({
     }
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  const PAGE_SIZE = 15;
+  const totalOrders = sortedOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalOrders / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, parseInt(pageParam, 10) || 1), totalPages);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const pagedOrders = sortedOrders.slice(startIndex, startIndex + PAGE_SIZE);
+
+  const createPageUrl = (targetPage: number) => {
+    const params = new URLSearchParams();
+    if (filterStatus) params.set("status", filterStatus);
+    if (filterSearch) params.set("search", filterSearch);
+    if (sortOption && sortOption !== "date_desc") params.set("sort", sortOption);
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/admin/orders?${qs}` : "/admin/orders";
+  };
+
 
   return (
     <div className="space-y-6 pb-12">
@@ -339,7 +357,7 @@ export default async function AdminOrdersPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedOrders.map((order) => {
+              {pagedOrders.map((order) => {
                 const payment = order.payments?.[0];
                 const isPickup = order.courier === "pickup";
                 const address = order.shipping_address as Record<string, unknown> | null;
@@ -381,7 +399,7 @@ export default async function AdminOrdersPage({
                 return (
                   <TableRow
                     key={order.id}
-                    className="border-b border-slate-100/80 dark:border-white/5 hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors group"
+                    className="table-row-optimized border-b border-slate-100/80 dark:border-white/5 hover:bg-slate-50/70 dark:hover:bg-white/5 transition-colors group"
                   >
                     {/* 1. No. Pesanan */}
                     <TableCell className="py-4">
@@ -562,52 +580,69 @@ export default async function AdminOrdersPage({
           </Table>
         </div>
 
-        {/* 5. Pagination Footer (Matching Reference Screenshot: 1-7 sur 141 & < 1 2 3 ... 20 >) */}
+        {/* 5. Pagination Footer */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-slate-100 dark:border-white/5 text-xs text-slate-500">
           <div>
-            <span>Menampilkan 1 - {sortedOrders.length} dari {orders.length} pesanan</span>
+            <span>
+              Menampilkan {totalOrders > 0 ? startIndex + 1 : 0} - {Math.min(startIndex + PAGE_SIZE, totalOrders)} dari {totalOrders} pesanan
+              {totalOrders !== orders.length && ` (disaring dari total ${orders.length})`}
+            </span>
           </div>
 
-          <div className="flex items-center gap-1.5 self-center">
-            <button
-              type="button"
-              disabled
-              className="size-8 rounded-lg border border-slate-200/80 dark:border-white/10 flex items-center justify-center text-slate-400 disabled:opacity-40 cursor-not-allowed"
-            >
-              &lt;
-            </button>
-            <button
-              type="button"
-              className="size-8 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold flex items-center justify-center shadow-2xs"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="size-8 rounded-lg border border-slate-200/60 dark:border-white/5 hover:bg-slate-50 flex items-center justify-center text-slate-600 dark:text-slate-300"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              className="size-8 rounded-lg border border-slate-200/60 dark:border-white/5 hover:bg-slate-50 flex items-center justify-center text-slate-600 dark:text-slate-300"
-            >
-              3
-            </button>
-            <span className="px-1 text-slate-400">...</span>
-            <button
-              type="button"
-              className="size-8 rounded-lg border border-slate-200/60 dark:border-white/5 hover:bg-slate-50 flex items-center justify-center text-slate-600 dark:text-slate-300"
-            >
-              {Math.max(1, Math.ceil(orders.length / 10))}
-            </button>
-            <button
-              type="button"
-              className="size-8 rounded-lg border border-slate-200/80 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50"
-            >
-              &gt;
-            </button>
-          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5 self-center">
+              {currentPage > 1 ? (
+                <Link
+                  href={createPageUrl(currentPage - 1)}
+                  className="size-8 rounded-lg border border-slate-200/80 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-2xs cursor-pointer"
+                  aria-label="Halaman sebelumnya"
+                >
+                  &lt;
+                </Link>
+              ) : (
+                <span className="size-8 rounded-lg border border-slate-200/40 dark:border-white/5 flex items-center justify-center text-slate-300 dark:text-slate-600 opacity-50 cursor-not-allowed">
+                  &lt;
+                </span>
+              )}
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
+                  const isActive = p === currentPage;
+                  return (
+                    <Link
+                      key={p}
+                      href={createPageUrl(p)}
+                      className={`size-8 rounded-lg flex items-center justify-center text-xs font-bold transition shadow-2xs cursor-pointer ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "border border-slate-200/80 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      {p}
+                    </Link>
+                  );
+                }
+                if (p === currentPage - 2 || p === currentPage + 2) {
+                  return <span key={p} className="px-1 text-slate-400">...</span>;
+                }
+                return null;
+              })}
+
+              {currentPage < totalPages ? (
+                <Link
+                  href={createPageUrl(currentPage + 1)}
+                  className="size-8 rounded-lg border border-slate-200/80 dark:border-white/10 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition shadow-2xs cursor-pointer"
+                  aria-label="Halaman selanjutnya"
+                >
+                  &gt;
+                </Link>
+              ) : (
+                <span className="size-8 rounded-lg border border-slate-200/40 dark:border-white/5 flex items-center justify-center text-slate-300 dark:text-slate-600 opacity-50 cursor-not-allowed">
+                  &gt;
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

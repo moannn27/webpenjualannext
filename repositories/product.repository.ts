@@ -157,8 +157,9 @@ export class ProductRepository extends BaseRepository {
     if (options.categoryId) query = query.eq('category_id', options.categoryId)
     if (options.brandId) query = query.eq('brand_id', options.brandId)
     if (options.promoOnly) {
-      if (options.promoProductIds && options.promoProductIds.length > 0) {
-        query = query.or(`discount_price.not.is.null,is_featured.eq.true,id.in.(${options.promoProductIds.join(',')})`)
+      const validPromoIds = (options.promoProductIds || []).filter(id => /^[0-9a-f-]{36}$/i.test(id));
+      if (validPromoIds.length > 0) {
+        query = query.or(`discount_price.not.is.null,is_featured.eq.true,id.in.(${validPromoIds.join(',')})`)
       } else {
         query = query.or('discount_price.not.is.null,is_featured.eq.true')
       }

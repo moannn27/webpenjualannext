@@ -34,7 +34,13 @@ const SERIES: Record<string, string> = {
   soulmate: "Advan", workmate: "Advan", nitro: "Acer", tuf: "ASUS", rog: "ASUS", victus: "HP", pavilion: "HP", omen: "HP", predator: "Acer", expertbook: "ASUS", cyborg: "MSI", katana: "MSI", thin: "MSI", bravo: "MSI", modern: "MSI", pongo: "Axioo", hype: "Axioo", workplus: "Advan", pixwar: "Advan", pixelwar: "Advan", swift: "Acer", envy: "HP", elitebook: "HP", thinkcentre: "Lenovo", proart: "ASUS", travelmate: "Acer", probook: "HP", raider: "MSI", stealth: "MSI", mybook: "Axioo", inspiron: "Dell", xps: "Dell", latitude: "Dell", alienware: "Dell", galaxy: "Samsung", odyssey: "Samsung", imac: "Apple", redmi: "Xiaomi", poco: "Xiaomi",
 };
 const PRODUCT_TERMS = /laptop|laptp|notebook|komputer|\bpc\b|desktop|tower|aio|all[ -]in[ -]one|smartphone|handphone|\bhp\b|ponsel|iphone|tablet|ipad|gadget|aksesoris|aksesori|monitor|display|keyboard|mouse|headset|earphone|headphone|speaker|tws|webcam|charger|adaptor|adapter|printer|tinta|cartridge|scanner|flashdisk|cooler|cooling\s*pad|kabel|cable|converter|docking|hub|tas|backpack|sleeve|mousepad|stand|bracket|ups|stabilizer|powerbank|produk|barang|rekomendasi|carikan|cari|beli|jual|stok|ready|harga|budget|spek|spesifikasi|merek|brand|slug|banding|\bvs\b|gaming|game|ngegame|desain|design|editing|kuliah|sekolah|pelajar|siswa|mahasiswa|anak\s*sekolah|kerja|kantor|office|coding|programming|streaming|lebih murah|lebih mahal|yang tadi|revit|autocad|cad|archicad|sketchup|3ds\s*max|3d\s*max|lumion|blender|solidworks|inventor|civil\s*3d|adobe|photoshop|illustrator|premiere|after\s*effects|corel|davinci|resolve|arsitektur|arsitek|3d|animasi|\b(cpu|gpu(?:nya)?|vga(?:nya)?|bervga|grafis(?:nya)?|kartu\s*grafis|prose[sc]or(?:nya)?|prosessro|proci|proc|memor[iy](?:nya)?|ram(?:nya)?|ssd|hdd|storage|penyimpanan|layar|display|warna|tipe|type|seri|sku|mtm|rtx|gtx)\b/i;
-const SERVICE_TERMS = /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|order|refund|garansi|retur|kebijakan|website|situs|admin|whatsapp|\bfaq\b/i;
+export const SERVICE_TERMS = /daftar|registrasi|register|login|masuk|akun|keranjang|cart|checkout|voucher|kupon|bayar|pembayaran|transfer|pengiriman|kurir|ongkir|pesanan|pesenan|pessanan|pesnan|order|orderan|oredan|ordran|refund|garansi|retur|kebijakan|website|situs|admin|whatsapp|\bfaq\b|\bORD-[A-Za-z0-9-]+\b|lacak|resi|tagihan|status\s*(?:pesanan|order|pengiriman)?/i;
+
+export function isAiIdentityQuestion(message: string): boolean {
+  return /\b(?:lu|lo|kamu|anda|bot)?\s*(?:pake|pakai|menggunakan|dibangun|dibuat|dari|berbasis|pakai\s+model|model\s+apa|buatan)\s*(?:ai|model|gpt|llm|teknologi|siapa)\b|\b(?:ai|model|gpt|llm)\s*(?:apa|siapa)\b|\b(?:gpt|openai|gemini|llama|claude)\s*(?:aja|saja|itu)?\b|\b(?:siapa\s+(?:yang\s+)?(?:buat|bikin|ciptain|kembangin)\s*(?:lu|lo|kamu|anda|bot))\b/i.test(message);
+}
+
+export const AI_IDENTITY_ANSWER = "Saya adalah Ai Next Chat bot, asisten kecerdasan buatan resmi Next Solution Store yang dikembangkan khusus untuk membantu Anda berkonsultasi seputar produk laptop, PC, gadget, spesifikasi teknis, cek pesanan, dan layanan belanja di toko kami. Ada yang bisa saya bantu hari ini?";
 export const BRANDS = [
   "ASUS", "Acer", "Lenovo", "Apple", "Advan", "HP", "Dell", "MSI", "Gigabyte", "Axioo", "Huawei", "Xiaomi", "Zyrex",
   "Samsung", "Redmi", "Poco", "Infinix", "Tecno", "Itel", "Realme", "Oppo", "Vivo",
@@ -149,7 +155,7 @@ export function getProductCriteria(message: string, history: ChatTurn[], brands:
     alternativeRequest || currentGraphicsModel !== null ||
     /^(kalau|kalo|terus|yang|ada|lebih|gimana|bagaimana|itu|tadi|warna|4050|4060|3050)\b/i.test(current));
   const outOfScope = !smallTalk && !capabilityQuestion && !PRODUCT_TERMS.test(current) && currentSeries.length === 0 && !SERVICE_TERMS.test(current) &&
-    currentBudget.amount === null && !followUp && !alternativeRequest;
+    currentBudget.amount === null && !followUp && !alternativeRequest && !/\bORD-[A-Za-z0-9-]+\b/i.test(current);
 
   const currentCategory = findCategory(current);
   const previousCategory = findCategory(latestUserTurn(userTurns, (text) => findCategory(text) !== null) ?? "");
@@ -825,7 +831,15 @@ function addressesActiveRequest(answer: string, criteria: ProductCriteria): bool
   return true;
 }
 export function selectConversationalAnswer(generatedText: string | null | undefined, fallback: string) {
-  const answer = generatedText?.trim();
+  let answer = generatedText?.trim();
+  if (answer) {
+    // Strip rocket and robot emojis
+    answer = answer.replace(/[\u{1F680}\u{1F916}]/gu, "").trim();
+    // Neutralize any vendor leaks if model accidentally mentions them
+    answer = answer.replace(/\b(?:model\s+)?(?:GPT-4o?|GPT-3\.5|GPT-4-turbo|GPT-4)\b/gi, "teknologi AI");
+    answer = answer.replace(/\bOpenAI\b/gi, "Next Solution");
+    answer = answer.replace(/\bGoogle\s+Gemini\b/gi, "Ai Next");
+  }
   const hasUnsafeStoreReference = answer && (/\bstok(?:nya)?\b.{0,20}\b\d+|\btersedia\b.{0,20}\b\d+|\bunit ready\b|\bdi katalog Next Solution\b/i.test(answer));
   const hasProductIdentifier = answer && (/https?:\/\/|\blocalhost(?::\d+)?\b|\/product\/|\b(?:sku|mtm|id produk|product id)\s*[:#-]?\s*[a-z0-9-]{3,}/i.test(answer) ||
     /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i.test(answer));

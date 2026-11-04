@@ -7,8 +7,13 @@ import {
   TOOL_CARI_PRODUK,
   TOOL_INFO_TOKO,
   TOOL_CEK_PESANAN,
+  TOOL_DAFTAR_PESANAN_SAYA,
+  TOOL_CEK_DETAIL_PRODUK,
+  executeDaftarPesananSaya,
+  executeCekDetailProduk,
 } from "@/app/api/recommend/route";
-import { getProductCriteria } from "@/lib/recommendation-assistant";
+import { getProductCriteria, isAiIdentityQuestion, AI_IDENTITY_ANSWER, SERVICE_TERMS } from "@/lib/recommendation-assistant";
+import { sanitizeChatbotResponse } from "@/app/api/recommend/route";
 
 describe("Chatbot History Conversion", () => {
   it("caps history at 20 messages, trims text to 500 characters, and removes invalid roles", () => {
@@ -33,6 +38,9 @@ describe("Chatbot Phase 3 Tools - Declaration metadata", () => {
     expect(TOOL_CEK_PESANAN.name).toBe("cek_pesanan");
     expect(TOOL_CEK_PESANAN.parameters?.required).toContain("nomor_pesanan");
     expect(TOOL_CEK_PESANAN.parameters?.required).toContain("email_atau_hp");
+    expect(TOOL_DAFTAR_PESANAN_SAYA.name).toBe("daftar_pesanan_saya");
+    expect(TOOL_CEK_DETAIL_PRODUK.name).toBe("cek_detail_produk");
+    expect(TOOL_CEK_DETAIL_PRODUK.parameters?.required).toContain("nama_atau_sku");
   });
 });
 
@@ -268,5 +276,100 @@ describe("Chatbot Phase 3 Tools - executeCekPesanan", () => {
     expect(res.success).toBe(true);
     expect(res.nomor_pesanan).toBe("ORD-20261027-001");
     expect(res.status).toContain("Sedang Diproses");
+  });
+});
+
+describe("Chatbot Phase 4 Tools - executeCekDetailProduk & executeDaftarPesananSaya", () => {
+  const dummyCatalog: any[] = [
+    {
+      id: "prod-vivobook",
+      name: "ASUS Vivobook Go 14 E1404FA",
+      slug: "asus-vivobook-go-14",
+      sku: "E1404FA-FHD321",
+      price: 7999000,
+      discount_price: 7499000,
+      stock: 10,
+      description: "Laptop ringan dengan prosesor Ryzen 3 7320U",
+      categories: { name: "Laptop", slug: "laptop" },
+      brands: { name: "ASUS", slug: "asus" },
+      product_specifications: [
+        { key: "Processor", value: "AMD Ryzen 3 7320U" },
+        { key: "RAM", value: "8GB LPDDR5" },
+        { key: "Storage", value: "512GB M.2 NVMe SSD" },
+      ],
+      product_variants: [
+        { id: "var-silver", sku: "E1404FA-SLV", color: "Cool Silver", ram: "8GB", storage: "512GB", price: 7499000, stock: 6 },
+        { id: "var-black", sku: "E1404FA-BLK", color: "Mixed Black", ram: "8GB", storage: "512GB", price: 7499000, stock: 4 },
+      ],
+    },
+  ];
+
+  it("checks detailed product specifications and variants by product name", () => {
+    const res = executeCekDetailProduk(dummyCatalog, "Vivobook Go 14");
+    expect(res.success).toBe(true);
+    expect(res.nama_produk).toBe("ASUS Vivobook Go 14 E1404FA");
+    expect(res.brand).toBe("ASUS");
+    expect(res.total_stok_tersedia).toBe(10);
+    expect(res.varian_tersedia?.length).toBe(2);
+    expect(res.spesifikasi_lengkap?.length).toBe(3);
+  });
+
+  it("checks detailed product by variant SKU", () => {
+    const res = executeCekDetailProduk(dummyCatalog, "E1404FA-SLV");
+    expect(res.success).toBe(true);
+    expect(res.nama_produk).toBe("ASUS Vivobook Go 14 E1404FA");
+  });
+
+  it("returns helpful message when product is not found", () => {
+    const res = executeCekDetailProduk(dummyCatalog, "MacBook Pro M3 Max");
+    expect(res.success).toBe(false);
+    expect(res.message).toContain("tidak ditemukan");
+  });
+
+  it("requires login when executeDaftarPesananSaya is called without session", async () => {
+    const res = await executeDaftarPesananSaya(null, null);
+    expect(res.success).toBe(false);
+    expect(res.is_logged_in).toBe(false);
+    expect(res.message).toContain("belum login");
+  });
+});
+
+
+describe("Ai Next Chat bot Identity, Privacy & Order Inquiry Enhancements", () => {
+  it("detects AI identity questions accurately and rejects vendor leaks", () => {
+    expect(isAiIdentityQuestion("bang, lu pake ai apa")).toBe(true);
+    expect(isAiIdentityQuestion("gpt aja itu?")).toBe(true);
+    expect(isAiIdentityQuestion("lu pake model apa")).toBe(true);
+    expect(isAiIdentityQuestion("siapa yang bikin kamu")).toBe(true);
+    expect(isAiIdentityQuestion("kamu buatan siapa")).toBe(true);
+    expect(isAiIdentityQuestion("kamu gpt-4 ya")).toBe(true);
+    expect(isAiIdentityQuestion("apakah kamu pakai openai")).toBe(true);
+
+    expect(isAiIdentityQuestion("rekomendasi laptop gaming 15 jutaan")).toBe(false);
+    expect(isAiIdentityQuestion("cek pesanan saya")).toBe(false);
+
+    expect(AI_IDENTITY_ANSWER).toContain("Ai Next Chat bot");
+    expect(AI_IDENTITY_ANSWER).toContain("Next Solution Store");
+    expect(AI_IDENTITY_ANSWER).not.toContain("OpenAI");
+    expect(AI_IDENTITY_ANSWER).not.toContain("GPT-4");
+    expect(AI_IDENTITY_ANSWER).not.toContain("Gemini");
+  });
+
+  it("recognizes order numbers and typo variations in SERVICE_TERMS", () => {
+    expect(SERVICE_TERMS.test("ORD-20261104-01")).toBe(true);
+    expect(SERVICE_TERMS.test("oredan ini abng gimana ORD-20261104-01")).toBe(true);
+    expect(SERVICE_TERMS.test("yang belum dibayar orderan apa bang")).toBe(true);
+    expect(SERVICE_TERMS.test("pesenan saya sudah dikirim belum")).toBe(true);
+    expect(SERVICE_TERMS.test("lacak resi pengiriman")).toBe(true);
+  });
+
+  it("sanitizes rocket and robot emojis and neutralizes model leaks", () => {
+    const raw = "Halo! Aku dibangun di atas model GPT-4 dari OpenAI. Semuanya aman! 🚀🤖";
+    const cleaned = sanitizeChatbotResponse(raw);
+    expect(cleaned).not.toContain("🚀");
+    expect(cleaned).not.toContain("🤖");
+    expect(cleaned).not.toContain("GPT-4");
+    expect(cleaned).not.toContain("OpenAI");
+    expect(cleaned).toContain("Next Solution");
   });
 });

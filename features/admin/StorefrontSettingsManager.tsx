@@ -178,7 +178,15 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
   const [activeSettingsTab, setActiveSettingsTab] = useState<
     "all" | "branding" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store" | "invoice"
-  >("all");
+  >(() => {
+    if (typeof window !== "undefined") {
+      const tabParam = new URLSearchParams(window.location.search).get("tab");
+      if (tabParam && ["all", "branding", "features", "sections", "marketplaces", "branches", "reviews", "store", "invoice"].includes(tabParam)) {
+        return tabParam as any;
+      }
+    }
+    return "branding";
+  });
   const [adminReviews, setAdminReviews] = useState<AdminReviewWithDetails[]>([]);
   const [adminAvatarUrl, setAdminAvatarUrl] = useState("");
   const [busyUpload, setBusyUpload] = useState(false);
@@ -883,7 +891,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Logo, Identitas Toko & Foto Profil Admin */}
       {(activeSettingsTab === "all" || activeSettingsTab === "branding") && (
-        <div id="storefront-branding-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-6 shadow-sm scroll-mt-20">
+        <div id="storefront-branding-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-6 shadow-sm scroll-mt-20">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
@@ -1171,7 +1179,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Fitur & Sistem Toko (Toggles Pengiriman, Pickup, Pembayaran, Fitur Pelanggan, dsb.) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "features") && (
-        <div id="storefront-features-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div id="storefront-features-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
@@ -2139,7 +2147,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Bagian Halaman Depan */}
       {(activeSettingsTab === "all" || activeSettingsTab === "sections") && (
-        <div id="storefront-sections-settings" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div id="storefront-sections-settings" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
@@ -2356,7 +2364,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
   {/* SECTION: Official Marketplace & Toko Online */}
   {(activeSettingsTab === "all" || activeSettingsTab === "marketplaces") && (
-    <div id="storefront-marketplaces-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+    <div id="storefront-marketplaces-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
@@ -2682,7 +2690,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* SECTION: Cabang Toko & Peta Interaktif */}
       {(activeSettingsTab === "all" || activeSettingsTab === "branches") && (
-      <div id="storefront-branches-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+      <div id="storefront-branches-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
@@ -2944,7 +2952,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* SECTION: Ulasan & Review Produk Pelanggan (Slider Beranda) */}
       {(activeSettingsTab === "all" || activeSettingsTab === "reviews") && (
-      <div id="storefront-reviews-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+      <div id="storefront-reviews-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="p-2.5 rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
@@ -3202,7 +3210,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Informasi Toko Utama & Footer */}
       {(activeSettingsTab === "all" || activeSettingsTab === "store") && (
-      <div id="storefront-store-section" className="space-y-8 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+      <div id="storefront-store-section" className="admin-card-optimized space-y-8 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
           <div className="flex items-center gap-2.5">
@@ -3584,7 +3592,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
 
       {/* Pengaturan Faktur Penjualan & Layanan Komplain */}
       {(activeSettingsTab === "all" || activeSettingsTab === "invoice") && (
-        <div id="storefront-invoice-section" className="space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
+        <div id="storefront-invoice-section" className="admin-card-optimized space-y-6 rounded-[28px] sm:rounded-[34px] border border-slate-200/80 dark:border-white/5 bg-white dark:bg-[#1E2028] p-5 sm:p-7 shadow-sm scroll-mt-24">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">

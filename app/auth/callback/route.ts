@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { getSupabaseCredentials } from '@/lib/supabase/config'
 import { getSupabaseAdminClient } from '@/lib/supabase/admin'
+import { getSafeRedirectUrl } from '@/lib/security'
 
 type CookieSetOptions = Parameters<NextResponse['cookies']['set']>[2]
 type CookieItem = {
@@ -15,9 +16,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const requestedNext = searchParams.get('next')
-  let next = requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//')
-    ? requestedNext
-    : '/profile'
+  let next = getSafeRedirectUrl(requestedNext, '/profile')
 
   // Resolve true public origin (essential for Netlify, Vercel, and reverse proxies)
   const forwardedHost = request.headers.get('x-forwarded-host')

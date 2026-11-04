@@ -23,13 +23,15 @@ describe("recommendation chat responsive UI", () => {
       onClose: vi.fn(),
     }));
 
-    expect(html).toContain("Konsultasi Produk");
-    expect(html).toContain("Konsultan Spesifikasi Toko");
+    expect(html).toContain("Ai Next Chat bot");
+    expect(html).toContain("Asisten Toko");
+    expect(html).toContain("Konsultasi Belanja");
     expect(html).not.toContain("Next Assistant");
     expect(html).toContain("100dvh");
     expect(html).toContain("safe-area-inset-bottom");
     expect(html).toContain("sm:max-w");
-    expect(html).toContain("Buat kuliah");
+    expect(html).toContain("Rekomendasi Laptop");
+    expect(html).toContain("Cek Pesanan Saya");
     expect(html).toContain("Kirim pesan");
     expect(html).toContain("Mulai chat baru");
     expect(html).not.toContain("Mulai percakapan.");

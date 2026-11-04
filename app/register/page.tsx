@@ -9,6 +9,7 @@ import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { Eye, EyeOff, Check, X, AlertCircle, LoaderCircle } from "lucide-react";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { getSafeRedirectUrl } from "@/lib/security";
 import { cn } from "@/lib/utils";
 import { isValidIndonesianPhone } from "@/lib/phone";
 
@@ -64,7 +65,7 @@ export default function RegisterPage() {
   const [googleLoginEnabled, setGoogleLoginEnabled] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [redirectTarget] = useState(() => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("redirect") || "" : ""));
+  const [redirectTarget] = useState(() => (typeof window !== "undefined" ? getSafeRedirectUrl(new URLSearchParams(window.location.search).get("redirect") || "", "") : ""));
 
   useEffect(() => {
     getStorefrontSettingsAction()

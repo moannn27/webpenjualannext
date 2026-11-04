@@ -1,5 +1,6 @@
 'use server'
 
+import { getSafeRedirectUrl } from '@/lib/security'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
@@ -28,12 +29,7 @@ export async function login(formData: FormData) {
   }
 
   const requestedRedirect = formData.get('redirect')
-  const redirectUrl = typeof requestedRedirect === 'string'
-    ? new URL(requestedRedirect, 'http://localhost')
-    : null
-  const redirectPath = redirectUrl?.origin === 'http://localhost'
-    ? `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`
-    : '/profile'
+  const redirectPath = getSafeRedirectUrl(requestedRedirect, '/profile')
   if (redirectPath !== '/profile') redirect(redirectPath)
 
   const { data: profile } = await supabase.from('users').select('role').eq('id', data.user.id).maybeSingle()
@@ -151,8 +147,9 @@ async function getOAuthRedirect(redirectPath: string) {
 
   origin = origin.replace(/\/+$/, '')
   const callback = new URL('/auth/callback', origin)
-  if (redirectPath && redirectPath !== '/profile' && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
-    callback.searchParams.set('next', redirectPath)
+  const safeNext = getSafeRedirectUrl(redirectPath, '')
+  if (safeNext && safeNext !== '/profile') {
+    callback.searchParams.set('next', safeNext)
   }
   return callback.toString()
 }

@@ -161,6 +161,17 @@ header.sticky,
 }
 
 /* Optimize table row rendering performance for large datasets */
+/* Hardware-accelerated smooth scrolling & layout containment for Admin Shell */
+[data-admin-shell] {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-card-optimized {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 300px;
+}
+
 .table-row-optimized {
   content-visibility: auto;
   contain-intrinsic-size: auto 54px;

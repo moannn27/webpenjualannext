@@ -57,7 +57,7 @@ export function toRecommendationHistory(messages: Message[]) {
   }));
 }
 
-const suggestions = ["Buat kuliah", "Buat kerja", "Belum tahu, bantu tentukan"];
+const suggestions = ["Rekomendasi Laptop", "Cek Pesanan Saya", "Tanya Garansi & Toko", "Cara Pemesanan"];
 
 export function ProductCards({ products, isExpanded, title }: { products: Product[]; isExpanded: boolean; title?: string }) {
   if (!products.length) return null;
@@ -146,7 +146,7 @@ export function RecommendationChatWindow({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Halo! Selamat datang di Next Solution. Aku siap membantu kamu menemukan perangkat elektronik yang paling sesuai. Supaya saranku tepat, perangkat apa yang sedang kamu cari dan akan digunakan untuk apa?",
+      text: "Halo! Selamat datang di Next Solution Store. Aku Ai Next Chat bot, asisten pintar toko yang siap bantu kamu mencari rekomendasi produk, cek detail spesifikasi & stok, cek nomor pesanan akunmu, info toko & garansi, hingga panduan belanja. Ada yang bisa kubantu?",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -261,10 +261,10 @@ export function RecommendationChatWindow({
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-semibold tracking-tight">Konsultasi Produk</h2>
+                <h2 className="text-sm font-semibold tracking-tight">Ai Next Chat bot</h2>
                 <span className="flex size-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/20" />
               </div>
-              <p className="text-[11px] text-primary-foreground/80">Konsultan Spesifikasi Toko</p>
+              <p className="text-[11px] text-primary-foreground/80">Asisten Toko & Konsultasi Belanja</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -274,7 +274,7 @@ export function RecommendationChatWindow({
                 setMessages([
                   {
                     role: "assistant",
-                    text: "Halo! Selamat datang di Next Solution. Aku siap membantu kamu menemukan perangkat elektronik yang paling sesuai. Supaya saranku tepat, perangkat apa yang sedang kamu cari dan akan digunakan untuk apa?",
+                    text: "Halo! Selamat datang di Next Solution Store. Aku Ai Next Chat bot, asisten pintar toko yang siap bantu kamu mencari rekomendasi produk, cek detail spesifikasi & stok, cek nomor pesanan akunmu, info toko & garansi, hingga panduan belanja. Ada yang bisa kubantu?",
                   },
                 ]);
               }}

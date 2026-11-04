@@ -10,16 +10,18 @@ import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { resendVerificationAction } from "@/actions/auth_extended";
 import { getStorefrontSettingsAction } from "@/actions/content";
 import { normalizeStorefrontSettings } from "@/lib/storefront-settings";
+import { getSafeRedirectUrl, sanitizeReflectedString } from "@/lib/security";
 
 export default function LoginPage() {
   const [error, setError] = useState(() => {
     if (typeof window === "undefined") return "";
     const err = new URLSearchParams(window.location.search).get("error");
-    return err ? decodeURIComponent(err) : "";
+    return err ? sanitizeReflectedString(decodeURIComponent(err), 200) : "";
   });
   const [redirectTarget] = useState(() => {
     if (typeof window === "undefined") return "";
-    return new URLSearchParams(window.location.search).get("redirect") || "";
+    const raw = new URLSearchParams(window.location.search).get("redirect") || "";
+    return getSafeRedirectUrl(raw, "");
   });
   const [attention, setAttention] = useState<{
     type: "wishlist" | "checkout" | "cart" | "generic";
@@ -101,10 +103,11 @@ export default function LoginPage() {
       window.dispatchEvent(new CustomEvent("app:start-loading"));
     }
 
-    const requestedRedirect = new URLSearchParams(window.location.search).get("redirect");
+    const rawRedirect = new URLSearchParams(window.location.search).get("redirect");
+    const safeRedirect = getSafeRedirectUrl(rawRedirect, "");
     setEmail(String(formData.get("email") ?? ""));
     setVerificationSent(false);
-    if (requestedRedirect) formData.set("redirect", requestedRedirect);
+    if (safeRedirect) formData.set("redirect", safeRedirect);
     
     try {
       const result = await login(formData);
@@ -297,7 +300,7 @@ export default function LoginPage() {
             </div>
 
             <GoogleAuthButton
-              redirectPath={redirectTarget || (typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("redirect") || "/profile") : "/profile")}
+              redirectPath={redirectTarget || "/profile"}
               mode="signin"
               onStart={() => setError("")}
               onError={(msg) => setError(msg)}

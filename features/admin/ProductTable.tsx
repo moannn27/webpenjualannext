@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Search, Plus, Edit, Trash, Info, Layers, Sparkles, Tag, Star, Zap, SlidersHorizontal, Trash2, CheckCircle, XCircle, Archive, Sliders, CheckCheck, ArrowUp, RotateCcw, Check, X, FileSpreadsheet, Download, Printer, FileText, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import { ProductImagePicker } from "@/features/admin/ProductImagePicker";
 import { getVariantGallerySaveBlockReason } from "@/lib/admin-product-variants";
 import {
@@ -583,7 +583,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                 : "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100"
             }`}
           >
-            ⚠️ Stok Kosong ({outOfStockCount})
+            Stok Kosong ({outOfStockCount})
           </button>
           <button
             type="button"
@@ -594,7 +594,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                 : "bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100"
             }`}
           >
-            ⚡ Stok Menipis ({lowStockCount})
+            Stok Menipis ({lowStockCount})
           </button>
           <button
             type="button"
@@ -605,7 +605,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                 : "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100"
             }`}
           >
-            ✓ Stok Tersedia ({inStockCount})
+            Stok Tersedia ({inStockCount})
           </button>
         </div>
 
@@ -663,10 +663,10 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             className="h-9 w-full rounded-lg border border-input bg-background px-2.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <option value="all">Semua Stok</option>
-            <option value="out_of_stock">⚠️ Stok Kosong (0)</option>
-            <option value="low_stock">⚡ Stok Menipis (1 - 5)</option>
-            <option value="in_stock">✓ Stok Tersedia (&gt; 0)</option>
-            <option value="custom">⚙️ Kustom Stok...</option>
+            <option value="out_of_stock">Stok Kosong (0)</option>
+            <option value="low_stock">Stok Menipis (1 - 5)</option>
+            <option value="in_stock">Stok Tersedia (&gt; 0)</option>
+            <option value="custom">Kustom Stok...</option>
           </select>
         </div>
 
@@ -683,7 +683,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             <option value="5m_10m">Rp 5 Jt - 10 Jt</option>
             <option value="10m_20m">Rp 10 Jt - 20 Jt</option>
             <option value="above_20m">&gt; Rp 20 Juta</option>
-            <option value="custom">⚙️ Kustom Harga...</option>
+            <option value="custom">Kustom Harga...</option>
           </select>
         </div>
 
@@ -912,22 +912,22 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                     <div className="flex items-center gap-1.5 mt-0.5">
                       {isRecentlyAdded(product.created_at) && (
                         <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                          <Sparkles className="size-2.5" /> Baru
+                          <Zap className="size-2.5" /> Baru
                         </span>
                       )}
                       {(product.is_featured || (product.discount_price != null && Number(product.discount_price) > 0)) && (
                         <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.2 text-[10px] font-bold text-rose-700 dark:text-rose-400">
-                          🏷️ Promo
+                          <Tag className="size-2.5" /> Promo
                         </span>
                       )}
                       {product.is_best_seller && (
                         <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-bold text-amber-700 dark:text-amber-400">
-                          ⭐ Best Seller
+                          <Star className="size-2.5" /> Best Seller
                         </span>
                       )}
                       {product.is_new_arrival && (
                         <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.2 text-[10px] font-bold text-blue-700 dark:text-blue-400">
-                          ✨ Baru
+                          <Zap className="size-2.5" /> Baru
                         </span>
                       )}
                     </div>
@@ -1645,8 +1645,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                   className="w-full h-10 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
                 >
                   <option value="keep">— Jangan ubah —</option>
-                  <option value="yes">⭐ Ya, Jadikan Best Seller</option>
-                  <option value="no">❌ Hapus dari Best Seller</option>
+                  <option value="yes">Ya, Jadikan Best Seller</option>
+                  <option value="no">Hapus dari Best Seller</option>
                 </select>
               </div>
 
@@ -1658,8 +1658,8 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
                   className="w-full h-10 rounded-xl border border-input bg-background px-2.5 text-xs focus:ring-2 focus:ring-primary outline-none"
                 >
                   <option value="keep">— Jangan ubah —</option>
-                  <option value="yes">✨ Ya, Tandai Produk Baru</option>
-                  <option value="no">❌ Hapus tanda Produk Baru</option>
+                  <option value="yes">Ya, Tandai Produk Baru</option>
+                  <option value="no">Hapus tanda Produk Baru</option>
                 </select>
               </div>
             </div>
@@ -1828,7 +1828,7 @@ export function ProductTable({ initialProducts, categories, brands, initialSearc
             </div>
 
             <div className="rounded-xl bg-muted/40 p-3 text-[11px] text-muted-foreground">
-              💡 Rekap mencakup SKU/MTM produk & varian spesifikasi (RAM/Storage/Warna), stok saat ini, status ketersediaan, harga jual, serta kalkulasi nilai aset.
+              Rekap mencakup SKU/MTM produk & varian spesifikasi (RAM/Storage/Warna), stok saat ini, status ketersediaan, harga jual, serta kalkulasi nilai aset.
             </div>
           </div>
 
