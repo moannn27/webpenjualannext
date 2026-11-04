@@ -108,6 +108,10 @@ export function CartClient({
         quantity: it.quantity,
       }));
       const res = await syncCartAction(payload);
+      if (!res.success && res.error === "Unauthorized") {
+        router.push("/login?redirect=/checkout&notice=checkout");
+        return;
+      }
       if (res.success && res.cart?.cart_items) {
         const seeded: StoredCartItem[] = res.cart.cart_items.map((it: Parameters<typeof formatCartItemToStored>[0]) =>
           formatCartItemToStored(it)
@@ -116,7 +120,8 @@ export function CartClient({
       }
       router.push("/checkout");
     } catch (err) {
-      if (err instanceof Error && err.message === "Unauthorized") {
+      const raw = err instanceof Error ? err.message : "";
+      if (raw.includes("Unauthorized") || raw.includes("441")) {
         router.push("/login?redirect=/checkout&notice=checkout");
       } else {
         router.push("/checkout");

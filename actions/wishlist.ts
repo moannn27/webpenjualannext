@@ -17,9 +17,15 @@ export async function getWishlistAction() {
 export async function toggleWishlistAction(productId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) {
+    return { success: false, error: "Unauthorized", action: null }
+  }
 
-  const result = await wishlistService.toggleWishlist(user.id, productId)
-  revalidatePath('/wishlist')
-  return result
+  try {
+    const result = await wishlistService.toggleWishlist(user.id, productId)
+    revalidatePath('/wishlist')
+    return { success: true, ...result }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Gagal memperbarui wishlist", action: null }
+  }
 }

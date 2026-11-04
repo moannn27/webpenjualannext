@@ -151,9 +151,17 @@ export function PromoBanner({
   const handleToggleWishlist = async (productId: string) => {
     try {
       const res = await toggleWishlistAction(productId);
+      if (!res.success) {
+        if (res.error === "Unauthorized") {
+          router.push("/login?notice=wishlist");
+          return;
+        }
+        return;
+      }
       setSavedProducts((prev) => ({ ...prev, [productId]: res.action === "added" }));
     } catch (err) {
-      if (err instanceof Error && err.message === "Unauthorized") {
+      const raw = err instanceof Error ? err.message : "";
+      if (raw.includes("Unauthorized") || raw.includes("441")) {
         router.push("/login?notice=wishlist");
       }
     }

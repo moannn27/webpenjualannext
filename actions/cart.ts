@@ -6,6 +6,14 @@ import { revalidatePath } from 'next/cache'
 
 const cartService = new CartService()
 
+export type AddToCartResult = {
+  success: boolean
+  error?: string
+  cartCount?: number
+  itemQuantity?: number
+  cartItem?: any
+}
+
 export async function getCartAction() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,52 +30,86 @@ export async function getProductCartQuantitiesAction(productId: string) {
   return await cartService.getProductCartQuantities(user.id, productId)
 }
 
-export async function addToCartAction(productId: string, quantity: number, variantId: string | null = null) {
-  if (!productId || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new Error("Jumlah produk tidak valid")
+export async function addToCartAction(
+  productId: string,
+  quantity: number,
+  variantId: string | null = null
+): Promise<AddToCartResult> {
+  if (!productId || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+    return { success: false, error: "Jumlah produk tidak valid" }
+  }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) {
+    return { success: false, error: "Unauthorized" }
+  }
 
-  const result = await cartService.addItem(user.id, productId, quantity, variantId)
-  revalidatePath('/', 'layout')
-  return { success: true, ...result }
+  try {
+    const result = await cartService.addItem(user.id, productId, quantity, variantId)
+    revalidatePath('/', 'layout')
+    return { success: true, ...result }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Gagal menambahkan produk ke keranjang"
+    return { success: false, error: message }
+  }
 }
 
-export async function updateCartQuantityAction(itemId: string, productId: string, quantity: number, variantId: string | null = null) {
-  if (!itemId || !productId || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) throw new Error("Jumlah produk tidak valid")
+export async function updateCartQuantityAction(
+  itemId: string,
+  productId: string,
+  quantity: number,
+  variantId: string | null = null
+) {
+  if (!itemId || !productId || !Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+    return { success: false, error: "Jumlah produk tidak valid" }
+  }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) return { success: false, error: "Unauthorized" }
 
-  await cartService.updateQuantity(itemId, quantity, productId, variantId)
-  revalidatePath('/', 'layout')
+  try {
+    await cartService.updateQuantity(itemId, quantity, productId, variantId)
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Gagal memperbarui jumlah" }
+  }
 }
 
 export async function removeFromCartAction(itemId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) return { success: false, error: "Unauthorized" }
 
-  await cartService.removeItem(itemId)
-  revalidatePath('/', 'layout')
+  try {
+    await cartService.removeItem(itemId)
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Gagal menghapus produk" }
+  }
 }
 
 export async function syncCartAction(
   items: { productId: string; variantId?: string | null; quantity: number }[]
 ) {
-  if (!Array.isArray(items)) throw new Error("Format data keranjang tidak valid")
+  if (!Array.isArray(items)) return { success: false, error: "Format data keranjang tidak valid" }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) return { success: false, error: "Unauthorized" }
 
-  const normalized = items.map((it) => ({
-    productId: it.productId,
-    variantId: it.variantId ?? null,
-    quantity: Math.max(1, Math.min(999, Math.floor(it.quantity || 1))),
-  }))
+  try {
+    const normalized = items.map((it) => ({
+      productId: it.productId,
+      variantId: it.variantId ?? null,
+      quantity: Math.max(1, Math.min(999, Math.floor(it.quantity || 1))),
+    }))
 
-  const cart = await cartService.syncCart(user.id, normalized)
-  revalidatePath('/cart')
-  revalidatePath('/checkout')
-  return { success: true, cart }
+    const cart = await cartService.syncCart(user.id, normalized)
+    revalidatePath('/cart')
+    revalidatePath('/checkout')
+    return { success: true, cart }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Gagal menyinkronkan keranjang" }
+  }
 }

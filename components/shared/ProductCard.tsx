@@ -36,6 +36,15 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
   const toggleWishlist = async () => {
     try {
       const res = await toggleWishlistAction(product.id);
+      if (!res.success) {
+        if (res.error === "Unauthorized") {
+          toast.info("Perlu Masuk Akun", "Silakan masuk terlebih dahulu untuk menyimpan wishlist.");
+          router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
+          return;
+        }
+        toast.error("Gagal", res.error || "Terjadi kesalahan saat memperbarui wishlist.");
+        return;
+      }
       const isAdded = res.action === "added";
       setSaved(isAdded);
       toast.success(
@@ -43,7 +52,8 @@ export function ProductCard({ product, badgeContext = "all" }: ProductCardProps)
         `Produk "${product.name}" ${isAdded ? "berhasil disimpan." : "telah dihapus."}`
       );
     } catch (err) {
-      if (err instanceof Error && err.message === "Unauthorized") {
+      const raw = err instanceof Error ? err.message : "";
+      if (raw.includes("Unauthorized") || raw.includes("441")) {
         toast.info("Perlu Masuk Akun", "Silakan masuk terlebih dahulu untuk menyimpan wishlist.");
         router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
         return;

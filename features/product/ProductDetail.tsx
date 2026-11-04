@@ -270,8 +270,31 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     setFeedback("");
     try {
       const result = await addToCartAction(product.id, quantity, selectedVariant?.id ?? null);
-      setCartCountAfterAdd(result.cartCount);
-      setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity }));
+      if (!result.success) {
+        if (result.error === "Unauthorized") {
+          toast.warning(
+            "Silakan Masuk Terlebih Dahulu",
+            "Anda perlu login untuk menambahkan produk ke keranjang."
+          );
+          router.push(`/login?redirect=/product/${product.id}&notice=cart`);
+          return;
+        }
+        const rawMsg = result.error || "Produk gagal dimasukkan ke keranjang.";
+        const lower = rawMsg.toLowerCase();
+        if (lower.includes("stok") || lower.includes("habis") || lower.includes("kosong")) {
+          toast.error(
+            "Stok Tidak Mencukupi",
+            "Jumlah yang diminta melebihi stok yang tersedia saat ini."
+          );
+        } else {
+          toast.error("Gagal Menambahkan", rawMsg);
+        }
+        setCartError(rawMsg);
+        return;
+      }
+
+      setCartCountAfterAdd(result.cartCount ?? null);
+      setCartQuantityByVariant((current) => ({ ...current, [selectedVariant?.id ?? "product"]: result.itemQuantity ?? quantity }));
       
       if (result.cartItem) {
         useCartStore.getState().addItemDirect(result.cartItem);
@@ -283,20 +306,25 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         price: product.discount_price ?? product.price,
         quantity,
       });
-      emitCartUpdated(result.cartCount);
+      emitCartUpdated(result.cartCount ?? 1);
       toast.success(
         "Berhasil Ditambahkan",
         `${quantity} unit "${product.name}" berhasil dimasukkan ke keranjang belanja.`
       );
     } catch (error) {
-      if (error instanceof Error && error.message === "Unauthorized") {
+      const rawMsg = error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.";
+      if (
+        rawMsg.includes("Unauthorized") ||
+        rawMsg.includes("441") ||
+        rawMsg.includes("Server Components render") ||
+        rawMsg.includes("digest")
+      ) {
         toast.warning(
           "Silakan Masuk Terlebih Dahulu",
           "Anda perlu login untuk menambahkan produk ke keranjang."
         );
         router.push(`/login?redirect=/product/${product.id}&notice=cart`);
       } else {
-        const rawMsg = error instanceof Error ? error.message : "Produk gagal dimasukkan ke keranjang.";
         const lower = rawMsg.toLowerCase();
         if (lower.includes("stok") || lower.includes("habis") || lower.includes("kosong")) {
           toast.error(
@@ -329,6 +357,16 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
     setWishlistLoading(true);
     try {
       const result = await toggleWishlistAction(product.id);
+      if (!result.success) {
+        if (result.error === "Unauthorized") {
+          toast.warning("Silakan Masuk", "Masuk untuk menyimpan produk ke wishlist.");
+          router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
+          return;
+        }
+        toast.error("Gagal Wishlist", result.error || "Wishlist gagal diperbarui.");
+        setFeedback("Wishlist gagal diperbarui.");
+        return;
+      }
       setSaved(result.action === "added");
       if (result.action === "added") {
         toast.success("Wishlist", `"${product.name}" berhasil ditambahkan ke wishlist.`);
@@ -338,7 +376,13 @@ export function ProductDetail({ product, reviews = [], initialCartQuantities = [
         setFeedback("Dihapus dari wishlist.");
       }
     } catch (error) {
-      if (error instanceof Error && error.message === "Unauthorized") {
+      const rawMsg = error instanceof Error ? error.message : "";
+      if (
+        rawMsg.includes("Unauthorized") ||
+        rawMsg.includes("441") ||
+        rawMsg.includes("Server Components render") ||
+        rawMsg.includes("digest")
+      ) {
         toast.warning("Silakan Masuk", "Masuk untuk menyimpan produk ke wishlist.");
         router.push(`/login?redirect=/product/${product.id}&notice=wishlist`);
       } else {
