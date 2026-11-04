@@ -8,10 +8,27 @@ import { normalizeStorefrontSettings } from '@/lib/storefront-settings'
 
 const checkoutService = new CheckoutService()
 
-export async function proceedToCheckoutAction(formData: FormData) {
+export type CheckoutActionResult =
+  | {
+      success: true
+      orderId: string
+      orderNumber: string
+      grandTotal: number
+      courier: string
+      recipientName: string
+      paymentMethod: string
+    }
+  | {
+      success: false
+      error: string
+    }
+
+export async function proceedToCheckoutAction(formData: FormData): Promise<CheckoutActionResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Unauthorized")
+  if (!user) {
+    return { success: false, error: 'Sesi login telah berakhir. Silakan login kembali.' }
+  }
 
   // Validate form data
   const taxRequested = formData.get('taxInvoiceRequested') === 'true' || formData.get('taxInvoiceRequested') === 'on'
@@ -32,60 +49,67 @@ export async function proceedToCheckoutAction(formData: FormData) {
     taxAmount: formData.get('taxAmount') ? Number(formData.get('taxAmount')) : undefined,
   })
   if (!validated.success) {
-    throw new Error(validated.error.issues.map((issue) => issue.message).join(", "))
+    return { success: false, error: validated.error.issues.map((issue) => issue.message).join(', ') }
   }
 
-  // Validate against storefront business rules & security constraints
-  const { data: storefront, error } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
-  if (error) throw new Error('Informasi pengaturan toko belum bisa diperiksa. Silakan coba lagi.')
-  const sfSettings = normalizeStorefrontSettings(storefront?.settings ?? {})
+  try {
+    // Validate against storefront business rules & security constraints
+    const { data: storefront, error } = await supabase.from('storefront_settings').select('settings').eq('id', 'main').maybeSingle()
+    if (error) {
+      return { success: false, error: 'Informasi pengaturan toko belum bisa diperiksa. Silakan coba lagi.' }
+    }
+    const sfSettings = normalizeStorefrontSettings(storefront?.settings ?? {})
 
-  if (validated.data.shippingMethod === 'pickup') {
-    const hasAddress = Boolean(sfSettings.pickup_info.store_address.trim() || sfSettings.store.address.trim())
-    if (!hasAddress) {
-      throw new Error('Lokasi pickup belum diatur oleh admin. Silakan pilih pengiriman atau hubungi admin.')
+    if (validated.data.shippingMethod === 'pickup') {
+      const hasAddress = Boolean(sfSettings.pickup_info.store_address.trim() || sfSettings.store.address.trim())
+      if (!hasAddress) {
+        return { success: false, error: 'Lokasi pickup belum diatur oleh admin. Silakan pilih pengiriman atau hubungi admin.' }
+      }
     }
-  }
 
-  if (validated.data.paymentMethod === 'qris') {
-    if (sfSettings.features.qris_enabled === false) {
-      throw new Error('Metode pembayaran QRIS sedang dinonaktifkan oleh admin toko.')
+    if (validated.data.paymentMethod === 'qris') {
+      if (sfSettings.features.qris_enabled === false) {
+        return { success: false, error: 'Metode pembayaran QRIS sedang dinonaktifkan oleh admin toko.' }
+      }
+      if (!sfSettings.features.qris_image_url || !sfSettings.features.qris_image_url.trim()) {
+        return { success: false, error: 'Metode QRIS belum dapat digunakan karena kode QR toko belum dimasukkan oleh admin di pengaturan.' }
+      }
+    } else if (validated.data.paymentMethod === 'cash_on_pickup') {
+      if (validated.data.shippingMethod !== 'pickup') {
+        return { success: false, error: 'Metode bayar tunai di kasir (Cash on Pickup) hanya dapat digunakan untuk opsi Ambil Sendiri di Toko.' }
+      }
+      if (sfSettings.features.cash_payment_enabled === false) {
+        return { success: false, error: 'Metode bayar tunai di kasir sedang dinonaktifkan oleh admin toko.' }
+      }
+    } else if (validated.data.paymentMethod === 'manual_transfer') {
+      if (sfSettings.features.bank_transfer_enabled === false) {
+        return { success: false, error: 'Metode transfer bank manual sedang dinonaktifkan oleh admin toko.' }
+      }
     }
-    if (!sfSettings.features.qris_image_url || !sfSettings.features.qris_image_url.trim()) {
-      throw new Error('Metode QRIS belum dapat digunakan karena kode QR toko belum dimasukkan oleh admin di pengaturan.')
-    }
-  } else if (validated.data.paymentMethod === 'cash_on_pickup') {
-    if (validated.data.shippingMethod !== 'pickup') {
-      throw new Error('Metode bayar tunai di kasir (Cash on Pickup) hanya dapat digunakan untuk opsi Ambil Sendiri di Toko.')
-    }
-    if (sfSettings.features.cash_payment_enabled === false) {
-      throw new Error('Metode bayar tunai di kasir sedang dinonaktifkan oleh admin toko.')
-    }
-  } else if (validated.data.paymentMethod === 'manual_transfer') {
-    if (sfSettings.features.bank_transfer_enabled === false) {
-      throw new Error('Metode transfer bank manual sedang dinonaktifkan oleh admin toko.')
-    }
-  }
 
-  const voucherCode = (formData.get('voucherCode') as string | null)?.trim() || undefined
-  const order = await checkoutService.checkout(user.id, validated.data, voucherCode)
+    const voucherCode = (formData.get('voucherCode') as string | null)?.trim() || undefined
+    const order = await checkoutService.checkout(user.id, validated.data, voucherCode)
 
-  const { data: createdOrder } = await supabase
-    .from('orders')
-    .select('id, order_number, grand_total, status, courier')
-    .eq('id', order.id)
-    .single()
+    const { data: createdOrder } = await supabase
+      .from('orders')
+      .select('id, order_number, grand_total, status, courier')
+      .eq('id', order.id)
+      .single()
 
-  revalidatePath('/cart')
-  revalidatePath('/profile')
-  revalidatePath('/admin/orders')
-  return {
-    success: true,
-    orderId: order.id,
-    orderNumber: createdOrder?.order_number || '',
-    grandTotal: Number(createdOrder?.grand_total || 0),
-    courier: createdOrder?.courier || validated.data.shippingMethod,
-    recipientName: validated.data.recipientName,
-    paymentMethod: validated.data.paymentMethod,
+    revalidatePath('/cart')
+    revalidatePath('/profile')
+    revalidatePath('/admin/orders')
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: createdOrder?.order_number || '',
+      grandTotal: Number(createdOrder?.grand_total || 0),
+      courier: createdOrder?.courier || validated.data.shippingMethod,
+      recipientName: validated.data.recipientName,
+      paymentMethod: validated.data.paymentMethod,
+    }
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Pesanan belum berhasil dibuat. Coba lagi.'
+    return { success: false, error: errorMsg }
   }
 }

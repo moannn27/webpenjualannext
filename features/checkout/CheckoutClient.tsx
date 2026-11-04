@@ -638,6 +638,11 @@ export function CheckoutClient({
       }
 
       const result = await proceedToCheckoutAction(sanitizedFormData);
+      if (!result.success) {
+        setErrorMessage(result.error || "Pesanan belum berhasil dibuat. Coba lagi.");
+        toast.error("Gagal Checkout", result.error || "Pesanan belum berhasil dibuat. Coba lagi.");
+        return;
+      }
       if (result && result.success) {
         emitCartUpdated(0);
 
@@ -703,7 +708,10 @@ export function CheckoutClient({
       if (error instanceof Error && error.message === "NEXT_REDIRECT") {
         return;
       }
-      const msg = error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi.";
+      const rawMsg = error instanceof Error ? error.message : "Pesanan belum berhasil dibuat. Coba lagi.";
+      const msg = rawMsg.includes("441") || rawMsg.includes("Server Components render")
+        ? "Terjadi kesalahan saat memproses pesanan. Silakan periksa koneksi atau masuk kembali ke akun Anda."
+        : rawMsg;
       setErrorMessage(msg);
       toast.error("Gagal Checkout", msg);
     } finally {
