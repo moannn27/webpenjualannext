@@ -280,7 +280,7 @@ describe("Chatbot Phase 3 Tools - executeCekPesanan", () => {
 });
 
 describe("Chatbot Phase 4 Tools - executeCekDetailProduk & executeDaftarPesananSaya", () => {
-  const dummyCatalog: any[] = [
+  const dummyCatalog = [
     {
       id: "prod-vivobook",
       name: "ASUS Vivobook Go 14 E1404FA",
@@ -305,7 +305,7 @@ describe("Chatbot Phase 4 Tools - executeCekDetailProduk & executeDaftarPesananS
   ];
 
   it("checks detailed product specifications and variants by product name", () => {
-    const res = executeCekDetailProduk(dummyCatalog, "Vivobook Go 14");
+    const res = executeCekDetailProduk(dummyCatalog as unknown as Parameters<typeof executeCekDetailProduk>[0], "Vivobook Go 14");
     expect(res.success).toBe(true);
     expect(res.nama_produk).toBe("ASUS Vivobook Go 14 E1404FA");
     expect(res.brand).toBe("ASUS");
@@ -315,13 +315,13 @@ describe("Chatbot Phase 4 Tools - executeCekDetailProduk & executeDaftarPesananS
   });
 
   it("checks detailed product by variant SKU", () => {
-    const res = executeCekDetailProduk(dummyCatalog, "E1404FA-SLV");
+    const res = executeCekDetailProduk(dummyCatalog as unknown as Parameters<typeof executeCekDetailProduk>[0], "E1404FA-SLV");
     expect(res.success).toBe(true);
     expect(res.nama_produk).toBe("ASUS Vivobook Go 14 E1404FA");
   });
 
   it("returns helpful message when product is not found", () => {
-    const res = executeCekDetailProduk(dummyCatalog, "MacBook Pro M3 Max");
+    const res = executeCekDetailProduk(dummyCatalog as unknown as Parameters<typeof executeCekDetailProduk>[0], "MacBook Pro M3 Max");
     expect(res.success).toBe(false);
     expect(res.message).toContain("tidak ditemukan");
   });

@@ -1097,3 +1097,37 @@ Pembaruan komprehensif ini merangkum perbaikan storefront, alur checkout, tata l
 * **Vitest Suite**: **50 dari 50 Test Suites Lolos** (553 dari 553 tests passed, 0 failed).
 * **TypeScript Check**: `npx tsc --noEmit` lolos **0 Errors**.
 * **Next.js Production Build**: `npm run build` sukses mengompilasi dan mengoptimasi **seluruh 47 rute** tanpa peringatan.
+
+
+---
+
+## 34. Pembersihan Strict Typing ESLint & Perbaikan URL Query String Pesanan Admin
+
+*Tanggal Pelaksanaan*: 4 November 2026  
+*Target*: Membersihkan 5 error tipe `any` pada ESLint (`@typescript-eslint/no-explicit-any`) pasca-sinkronisasi perubahan kantor, memperkuat tipe data TypeScript, serta memperbaiki bug perakitan URL query string pada tab status pesanan admin.
+
+### 34.1. Akar Masalah
+1. **ESLint Errors Pasca-Pull (`@typescript-eslint/no-explicit-any`)**:
+   - `actions/cart.ts`: Deklarasi `cartItem?: any` pada `AddToCartResult` memicu error linting.
+   - `app/api/recommend/route.ts`: Penggunaan `(i: any)` saat merangkum data pesanan pengguna dan variabel `queriedOrderDirectly: any`.
+   - `features/admin/StorefrontSettingsManager.tsx`: Casting query string URL `tabParam as any`.
+   - `__tests__/api/chatbot-tools.test.ts`: Variabel `dummyCatalog: any[]` memicu error linting.
+2. **Bug URL Query String Tab Status Pesanan Admin**:
+   - Pada `app/admin/orders/page.tsx`, tautan tab filter status menggunakan konkatenasi string manual:
+     `${filterSearch ? "?search=..." : ""}${sortOption ? "&sort=..." : ""}`
+   - Jika pengguna memfilter dengan kata kunci kosong dan memilih opsi pengurutan (misal: "Tanggal Terlama"), tautan tab "Semua" menghasilkan URL cacat: `/admin/orders&sort=date_asc` (kehilangan tanda tanya `?`).
+
+### 34.2. Solusi yang Diterapkan
+1. **Resolusi Strict Typing**:
+   - [`actions/cart.ts`](file:///c:/webnext/actions/cart.ts): Mengganti `cartItem?: any` dengan `cartItem?: StoredCartItem | null` menggunakan tipe resmi dari `@/store/useCartStore`.
+   - [`app/api/recommend/route.ts`](file:///c:/webnext/app/api/recommend/route.ts): Mengganti `(i: any)` dengan `(o.order_items as Array<{ product_name?: string; quantity?: number }>)` dan `queriedOrderDirectly: Awaited<ReturnType<typeof executeCekPesanan>> | null`.
+   - [`features/admin/StorefrontSettingsManager.tsx`](file:///c:/webnext/features/admin/StorefrontSettingsManager.tsx): Mengganti `as any` dengan union type tab valid.
+   - [`__tests__/api/chatbot-tools.test.ts`](file:///c:/webnext/__tests__/api/chatbot-tools.test.ts): Mengganti `dummyCatalog: any[]` dengan inferensi parameter tipe `Parameters<typeof executeCekDetailProduk>[0]`.
+2. **Perbaikan URL Tab Menggunakan URLSearchParams**:
+   - [`app/admin/orders/page.tsx`](file:///c:/webnext/app/admin/orders/page.tsx): Menggunakan fungsi `createTabUrl` berbasis `URLSearchParams` yang menjamin parameter `status`, `search`, dan `sort` tersusun secara valid (selalu berawalan `?`).
+
+### 34.3. Verifikasi Pengujian & Build
+* **TypeScript Check**: `npx tsc --noEmit` lolos **0 Errors**.
+* **ESLint Check**: `npm run lint` lolos **0 Errors, 0 Warnings**.
+* **Vitest Suite**: **50 dari 50 Test Suites Lolos** (553 dari 553 tests passed, 100%).
+* **Next.js Production Build**: `npm run build` sukses mengompilasi seluruh 47 rute website.

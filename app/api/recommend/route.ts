@@ -1185,7 +1185,7 @@ export async function POST(request: Request) {
       if (userOrders && userOrders.length > 0) {
         userOrdersSummary = userOrders.map((o) => {
           const items = Array.isArray(o.order_items)
-            ? o.order_items.map((i: any) => `${i.product_name} (${i.quantity || 1}x)`).join(", ")
+            ? (o.order_items as Array<{ product_name?: string; quantity?: number }>).map((i) => `${i.product_name} (${i.quantity || 1}x)`).join(", ")
             : "Produk";
           return `- No. Pesanan #${o.order_number} | Status: "${o.status}" | Total: Rp${Number(o.grand_total || o.total_amount || 0).toLocaleString("id-ID")} | Barang: [${items}]`;
         }).join("\n");
@@ -1354,7 +1354,7 @@ Pesan terbaru pengguna: ${message}`;
   }
 
   const orderNumberMatch = message.match(/\b(ORD-[A-Za-z0-9-]+)\b/i);
-  let queriedOrderDirectly: any = null;
+  let queriedOrderDirectly: Awaited<ReturnType<typeof executeCekPesanan>> | null = null;
   if (orderNumberMatch) {
     try {
       const directRes = await executeCekPesanan(supabase, orderNumberMatch[1], sessionUser?.email || "", sessionUser);

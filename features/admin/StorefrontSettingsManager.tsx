@@ -182,7 +182,7 @@ export function StorefrontSettingsManager({ initialSettings }: { initialSettings
     if (typeof window !== "undefined") {
       const tabParam = new URLSearchParams(window.location.search).get("tab");
       if (tabParam && ["all", "branding", "features", "sections", "marketplaces", "branches", "reviews", "store", "invoice"].includes(tabParam)) {
-        return tabParam as any;
+        return tabParam as "all" | "branding" | "features" | "sections" | "marketplaces" | "branches" | "reviews" | "store" | "invoice";
       }
     }
     return "branding";

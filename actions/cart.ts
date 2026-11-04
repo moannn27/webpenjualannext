@@ -3,6 +3,7 @@
 import { CartService } from '@/services/cart.service'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { type StoredCartItem } from '@/store/useCartStore'
 
 const cartService = new CartService()
 
@@ -11,7 +12,7 @@ export type AddToCartResult = {
   error?: string
   cartCount?: number
   itemQuantity?: number
-  cartItem?: any
+  cartItem?: StoredCartItem | null
 }
 
 export async function getCartAction() {

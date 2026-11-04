@@ -121,6 +121,15 @@ export default async function AdminOrdersPage({
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const pagedOrders = sortedOrders.slice(startIndex, startIndex + PAGE_SIZE);
 
+  const createTabUrl = (statusValue: string) => {
+    const params = new URLSearchParams();
+    if (statusValue) params.set("status", statusValue);
+    if (filterSearch) params.set("search", filterSearch);
+    if (sortOption && sortOption !== "date_desc") params.set("sort", sortOption);
+    const qs = params.toString();
+    return qs ? `/admin/orders?${qs}` : "/admin/orders";
+  };
+
   const createPageUrl = (targetPage: number) => {
     const params = new URLSearchParams();
     if (filterStatus) params.set("status", filterStatus);
@@ -278,9 +287,7 @@ export default async function AdminOrdersPage({
           <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
             {tabs.map((tab) => {
               const isActive = filterStatus === tab.value;
-              const href = tab.value
-                ? `/admin/orders?status=${tab.value}${filterSearch ? `&search=${encodeURIComponent(filterSearch)}` : ""}${sortOption ? `&sort=${sortOption}` : ""}`
-                : `/admin/orders${filterSearch ? `?search=${encodeURIComponent(filterSearch)}` : ""}${sortOption ? `&sort=${sortOption}` : ""}`;
+              const href = createTabUrl(tab.value);
               return (
                 <Link
                   key={tab.value}
